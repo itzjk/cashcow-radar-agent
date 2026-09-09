@@ -1,4 +1,4 @@
-// popup.js — NicheScanner Pro popup dashboard
+// popup.js
 
 const TIER_CLASSES = {
   LEGENDARY: 'mc-legendary',
@@ -16,37 +16,22 @@ let savedChannels = [];
 // ── Boot ────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadData();
-  bindTabs();
   bindFooter();
-  bindWatchlist();
   document.getElementById('btn-options').addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
-  // Country Faceless Scanner — opens dedicated dashboard tab
-  const ctyBtn = document.getElementById('btn-country-feed');
-  if (ctyBtn) {
-    ctyBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: chrome.runtime.getURL('country-feed/country-feed.html') });
-      window.close();
-    });
-  }
-  // Monetize Studio — analiza + transforma video contra desmonetización
-  const monBtn = document.getElementById('btn-monetize-studio');
-  if (monBtn) {
-    monBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: chrome.runtime.getURL('monetize-studio/index.html') });
-      window.close();
-    });
-  }
-  // Índice de Nichos ZERACK — abre la página que consulta el backend local
-  const idxBtn = document.getElementById('btn-niche-index');
-  if (idxBtn) {
-    idxBtn.addEventListener('click', () => {
-      chrome.tabs.create({ url: chrome.runtime.getURL('niche-index/niche-index.html') });
-      window.close();
-    });
-  }
+  openOnClick('btn-command-center', 'dashboard/dashboard.html');
+  openOnClick('btn-niche-index', 'niche-index/niche-index.html');
 });
+
+function openOnClick(id, page) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('click', () => {
+    chrome.tabs.create({ url: chrome.runtime.getURL(page) });
+    window.close();
+  });
+}
 
 function loadData() {
   // Read channels from chrome.storage.local (reliable, no tab dependency)
@@ -154,6 +139,8 @@ function renderTopVideos(videos) {
 
 // ── Channels ─────────────────────────────────────────────────────────────
 function renderChannels() {
+  if (!document.getElementById('channels-list')) return;
+
   const list  = document.getElementById('channels-list');
   const empty = document.getElementById('empty-channels');
 
@@ -273,6 +260,8 @@ function formatN(n) {
 
 // ── Watchlist ────────────────────────────────────────────────────────────
 function renderWatchlist() {
+  if (!document.getElementById('watchlist-items')) return;
+
   const container = document.getElementById('watchlist-items');
   const empty = document.getElementById('empty-watchlist');
 
@@ -306,12 +295,6 @@ function renderWatchlist() {
   });
 }
 
-function bindWatchlist() {
-  document.getElementById('wl-add-btn').addEventListener('click', addKeyword);
-  document.getElementById('wl-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') addKeyword();
-  });
-}
 
 function addKeyword() {
   const input = document.getElementById('wl-input');
@@ -339,27 +322,13 @@ function saveWatchlist() {
 }
 
 // ── Tabs ─────────────────────────────────────────────────────────────────
-function bindTabs() {
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      tab.classList.add('active');
-      const panelId = 'tab-' + tab.dataset.tab;
-      document.querySelectorAll('.tab-panel').forEach(p => {
-        p.style.display = p.id === panelId ? 'block' : 'none';
-      });
-    });
-  });
-}
 
 // ── Footer ───────────────────────────────────────────────────────────────
 function bindFooter() {
   document.getElementById('btn-export').addEventListener('click', exportCSV);
+  openOnClick('btn-country-feed', 'country-feed/country-feed.html');
   document.getElementById('btn-open-yt').addEventListener('click', () => {
     chrome.tabs.create({ url: 'https://www.youtube.com' });
-  });
-  document.getElementById('btn-nichemaster').addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/dashboard.html') });
   });
   document.getElementById('btn-niches').addEventListener('click', () => {
     chrome.tabs.create({ url: chrome.runtime.getURL('niches/niches.html') });

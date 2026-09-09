@@ -133,7 +133,7 @@ function toggleWatch(ch, btn) {
     var watching = res.nsp_watching || {};
     if (watching[ch.channelUrl]) {
       delete watching[ch.channelUrl];
-      btn.textContent = '🔕 Watch';
+      btn.textContent = 'Watch';
       btn.classList.remove('active');
       btn.title = 'Click para activar alertas de outliers';
     } else {
@@ -145,7 +145,7 @@ function toggleWatch(ch, btn) {
         lastChecked: 0,
         knownVideoIds: []
       };
-      btn.textContent = '🔔 Watching';
+      btn.textContent = 'Watching';
       btn.classList.add('active');
       btn.title = 'Recibes notif. cuando publique outliers (cada 6h)';
       // Ensure alarm exists
@@ -211,7 +211,7 @@ function render() {
     return 0;
   });
 
-  document.getElementById('total-count').textContent = allChannels.length + ' canal' + (allChannels.length !== 1 ? 'es' : '');
+  document.getElementById('total-count').textContent = allChannels.length + (allChannels.length === 1 ? ' channel' : ' channels');
   document.getElementById('empty-state').style.display = filtered.length ? 'none' : 'block';
 
   var grid = document.getElementById('grid');
@@ -226,7 +226,7 @@ function render() {
     // Source badge
     var srcBadge = document.createElement('span');
     srcBadge.className = 'source-badge source-' + (ch.source || 'scout');
-    srcBadge.textContent = ch.source === 'manual' ? '💾 Guardado' : '🔭 Scout';
+    srcBadge.textContent = ch.source === 'manual' ? 'Saved' : 'Scout';
     card.appendChild(srcBadge);
 
     // Multi-select checkbox
@@ -322,11 +322,11 @@ function render() {
 
     if (ch.avgOS)    statsRow.appendChild(statBox('OS:' + ch.avgOS, 'Score'));
     if (ch.topVPH)   statsRow.appendChild(statBox(fmtN(ch.topVPH), 'Top VPH'));
-    if (ch.revMonth) statsRow.appendChild(statBox(fmtRev(ch.revMonth), '/mes'));
+    if (ch.revMonth) statsRow.appendChild(statBox(fmtRev(ch.revMonth), 'Per month'));
     if (ch.subs)     statsRow.appendChild(statBox(fmtN(ch.subs), 'Subs'));
     if (ch.channelAgeDays !== null && ch.channelAgeDays !== undefined) {
       var ageStr = fmtAge(ch.channelAgeDays);
-      statsRow.appendChild(statBox(ageStr, ch.channelAgeDays < 180 ? '🌱 Edad' : 'Edad'));
+      statsRow.appendChild(statBox(ageStr, 'Age'));
     }
 
     if (statsRow.children.length) body.appendChild(statsRow);
@@ -344,7 +344,7 @@ function render() {
     // Open button
     var openBtn = document.createElement('button');
     openBtn.className = 'ch-open-btn';
-    openBtn.textContent = '📺 Abrir Canal';
+    openBtn.textContent = 'Open channel';
     openBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       chrome.tabs.create({ url: ch.channelUrl });
@@ -379,7 +379,7 @@ function render() {
     var watchBtn = document.createElement('button');
     watchBtn.className = 'ch-lab-btn';
     var isWatching = !!(watchingCache && watchingCache[ch.channelUrl]);
-    watchBtn.textContent = isWatching ? '🔔 Watching' : '🔕 Watch';
+    watchBtn.textContent = isWatching ? 'Watching' : 'Watch';
     watchBtn.title = isWatching ? 'Recibes notif. cuando publique outliers (cada 6h)' : 'Click para activar alertas de outliers';
     if (isWatching) watchBtn.classList.add('active');
     watchBtn.addEventListener('click', function(e) {
@@ -417,6 +417,44 @@ function render() {
 
     grid.appendChild(card);
   });
+
+  renderPortfolio();
+}
+
+function medianOf(values) {
+  var arr = values.filter(function(v) { return typeof v === 'number' && isFinite(v) && v > 0; }).sort(function(a, b) { return a - b; });
+  if (!arr.length) return 0;
+  var mid = Math.floor(arr.length / 2);
+  return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+}
+
+function renderPortfolio() {
+  var box = document.getElementById('portfolio');
+  if (!box) return;
+  var list = getCurrentFilteredChannels();
+  var setText = function(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = value;
+  };
+  setText('pf-channels', String(list.length));
+  setText('pf-vph', fmtN(Math.round(medianOf(list.map(function(c) { return c.topVPH || 0; })))));
+  var rev = list.reduce(function(acc, c) { return acc + (Number(c.revMonth) || 0); }, 0);
+  setText('pf-rev', rev ? fmtRev(Math.round(rev)) : '--');
+  setText('pf-exploding', String(list.filter(isExplodingChannel).length));
+
+  var byNiche = {};
+  list.forEach(function(c) {
+    var key = c.niche || 'unclassified';
+    if (!byNiche[key]) byNiche[key] = [];
+    byNiche[key].push(Number(c.avgOS) || 0);
+  });
+  var best = '', bestScore = 0, bestCount = 0;
+  Object.keys(byNiche).forEach(function(key) {
+    if (byNiche[key].length < 2) return;
+    var m = medianOf(byNiche[key]);
+    if (m > bestScore) { bestScore = m; best = key; bestCount = byNiche[key].length; }
+  });
+  setText('pf-niche', best ? (best + '  ' + Math.round(bestScore) + ' OS  ' + bestCount + ' channels') : 'needs 2 channels in one niche');
 }
 
 function removeChannel(url) {
@@ -473,7 +511,7 @@ function updateBulkBar() {
     document.getElementById('nsp-bulk-delete').onclick = function() {
       var sel = getSelectedChannels();
       if (!sel.length) return;
-      if (!confirm('¿Borrar ' + sel.length + ' canales seleccionados?')) return;
+      if (!confirm('Remove ' + sel.length + ' selected channels?')) return;
       var urls = sel.map(function(c) { return c.channelUrl; });
       allChannels = allChannels.filter(function(c) { return urls.indexOf(c.channelUrl) === -1; });
       chrome.storage.local.set({ nsp_all_channels: allChannels }, function() {
@@ -500,10 +538,10 @@ function openIdeasPanelFor(channels) {
 
   var top = channels.slice(0, 10);
   modal.innerHTML = '<div class="nsp-modal-header">'
-    + '<div class="nsp-modal-title">💡 Ideas para ' + top.length + ' canales seleccionados</div>'
+    + '<div class="nsp-modal-title">Ideas for ' + top.length + ' selected channels</div>'
     + '<button class="nsp-modal-close" id="nsp-ideas-close-2">✕</button></div>'
     + '<div class="nsp-modal-body">'
-    + '<div class="ideas-subhead">Claude generará 5 ideas frescas basadas en los canales que elegiste</div>'
+    + '<div class="ideas-subhead">Five fresh angles built from the channels you picked</div>'
     + '<div class="ideas-channels" id="nsp-ideas-preview-2"></div>'
     + '<button class="export-format-btn" id="nsp-ideas-gen-2">⚡ Generar ideas</button>'
     + '<div class="ideas-output" id="nsp-ideas-out-2"></div></div>';
@@ -554,7 +592,7 @@ function bulkWatch(channels) {
       var bar = document.getElementById('nsp-bulk-count');
       if (bar) {
         var prev = bar.textContent;
-        bar.textContent = '🔔 ' + channels.length + ' canales en watchlist';
+        bar.textContent = '' + channels.length + ' channels on the watchlist';
         setTimeout(function() { bar.textContent = prev; }, 2000);
       }
       // Register chrome.alarm if not yet registered
@@ -1137,7 +1175,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Clear
   document.getElementById('btn-clear').addEventListener('click', function() {
-    if (!confirm('¿Borrar TODOS los canales del hub?')) return;
+    if (!confirm('Remove EVERY saved channel?')) return;
     allChannels = [];
     chrome.storage.local.set({ nsp_all_channels: [] }, render);
   });
@@ -1203,7 +1241,7 @@ function downloadFile(content, filename, mimeType) {
 function exportAsJSON(channels) {
   var payload = {
     exportedAt: new Date().toISOString(),
-    exportedBy: 'NicheScanner Pro',
+    exportedBy: 'ZERACK',
     totalChannels: channels.length,
     channels: channels
   };
@@ -1251,13 +1289,13 @@ function openExportModal() {
   var totalFiltered = filtered.length;
 
   modal.innerHTML = '<div class="nsp-modal-header">'
-    + '  <div class="nsp-modal-title">📥 Exportar canales</div>'
+    + '  <div class="nsp-modal-title">Export channels</div>'
     + '  <button class="nsp-modal-close" id="nsp-export-close">✕</button>'
     + '</div>'
     + '<div class="nsp-modal-body">'
     + '  <div class="export-row">'
     + '    <label class="export-radio"><input type="radio" name="export-scope" value="filtered" checked> Solo filtrados (<strong>' + totalFiltered + '</strong>)</label>'
-    + '    <label class="export-radio"><input type="radio" name="export-scope" value="all"> Todos (<strong>' + totalAll + '</strong>)</label>'
+    + '    <label class="export-radio"><input type="radio" name="export-scope" value="all"> All (<strong>' + totalAll + '</strong>)</label>'
     + '  </div>'
     + '  <div class="export-row">'
     + '    <button class="export-format-btn" id="nsp-export-csv">📊 Descargar CSV<small>Excel / Sheets ready</small></button>'
@@ -1282,7 +1320,7 @@ function openExportModal() {
     var data = getScope();
     navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(function() {
       var btn = document.getElementById('nsp-export-clipboard');
-      btn.textContent = '✓ Copiado ' + data.length + ' canales';
+      btn.textContent = '✓ Copiado ' + data.length + ' channels';
       setTimeout(function() { backdrop.remove(); }, 1200);
     });
   };

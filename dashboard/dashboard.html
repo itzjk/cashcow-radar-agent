@@ -3,77 +3,91 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>NSP — Channel Hub</title>
+  <title>ZERACK · Command Center</title>
   <link rel="stylesheet" href="dashboard.css"/>
 </head>
 <body>
 <div class="header">
-  <div class="logo"><svg viewBox="0 0 100 60" width="24" height="15" fill="#fff" style="vertical-align:middle;margin-right:4px;filter:drop-shadow(0 0 4px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg> NSP <span class="logo-sub">Channel Hub</span></div>
+  <div class="logo"><svg viewBox="0 0 100 60" width="24" height="15" fill="#fff" style="vertical-align:middle;margin-right:4px;filter:drop-shadow(0 0 4px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg> ZERACK <span class="logo-sub">Command Center</span></div>
   <div class="header-right">
-    <span id="total-count" class="count-badge">0 canales</span>
-    <button class="icon-btn" id="btn-ideas" title="Generar ideas con Claude AI">💡 Ideas Hoy</button>
-    <button class="icon-btn" id="btn-export" title="Exportar canales a CSV o JSON">📥 Export</button>
-    <button class="icon-btn danger" id="btn-clear" title="Limpiar todo">🗑 Limpiar</button>
+    <span id="total-count" class="count-badge">0 channels</span>
+    <button class="icon-btn" id="btn-ideas" title="Generate video ideas from your saved channels">Ideas today</button>
+    <button class="icon-btn" id="btn-export" title="Export channels to CSV or JSON">Export</button>
+    <button class="icon-btn danger" id="btn-clear" title="Remove every saved channel">Clear all</button>
   </div>
 </div>
 
 <div class="toolbar">
   <div class="filter-group">
-    <span class="filter-label">FUENTE:</span>
-    <button class="pill active" data-filter="ALL">Todos</button>
-    <button class="pill" data-filter="manual">💾 Guardados</button>
-    <button class="pill" data-filter="scout">🔭 Scout</button>
+    <span class="filter-label">SOURCE:</span>
+    <button class="pill active" data-filter="ALL">All</button>
+    <button class="pill" data-filter="manual">Saved</button>
+    <button class="pill" data-filter="scout">Scout</button>
   </div>
   <div class="filter-group">
-    <span class="filter-label">NICHO:</span>
-    <button class="pill niche active" data-niche="ALL">Todos</button>
+    <span class="filter-label">NICHE:</span>
+    <button class="pill niche active" data-niche="ALL">All</button>
     <button class="pill niche" data-niche="🤖 AI">🤖 AI</button>
     <button class="pill niche" data-niche="💻 Tech">💻 Tech</button>
     <button class="pill niche" data-niche="💰 Finance">💰 Finance</button>
     <button class="pill niche" data-niche="🏢 Business">🏢 Business</button>
     <button class="pill niche" data-niche="📷 Camera">📷 Camera</button>
     <button class="pill niche" data-niche="🎮 Gaming">🎮 Gaming</button>
-    <button class="pill niche" data-niche="🔮 General">🔮 Otros</button>
+    <button class="pill niche" data-niche="🔮 General">Other</button>
   </div>
   <div class="filter-group">
-    <span class="filter-label">EDAD:</span>
-    <button class="pill age active" data-age="ALL">Todas</button>
-    <button class="pill age age-exploding" data-age="EXPLODING" title="<6 meses + <50K subs + alta tracción">💎 New & Exploding</button>
-    <button class="pill age" data-age="LT3M">🌱 &lt;3 meses</button>
-    <button class="pill age" data-age="LT6M">🌿 &lt;6 meses</button>
-    <button class="pill age" data-age="LT1Y">🌳 &lt;1 año</button>
-    <button class="pill age" data-age="GT1Y">🪵 +1 año</button>
+    <span class="filter-label">AGE:</span>
+    <button class="pill age active" data-age="ALL">Any</button>
+    <button class="pill age age-exploding" data-age="EXPLODING" title="under 6 months, under 50K subs, real traction">New and exploding</button>
+    <button class="pill age" data-age="LT3M">&lt;3 months</button>
+    <button class="pill age" data-age="LT6M">&lt;6 months</button>
+    <button class="pill age" data-age="LT1Y">&lt;1 year</button>
+    <button class="pill age" data-age="GT1Y">1 year+</button>
   </div>
   <div class="filter-group">
-    <span class="filter-label">ORDEN:</span>
-    <button class="pill sort active" data-sort="savedAt">Recientes</button>
+    <span class="filter-label">SORT:</span>
+    <button class="pill sort active" data-sort="savedAt">Recent</button>
     <button class="pill sort" data-sort="avgOS">Best OS</button>
     <button class="pill sort" data-sort="topVPH">Top VPH</button>
-    <button class="pill sort" data-sort="revMonth">💰 Rev</button>
-    <button class="pill sort" data-sort="channelAgeDays">🌱 Joven</button>
+    <button class="pill sort" data-sort="revMonth">Revenue</button>
+    <button class="pill sort" data-sort="channelAgeDays">Youngest</button>
   </div>
   <div class="filter-group">
-    <input id="search-input" class="search-box" placeholder="🔍 Buscar canal..." type="text"/>
+    <input id="search-input" class="search-box" placeholder="Search channel or niche" type="text"/>
   </div>
 </div>
 
-<section class="pro-launch-section" id="pro-launch-section">
-  <div class="pro-launch-copy">
-    <div class="pro-launch-kicker">ASHLYV PRO</div>
-    <h1 class="pro-launch-title">Niche Intelligence Tools</h1>
-    <p class="pro-launch-text">Selecciona un nicho del scan de ASHLYV y ejecuta scan, titulos, matrix global, replicacion y brand builder desde un solo panel.</p>
+<section class="portfolio" id="portfolio">
+  <div class="pf-card">
+    <div class="pf-n" id="pf-channels">0</div>
+    <div class="pf-l">channels tracked</div>
   </div>
-  <button class="pro-launch-btn" id="btn-pro-launch" type="button">PRO</button>
+  <div class="pf-card">
+    <div class="pf-n" id="pf-vph">0</div>
+    <div class="pf-l">median top VPH</div>
+  </div>
+  <div class="pf-card">
+    <div class="pf-n" id="pf-rev">$0</div>
+    <div class="pf-l">est. monthly revenue</div>
+  </div>
+  <div class="pf-card">
+    <div class="pf-n" id="pf-exploding">0</div>
+    <div class="pf-l">new and exploding</div>
+  </div>
+  <div class="pf-card wide">
+    <div class="pf-n" id="pf-niche">n/a</div>
+    <div class="pf-l">strongest niche by median opportunity</div>
+  </div>
 </section>
 
 <div id="empty-state" class="empty-state" style="display:none">
   <div class="empty-icon">📺</div>
-  <div class="empty-title">Sin canales todavía</div>
+  <div class="empty-title">No channels yet</div>
   <div class="empty-desc">
-    Entra a un canal en YouTube y clickea <strong>💾 Guardar</strong> en la barra NSP.<br>
-    O navega por búsquedas y el Scout los recopila automáticamente.
+    Open a channel on YouTube and hit <strong>Save</strong> in the ZERACK bar.<br>
+    Or browse searches and the scanner collects them as you go.
   </div>
-  <a href="https://www.youtube.com" target="_blank" class="cta-btn">Ir a YouTube</a>
+  <a href="https://www.youtube.com" target="_blank" class="cta-btn">Go to YouTube</a>
 </div>
 
 <div id="grid" class="grid"></div>

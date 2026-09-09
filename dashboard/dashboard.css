@@ -912,3 +912,35 @@ body {
   .pro-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pro-panel { max-height: 96vh; }
 }
+
+.portfolio {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.6fr);
+  gap: 10px;
+  margin: 14px 0 18px;
+}
+.pf-card {
+  background: #0a0a0a;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.pf-card.wide { display: flex; flex-direction: column; justify-content: center; }
+.pf-n {
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+}
+.pf-card.wide .pf-n { font-size: 15px; font-weight: 600; }
+.pf-l {
+  margin-top: 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(255,255,255,0.45);
+}
+@media (max-width: 900px) {
+  .portfolio { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

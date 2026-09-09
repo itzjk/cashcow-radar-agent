@@ -3,48 +3,34 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>NicheScanner Pro</title>
+  <title>ZERACK</title>
   <link rel="stylesheet" href="popup.css"/>
 </head>
 <body>
 <div class="header">
-  <div class="logo"><svg viewBox="0 0 100 60" width="26" height="16" fill="#fff" style="flex-shrink:0;filter:drop-shadow(0 0 4px rgba(255,255,255,0.55));vertical-align:middle;margin-right:2px"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg> NicheScanner Pro</div>
+  <div class="logo"><svg viewBox="0 0 100 60" width="26" height="16" fill="#fff" style="flex-shrink:0;filter:drop-shadow(0 0 4px rgba(255,255,255,0.55));vertical-align:middle;margin-right:2px"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg> ZERACK</div>
   <div class="header-actions">
     <button class="icon-btn" id="btn-options" title="Settings"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
   </div>
 </div>
 
-<!-- Country Faceless Scanner — opens dedicated dashboard -->
 <div class="country-cta">
-  <button id="btn-country-feed" class="country-cta-btn" title="Abrir Country Faceless Scanner (InnerTube API real, sin cookies del usuario)">
-    <span class="country-cta-icon"><svg class="bat-ic" viewBox="0 0 100 60" width="30" height="18" fill="#fff" style="filter:drop-shadow(0 0 4px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg></span>
+  <button id="btn-command-center" class="country-cta-btn" title="Everything you saved, scored and ranked in one place">
+    <span class="country-cta-icon">◉</span>
     <span class="country-cta-text">
-      <strong>COUNTRY FACELESS SCANNER</strong>
-      <small>Feed REAL por país (Germany, USA, Japan, etc.) — sin tu cuenta</small>
+      <strong>COMMAND CENTER</strong>
+      <small>Every channel and video you saved, scored, ranked and compared</small>
     </span>
     <span class="country-cta-arrow">→</span>
   </button>
 </div>
 
-<!-- Monetize Studio — blinda videos contra desmonetización -->
 <div class="country-cta">
-  <button id="btn-monetize-studio" class="country-cta-btn" title="Analiza y transforma tu video para que NO te desmonetice YouTube (zoom, efectos, narración)">
-    <span class="country-cta-icon"><svg class="bat-ic" viewBox="0 0 100 60" width="30" height="18" fill="#fff" style="filter:drop-shadow(0 0 4px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg></span>
+  <button id="btn-niche-index" class="country-cta-btn" title="Your local niche index, fed by every scan you run">
+    <span class="country-cta-icon">▤</span>
     <span class="country-cta-text">
-      <strong>MONETIZE STUDIO</strong>
-      <small>Analiza + transforma tu video (zoom, efectos) para que NO te desmonetice</small>
-    </span>
-    <span class="country-cta-arrow">→</span>
-  </button>
-</div>
-
-<!-- Índice de Nichos ZERACK — base local acumulativa alimentada por cada SCAN -->
-<div class="country-cta">
-  <button id="btn-niche-index" class="country-cta-btn" title="Tu base acumulativa de nichos — cada SCAN la alimenta automáticamente. 100% local.">
-    <span class="country-cta-icon"><svg class="bat-ic" viewBox="0 0 100 60" width="30" height="18" fill="#fff" style="filter:drop-shadow(0 0 4px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg></span>
-    <span class="country-cta-text">
-      <strong>ÍNDICE DE NICHOS (ZERACK)</strong>
-      <small>Tu base ACUMULATIVA de nichos: cada SCAN la alimenta sola — tendencias, VPH y mejores títulos. Sin backend, sin APIs.</small>
+      <strong>NICHE INDEX</strong>
+      <small>Built from your own scans: trends, VPH and the titles that worked</small>
     </span>
     <span class="country-cta-arrow">→</span>
   </button>
@@ -54,7 +40,7 @@
 <div class="stats-row">
   <div class="stat-box">
     <div class="stat-n" id="stat-analyzed">0</div>
-    <div class="stat-l">Analizados</div>
+    <div class="stat-l">Analyzed</div>
   </div>
   <div class="stat-box">
     <div class="stat-n" id="stat-gold">0</div>
@@ -68,45 +54,22 @@
 
 <!-- Current query badge -->
 <div id="current-query-row" class="query-row" style="display:none">
-  <span class="query-label">BÚSQUEDA:</span>
+  <span class="query-label">SEARCH:</span>
   <span id="current-query" class="query-val"></span>
 </div>
 
-<!-- Tabs -->
-<div class="tabs">
-  <button class="tab active" data-tab="top">TOP VIDEOS</button>
-  <button class="tab" data-tab="channels">CANALES</button>
-  <button class="tab" data-tab="watchlist">WATCHLIST</button>
-</div>
-
-<!-- Top Videos Panel -->
 <div id="tab-top" class="tab-panel">
+  <div class="list-head">SESSION TOP VIDEOS</div>
   <div id="top-list" class="video-list"></div>
-  <div id="empty-top" class="empty-msg">Abre YouTube y busca un nicho para ver resultados aquí.</div>
-</div>
-
-<!-- Channels Panel -->
-<div id="tab-channels" class="tab-panel" style="display:none">
-  <div id="channels-list" class="channels-list"></div>
-  <div id="empty-channels" class="empty-msg">Ve a un canal de YouTube y presiona<br>Guardar Canal para verlo aquí.</div>
-</div>
-
-<!-- Watchlist Panel -->
-<div id="tab-watchlist" class="tab-panel" style="display:none">
-  <div class="watchlist-add">
-    <input id="wl-input" class="wl-input" placeholder="Agregar keyword..." type="text"/>
-    <button id="wl-add-btn" class="pill-btn">+ ADD</button>
-  </div>
-  <div id="watchlist-items" class="wl-list"></div>
-  <div id="empty-watchlist" class="empty-msg">Guarda keywords desde YouTube o agrega aquí.</div>
+  <div id="empty-top" class="empty-msg">Open YouTube, search a niche and hit SCAN to see results here.</div>
 </div>
 
 <!-- Footer Actions -->
 <div class="footer">
   <button class="footer-btn" id="btn-export">Export CSV</button>
+  <button class="footer-btn" id="btn-country-feed">Country radar</button>
+  <button class="footer-btn" id="btn-niches">Niches</button>
   <button class="footer-btn" id="btn-open-yt">YouTube</button>
-  <button class="footer-btn" id="btn-niches">Nichos</button>
-  <button class="footer-btn" id="btn-nichemaster">Scout</button>
 </div>
 
 <script src="popup.js"></script>

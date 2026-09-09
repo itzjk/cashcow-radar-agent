@@ -1528,7 +1528,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         chrome.notifications.create({
           type: 'basic',
           iconUrl: msg.iconUrl || chrome.runtime.getURL('icons/icon128.png'),
-          title: String(msg.title || 'NicheScanner Pro').slice(0, 100),
+          title: String(msg.title || 'ZERACK').slice(0, 100),
           message: String(msg.message || '').slice(0, 300),
           priority: 1
         }, function() { sendResponse({ ok: true }); });

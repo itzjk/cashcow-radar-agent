@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "NicheScanner Pro",
+  "name": "ZERACK",
   "version": "4.92.1",
-  "description": "Overlay métricas reales sobre YouTube: VPH, multiplier viral, tiers, revenue estimate.",
+  "description": "Real YouTube intelligence: views per hour, viral multiplier, tier, revenue estimate and faceless detection on every card.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -76,7 +76,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "NicheScanner Pro"
+    "default_title": "ZERACK"
   },
   "options_ui": {
     "page": "options/options.html",

@@ -5471,7 +5471,7 @@ function initEvents() {
             thumbSaveApi.disabled = false;
             var msg = err && err.message ? err.message : 'Error desconocido';
             if (msg.indexOf('dangerous-direct-browser-access') >= 0) {
-              msg = 'La validacion no salio por el service worker. Recarga NicheScanner Pro y vuelve a intentar.';
+              msg = 'La validacion no salio por el service worker. Reload ZERACK and try again.';
             }
             showApiKeyError(msg);
           });
