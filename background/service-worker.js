@@ -474,53 +474,10 @@ async function nspCallGeminiVision(geminiKey, cachedModel, images, prompt, syste
   return { ok: false, error: lastError };
 }
 
-// ── Auto-scanner: search YouTube every 2h for faceless AI niches ─────────────
 
-var NSP_SCAN_QUERIES = [
-  'history facts ai voice faceless 2025',
-  'stoicism quotes ai generated faceless',
-  'finance tips explained animated faceless',
-  'psychology facts ai voiceover channel',
-  'space documentary ai generated faceless',
-  'reddit stories text to speech faceless',
-  'mythology stories ai voice faceless channel',
-  'ancient history ai generated visualizer',
-  'tech news ai voiceover faceless',
-  'business case study animated faceless',
-  'crypto explained ai voice faceless',
-  'true crime ai voiceover faceless channel',
-  'health tips animated explainer ai',
-  'luxury lifestyle ai generated faceless',
-  'motivation speech ai voice text animated',
-  'faceless cash cow ai tutorial channel',
-  'science facts ai generated faceless 2025',
-  'engineering explained animated faceless',
-  'book summary ai voice animated',
-  'geography facts ai voiceover faceless'
-];
-
-chrome.runtime.onInstalled.addListener(function() {
-  chrome.alarms.create('nsp-auto-scan', { periodInMinutes: 120 });
-  console.log('[NSP SW] auto-scan alarm created (every 2h)');
-});
-
-// Guard: si chrome.alarms no existe, un throw acá ARRIBA abortaría TODO el script
-// y el onMessage de abajo nunca se registraría → ningún handler respondería.
-if (chrome.alarms && chrome.alarms.getAll) {
-  chrome.alarms.getAll(function(alarms) {
-    var has = (alarms || []).some(function(a) { return a.name === 'nsp-auto-scan'; });
-    if (!has) {
-      chrome.alarms.create('nsp-auto-scan', { periodInMinutes: 120 });
-      console.log('[NSP SW] re-created auto-scan alarm');
-    }
-  });
-}
 
 chrome.alarms.onAlarm.addListener(function(alarm) {
-  if (alarm.name === 'nsp-auto-scan') {
-    console.log('[NSP SW] auto-scan starting —', new Date().toLocaleTimeString());
-    runAutoScan();
-  } else if (alarm.name === 'nsp-trend-check') {
+  if (alarm.name === 'nsp-trend-check') {
     console.log('[NSP SW] trend-check starting —', new Date().toLocaleTimeString());
     runTrendCheck();
   }
@@ -584,7 +541,7 @@ async function runTrendCheck() {
 
 async function checkChannelForNewOutliers(w) {
   var url = w.channelUrl.replace(/\/+$/, '').split('?')[0] + '/videos';
-  var resp = await fetch(url, { method: 'GET', credentials: 'include' });
+  var resp = await fetch(url, { method: 'GET', credentials: 'omit' });
   var html = await resp.text();
   if (!html) return null;
   var m = html.match(/var ytInitialData\s*=\s*(\{[\s\S]*?\});\s*<\/script>/);
@@ -688,23 +645,22 @@ function fmtHours(h) {
   return Math.round(h / 24) + 'd';
 }
 
-async function runAutoScan() {
-  for (var i = 0; i < NSP_SCAN_QUERIES.length; i++) {
-    try {
-      var q = NSP_SCAN_QUERIES[i];
-      var url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
-      var tab = await chrome.tabs.create({ url: url, active: false });
-      await new Promise(function(resolve) { setTimeout(resolve, 14000); });
-      try { await chrome.tabs.remove(tab.id); } catch(e) {}
-      await new Promise(function(resolve) { setTimeout(resolve, 2000); });
-    } catch(e) {
-      console.warn('[NSP SW] scan error on query', i, ':', e.message);
-    }
-  }
-  console.log('[NSP SW] auto-scan done');
-}
 
 // ── Storage helpers ─────────────────────────────────────────────────────────
+
+var NSP_PAGE_FETCH_HOSTS = ['www.youtube.com', 'm.youtube.com', 'youtube.com', 'studio.youtube.com', 'i.ytimg.com', 'img.youtube.com'];
+
+function nspFetchUrlAllowed(rawUrl, sender) {
+  var host = '';
+  try { host = new URL(rawUrl).hostname.toLowerCase(); } catch (e) { return false; }
+  if (!host) return false;
+  if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0') return false;
+  if (/^10\./.test(host) || /^192\.168\./.test(host) || /^169\.254\./.test(host)) return false;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false;
+  if (/\.local$/.test(host) || /\.internal$/.test(host)) return false;
+  if (!(sender && sender.tab)) return true;
+  return NSP_PAGE_FETCH_HOSTS.indexOf(host) !== -1;
+}
 
 function storageGet(keys) {
   return new Promise(function(resolve) {
@@ -1396,6 +1352,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.type === 'NSP_AGENT_FETCH_URL') {
     var fUrl = String(msg.url || '');
     if (!/^https:\/\//i.test(fUrl)) { sendResponse({ ok: false, error: 'must_be_https' }); return false; }
+    if (!nspFetchUrlAllowed(fUrl, sender)) { sendResponse({ ok: false, error: 'host_not_allowed' }); return false; }
     (async function() {
       try {
         var resp = await fetch(fUrl, { method: 'GET', credentials: 'omit' });
@@ -1805,63 +1762,3 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   try { sendResponse({ ok: false, error: 'unknown_policy_route' }); } catch (eR2) {}
 });
 
-var NSP_AUTORELOAD_ALARM = 'nsp-autoreload-check';
-
-function nspAutoReloadEnsureAlarm() {
-  try {
-    if (!chrome.alarms || !chrome.alarms.get) return;
-    chrome.alarms.get(NSP_AUTORELOAD_ALARM, function(a) {
-      if (!a) chrome.alarms.create(NSP_AUTORELOAD_ALARM, { periodInMinutes: 5 });
-    });
-  } catch (eArEns) {}
-}
-
-function nspAutoReloadCheck() {
-  try {
-    chrome.storage.local.get(['nsp_autoreload_off', 'nsp_autoreload_seen'], function(st) {
-      if (st && st.nsp_autoreload_off === true) return;
-      var loaded = '';
-      try { loaded = (chrome.runtime.getManifest() || {}).version || ''; } catch (eVer) {}
-      if (!loaded) return;
-      fetch(chrome.runtime.getURL('manifest.json'), { cache: 'no-store' })
-        .then(function(r) { return r.json(); })
-        .then(function(m) {
-          var disk = (m && m.version) || '';
-          if (!disk || disk === loaded) {
-            if (st && st.nsp_autoreload_seen) chrome.storage.local.remove('nsp_autoreload_seen');
-            return;
-          }
-          var seen = (st && st.nsp_autoreload_seen) || null;
-          var now = Date.now();
-          if (seen && seen.v === disk && (now - seen.ts) >= 15000) {
-            chrome.storage.local.remove('nsp_autoreload_seen', function() {
-              try {
-                if (chrome.notifications && chrome.notifications.create) {
-                  chrome.notifications.create('nsp-autoreload', {
-                    type: 'basic',
-                    iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-                    title: 'NicheScanner Pro actualizado',
-                    message: 'Versión ' + disk + ' detectada en la carpeta — recargando la extensión…'
-                  });
-                }
-              } catch (eNot) {}
-              setTimeout(function() { try { chrome.runtime.reload(); } catch (eRel) {} }, 1200);
-            });
-          } else if (!seen || seen.v !== disk) {
-            chrome.storage.local.set({ nsp_autoreload_seen: { v: disk, ts: now } });
-            setTimeout(nspAutoReloadCheck, 20000);
-          }
-        })
-        .catch(function(eFm) {});
-    });
-  } catch (eArc) {}
-}
-
-chrome.runtime.onInstalled.addListener(nspAutoReloadEnsureAlarm);
-try { chrome.runtime.onStartup.addListener(nspAutoReloadEnsureAlarm); } catch (eOnS) {}
-nspAutoReloadEnsureAlarm();
-if (chrome.alarms && chrome.alarms.onAlarm) {
-  chrome.alarms.onAlarm.addListener(function(alarm) {
-    if (alarm && alarm.name === NSP_AUTORELOAD_ALARM) nspAutoReloadCheck();
-  });
-}

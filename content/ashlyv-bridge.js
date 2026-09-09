@@ -478,7 +478,7 @@ window.addEventListener('message', function(event) {
 window.addEventListener('message', function(event) {
   if (event.source !== window) return;
   if (event.origin && event.origin !== window.location.origin) return;
-  if (!event.data || (event.data.type !== 'NSP_COACH_STORAGE_GET' && event.data.type !== 'NSP_COACH_STORAGE_SET' && event.data.type !== 'NSP_COACH_KEY_CHECK' && event.data.type !== 'NSP_COACH_SESSIONS_GET' && event.data.type !== 'NSP_COACH_SESSIONS_SET' && event.data.type !== 'NSP_COACH_GET_PREFERRED_PROVIDER' && event.data.type !== 'NSP_COACH_SET_PREFERRED_PROVIDER' && event.data.type !== 'NSP_COACH_PROVIDER_CHECK')) return;
+  if (!event.data || (event.data.type !== 'NSP_COACH_STORAGE_GET' && event.data.type !== 'NSP_COACH_STORAGE_SET' && event.data.type !== 'NSP_COACH_SESSIONS_GET' && event.data.type !== 'NSP_COACH_SESSIONS_SET' && event.data.type !== 'NSP_COACH_GET_PREFERRED_PROVIDER' && event.data.type !== 'NSP_COACH_SET_PREFERRED_PROVIDER' && event.data.type !== 'NSP_COACH_PROVIDER_CHECK')) return;
   if (typeof chrome === 'undefined' || !chrome.storage) return;
   var data = event.data;
   var reqId = String(data.requestId || '').slice(0, 80);
@@ -487,11 +487,6 @@ window.addEventListener('message', function(event) {
     chrome.storage.local.get(['nsp_coach_history'], function(r) {
       var hist = Array.isArray(r && r.nsp_coach_history) ? r.nsp_coach_history : [];
       window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, history: hist }, window.location.origin);
-    });
-  } else if (data.type === 'NSP_COACH_KEY_CHECK') {
-    chrome.storage.local.get(['nsp_gemini_api_key'], function(r) {
-      var key = r && typeof r.nsp_gemini_api_key === 'string' ? r.nsp_gemini_api_key : '';
-      window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, geminiKey: key }, window.location.origin);
     });
   } else if (data.type === 'NSP_COACH_GET_PREFERRED_PROVIDER') {
     // v3.8.3 — leer provider preferido
