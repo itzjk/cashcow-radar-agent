@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ScriptPilot AI · ZERACK</title>
+  <link rel="stylesheet" href="tools.css" />
+</head>
+<body>
+  <header class="tk-head" id="tk-head"></header>
+  <div class="tk-wrap">
+    <p class="tk-sub">Convierte un tema en un <b>paquete de producción completo</b>: guion continuo + breakdown por escenas (narración + idea visual) + título, descripción y tags listos para subir. Pensado para canales faceless.</p>
+
+    <div class="tk-card">
+      <h3>1 · Definí el video</h3>
+      <div class="tk-row">
+        <div class="tk-field grow">
+          <label>Tema / idea</label>
+          <input class="tk-in" id="topic" placeholder="Ej: el misterio del faro que desapareció en 1921" />
+        </div>
+        <div class="tk-field">
+          <label>Nicho</label>
+          <select class="tk-in" id="niche">
+            <option value="historias para dormir">Historias para dormir</option>
+            <option value="misterios / terror">Misterios / Terror</option>
+            <option value="historia / documentales">Historia / Documental</option>
+            <option value="motivación / estoicismo">Motivación / Estoicismo</option>
+            <option value="curiosidades / datos">Curiosidades / Datos</option>
+            <option value="crimen real">Crimen real</option>
+            <option value="ciencia / espacio">Ciencia / Espacio</option>
+            <option value="finanzas / negocios">Finanzas / Negocios</option>
+          </select>
+        </div>
+      </div>
+      <div class="tk-row" style="margin-top:12px">
+        <div class="tk-field">
+          <label>Duración (min)</label>
+          <select class="tk-in" id="mins">
+            <option value="1">1 min (Short)</option>
+            <option value="3">3 min</option>
+            <option value="6" selected>6 min</option>
+            <option value="10">10 min</option>
+            <option value="20">20 min</option>
+            <option value="45">45 min (sleep)</option>
+          </select>
+        </div>
+        <div class="tk-field">
+          <label>Idioma</label>
+          <select class="tk-in" id="lang">
+            <option value="español">Español</option>
+            <option value="inglés">Inglés</option>
+            <option value="portugués">Portugués</option>
+            <option value="alemán">Alemán</option>
+            <option value="francés">Francés</option>
+          </select>
+        </div>
+        <div class="tk-field">
+          <label>Tono</label>
+          <select class="tk-in" id="tone">
+            <option value="cinematográfico y envolvente">Cinematográfico</option>
+            <option value="calmado, lento, para dormir">Calmado (sleep)</option>
+            <option value="intrigante y de suspenso">Suspenso</option>
+            <option value="enérgico y directo">Enérgico</option>
+            <option value="documental serio">Documental</option>
+          </select>
+        </div>
+        <div class="tk-field" style="flex:0 0 auto">
+          <label>&nbsp;</label>
+          <button class="tk-btn primary" id="go">⚡ Generar guion</button>
+        </div>
+      </div>
+      <div class="tk-status" id="status"></div>
+    </div>
+
+    <div class="tk-result" id="result"></div>
+  </div>
+  <script src="toolkit.js"></script>
+  <script src="scriptforge.js"></script>
+</body>
+</html>

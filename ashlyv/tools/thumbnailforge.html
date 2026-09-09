@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MotionForge Studio · ZERACK</title>
+  <link rel="stylesheet" href="tools.css" />
+</head>
+<body>
+  <header class="tk-head" id="tk-head"></header>
+  <div class="tk-wrap">
+    <p class="tk-sub">Pegá tu guion y armo el <b>plan visual</b>: un prompt de imagen/video por escena (listo para Flow, Veo, Midjourney, Nano Banana, etc.) + 3 <b>conceptos de miniatura</b> de alto CTR. Mantiene un estilo coherente en todo el video.</p>
+
+    <div class="tk-card">
+      <h3>1 · Guion + estilo</h3>
+      <textarea class="tk-in" id="script" rows="6" placeholder="Pegá tu guion… (o llega solo desde ScriptPilot)"></textarea>
+      <div class="tk-row" style="margin-top:12px">
+        <div class="tk-field">
+          <label>Estética</label>
+          <select class="tk-in" id="look">
+            <option value="cinematic photorealistic, dramatic lighting">Cinematográfico realista</option>
+            <option value="dark moody, fog, low key, mystery">Oscuro / misterio</option>
+            <option value="warm cozy, fireplace, soft, dreamy (sleep stories)">Cálido / sleep</option>
+            <option value="epic historical, painterly, golden hour">Histórico épico</option>
+            <option value="hyperreal 3D render, octane, volumetric light">3D hiperreal</option>
+            <option value="vintage documentary, film grain, archival">Documental vintage</option>
+          </select>
+        </div>
+        <div class="tk-field">
+          <label>Formato</label>
+          <select class="tk-in" id="ar">
+            <option value="16:9 horizontal">16:9 (YouTube)</option>
+            <option value="9:16 vertical">9:16 (Shorts)</option>
+            <option value="1:1 square">1:1</option>
+          </select>
+        </div>
+        <div class="tk-field">
+          <label>Máx escenas</label>
+          <select class="tk-in" id="max">
+            <option value="6">6</option>
+            <option value="10" selected>10</option>
+            <option value="16">16</option>
+            <option value="24">24</option>
+          </select>
+        </div>
+        <div class="tk-field" style="flex:0 0 auto">
+          <label>&nbsp;</label>
+          <button class="tk-btn primary" id="go">⚡ Generar plan visual</button>
+        </div>
+      </div>
+      <div class="tk-status" id="status"></div>
+    </div>
+
+    <div class="tk-result" id="result"></div>
+  </div>
+  <script src="toolkit.js"></script>
+  <script src="thumbnailforge.js"></script>
+</body>
+</html>

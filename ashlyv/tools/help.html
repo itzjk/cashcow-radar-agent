@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Guía de herramientas · ZERACK</title>
+  <link rel="stylesheet" href="tools.css" />
+</head>
+<body>
+  <header class="tk-head" id="tk-head"></header>
+  <div class="tk-wrap">
+    <p class="tk-sub">Cómo se encadenan las herramientas para producir un video faceless de punta a punta. Todas usan tu API key (Groq/Gemini, gratis) que ponés en <b>Opciones</b>. La voz usa el sintetizador del navegador (sin créditos).</p>
+
+    <div class="tk-card">
+      <h3>🔁 El flujo recomendado</h3>
+      <div class="tk-block-b">1) <b>NicheMaster</b> → validás el nicho (score, RPM, sub-nichos, ideas).
+2) <b>RivalRadar</b> → espiás la competencia (búsquedas, formatos, huecos).
+3) <b>ScriptPilot</b> → generás el guion + escenas + título/desc/tags.
+4) <b>VoxBatch</b> → narrás el guion (voz del navegador) o exportás SSML.
+5) <b>MotionForge</b> → prompts de imagen por escena + miniatura.
+6) <b>Monetize Studio</b> → subís imágenes + audio, edita, blinda y exporta el MP4.</div>
+    </div>
+
+    <div class="tk-card"><h3>📜 ScriptPilot AI</h3><div class="tk-block-b">Tema + nicho + duración + idioma → guion continuo, breakdown por escenas, metadata lista para subir. Botones para mandar el guion a VoxBatch o MotionForge.</div></div>
+    <div class="tk-card"><h3>🎙️ VoxBatch Pro</h3><div class="tk-block-b">Pegás el guion, lo divido en escenas y lo narro con voces del navegador (gratis). Elegís voz, velocidad y tono. Exportás la cola en SSML. La voz no se guarda como archivo desde acá: grabala o subí tu MP3 directo a Monetize Studio.</div></div>
+    <div class="tk-card"><h3>🎨 MotionForge Studio</h3><div class="tk-block-b">Guion → un prompt de imagen/video por escena (en inglés, listo para Flow/Veo/Midjourney/Nano Banana) con estética coherente, + 3 conceptos de miniatura de alto CTR.</div></div>
+    <div class="tk-card"><h3>🛰️ RivalRadar Pro</h3><div class="tk-block-b">Nicho/keyword → búsquedas que abren YouTube con un clic, formatos que funcionan, huecos sin explotar, ángulos de monetización, RPM y saturación.</div></div>
+    <div class="tk-card"><h3>📊 NicheMaster</h3><div class="tk-block-b">Nicho → score de oportunidad (0-100), RPM, demanda, saturación, fit faceless, sub-nichos jugosos, ideas de video (clic → ScriptPilot), monetización y riesgos.</div></div>
+    <div class="tk-card"><h3>🛡️ Monetize Studio</h3><div class="tk-block-b">El editor: subís 1+ audios (se unen) + imágenes, arma el video, pone movimiento (Ken Burns), subtítulos automáticos desde la voz, plantillas por nicho, y exporta el MP4 blindado anti-desmonetización.</div></div>
+
+    <div class="tk-card"><h3>🔑 ¿No genera nada?</h3><div class="tk-block-b">Necesitás una API key (gratis): Groq (console.groq.com) o Gemini (aistudio.google.com). Pegala en Opciones y volvé.</div>
+      <button class="tk-btn primary" id="op">⚙️ Abrir Opciones</button>
+    </div>
+  </div>
+  <script src="toolkit.js"></script>
+  <script src="help.js"></script>
+</body>
+</html>

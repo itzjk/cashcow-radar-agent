@@ -1,0 +1,477 @@
+{
+  "version": 1,
+  "updated": "2026-06-10",
+  "_purpose": "Reglas de compliance para auditar NUESTRO PROPIO contenido antes de publicar. Un hardBlock significa: ELIMINA O REESCRIBE ese contenido — nunca hay workaround válido. Las listas son DATOS editables, no código.",
+  "engine": {
+    "normalization": "minúsculas + plegado de diacríticos (á→a, ü→u, ł→l, ñ→n…) + ß→ss + todo no-letra/número → espacio simple (colapsado). Los TÉRMINOS de esta tabla ya están escritos en forma normalizada/plegada. matchedTerms.index SIEMPRE apunta al texto ORIGINAL (el motor mantiene un mapa de posiciones normalizado→original).",
+    "matchModes": {
+      "word": "secuencia exacta de tokens CONSECUTIVOS sobre el texto normalizado (soporta frases multi-token como 'waffen ss'). OBLIGATORIO para términos cortos (≤4) y acrónimos — tras plegar ß→ss, 'ss' es subcadena de strasse/wasser/besser y daría falsos positivos en substring.",
+      "substring": "subcadena sobre el texto normalizado. SOLO para términos largos propensos a compuestos alemanes (hakenkreuzfahne, hitlergrusses…)."
+    },
+    "caseGuard": "GUARDA DE MAYÚSCULAS: para reglas word de UN solo token con término ≤4 chars (ss, sa, hj, kz), el match solo cuenta si el trozo ORIGINAL está completamente en MAYÚSCULAS. 'SA marschierte' → match; 'Sa. geschlossen' (sábado) → NO match. Se aplica por defecto; una regla puede eximirse con \"caseGuard\": false (ej. bdm, sin colisiones en alemán corriente). No aplica a frases multi-token ni a substring."
+  },
+  "global": {
+    "childSafety": {
+      "hardBlock": [
+        {
+          "id": "cs-001",
+          "scope": "global.childSafety",
+          "match": "substring",
+          "severity": "hard",
+          "term": "child porn",
+          "note": "Inequívoco en cualquier contexto; cubre 'child pornography' por subcadena."
+        },
+        {
+          "id": "cs-002",
+          "scope": "global.childSafety",
+          "match": "substring",
+          "severity": "hard",
+          "term": "pornografia infantil",
+          "note": "ES, ya plegado (í→i)."
+        },
+        {
+          "id": "cs-003",
+          "scope": "global.childSafety",
+          "match": "substring",
+          "severity": "hard",
+          "term": "kinderporno",
+          "note": "DE; subcadena cubre kinderpornografie/kinderpornos (compuestos)."
+        },
+        {
+          "id": "cs-004",
+          "scope": "global.childSafety",
+          "match": "substring",
+          "severity": "hard",
+          "term": "sex with a minor",
+          "note": "EN; frase inequívoca."
+        },
+        {
+          "id": "cs-005",
+          "scope": "global.childSafety",
+          "match": "substring",
+          "severity": "hard",
+          "term": "sexo con menores",
+          "note": "ES; frase inequívoca."
+        },
+        {
+          "id": "cs-006",
+          "scope": "global.childSafety",
+          "match": "substring",
+          "severity": "hard",
+          "term": "sex mit kindern",
+          "note": "DE; frase inequívoca."
+        },
+        {
+          "id": "cs-007",
+          "scope": "global.childSafety",
+          "match": "substring",
+          "severity": "hard",
+          "term": "sexualizar a un nino",
+          "note": "ES plegado (ñ→n); fraseo de sexualización de menores."
+        },
+        {
+          "id": "cs-008",
+          "scope": "global.childSafety",
+          "match": "substring",
+          "severity": "hard",
+          "term": "seks z dziecmi",
+          "note": "PL plegado (ć→c); frase inequívoca."
+        }
+      ]
+    },
+    "medicalClaims": {
+      "softFlag": {
+        "en": [
+          {
+            "id": "mc-en-001",
+            "scope": "global.medicalClaims.en",
+            "match": "substring",
+            "severity": "soft",
+            "term": "cures insomnia",
+            "note": "Claim médico absoluto — reformular a 'may help you relax'."
+          },
+          {
+            "id": "mc-en-002",
+            "scope": "global.medicalClaims.en",
+            "match": "substring",
+            "severity": "soft",
+            "term": "cure your insomnia",
+            "note": "Variante imperativa del claim de cura."
+          },
+          {
+            "id": "mc-en-003",
+            "scope": "global.medicalClaims.en",
+            "match": "substring",
+            "severity": "soft",
+            "term": "treats insomnia",
+            "note": "'Tratar' es lenguaje clínico — los videos sleep no son tratamiento."
+          },
+          {
+            "id": "mc-en-004",
+            "scope": "global.medicalClaims.en",
+            "match": "substring",
+            "severity": "soft",
+            "term": "heals your body",
+            "note": "Claim de sanación física."
+          },
+          {
+            "id": "mc-en-005",
+            "scope": "global.medicalClaims.en",
+            "match": "substring",
+            "severity": "soft",
+            "term": "replaces medication",
+            "note": "Sugerir sustituir medicación = riesgo serio."
+          },
+          {
+            "id": "mc-en-006",
+            "scope": "global.medicalClaims.en",
+            "match": "substring",
+            "severity": "soft",
+            "term": "stop taking your medication",
+            "note": "Consejo médico directo — nunca."
+          },
+          {
+            "id": "mc-en-007",
+            "scope": "global.medicalClaims.en",
+            "match": "substring",
+            "severity": "soft",
+            "term": "guaranteed cure",
+            "note": "Garantía de cura — claim absoluto."
+          }
+        ],
+        "es": [
+          {
+            "id": "mc-es-001",
+            "scope": "global.medicalClaims.es",
+            "match": "substring",
+            "severity": "soft",
+            "term": "cura el insomnio",
+            "note": "Claim absoluto — reformular a 'puede ayudarte a relajarte'."
+          },
+          {
+            "id": "mc-es-002",
+            "scope": "global.medicalClaims.es",
+            "match": "substring",
+            "severity": "soft",
+            "term": "cura tu insomnio",
+            "note": "Variante imperativa."
+          },
+          {
+            "id": "mc-es-003",
+            "scope": "global.medicalClaims.es",
+            "match": "substring",
+            "severity": "soft",
+            "term": "trata el insomnio",
+            "note": "Lenguaje clínico."
+          },
+          {
+            "id": "mc-es-004",
+            "scope": "global.medicalClaims.es",
+            "match": "substring",
+            "severity": "soft",
+            "term": "sana tu cuerpo",
+            "note": "Claim de sanación."
+          },
+          {
+            "id": "mc-es-005",
+            "scope": "global.medicalClaims.es",
+            "match": "substring",
+            "severity": "soft",
+            "term": "reemplaza la medicacion",
+            "note": "Plegado (ó→o). Sustituir medicación = riesgo serio."
+          },
+          {
+            "id": "mc-es-006",
+            "scope": "global.medicalClaims.es",
+            "match": "substring",
+            "severity": "soft",
+            "term": "deja de tomar tu medicacion",
+            "note": "Plegado. Consejo médico directo — nunca."
+          },
+          {
+            "id": "mc-es-007",
+            "scope": "global.medicalClaims.es",
+            "match": "substring",
+            "severity": "soft",
+            "term": "cura garantizada",
+            "note": "Garantía de cura."
+          }
+        ],
+        "de": [
+          {
+            "id": "mc-de-001",
+            "scope": "global.medicalClaims.de",
+            "match": "substring",
+            "severity": "soft",
+            "term": "heilt schlaflosigkeit",
+            "note": "Claim absoluto de cura (heilen)."
+          },
+          {
+            "id": "mc-de-002",
+            "scope": "global.medicalClaims.de",
+            "match": "substring",
+            "severity": "soft",
+            "term": "heilt deinen korper",
+            "note": "Plegado (ö→o). Claim de sanación física."
+          },
+          {
+            "id": "mc-de-003",
+            "scope": "global.medicalClaims.de",
+            "match": "substring",
+            "severity": "soft",
+            "term": "behandelt schlaflosigkeit",
+            "note": "'Behandeln' = lenguaje clínico."
+          },
+          {
+            "id": "mc-de-004",
+            "scope": "global.medicalClaims.de",
+            "match": "substring",
+            "severity": "soft",
+            "term": "ersetzt medikamente",
+            "note": "Sustituir medicación = riesgo serio."
+          },
+          {
+            "id": "mc-de-005",
+            "scope": "global.medicalClaims.de",
+            "match": "substring",
+            "severity": "soft",
+            "term": "setz deine medikamente ab",
+            "note": "Consejo de abandonar medicación — nunca."
+          },
+          {
+            "id": "mc-de-006",
+            "scope": "global.medicalClaims.de",
+            "match": "substring",
+            "severity": "soft",
+            "term": "garantierte heilung",
+            "note": "Garantía de cura."
+          }
+        ]
+      }
+    }
+  },
+  "channels": {
+    "de_history_main": {
+      "lang": "de",
+      "niche": "historia",
+      "notes": "Canal de historia en alemán. StGB §86/§86a: difusión de propaganda y uso de símbolos de organizaciones inconstitucionales. Un hit aquí = ELIMINAR O REESCRIBIR el pasaje (relato histórico neutral sí; nombre/símbolo/glorificación literal no). match EXPLÍCITO en cada regla: acrónimos y términos ≤4 chars van en 'word' (tras ß→ss, 'ss' es subcadena de strasse/wasser/besser → substring daría falso positivo en cada guion).",
+      "hardBlock": [
+        {
+          "id": "de86-001",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "word",
+          "severity": "hard",
+          "term": "ss",
+          "note": "Acrónimo org. prohibida — word OBLIGATORIO (subcadena de strasse/wasser/besser tras ß→ss) + CASE GUARD: solo cuenta si el original está TODO en mayúsculas ('SS' sí; 'ss' suelto no). TRADE-OFF ACEPTADO (matriz Fase 1, caso 7): un 'ss' minúsculo suelto en prosa informal NO se detecta — se acepta ese falso-negativo a cambio de matar la inundación de falsos positivos (Sa./strasse/wasser); nuestro pipeline genera alemán con capitalización estándar, exposición real nula. NO 'arreglar' el guard sin re-evaluar esta consecuencia."
+        },
+        {
+          "id": "de86-002",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "word",
+          "severity": "hard",
+          "term": "sa",
+          "note": "Acrónimo org. prohibida — word obligatorio (≤4) + CASE GUARD: 'SA marschierte' match; 'Sa. geschlossen' (sábado) NO."
+        },
+        {
+          "id": "de86-003",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "word",
+          "severity": "hard",
+          "term": "hj",
+          "note": "Acrónimo org. juvenil prohibida — word obligatorio (≤4) + CASE GUARD de mayúsculas."
+        },
+        {
+          "id": "de86-004",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "word",
+          "severity": "hard",
+          "term": "kz",
+          "note": "Abreviatura sensible (set de acrónimos del dueño) — word obligatorio (≤4) + CASE GUARD de mayúsculas."
+        },
+        {
+          "id": "de86-005",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "word",
+          "severity": "hard",
+          "term": "nsdap",
+          "note": "Acrónimo del partido prohibido — en set de acrónimos → word."
+        },
+        {
+          "id": "de86-006",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "word",
+          "severity": "hard",
+          "term": "bdm",
+          "note": "Acrónimo org. juvenil prohibida — word obligatorio. SIN case guard (exento explícito: 'bdm' no colisiona con palabras/abreviaturas del alemán corriente).",
+          "caseGuard": false
+        },
+        {
+          "id": "de86-007",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "word",
+          "severity": "hard",
+          "term": "waffen ss",
+          "note": "Frase word de DOS tokens consecutivos ('waffen-ss' normaliza a 'waffen ss'); el matcher de word soporta secuencias multi-token. Sin case guard (solo aplica a un token ≤4)."
+        },
+        {
+          "id": "de86-101",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "hakenkreuz",
+          "note": "Símbolo §86a; substring cubre compuestos (hakenkreuzfahne, hakenkreuzbinde)."
+        },
+        {
+          "id": "de86-102",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "hitlergruss",
+          "note": "Saludo prohibido; plegado ß→ss; substring cubre flexiones (hitlergrusses)."
+        },
+        {
+          "id": "de86-103",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "sieg heil",
+          "note": "Consigna prohibida (§86a)."
+        },
+        {
+          "id": "de86-104",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "heil hitler",
+          "note": "Saludo prohibido (§86a)."
+        },
+        {
+          "id": "de86-105",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "blut und ehre",
+          "note": "Lema HJ prohibido (§86a)."
+        },
+        {
+          "id": "de86-106",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "meine ehre heisst treue",
+          "note": "Lema SS prohibido (§86a); plegado ß→ss."
+        },
+        {
+          "id": "de86-107",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "nationalsozialistische deutsche arbeiterpartei",
+          "note": "Nombre completo del partido prohibido."
+        },
+        {
+          "id": "de86-108",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "schwarze sonne",
+          "note": "Símbolo de la escena prohibida (uso §86a)."
+        },
+        {
+          "id": "de86-109",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "reichskriegsflagge mit hakenkreuz",
+          "note": "Variante de bandera prohibida; la frase larga evita marcar la histórica genérica."
+        },
+        {
+          "id": "de86-110",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "es lebe der fuhrer",
+          "note": "Fraseo de glorificación (plegado ü→u)."
+        },
+        {
+          "id": "de86-111",
+          "scope": "channel.de_history_main.stgb86",
+          "match": "substring",
+          "severity": "hard",
+          "term": "der fuhrer hatte recht",
+          "note": "Fraseo de glorificación (plegado ü→u)."
+        }
+      ],
+      "softFlag": []
+    },
+    "sleep_en_main": {
+      "lang": "en",
+      "niche": "sleep",
+      "notes": "Hereda global.medicalClaims.softFlag.en (el motor aplica global SIEMPRE + listas del canal). Entrada presente para fijar lang/niche del canal.",
+      "hardBlock": [],
+      "softFlag": []
+    },
+    "sleep_es_main": {
+      "lang": "es",
+      "niche": "sleep",
+      "notes": "Hereda global.medicalClaims.softFlag.es.",
+      "hardBlock": [],
+      "softFlag": []
+    },
+    "sleep_de_main": {
+      "lang": "de",
+      "niche": "sleep",
+      "notes": "Hereda global.medicalClaims.softFlag.de.",
+      "hardBlock": [],
+      "softFlag": []
+    },
+    "pl_gardening_main": {
+      "lang": "pl",
+      "niche": "jardineria",
+      "notes": "Jardinería PL: mal uso de químicos/pesticidas = softFlag (revisar el pasaje: dosis de etiqueta, equipo de protección, legalidad UE). SEED INICIAL — calibrar con hablante nativo/experto antes de Fase 2.",
+      "hardBlock": [],
+      "softFlag": [
+        {
+          "id": "pl-gard-001",
+          "scope": "channel.pl_gardening_main.chemicals",
+          "match": "word",
+          "severity": "soft",
+          "term": "ddt",
+          "note": "Pesticida prohibido en la UE — ≤4 chars → word obligatorio."
+        },
+        {
+          "id": "pl-gard-002",
+          "scope": "channel.pl_gardening_main.chemicals",
+          "match": "substring",
+          "severity": "soft",
+          "term": "podwojna dawka oprysku",
+          "note": "Plegado (ó→o). 'Doble dosis de pulverización' — sobredosificación contra etiqueta."
+        },
+        {
+          "id": "pl-gard-003",
+          "scope": "channel.pl_gardening_main.chemicals",
+          "match": "substring",
+          "severity": "soft",
+          "term": "dawka wieksza niz na etykiecie",
+          "note": "Plegado (ę→e, ż→z). Dosis mayor que la etiqueta."
+        },
+        {
+          "id": "pl-gard-004",
+          "scope": "channel.pl_gardening_main.chemicals",
+          "match": "substring",
+          "severity": "soft",
+          "term": "oprysk bez maski",
+          "note": "Pulverizar sin máscara — omitir equipo de protección."
+        },
+        {
+          "id": "pl-gard-005",
+          "scope": "channel.pl_gardening_main.chemicals",
+          "match": "substring",
+          "severity": "soft",
+          "term": "bez okresu karencji",
+          "note": "Ignorar el periodo de carencia pre-cosecha."
+        }
+      ]
+    }
+  }
+}

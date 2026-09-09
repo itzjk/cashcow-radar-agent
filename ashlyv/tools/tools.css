@@ -1,0 +1,89 @@
+/* ashlyv/tools/tools.css — look negro + neón verde, consistente con el hub ASHLYV. */
+:root{
+  --bg:#000; --bg-soft:#070707; --panel:#0c0c0c; --panel-2:#121212;
+  --line:rgba(255,255,255,.10); --line-strong:rgba(255,255,255,.18);
+  --muted:rgba(255,255,255,.62); --neon:#00DC82; --neon-2:#00b86b; --warn:#FFD93D; --bad:#ff6b6b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:#fff;font-family:"Aptos","Segoe UI","Helvetica Neue",Arial,sans-serif;}
+body{min-height:100vh;padding:0 0 60px;}
+a{color:var(--neon);text-decoration:none}
+
+/* layout */
+.tk-wrap{max-width:1080px;margin:0 auto;padding:0 22px;}
+.tk-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:20px 22px;max-width:1080px;margin:0 auto;border-bottom:1px solid var(--line);position:sticky;top:0;background:linear-gradient(180deg,#000 70%,rgba(0,0,0,.86));z-index:5;}
+.tk-brand{display:flex;align-items:center;gap:12px}
+.tk-logo{width:46px;height:46px;border-radius:14px;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--panel)}
+.tk-kicker{font-size:10px;letter-spacing:.18em;color:var(--neon);font-weight:800;text-transform:uppercase}
+.tk-title{font-size:18px;font-weight:900;margin-top:2px}
+.tk-sub{color:var(--muted);font-size:12.5px;line-height:1.6;margin:16px 0 0}
+
+/* cards / panels */
+.tk-card{border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.015));padding:18px;margin-top:16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.04)}
+.tk-card h3{margin:0 0 12px;font-size:13px;letter-spacing:.05em;text-transform:uppercase;color:#fff}
+.tk-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.tk-field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:180px}
+.tk-field label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.tk-field.grow{flex:3}
+
+/* inputs */
+input.tk-in,select.tk-in,textarea.tk-in{
+  width:100%;background:#0a0a0a;color:#fff;border:1px solid var(--line);border-radius:10px;
+  padding:11px 12px;font-size:13.5px;font-family:inherit;outline:none;transition:border-color .15s,box-shadow .15s;
+}
+input.tk-in:focus,select.tk-in:focus,textarea.tk-in:focus{border-color:var(--neon);box-shadow:0 0 0 3px rgba(0,220,130,.12)}
+textarea.tk-in{resize:vertical;min-height:120px;line-height:1.6}
+select.tk-in{cursor:pointer}
+
+/* buttons */
+.tk-btn{border:1px solid var(--line);background:var(--panel-2);color:#fff;border-radius:10px;padding:11px 16px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;transition:all .15s}
+.tk-btn:hover{border-color:var(--line-strong);transform:translateY(-1px)}
+.tk-btn.primary{background:linear-gradient(135deg,var(--neon),var(--neon-2));color:#04140d;border:none}
+.tk-btn.primary:hover{box-shadow:0 8px 26px rgba(0,220,130,.28)}
+.tk-btn.ghost{background:transparent}
+.tk-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.tk-btn.sm{padding:7px 11px;font-size:11.5px;border-radius:8px}
+
+/* chips */
+.tk-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.tk-chip{font-size:11px;padding:5px 10px;border:1px solid var(--line);border-radius:999px;color:var(--muted);cursor:pointer;background:var(--panel)}
+.tk-chip:hover{border-color:var(--neon);color:#fff}
+.tk-chip.on{background:rgba(0,220,130,.14);border-color:var(--neon);color:var(--neon)}
+
+/* status + results */
+.tk-status{font-size:12px;margin-top:10px;min-height:16px;color:var(--muted)}
+.tk-result{margin-top:18px;display:grid;gap:14px}
+.tk-block{border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}
+.tk-block-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02)}
+.tk-block-h .tk-bt{font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--neon)}
+.tk-block-b{padding:14px;font-size:13px;line-height:1.7;white-space:pre-wrap;color:rgba(255,255,255,.9)}
+.tk-block-b.mono{font-size:12px;color:rgba(255,255,255,.82)}
+
+/* scene list */
+.tk-scene{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px;background:var(--panel)}
+.tk-scene-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}
+.tk-scene-n{font-size:11px;font-weight:900;color:var(--neon);letter-spacing:.05em}
+.tk-scene-txt{font-size:13px;line-height:1.65;color:rgba(255,255,255,.9);white-space:pre-wrap}
+.tk-scene-meta{font-size:11px;color:var(--muted);margin-top:6px}
+
+/* meta grid (metadata, scores) */
+.tk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:4px}
+.tk-stat{border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--panel)}
+.tk-stat .v{font-size:22px;font-weight:900;color:var(--neon)}
+.tk-stat .l{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+
+/* tag pills */
+.tk-tags{display:flex;flex-wrap:wrap;gap:6px}
+.tk-tag{font-size:11px;padding:4px 9px;border-radius:6px;background:rgba(0,220,130,.1);border:1px solid rgba(0,220,130,.28);color:#bdf5db}
+
+/* need-keys notice */
+.tk-need{text-align:center;padding:30px 18px;border:1px dashed var(--line-strong);border-radius:16px;background:var(--panel)}
+.tk-need-ic{font-size:34px;margin-bottom:8px}
+.tk-need-t{font-size:15px;font-weight:900;color:var(--neon);margin-bottom:6px}
+.tk-need-d{font-size:12.5px;color:var(--muted);line-height:1.6;max-width:420px;margin:0 auto 16px}
+
+/* spinner */
+.tk-spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:var(--neon);border-radius:50%;animation:tkspin .7s linear infinite;vertical-align:-2px;margin-right:7px}
+@keyframes tkspin{to{transform:rotate(360deg)}}
+.tk-muted{color:var(--muted)}
+.tk-hide{display:none!important}

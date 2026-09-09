@@ -1,0 +1,15 @@
+.DS_Store
+node_modules/
+
+# Fetched by scripts/fetch-assets.sh, not stored in the repo
+lib/whisper/ort-wasm.wasm
+lib/whisper/ort-wasm-simd.wasm
+lib/whisper/models/Xenova/whisper-tiny/onnx/*.onnx
+monetize-studio/vendor/ffmpeg-core.wasm
+
+# Local backups
+*.bak
+*.bak-*
+*.before-restore
+*.pre-csp
+*.pre-mono

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZERACK · Monetize Studio</title>
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div id="app">
+    <header id="topbar">
+      <div class="brand">
+        <span class="logo"><svg viewBox="0 0 100 60" width="30" height="18" fill="#fff" style="filter:drop-shadow(0 0 4px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg></span>
+        <div>
+          <div class="brand-title">ZERACK · MONETIZE STUDIO</div>
+          <div class="brand-sub">Editor profesional anti-desmonetización</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <button id="btnTemplates" class="btn-ghost sm">Plantillas por nicho</button>
+        <button id="btnStyle" class="btn-ghost sm">Estilos (URL)</button>
+        <button id="btnAnalyze" class="btn-ghost sm" disabled>Analizar riesgo</button>
+        <button id="btnReset" class="btn-ghost sm" hidden>↺ Otro video</button>
+        <div class="ver" id="ver">v2</div>
+      </div>
+    </header>
+
+    <!-- VISTA CARGA -->
+    <section id="loadView">
+      <label id="drop" for="fileInput">
+        <div class="drop-icon"><svg viewBox="0 0 100 60" width="56" height="34" fill="#fff" style="filter:drop-shadow(0 0 6px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg></div>
+        <div class="drop-title">Arrastrá tu video o hacé click</div>
+        <div class="drop-hint">MP4 / WebM / MOV — 100% local, nada se sube a internet</div>
+        <input type="file" id="fileInput" accept="video/*" hidden />
+      </label>
+      <!-- MODO IMÁGENES → VIDEO AUTOMÁTICO -->
+      <!-- PASO 1 (opcional): narración / voz en off -->
+      <label id="dropAudio" for="audioInput">
+        <span class="da-ic"></span>
+        <span class="da-txt" id="audioLabel">1) Narración / voz en off <b>(opcional)</b> — subí <b>uno o varios</b> MP3/WAV (los uno en orden, ideal para guiones de 6+ partes) y el video durará <b>exactamente</b> lo que tu voz, con el audio ya incluido.</span>
+        <input type="file" id="audioInput" accept="audio/*" multiple hidden />
+      </label>
+      <!-- PASO 2: las fotos (dispara la creación) -->
+      <label id="dropImgs" for="imgsInput" class="drop-alt">
+        <div class="drop-icon"><svg viewBox="0 0 100 60" width="56" height="34" fill="#fff" style="filter:drop-shadow(0 0 6px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg></div>
+        <div class="drop-title">2) Soltá las fotos — quedan preparadas (nada se crea todavía)</div>
+        <div class="drop-hint" id="imgsHint">Subí 1–200 fotos (JPG/PNG/WEBP). Cargá narración y guion antes o después, en el orden que quieras — el video recién se crea con el botón CREAR VIDEO.</div>
+        <input type="file" id="imgsInput" accept="image/*" multiple hidden />
+      </label>
+      <div class="script-wrap">
+        <div class="script-label">Guion / narración <span class="opt">(con imágenes: reparte el tiempo y genera los subtítulos · con video: mejora el análisis)</span>
+          <button type="button" id="btnScripts" class="btn-ghost sm" style="float:right;">Subir guiones (.txt)</button>
+        </div>
+        <input type="file" id="scriptsInput" accept=".txt,.md,text/plain" multiple hidden />
+        <textarea id="scriptInput" placeholder="Pegá acá el guion / voz en off — o subí varios .txt con el botón de arriba (se unen en orden, ideal para compilaciones de 2 h tipo sleep stories)."></textarea>
+        <div id="scriptsInfo" class="hintline" style="margin-top:6px;"></div>
+      </div>
+      <button id="btnBuildNow" hidden style="width:100%;margin-top:14px;padding:16px;font:900 16px ui-monospace,monospace;letter-spacing:.08em;color:#000;background:#fff;border:0;box-shadow:0 0 14px rgba(255,255,255,0.35);border-radius:12px;cursor:pointer;">CREAR VIDEO AHORA</button>
+    </section>
+
+    <!-- VISTA EDITOR (layout pro estilo CapCut) -->
+    <section id="editorView" hidden>
+      <!-- Barra del editor: modos (izq) + export (der) -->
+      <div class="ed-bar">
+        <div class="ed-modes">
+          <button class="mode-btn active" id="btnModeAuto" data-mode="auto">AUTO</button>
+          <button class="mode-btn" id="btnModeManual" data-mode="manual">🎛 MANUAL</button>
+        </div>
+        <div class="ed-bar-right">
+          <div id="renderProgress" class="render-progress" hidden>
+            <div class="rp-bar"><div class="rp-fill" id="rpFill"></div></div>
+            <div class="rp-text" id="rpText">Preparando…</div>
+          </div>
+          <button id="btnExport" class="btn-primary">Exportar MP4</button>
+        </div>
+      </div>
+
+      <!-- HUD de monetización en vivo: recalcula con cada edición -->
+      <div class="monet-hud" id="monetHud">
+        <div class="mh-ring" id="mhRing"><div class="mh-ring-in"><span id="mhScore">--</span></div></div>
+        <div class="mh-info">
+          <div class="mh-title">EFECTIVIDAD DE MONETIZACIÓN</div>
+          <div class="mh-verdict" id="mhVerdict">—</div>
+        </div>
+        <div class="mh-factors" id="mhFactors"></div>
+        <button class="btn-ghost sm" id="mhAnalyze">Análisis profundo</button>
+      </div>
+
+      <!-- Workspace: rail de funciones | panel | preview -->
+      <div class="ed-workspace">
+        <div class="ed-rail" id="toolTabs">
+          <!-- 1 click -->
+          <button class="tt" data-tool="auto"><span class="tt-ic"></span><span class="tt-lb">Auto</span></button>
+          <div class="tt-sep" data-grp="1 · Base"></div>
+          <!-- BASE: preparar el clip -->
+          <button class="tt" data-tool="trim"><span class="tt-ic"></span><span class="tt-lb">Recortar</span></button>
+          <button class="tt" data-tool="format"><span class="tt-ic">📐</span><span class="tt-lb">Formato</span></button>
+          <div class="tt-sep" data-grp="2 · Look"></div>
+          <!-- LOOK: cómo se ve / se mueve -->
+          <button class="tt" data-tool="zoom"><span class="tt-ic"></span><span class="tt-lb">Zoom</span></button>
+          <button class="tt" data-tool="color"><span class="tt-ic"></span><span class="tt-lb">Color</span></button>
+          <button class="tt" data-tool="fx"><span class="tt-ic">✨</span><span class="tt-lb">Efectos</span></button>
+          <button class="tt" data-tool="trans"><span class="tt-ic"></span><span class="tt-lb">Trans</span></button>
+          <div class="tt-sep" data-grp="3 · Atención"></div>
+          <!-- ATENCIÓN: dirigir la mirada -->
+          <button class="tt" data-tool="face"><span class="tt-ic"></span><span class="tt-lb">Personaje</span></button>
+          <button class="tt" data-tool="anno"><span class="tt-ic">🖍️</span><span class="tt-lb">Señalar</span></button>
+          <div class="tt-sep" data-grp="4 · Voz/Texto"></div>
+          <!-- VOZ Y TEXTO -->
+          <button class="tt" data-tool="text"><span class="tt-ic">🔤</span><span class="tt-lb">Texto</span></button>
+          <button class="tt" data-tool="caption"><span class="tt-ic">💬</span><span class="tt-lb">Subs</span></button>
+          <button class="tt" data-tool="audio"><span class="tt-ic">🎵</span><span class="tt-lb">Audio</span></button>
+          <div class="tt-sep" data-grp="5 · Marca"></div>
+          <!-- MARCA Y CIERRE -->
+          <button class="tt" data-tool="avatar"><span class="tt-ic">👤</span><span class="tt-lb">Avatar</span></button>
+          <button class="tt" data-tool="brand"><span class="tt-ic">🏷️</span><span class="tt-lb">Marca</span></button>
+          <button class="tt" data-tool="intro"><span class="tt-ic"></span><span class="tt-lb">Intro/Out</span></button>
+          <button class="tt" data-tool="thumb"><span class="tt-ic"></span><span class="tt-lb">Miniatura</span></button>
+          <button class="tt" data-tool="preset"><span class="tt-ic">💾</span><span class="tt-lb">Preset</span></button>
+        </div>
+        <div class="ed-panel">
+          <div class="tool-panel" id="toolPanel"></div>
+        </div>
+        <div class="ed-stage">
+          <div class="preview-wrap">
+            <canvas id="stage"></canvas>
+            <div class="preview-badge" id="modeBadge">AUTO</div>
+          </div>
+          <div class="transport">
+            <button id="btnPlay" class="tp-btn">▶</button>
+            <span class="tp-time"><span id="curTime">0:00</span> / <span id="durTime">0:00</span></span>
+            <input type="range" id="scrub" min="0" max="1000" value="0" class="scrub" />
+            <span class="tp-keys" title="Espacio = play/pausa · ← → = frame · Shift+← → = 5s · Inicio/Fin">⌨ espacio · ← →</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline full-width abajo -->
+      <div class="ed-timeline">
+        <div class="timeline">
+          <div class="tl-bar"><button id="tlToggle" class="tl-toggle" type="button">▾ Línea de tiempo</button></div>
+          <div class="tl-ruler" id="tlRuler"><div class="tl-playhead" id="tlPlayhead"></div></div>
+          <div class="tl-track" id="tlTrack"></div>
+          <div class="tl-legend">
+            <span><i class="dot z"></i>Zoom</span>
+            <span><i class="dot t"></i>Texto</span>
+            <span><i class="dot c"></i>Subtítulo</span>
+            <span><i class="dot f"></i>Flash</span>
+            <span><i class="dot tr"></i>Transición</span>
+            <span class="tl-trim-info" id="trimInfo"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VISTA PLANTILLAS POR NICHO -->
+    <section id="templatesView" hidden>
+      <div class="tpl-head">
+        <div>
+          <div class="tpl-h-title">PLANTILLAS DE EDICIÓN POR NICHO</div>
+          <div class="tpl-h-sub">El estilo de edición que usan los canales ganadores de cada nicho. Escaneá ejemplos reales del mercado y aplicá la plantilla a tu video con un click.</div>
+        </div>
+        <button id="btnTplBack" class="btn-ghost sm">← Volver</button>
+      </div>
+      <div id="tplScanBar" class="tpl-scanbar">
+        <button id="btnScanAll" class="mini-btn">🛰️ Escanear el mercado de TODOS los nichos</button>
+        <span id="tplScanStatus" class="tpl-scan-status"></span>
+      </div>
+      <div id="tplGrid" class="tpl-grid"></div>
+    </section>
+
+    <!-- VISTA EXTRACTOR DE ESTILOS (por URL) -->
+    <section id="styleView" hidden>
+      <div class="tpl-head">
+        <div>
+          <div class="tpl-h-title">EXTRACTOR DE ESTILO POR URL</div>
+          <div class="tpl-h-sub">Pegá el link de un video cuyo estilo te guste. Leo su miniatura (paleta, contraste, look) + título (nicho/gancho) y con IA armo una plantilla de edición lista para usar en tus videos.</div>
+        </div>
+        <button id="btnStyleBack" class="btn-ghost sm">← Volver</button>
+      </div>
+      <div class="style-bar">
+        <input type="text" id="styleUrl" class="style-url" placeholder="https://www.youtube.com/watch?v=…  (o youtu.be/…)" />
+        <button id="btnExtractStyle" class="btn-primary">Extraer estilo</button>
+      </div>
+      <div id="styleStatus" class="style-status"></div>
+      <div id="styleResult" class="style-result"></div>
+      <div id="styleSaved" class="style-saved"></div>
+    </section>
+
+    <!-- Modal analizador -->
+    <div id="analyzerModal" class="modal" hidden>
+      <div class="modal-box">
+        <div class="modal-hdr">
+          <span>RIESGO DE DESMONETIZACIÓN</span>
+          <button id="analyzerClose" class="modal-close">✕</button>
+        </div>
+        <div class="modal-body" id="report"></div>
+      </div>
+    </div>
+
+    <video id="srcVideo" playsinline hidden></video>
+    <video id="avatarVid" playsinline muted hidden></video>
+    <audio id="musicAudio" hidden></audio>
+    <footer id="foot"><span>Procesamiento 100% local · tu video nunca sale de tu PC</span><span id="footNote"></span></footer>
+  </div>
+  <script src="vendor/ffmpeg.js"></script>
+  <script src="vendor/ffmpeg-util.js"></script>
+  <script src="vendor/mp4-muxer.min.js"></script>
+  <script src="../lib/face-api/face-api.min.js"></script>
+  <script src="../lib/nsp-text.js"></script>
+  <script src="../nsp-policy.js"></script>
+  <script type="module" src="../lib/whisper/whisper-local.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

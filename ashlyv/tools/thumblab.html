@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThumbLab · ZERACK</title>
+  <link rel="stylesheet" href="tools.css" />
+  <style>
+    .tl-wrap{display:flex;gap:0;max-width:1320px;margin:0 auto;align-items:flex-start;}
+    .tl-side{width:212px;flex:0 0 212px;padding:18px 12px;border-right:1px solid var(--line);position:sticky;top:0;align-self:flex-start;max-height:100vh;overflow:auto;}
+    .tl-side h4{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.38);margin:16px 0 7px;font-weight:800;}
+    .tl-nav{display:flex;flex-direction:column;gap:2px;}
+    .tl-nav button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:transparent;border:1px solid transparent;color:rgba(255,255,255,.8);font:inherit;font-size:13px;font-weight:600;padding:9px 11px;border-radius:9px;cursor:pointer;}
+    .tl-nav button:hover{background:rgba(255,255,255,.06);}
+    .tl-nav button.active{background:rgba(0,220,130,.14);color:#fff;border-color:rgba(0,220,130,.42);}
+    .tl-main{flex:1;padding:18px 22px;min-width:0;}
+    .tl-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+    .tl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:16px;}
+    .tl-cell{border:1px solid rgba(255,255,255,.10);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.03);transition:transform .12s,border-color .12s;}
+    .tl-cell:hover{transform:translateY(-3px);border-color:rgba(0,220,130,.4);}
+    .tl-tw{position:relative;cursor:pointer;}
+    .tl-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;background:#0c0c0c;}
+    .tl-badge{position:absolute;top:8px;left:8px;font-size:10px;font-weight:800;padding:3px 9px;border-radius:999px;background:rgba(0,0,0,.72);color:#fff;}
+    .tl-fav{position:absolute;top:8px;right:8px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,.6);color:#fff;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;}
+    .tl-fav.on{color:#ff4d6d;}
+    .tl-info{padding:10px 12px;}
+    .tl-vt{font-size:12.5px;font-weight:700;color:#fff;line-height:1.35;max-height:52px;overflow:hidden;}
+    .tl-vm{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:10.5px;color:rgba(255,255,255,.55);font-weight:600;}
+    .tl-vm .v{color:var(--neon);font-weight:800;}
+    @media(max-width:720px){.tl-side{display:none;}}
+  </style>
+</head>
+<body>
+  <header class="tk-head" id="tk-head"></header>
+  <div class="tl-wrap">
+    <aside class="tl-side">
+      <div class="tl-nav" id="tl-views">
+        <button data-view="discover" class="active">🧭 Descubrir</button>
+        <button data-view="favorites">⭐ Favoritos</button>
+      </div>
+      <h4>Ordenar</h4>
+      <div class="tl-nav" id="tl-sorts">
+        <button data-sort="views" class="active">👁 Más vistas</button>
+        <button data-sort="vph">⚡ Más VPH (explotando)</button>
+        <button data-sort="recent">🆕 Más recientes</button>
+      </div>
+      <h4>Nicho</h4>
+      <div class="tl-nav" id="tl-niches"></div>
+    </aside>
+    <main class="tl-main">
+      <div class="tl-bar">
+        <input class="tk-in" id="topic" placeholder="Buscar nicho, tema o canal…" style="flex:1;min-width:200px;" />
+        <select class="tk-in" id="market" style="flex:0 0 auto;width:auto;">
+          <option value="US|en">🇺🇸 EN</option>
+          <option value="ES|es">🇪🇸 ES</option>
+          <option value="MX|es">🇲🇽 MX</option>
+          <option value="BR|pt">🇧🇷 PT</option>
+          <option value="DE|de">🇩🇪 DE</option>
+          <option value="FR|fr">🇫🇷 FR</option>
+        </select>
+        <button class="tk-btn" id="go" style="background:#0a0a0a;border:1px solid var(--neon);color:#fff;font-weight:900;flex:0 0 auto;">🦇 Buscar</button>
+      </div>
+      <div id="status" style="font-size:12px;font-weight:700;margin-bottom:12px;"></div>
+      <div id="result"></div>
+    </main>
+  </div>
+  <script src="toolkit.js"></script>
+  <script src="thumblab.js"></script>
+</body>
+</html>

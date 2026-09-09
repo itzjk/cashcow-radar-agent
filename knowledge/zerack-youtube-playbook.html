@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="UTF-8"><title>ZERACK · YouTube Money Playbook</title>
+<style>
+  @page { size: A4; margin: 13mm 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #0a0a0a; color: #d8dde3;
+    font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 10.5px; line-height: 1.55; }
+  .pg { padding: 0 15mm; }
+  .brk { page-break-before: always; }
+  h1,h2,h3 { color: #fff; margin: 0; font-weight: 800; letter-spacing: .2px; }
+  .neon { color: #39FF14; } .cy { color: #19E3FF; } .am { color: #FFB02E; } .mut { color: #8a929c; }
+  a { color: #19E3FF; text-decoration: none; }
+
+  /* COVER */
+  .cover { height: 271mm; display: flex; flex-direction: column; justify-content: center; padding: 0 18mm;
+    background: radial-gradient(120% 80% at 50% 0%, #101a12 0%, #0a0a0a 55%); }
+  .shield { font-size: 46px; }
+  .brand { font-family: ui-monospace, "SF Mono", monospace; font-size: 13px; letter-spacing: 5px; color: #39FF14; margin: 10px 0 4px; }
+  .title { font-size: 40px; line-height: 1.05; margin: 6px 0; }
+  .title small { display:block; font-size: 17px; color:#19E3FF; font-weight:700; letter-spacing:0; margin-top:8px;}
+  .sub { font-size: 12px; color: #aeb6bf; max-width: 150mm; margin-top: 14px; }
+  .meta { margin-top: 26px; font-size: 10px; color: #8a929c; border-top: 1px solid #1e1e1e; padding-top: 14px; }
+  .legend { margin-top: 16px; display:flex; gap:8px; flex-wrap:wrap; }
+
+  /* SECTIONS */
+  .sec-h { display:flex; align-items:baseline; gap:10px; border-left: 4px solid #39FF14; padding: 2px 0 2px 12px; margin: 0 0 10px; }
+  .sec-n { font-family: ui-monospace, monospace; color:#39FF14; font-size: 12px; }
+  .sec-h h2 { font-size: 19px; }
+  .lead { color:#aeb6bf; font-size: 10.5px; margin: 0 0 12px; }
+
+  .card { background: #121315; border: 1px solid #232629; border-radius: 9px; padding: 9px 12px; margin: 7px 0; }
+  .card h3 { font-size: 11.5px; margin-bottom: 3px; }
+  .card p { margin: 3px 0; }
+  ul { margin: 4px 0 4px 0; padding-left: 16px; } li { margin: 2px 0; }
+
+  .badge { display:inline-block; font-family: ui-monospace, monospace; font-size: 8px; font-weight:700;
+    padding: 1.5px 6px; border-radius: 5px; vertical-align: middle; letter-spacing:.3px; }
+  .bv { background: rgba(57,255,20,.10); color:#39FF14; border:1px solid rgba(57,255,20,.45); }
+  .bo { background: rgba(25,227,255,.10); color:#19E3FF; border:1px solid rgba(25,227,255,.45); }
+  .be { background: rgba(255,176,46,.10); color:#FFB02E; border:1px solid rgba(255,176,46,.45); }
+  .src { color:#6c747d; font-size: 8.5px; margin-top: 5px; }
+  .kbig { font-size: 13px; color:#fff; font-weight:800; }
+
+  .hl { background: rgba(57,255,20,.07); border:1px solid rgba(57,255,20,.30); border-radius:9px; padding:10px 12px; margin:9px 0; }
+  table { width:100%; border-collapse: collapse; margin: 8px 0; font-size: 9.5px; }
+  th,td { border:1px solid #232629; padding: 5px 7px; text-align:left; } th { background:#15171a; color:#cfd6dd; }
+  .foot { margin-top: 14px; border-top:1px solid #1e1e1e; padding-top:8px; color:#6c747d; font-size:8.5px; }
+</style></head><body>
+
+<!-- ===================== COVER ===================== -->
+<div class="cover">
+  <div class="shield">🛡️</div>
+  <div class="brand">Z E R A C K</div>
+  <div class="title">YOUTUBE MONEY<br>PLAYBOOK
+    <small>El cerebro de tu IA — lo que de verdad mueve el dinero en YouTube faceless</small>
+  </div>
+  <div class="sub">Destilado de <b>8 investigaciones profundas</b> (verificación adversarial, 600+ agentes) <b>+ barrida de búsqueda directa</b>. Prioriza <b>documentación oficial de YouTube</b>, <b>estudios peer-reviewed</b> y <b>casos auditados por prensa</b> por encima de gurús. Cada dato lleva su nivel de confianza.</div>
+  <div class="legend">
+    <span class="badge bv">✓ VERIFICADO (voto 3-0)</span>
+    <span class="badge bo">★ FUENTE OFICIAL YOUTUBE</span>
+    <span class="badge be">~ ESTIMACIÓN / NO VERIFICADO</span>
+  </div>
+  <div class="meta">v3.0 · 24 jun 2026 · Documento interno ZERACK · Honestidad: lo no verificable está marcado como tal, sin cifras inventadas.</div>
+</div>
+
+<!-- ===================== RESUMEN ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">00</span><h2>Resumen ejecutivo — lo que cambia el juego</h2></div>
+  <div class="hl">
+    <ul>
+      <li><span class="kbig neon">Satisfacción, no clics.</span> YouTube NO premia el watch time crudo ni el CTR — premia que el espectador quede <b>satisfecho</b> (encuestas 1-5★, "no me interesa", si vuelve). <span class="badge bo">★</span></li>
+      <li><span class="kbig cy">Pull, no push.</span> No empuja un video a una masa: a cada espectador le <b>extrae</b> lo que ESE disfruta. La pregunta correcta es "¿le gusta a MI audiencia?". <span class="badge bo">★</span></li>
+      <li><span class="kbig am">El canal entero está en juego.</span> YouTube no castiga la IA — castiga lo <b>plantillizado/casi-idéntico</b>. Un solo patrón de slop puede desmonetizar TODO el canal. <span class="badge bo">★</span></li>
+      <li><span class="kbig">CTR alto ≠ ganar.</span> Una miniatura clickbait que el video no cumple <b>hunde</b> el video (baja retención → menos recomendado). El A/B test oficial gana por <b>watch time</b>, no por CTR. <span class="badge bv">✓</span></li>
+      <li><span class="kbig">El RPM lo manda la geografía.</span> No hay tabla oficial de RPM por nicho. Lo más sólido: la audiencia <b>tier-1</b> (USA/UK) vale <b>~12-28×</b> la tier-3 por view. <span class="badge bv">✓</span></li>
+    </ul>
+  </div>
+</div>
+
+<!-- ===================== 1. ALGORITMO ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">01</span><h2>El Algoritmo</h2></div>
+  <p class="lead">Cómo YouTube decide a quién mostrar qué. Todo de fuentes primarias de YouTube. <span class="badge bo">★ OFICIAL</span></p>
+
+  <div class="card"><h3 class="neon">Premia la SATISFACCIÓN, no el watch time crudo ni el CTR</h3>
+    <p>"No todo el tiempo de visionado vale igual." Se mide con: encuestas in-product 1-5★ (solo <b>4-5★ cuentan como "valued watchtime"</b>), likes/dislikes, clics en "no me interesa", y si el espectador <b>vuelve</b> a YouTube después. Es una métrica deliberadamente difícil de manipular.</p>
+    <div class="src">support.google.com/youtube/answer/11914225 · blog.youtube "recommendation system" · Todd Beaupré (Dir. Growth)</div></div>
+
+  <div class="card"><h3 class="cy">"Pull, no push" — recomendación centrada en el espectador</h3>
+    <p>Para cada persona, el sistema <b>extrae</b> el mejor contenido según: qué disfrutó antes, qué videos se ven juntos, cuánto consume de un canal/tema. <b>Regla de oro:</b> "¿le gusta esto a MI audiencia?", no "¿le gusta al algoritmo?".</p>
+    <div class="src">Beaupré: "it isn't so much about pushing it out as it's pulling… for each viewer."</div></div>
+
+  <div class="card"><h3>La retención alimenta el ranking</h3>
+    <p><b>Average view duration</b> (duración media vista) y <b>average % viewed</b> son señales confirmadas de ranking. También cuenta si, al recomendarse, el espectador lo ve, lo ignora o marca "no me interesa". El peso de cada métrica <b>cambia por contexto</b> (el watch time pesa más en TV que en móvil, más en podcast que en música).</p>
+    <div class="src">support.google.com/youtube/answer/11914225</div></div>
+</div>
+
+<!-- ===================== 2. RETENCIÓN ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">02</span><h2>Retención &amp; Hooks</h2></div>
+  <p class="lead">Cómo enganchan los más grandes. <span class="badge be">~ Doc filtrado de MrBeast (2024): best-practice, no regla de plataforma.</span></p>
+
+  <div class="card"><h3 class="neon">Carga el minuto 1 al máximo</h3>
+    <p>Máximo de visuales, música, efectos y cambios de escena rápidos desde el arranque — y <b>cumplí la promesa del título/miniatura YA</b> ("match the clickbait expectations"), dando cuanta info del video sea posible al inicio.</p></div>
+
+  <div class="card"><h3 class="cy">Re-engancha en ritmo fijo</h3>
+    <p>Un "espectáculo" <b>cada ~3 minutos</b>, y hacia la mitad (~min 6) un re-enganche mayor que necesita algo de explicación y <b>empuja la historia de la segunda mitad</b>. Nunca dejar caer el ritmo: cada tramo da una razón para seguir.</p>
+    <div class="src">"How to Succeed in MrBeast Production" (doc filtrado, sept 2024) · corroborado por MrBeast en X</div></div>
+</div>
+
+<!-- ===================== 3. MINIATURAS ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">03</span><h2>Miniaturas &amp; CTR</h2></div>
+  <p class="lead">Qué hace una miniatura de alto CTR — y por qué. <span class="badge bv">✓ YouTube oficial + papers peer-reviewed (Princeton/CMU/CHI).</span></p>
+
+  <div class="card"><h3 class="neon">1 · Legibilidad instantánea (la "prueba del 10%")</h3>
+    <p>Se tiene que entender de un vistazo a <b>tamaño diminuto en móvil</b>. Si al reducirla al 10% no se lee, sobran elementos. → <b>1 solo punto focal</b>, contraste alto, texto de <b>3-5 palabras</b> enorme, foreground separado del fondo.</p>
+    <div class="src">Chucky Appleby, lead de miniaturas de MrBeast (Creator Insider)</div></div>
+
+  <div class="card"><h3 class="cy">2 · El "curiosity gap" es el motor del clic</h3>
+    <p>La curiosidad surge cuando se activa una <b>pregunta concreta</b> sin respuesta cierta; ese vacío es <b>aversivo</b> y el clic lo alivia. La miniatura no debe mostrar una escena genérica: debe <b>plantar una pregunta específica</b> ("¿qué pasó después de ESTO?").</p>
+    <div class="src">Loewenstein 1994 (information-gap theory) · Kate Scott, Journal of Pragmatics 2021 — peer-reviewed</div></div>
+
+  <div class="card"><h3 class="cy">3 · El "sweet spot": ni esconder todo, ni spoilear todo</h3>
+    <p>La curiosidad sigue una <b>U-invertida</b>: pica con conocimiento <b>moderado</b>. Spoilear el desenlace (no hay vacío) o ser totalmente críptico (no da pistas) <b>fallan igual</b>. Revelá lo justo para que la pregunta sea legible y deje al espectador queriendo más.</p>
+    <div class="src">Dubey &amp; Griffiths, Princeton, Psychological Review (Exp. 1, n=303) · CHI 2021 (PSU)</div></div>
+
+  <div class="card"><h3 class="am">4 · El clickbait que NO cumple HUNDE el video</h3>
+    <p>YouTube lo dice: una miniatura es clickbait si da <b>CTR alto pero baja duración media</b> → se recomienda <b>menos</b>. En 2 experimentos, el clickbait <b>no</b> generó más clics que el honesto. <b>Nunca optimizar solo por CTR</b>: el costo es retención y alcance.</p>
+    <div class="src">support.google.com/youtube/answer/7628154 · Molina/Sundar, CHI 2021</div></div>
+
+  <div class="card"><h3>5 · Benchmark de CTR: 2-10%, pero SIEMPRE en contexto</h3>
+    <p>La mitad de canales/videos tienen CTR <b>2-10%</b>. Pero leelo por: <b>fuente de tráfico</b> (Búsqueda alto / Home bajo), <b>edad</b> del video, y <b>audiencia</b> (el CTR de las primeras horas está <b>inflado</b> por los fans). No compares contra un umbral único.</p>
+    <div class="src">support.google.com/youtube/answer/7628154 + /16767369</div></div>
+
+  <div class="card"><h3>6 · El A/B test oficial gana por WATCH TIME, no por CTR</h3>
+    <p>"Test &amp; compare" prueba hasta <b>3</b> miniaturas/títulos; el ganador se decide por <b>cuota de watch time</b> con significancia estadística. Una miniatura de CTR-alto/retención-baja puede <b>perder</b>. Herramientas de terceros que optimizan por CTR pueden elegir otro ganador.</p>
+    <div class="src">support.google.com/youtube/answer/13861714 · MrBeast: ~50 conceptos/video, boca cerrada ganó 30/30 por watch time <span class="badge be">~</span></div></div>
+</div>
+
+<!-- ===================== 4. DESMONETIZACIÓN ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">04</span><h2>Desmonetización</h2></div>
+  <p class="lead">Por qué se cae la monetización — lo más crítico para faceless. <span class="badge bo">★ YouTube oficial. La sanción suele ser a TODO el canal.</span></p>
+
+  <div class="card"><h3 class="am">"Inauthentic content" (15-jul-2025) — el riesgo #1 del faceless</h3>
+    <p>Penaliza el contenido <b>"hecho con plantilla, con poca o nula variación entre videos", o replicable a escala</b>. <b>NO</b> penaliza la IA per se. Ejemplos prohibidos textuales: historias narrativas con solo diferencias superficiales; slideshows con la misma narración.</p>
+    <div class="src">support.google.com/youtube/answer/1311392</div></div>
+
+  <div class="card"><h3 class="neon">La IA SÍ monetiza — si añade perspectiva original</h3>
+    <p>Un canal con IA es elegible si: sigue las políticas, <b>aporta el insight/ángulo original del creador</b>, y <b>divulga</b> cuando alteró contenido realista. La línea está en lo <b>plantillizado-sin-perspectiva</b>. Nunca presentar ficción IA como hechos reales.</p></div>
+
+  <div class="card"><h3>Reused content: transformar, no recopilar</h3>
+    <p>Para monetizar algo prestado hay que <b>cambiarlo significativamente</b> (comentario original sustancial, modificación sustantiva, o valor educativo/entretenimiento). <b>Prohibido:</b> clips pegados sin narrativa, copiado sin modificación, reacciones <b>no verbales</b> sin comentario. <b>Permitido:</b> review crítico, reacción con comentario, footage con guion propio.</p>
+    <div class="src">support.google.com/youtube/answer/1311392</div></div>
+
+  <div class="card"><h3>Advertiser-friendly &amp; Content ID (en breve)</h3>
+    <ul>
+      <li><b>Profanity/violencia:</b> el <b>momento</b> importa — lo fuerte en los primeros 7s penaliza más; el contexto educativo/documental mitiga. <span class="badge bo">★</span></li>
+      <li><b>Content ID ≠ strike:</b> un claim solo <b>redirige el dinero</b> al dueño del copyright (no tumba el canal). Un <b>strike</b> de copyright sí afecta el standing. <span class="badge bo">★</span></li>
+      <li><b>3 strikes</b> de normas comunitarias en 90 días = canal eliminado.</li>
+      <li><b>YPP:</b> 1.000 subs + 4.000 h/12 meses (largos) <b>o</b> 1.000 subs + 10M views Shorts/90 días.</li>
+    </ul>
+    <div class="src">support.google.com/youtube/answer/6162278, /9725604, /6013276, /72851</div></div>
+</div>
+
+<!-- ===================== 5. FACELESS ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">05</span><h2>Qué es REALMENTE faceless</h2></div>
+  <p class="lead">La definición precisa y la línea — base del clasificador de ZERACK.</p>
+
+  <div class="card"><h3 class="cy">Definición</h3>
+    <p>Faceless = el canal <b>no depende de una persona/host humano a cámara</b> (el creador no aparece). La alternativa a ir faceless es "contratar a alguien que dé la cara". <span class="badge bv">✓</span></p></div>
+
+  <div class="card"><h3 class="neon">Monetizable vs AI slop — la línea es TRANSFORMACIÓN, no formato</h3>
+    <p>Un faceless con <b>ángulo/valor propio</b> monetiza. Uno de <b>plantilla casi-idéntica</b> = slop = desmonetiza el canal. El formato (narración, listas, gameplay) no es el problema; la falta de variación y perspectiva sí. <span class="badge bo">★</span></p></div>
+
+  <div class="card"><h3>Tipos (para clasificar) y la línea gris</h3>
+    <p><b>Tipos:</b> narración+stock/B-roll · narración+IA · compilaciones · gameplay sin facecam · texto cinético · animación 2D/motion · documentales narrados · ASMR/sleep · listas/top · explainers.</p>
+    <p><b>Línea gris:</b> un <b>noticiero</b> (b-roll+voz, sin host fijo) es "faceless de forma" pero es un <b>medio establecido</b>, no automation replicable → ZERACK debe bajarlo. Gameplay con facecam chico = mixto. Voz IA con guion y ángulo propio = faceless monetizable.</p></div>
+</div>
+
+<!-- ===================== 6. NICHOS / RPM ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">06</span><h2>Nichos &amp; RPM</h2></div>
+  <p class="lead">Cuánto se gana de verdad — separando el dato del humo de gurú.</p>
+
+  <div class="hl"><h3 class="am">⚠ Verdad incómoda: NO existe tabla oficial de RPM por nicho</h3>
+    <p>Todas las tablas que circulan (finanzas $15-50, tech $10-30…) son <b>estimaciones de vendor sin metodología</b>. ZERACK debe mostrarlas SIEMPRE como estimación, nunca como hecho.</p></div>
+
+  <div class="card"><h3 class="neon">El factor MÁS sólido: la geografía de la audiencia</h3>
+    <p>Medición real de un canal (first-party): CPM mediano <b>USA ~10,3€</b> vs <b>India ~0,8€</b> vs <b>Pakistán ~0,4€</b> → <b>~12-28× más</b> por view. En RPM el gap conservador es <b>~3-5×</b>. Q4 sube CPMs ~40-60%. <span class="badge bv">✓</span></p>
+    <table>
+      <tr><th>Tier</th><th>Países (audiencia)</th><th>Valor relativo /view</th></tr>
+      <tr><td>1</td><td>USA, UK, Canadá, Australia, Alemania</td><td class="neon">Alto (base)</td></tr>
+      <tr><td>2</td><td>Europa sur/este, etc.</td><td class="cy">Medio</td></tr>
+      <tr><td>3</td><td>India, Pakistán, gran parte de LATAM</td><td class="am">~1/12 a 1/28 del tier-1</td></tr>
+    </table>
+    <div class="src">isthischannelmonetized.com (first-party, metodología publicada)</div></div>
+
+  <div class="card"><h3>Mecánica confirmada (úsala en los cálculos)</h3>
+    <ul>
+      <li><b>RPM</b> = ingresos reales ÷ views × 1000, <b>después</b> del reparto (incluye ads + memberships + Premium + Super Chat). <span class="badge bo">★</span></li>
+      <li><b>CPM</b> = lo que paga el anunciante por 1.000 impresiones, <b>antes</b> del reparto.</li>
+      <li><b>Split 55/45</b>: el creador se queda el <b>55%</b> de los ads de la página de reproducción (largos). <span class="badge bo">★</span></li>
+      <li>Rentable ≠ solo RPM: pesa la <b>geografía</b>, la demanda/volumen, la <b>duración</b> del video (más ad breaks), evergreen vs trending, y el poder adquisitivo.</li>
+    </ul>
+    <div class="src">AdSense Help /190515 · YouTube /9314357 · /72902</div></div>
+
+  <div class="card"><h3 class="cy">Caso con verificación parcial (Fortune)</h3>
+    <p>Adavia Davis: <b>~40-60k$/mes</b> (~700k$/año), <b>5 canales</b>; el más rentable es de <b>sleep / "Boring History"</b>; costo desde <b>~60$/video</b>, márgenes <b>85-89%</b>. <span class="badge bo">★ medio serio</span> — el resto de "casos" de gurús con capturas no son auditables. <span class="badge be">~</span></p></div>
+</div>
+
+<!-- ===================== 7. JUEGO AVANZADO ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">07</span><h2>Juego avanzado — operadores reales</h2></div>
+  <p class="lead">Lo que NO está en los blogs: números reales y tácticas de los que facturan en long-form. Separando lo auditado del humo de gurú.</p>
+
+  <div class="hl"><h3 class="neon">★ Caso AUDITADO por Fortune — tu modelo casi calcado</h3>
+    <p><b>Adavia Davis</b> (22 años): red de <b>~5 canales</b> faceless long-form de IA → <span class="kbig neon">$40-60k/mes</span> (~$700k/año), márgenes <b>85-89%</b>, opex <b>~$6.500/mes</b> (equipos chicos por nicho). Pipeline: <b>Claude</b> (guion + visuales) + <b>ElevenLabs</b> (narración) → videos de <b>hasta 6 horas por ~$60</b>. <span class="badge bv">✓ Fortune revisó sus pagos de AdSense</span></p>
+    <p class="mut" style="font-size:9px; margin-top:5px;">Honestidad: Fortune verificó solo los <b>ingresos</b>; el costo de $60/video y el opex son autorreportados por Davis, que vende un curso de automatización (conflicto de interés). Es básicamente lo que hace ZERACK — pero tratá las cifras de costo como un piso optimista.</p></div>
+
+  <div class="card"><h3 class="cy">Por qué el LONG-FORM paga más: el umbral de los 8 minutos</h3>
+    <p>Los <b>mid-roll ads</b> (cortes en medio del video) solo se habilitan en videos monetizados de <b>8+ minutos</b> (bajó de 10→8 en 2020). Por eso el formato largo monetiza mucho más que un corto: <b>varios cortes por video</b>, no solo pre/post-roll. <span class="badge bo">★ YouTube oficial</span></p>
+    <p class="mut" style="font-size:9px; margin-top:5px;">Honestidad: la regla "X mid-rolls cada 8-10 min" que repiten los blogs NO está confirmada por fuente seria — lo único firme es el umbral de 8 min. El espaciado óptimo, a probar.</p></div>
+
+  <div class="card"><h3>Nichos long-form que más pagan (orden de magnitud)</h3>
+    <p>Reportados por un blog (<b>no auditado</b> — pista, no hecho): traición/venganza <b>~$12.8</b> RPM · podcasts de inglés <b>~$11.9</b> · soundscapes de sueño <b>~$10.9</b> · recaps de manhwa/webtoon <b>~$10.5</b> · análisis literario <b>~$9.2</b>. <span class="badge be">~ estimación de blog</span></p>
+    <p>Coinciden con formatos <b>long-form clásicos</b> (sleep, podcasts largos, recaps narrados) — justo lo que ZERACK produce.</p></div>
+
+  <div class="card"><h3>Escala multi-canal (con el filtro del humo)</h3>
+    <p>El modelo serio es <b>cartera de canales</b> con equipos chicos por nicho (Davis: 5 canales). Otros reclaman 18-20 canales o "80 videos/día", pero esos números vienen de gente que <b>vende cursos/SaaS</b> y no están auditados (uno reclama 80/día… su propio producto dice 4/día). <b>No te creas la escala mágica.</b> <span class="badge be">~</span></p></div>
+
+  <div class="hl"><h3 class="am">⚠ Lo que FRACASA — el riesgo #1</h3>
+    <p>La política <b>"inauthentic content"</b> (15-jul-2025) desmoneta canales que suben <b>muchos videos similares/plantilla a escala</b> — <b>exactamente el modelo faceless de IA</b>. Verdad incómoda: los casos más rentables y auditados son operaciones <b>100% IA</b>, que son <b>las de MÁS riesgo</b>. La defensa: <b>variar de verdad + aportar valor por video</b> → ahí tu Policy Engine es ventaja real.</p>
+    <p class="mut" style="font-size:9px; margin-top:5px;">Honestidad: varias historias virales ("YouTube tumbó 16 canales/$10M", "operador perdió $250k/mes", "el algoritmo premia las caras") NO sobrevivieron la verificación — descartadas. No las repitas como hechos.</p></div>
+</div>
+
+<!-- ===================== 8. NICHOS RENTABLES ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">08</span><h2>Nichos rentables — CPM + ejemplos</h2></div>
+  <p class="lead">Qué nichos pagan más y qué canales imitar. <span class="badge be">~ CPM = estimaciones de mercado convergentes, no oficiales</span></p>
+  <table>
+    <tr><th>Nicho</th><th>CPM ~</th><th>Ejemplo / nota</th></tr>
+    <tr><td class="neon">Personal finance / inversión</td><td>$15-22</td><td>El más rentable. Ej: <b>Alux</b></td></tr>
+    <tr><td>Make money online / IA</td><td>$15-20</td><td>Twist 2026: ganar usando IA</td></tr>
+    <tr><td>Legal / court drama</td><td>$12-18</td><td>—</td></tr>
+    <tr><td>Digital marketing</td><td>$12-18</td><td>—</td></tr>
+    <tr><td>Real estate / lujo</td><td>$10-16</td><td>—</td></tr>
+    <tr><td>Geography / educativo</td><td>medio</td><td>Ej: <b>RealLifeLore</b></td></tr>
+    <tr><td>True crime / misterio</td><td>medio</td><td>Ej: <b>Stories to Remember</b> (143k subs / 35M views)</td></tr>
+    <tr><td>Health / wellness</td><td>medio</td><td>Afiliados de suplementos <b>2-3×</b> los ads</td></tr>
+    <tr><td>History</td><td>medio</td><td>Sub-ángulo específico ("WWII naval"), NO genérico</td></tr>
+  </table>
+  <div class="card"><h3 class="cy">Reglas de oro</h3>
+    <ul>
+      <li><b>Afiliados &gt; AdSense</b> en faceless: 1 clic de alta intención = <b>$50-500</b>. No vivas solo de ads.</li>
+      <li>Elegí <b>sub-nicho específico</b>, no la categoría amplia.</li>
+      <li><b>Shorts + long-form = ~3× más crecimiento</b> (data YT 2026): Shorts para descubrir, long-form para monetizar.</li>
+    </ul></div>
+</div>
+
+<!-- ===================== 9. STACK ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">09</span><h2>Stack de producción 2026</h2></div>
+  <p class="lead">El toolset real de operadores, con precios. Stack básico: <b>~$25-70/mes</b>.</p>
+  <div class="card"><h3 class="neon">Guion · Voz</h3><p><b>Guion:</b> ChatGPT-4o / Claude. <b>Voz:</b> <b>ElevenLabs</b> = el estándar (Starter $5/mo ≈ 25 min ≈ 4-5 videos, 3 voces custom). En faceless la voz es <b>lo único humano</b> que se oye → cuidala.</p></div>
+  <div class="card"><h3 class="cy">Visuales · Edición</h3><p><b>Visuales:</b> Sora se discontinuó (abr 2026) → <b>Kling 3.0</b> (video/B-roll, ~$6.99) + <b>Nano Banana 2</b> (imágenes/miniaturas, #1 del mercado). <b>Edición:</b> Descript ($24, edición por texto) o CapCut Pro ($9.99, cinemático/efectos).</p></div>
+  <div class="card"><h3>Miniaturas · Workflow</h3><p><b>Miniaturas:</b> Nano Banana 2 → 5 variantes → A/B test 48h → ganador. <b>Workflow:</b> producí en <b>BATCH</b> (5-10 videos por sesión), research SIEMPRE primero.</p></div>
+</div>
+
+<!-- ===================== 10. OUTLIERS ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">10</span><h2>Encontrar ideas que YA funcionan</h2></div>
+  <p class="lead">El método de outliers — lo que hacen los operadores ANTES de producir. <span class="badge bo">★ ZERACK ya lo hace (scanner)</span></p>
+  <div class="card"><h3 class="neon">El método</h3>
+    <ul>
+      <li>Buscá videos que rindan <b>~10× sobre el promedio del CANAL</b> → muestra qué empuja el algoritmo AHORA. La métrica es un <b>multiplicador</b> (vs el promedio), no views absolutos.</li>
+      <li>Outlier fuerte = demanda + packaging clickeable + timing + audience fit + buenos primeros 30s.</li>
+      <li><b>Más fuerte si aparece en VARIOS canales</b> del mismo nicho = demanda repetible, no suerte de uno.</li>
+      <li>Momentum: <b>2-6 semanas</b> antes de saturarse. No seas el primero, pero sí de la <b>primera ola</b> (no la tercera).</li>
+    </ul></div>
+</div>
+
+<!-- ===================== 11. GUION & FRACASO ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">11</span><h2>Guion long-form &amp; por qué fracasan</h2></div>
+  <div class="card"><h3 class="neon">Retención en videos largos</h3>
+    <p>Data 2025: retención promedio <b>23.7%</b>; <b>55% se va en 60s</b>; un hook en los primeros 15s retiene <b>65% al minuto 3</b>. Estructura de <b>5 actos</b> mapeada a timestamps (mata el "filler del medio"). Pattern interrupt cada <b>90-120s</b>. Open loops: plantá la pregunta, retené la respuesta.</p></div>
+  <div class="card"><h3 class="am">Por qué fracasan (casos reales)</h3>
+    <ul>
+      <li>Mito "set and forget": si nadie maneja, el barco deriva. La automatización NO es pasiva.</li>
+      <li><b>Outsourcing TOTAL:</b> un canal con 60M views tercerizó todo → ganó solo <b>$6.000</b>. Hacé VOS lo creativo (idea/guion/packaging), tercerizá solo edición.</li>
+      <li>Velocidad &gt; calidad → genérico/robótico → desmonetización.</li>
+      <li>Abandonar al mes 4-6, justo antes de que el algoritmo <b>componga (~mes 8, ~30 videos)</b>.</li>
+    </ul></div>
+  <div class="card"><h3 class="neon">Qué hacen los que ganan</h3>
+    <p>Control estratégico (núcleo creativo propio) · cada upload = experimento (cambian 1 variable, miden) · mentalidad de <b>12 meses</b> · research ANTES de producir · <b>múltiples ingresos</b> (afiliados/sponsors/productos), no solo AdSense.</p></div>
+</div>
+
+<!-- ===================== PLAN ===================== -->
+<div class="pg brk">
+  <div class="sec-h"><span class="sec-n">▶</span><h2>Qué le metemos a la herramienta</h2></div>
+  <p class="lead">El plan de features que sale de este conocimiento — el cerebro de ZERACK aplicado.</p>
+
+  <div class="card"><h3 class="neon">Scanner de nichos</h3>
+    <p>Priorizar por <b>geografía de la audiencia</b>, no solo por tema (el multiplicador 12-28× es la palanca real). Mostrar RPM siempre como <b>estimación</b>. + el juez faceless por visión (en curso) para no colar noticieros/personas.</p></div>
+
+  <div class="card"><h3 class="cy">Detector anti-desmonetización (Policy Engine)</h3>
+    <p>Antes de subir: chequear <b>plantilla/casi-idéntico</b> (inauthentic), <b>reused</b> sin valor, y advertiser-friendly (profanity en los primeros 7s, temas sensibles). Avisar qué arreglar para no arriesgar el canal entero.</p></div>
+
+  <div class="card"><h3 class="am">Evaluador de miniaturas</h3>
+    <p>Puntuar: <b>legibilidad a tamaño chico</b> (1 foco, texto ≤5 palabras, contraste), <b>fuerza del curiosity-gap</b> (pregunta concreta, ni cripta ni spoiler), y <b>bandera de clickbait</b> (promesa que el video no podrá cumplir → riesgo de hundirse).</p></div>
+
+  <div class="card"><h3>Editor (Monetize Studio)</h3>
+    <p>Plantillas de ritmo: <b>front-load del minuto 1</b> + re-enganche cada ~3 min. Apuntar a <b>8+ minutos</b> para habilitar <b>mid-rolls</b> (más ad breaks = más ingreso). Y forzar <b>variación real entre videos</b> (anti-slop) para no caer en "inauthentic".</p></div>
+
+  <div class="card"><h3 class="neon">El cerebro IA</h3>
+    <p>Este playbook = su conocimiento base. Reglas duras: pensar en <b>satisfacción/retención</b>, <b>nunca</b> optimizar solo por CTR (penalizar clickbait), y razonar "¿le gusta a MI audiencia?".</p></div>
+
+  <div class="foot">ZERACK · YouTube Money Playbook v1.0 · 24 jun 2026 · Fuentes primarias: YouTube Help (answer/11914225, 1311392, 7628154, 13861714, 6162278, 72851, 72902, 9314357), blog.youtube, papers peer-reviewed (Loewenstein/CMU, Dubey&amp;Griffiths/Princeton, CHI 2021, Journal of Pragmatics 2021), Fortune, isthischannelmonetized, doc filtrado MrBeast. Lo marcado ~ es estimación o no verificado: tratar como hipótesis, no como hecho.</div>
+</div>
+
+</body></html>

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<!-- Run this file in browser to generate icon PNGs. Save each canvas as PNG. -->
+<html><body>
+<canvas id="c16" width="16" height="16"></canvas>
+<canvas id="c48" width="48" height="48"></canvas>
+<canvas id="c128" width="128" height="128"></canvas>
+<script>
+function drawIcon(canvas) {
+  const s = canvas.width;
+  const ctx = canvas.getContext('2d');
+  const r = s * 0.46;
+  const cx = s / 2, cy = s / 2;
+
+  // BG circle
+  const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, r);
+  grad.addColorStop(0, '#9B6FFF');
+  grad.addColorStop(1, '#5B2FFF');
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Lightning bolt
+  ctx.fillStyle = '#EAF0FF';
+  ctx.font = `bold ${Math.round(s * 0.55)}px Arial`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('⚡', cx, cy + s * 0.03);
+}
+
+['c16','c48','c128'].forEach(id => drawIcon(document.getElementById(id)));
+</script>
+</body></html>

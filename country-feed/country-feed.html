@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZERACK · Country Radar</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #000; --panel: #0a0a0a; --line: rgba(255,255,255,.12);
+    --txt: #fff; --mut: rgba(255,255,255,.55); --ok: #00DC82; --bad: #FF6B6B; --warn: #FFD93D;
+    --display: "Bahnschrift SemiBold", "Aptos Display", "Segoe UI Semibold", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --text: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  html, body { background: var(--bg); color: var(--txt); font-family: var(--text); min-height: 100%; }
+  body {
+    background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  #app { max-width: 1320px; margin: 0 auto; padding: 22px 18px 60px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .logo { font-size: 26px; filter: drop-shadow(0 0 10px rgba(255,255,255,.5)); }
+  h1 { font-size: 17px; font-weight: 800; letter-spacing: .12em; font-family: var(--display); text-shadow: 0 0 10px rgba(255,255,255,.45); }
+  .sub { font-size: 10.5px; color: var(--mut); margin-top: 3px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.25); color: #fff; border-radius: 9px; padding: 10px 14px; font: 800 11px var(--display); letter-spacing: .05em; cursor: pointer; }
+  button:hover { background: rgba(255,255,255,.12); }
+  #btn-scan { background: linear-gradient(135deg, rgba(0,255,136,.18), rgba(0,0,0,.9)); border-color: rgba(0,255,136,.55); color: #00FF88; box-shadow: 0 0 18px rgba(0,255,136,.15); padding: 10px 22px; font-size: 12px; }
+  #btn-scan:disabled { opacity: .55; cursor: wait; }
+  #controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+  #controls label { font-size: 9.5px; color: var(--mut); letter-spacing: .08em; text-transform: uppercase; display: flex; flex-direction: column; gap: 5px; font-family: var(--display); }
+  select, input[type="number"] { background: #0d0d0d; border: 1px solid rgba(255,255,255,.22); color: #fff; border-radius: 8px; padding: 8px 10px; font: 12.5px var(--text); outline: none; min-width: 130px; }
+  select:focus, input:focus { border-color: rgba(255,255,255,.55); }
+  #txt-queries { display: none; width: 100%; min-height: 64px; background: #0d0d0d; border: 1px solid rgba(255,255,255,.22); color: #fff; border-radius: 8px; padding: 9px 11px; font: 12px var(--text); outline: none; resize: vertical; }
+  #statusRow { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  #status-line { font-size: 11.5px; color: rgba(255,255,255,.7); flex: 1; }
+  #results-count { font-size: 10.5px; color: var(--ok); font-weight: 800; white-space: nowrap; }
+  #progress { height: 3px; background: rgba(255,255,255,.08); border-radius: 3px; overflow: hidden; margin-bottom: 14px; }
+  #progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #00DC82, #00FF88); box-shadow: 0 0 12px rgba(0,255,136,.5); transition: width .3s; }
+  #results-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; padding: 11px 12px; font-size: 10px; font-family: var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--mut); border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; white-space: nowrap; position: sticky; top: 0; background: #0a0a0a; }
+  th:hover { color: #fff; }
+  th .arrow { color: var(--ok); margin-left: 4px; }
+  td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.05); vertical-align: top; }
+  tr:hover td { background: rgba(255,255,255,.03); }
+  .vlink { color: #fff; text-decoration: none; font-weight: 700; }
+  .vlink:hover { color: #00FF88; }
+  .num { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+  .vph { color: var(--ok); }
+  .chs { color: var(--mut); font-size: 11px; }
+  .empty { padding: 46px 20px; text-align: center; color: var(--mut); line-height: 1.7; font-size: 12.5px; }
+  #foot { margin-top: 12px; font-size: 10px; color: var(--mut); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">
+      <div class="logo">🌍</div>
+      <div>
+        <h1>ZERACK · COUNTRY RADAR</h1>
+        <div class="sub">Videos faceless REALES del feed de cada país (InnerTube directo) — sin API keys, con veredicto y $ estimado.</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button id="btn-export">⬇ Exportar CSV</button>
+      <button id="btn-cache">♻ Datos frescos</button>
+    </div>
+  </header>
+  <div id="controls">
+    <label>Mercado
+      <select id="sel-market"></select>
+    </label>
+    <label>Búsquedas
+      <select id="sel-niche">
+        <option value="auto">Faceless del idioma (auto)</option>
+        <option value="custom">Personalizadas…</option>
+      </select>
+    </label>
+    <label>VPH mínimo
+      <input id="inp-vph" type="number" min="0" step="10" placeholder="0" />
+    </label>
+    <label>Edad máx
+      <select id="sel-age">
+        <option value="0">Sin límite</option>
+        <option value="168">7 días</option>
+        <option value="720" selected>30 días</option>
+        <option value="2160">90 días</option>
+      </select>
+    </label>
+    <button id="btn-scan">🌍 ESCANEAR PAÍS</button>
+    <textarea id="txt-queries" placeholder="Una búsqueda por línea (máx 12)…"></textarea>
+  </div>
+  <div id="statusRow">
+    <div id="status-line">Elegí un país y dale ESCANEAR PAÍS.</div>
+    <div id="results-count"></div>
+  </div>
+  <div id="progress"><div id="progress-fill"></div></div>
+  <div id="results-wrap"></div>
+  <div id="foot">Ordená haciendo click en las columnas · Faceless ≥60 = señal fuerte · los resultados también alimentan tu Índice de Nichos al escanear desde YouTube.</div>
+</div>
+<script src="../lib/nsp-faceless-data.js"></script>
+<script src="country-feed.js"></script>
+</body>
+</html>
