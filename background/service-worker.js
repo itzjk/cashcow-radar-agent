@@ -623,6 +623,23 @@ function nspFetchUrlAllowed(rawUrl, sender) {
   return NSP_PAGE_FETCH_HOSTS.indexOf(host) !== -1;
 }
 
+var _nspStorageQueue = Promise.resolve();
+
+function nspStorageUpdate(key, mutate) {
+  _nspStorageQueue = _nspStorageQueue.then(function() {
+    return new Promise(function(resolve) {
+      chrome.storage.local.get(key, function(r) {
+        var next = mutate((r && r[key]));
+        if (typeof next === 'undefined') { resolve(false); return; }
+        var payload = {};
+        payload[key] = next;
+        chrome.storage.local.set(payload, function() { resolve(true); });
+      });
+    });
+  }).catch(function() { return false; });
+  return _nspStorageQueue;
+}
+
 function storageGet(keys) {
   return new Promise(function(resolve) {
     try { chrome.storage.local.get(keys, function(r) { resolve(r || {}); }); }
@@ -694,8 +711,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.type === 'NSP_SAVE_CHANNEL') {
     var entry = msg.data;
     if (!entry || !entry.channelUrl) { sendResponse({ ok: false }); return false; }
-    chrome.storage.local.get('nsp_all_channels', function(res) {
-      var all = res.nsp_all_channels || [];
+    nspStorageUpdate('nsp_all_channels', function(stored) {
+      var all = stored || [];
       var idx = -1;
       for (var i = 0; i < all.length; i++) {
         if (all[i].channelUrl === entry.channelUrl) { idx = i; break; }
@@ -709,15 +726,20 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         if ((entry.avgOS || 0) > (prev.avgOS || 0)) prev.avgOS = entry.avgOS;
         if ((entry.topVPH || 0) > (prev.topVPH || 0)) { prev.topVPH = entry.topVPH; prev.topTier = entry.topTier; }
         if (entry.niche && entry.niche !== '🔮 General') prev.niche = entry.niche;
+        if (entry.channelAgeDays != null) prev.channelAgeDays = entry.channelAgeDays;
+        if (entry.joinedDate) prev.joinedDate = entry.joinedDate;
+        if ((entry.totalViews || 0) > (prev.totalViews || 0)) prev.totalViews = entry.totalViews;
+        if ((entry.videoCount || 0) > (prev.videoCount || 0)) prev.videoCount = entry.videoCount;
         prev.savedAt = Date.now();
       } else {
         entry.savedAt = Date.now();
         all.unshift(entry);
       }
       if (all.length > 500) all.length = 500;
-      chrome.storage.local.set({ nsp_all_channels: all }, function() {
-        sendResponse({ ok: true, total: all.length });
-      });
+      entry._total = all.length;
+      return all;
+    }).then(function(saved) {
+      sendResponse({ ok: !!saved, total: entry._total || 0 });
     });
     return true;
   }
@@ -772,7 +794,10 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   // — UI scan preferences
   if (msg.type === 'NSP_UI_PREFS_GET') {
     chrome.storage.local.get('nsp_ui_prefs', function(r) {
-      sendResponse({ ok: true, prefs: r.nsp_ui_prefs || { language: 'auto', market: 'global', depth: 'balanced' } });
+      var prefs = r.nsp_ui_prefs || { language: 'auto', market: 'global', depth: 'balanced' };
+      chrome.storage.sync.get('nsp_settings', function(sy) {
+        sendResponse({ ok: true, prefs: prefs, settings: (sy && sy.nsp_settings) || null });
+      });
     });
     return true;
   }
@@ -883,12 +908,17 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         mem.legacyMigrated = true;
       }
       var dashboardChannels = (r.nsp_all_channels || []).filter(function(c) { return c.blocked; });
-      sendResponse({
+      var answer = {
         ok: true,
         memory: mem,
         blockedDashboardChannelUrls: dashboardChannels.map(function(c) { return c.channelUrl; }).filter(Boolean),
         blockedDashboardChannelKeys: dashboardChannels.map(function(c) { return c.channelKey; }).filter(Boolean)
-      });
+      };
+      if (mem.legacyMigrated) {
+        chrome.storage.local.set({ nsp_scan_memory: mem }, function() { sendResponse(answer); });
+        return;
+      }
+      sendResponse(answer);
     });
     return true;
   }
@@ -1616,10 +1646,11 @@ function nspEmitProgress(payload) {
 // ── Main: fetch country faceless feed via InnerTube (trending + queries) ──
 // Emits live progress events via NSP_FEED_PROGRESS messages.
 var NSP_RECENCY_PARAMS = [
-  { maxHours: 24, params: 'EgQIARAB' },
-  { maxHours: 168, params: 'EgQIAhAB' },
-  { maxHours: 720, params: 'EgQIAxAB' },
-  { maxHours: 8760, params: 'EgQIBBAB' }
+  { maxHours: 1, params: 'EgQIARAB' },
+  { maxHours: 24, params: 'EgQIAhAB' },
+  { maxHours: 168, params: 'EgQIAxAB' },
+  { maxHours: 720, params: 'EgQIBBAB' },
+  { maxHours: 8760, params: 'EgQIBRAB' }
 ];
 
 function nspRecencyParams(maxAgeHours) {

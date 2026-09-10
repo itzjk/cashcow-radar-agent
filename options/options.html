@@ -45,16 +45,6 @@
   <div class="subtitle">Metrics and display settings</div>
 
   <div class="section">
-    <div class="section-title"> Tier Thresholds (Multiplier)</div>
-    <div class="row2">
-      <div class="field"><label>LEGENDARY (min multiplier)</label><input type="number" id="t-legendary" min="1" value="50"/></div>
-      <div class="field"><label>EPIC (min multiplier)</label><input type="number" id="t-epic" min="1" value="15"/></div>
-      <div class="field"><label>GOLD (min multiplier)</label><input type="number" id="t-gold" min="1" value="5"/></div>
-      <div class="field"><label>SILVER (min multiplier)</label><input type="number" id="t-silver" min="0" step="0.1" value="2"/></div>
-    </div>
-  </div>
-
-  <div class="section" style="border-color:rgba(255, 255, 255,0.35);background:linear-gradient(135deg,rgba(255, 255, 255,0.04),rgba(255, 255, 255,0.04));">
     <div class="section-title" style="color:var(--accentC);">ZERACK, Gemini API key</div>
     <div class="field">
       <label style="color:var(--text);">API key (Google Gemini, free)</label>
@@ -77,6 +67,17 @@
 
   <!-- v3.8.0 — GROQ provider -->
   <div class="section" style="border-color:rgba(255, 45, 45,0.45);background:linear-gradient(135deg,rgba(255, 45, 45,0.06),rgba(255, 255, 255,0.04));">
+    <div class="section-title">Paid calls</div>
+    <div class="field">
+      <label class="row-toggle" style="display:flex;align-items:center;gap:10px;color:var(--text);">
+        <input type="checkbox" id="nsp-vision-allowed"/>
+        <span>Let a scan send thumbnails to the vision model</span>
+      </label>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.55;">
+        Off by default. A scan can send up to twelve thumbnails to Gemini to judge whether a video is really faceless, and those calls count against your quota. Having a key stored is not permission to spend it.
+      </div>
+    </div>
+
     <div class="section-title">Assistant model</div>
     <div class="field">
       <label style="color:var(--text);">Model used by the assistant and every AI panel</label>

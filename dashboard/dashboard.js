@@ -162,18 +162,43 @@ function toggleWatch(ch, btn) {
   });
 }
 
+function buildNichePills() {
+  var wrap = document.querySelector('.filter-group[data-group="niche"]');
+  if (!wrap) return;
+  var counts = {};
+  allChannels.forEach(function(c) {
+    var label = c.niche || '';
+    if (!label) return;
+    counts[label] = (counts[label] || 0) + 1;
+  });
+  var labels = Object.keys(counts).sort(function(a, b) { return counts[b] - counts[a]; }).slice(0, 12);
+  wrap.textContent = '';
+  var all = document.createElement('button');
+  all.className = 'pill niche' + (activeNiche === 'ALL' ? ' active' : '');
+  all.dataset.niche = 'ALL';
+  all.textContent = 'All';
+  wrap.appendChild(all);
+  labels.forEach(function(label) {
+    var b = document.createElement('button');
+    b.className = 'pill niche' + (activeNiche === label ? ' active' : '');
+    b.dataset.niche = label;
+    b.textContent = label + ' ' + counts[label];
+    wrap.appendChild(b);
+  });
+  wrap.querySelectorAll('.pill.niche').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      activeNiche = btn.dataset.niche;
+      buildNichePills();
+      render();
+    });
+  });
+}
+
 function render() {
+  buildNichePills();
   var filtered = allChannels.filter(function(ch) {
     if (activeFilter !== 'ALL' && ch.source !== activeFilter) return false;
-    if (activeNiche !== 'ALL') {
-      var niche = ch.niche || '🔮 General';
-      if (activeNiche === '🔮 General') {
-        var mainNiches = ['🤖 AI','💻 Tech','💰 Finance','🏢 Business','📷 Camera','🎮 Gaming'];
-        if (mainNiches.some(function(n) { return niche.indexOf(n.split(' ')[1]) !== -1; })) return false;
-      } else {
-        if (niche !== activeNiche) return false;
-      }
-    }
+    if (activeNiche !== 'ALL' && (ch.niche || '') !== activeNiche) return false;
     // Age filter
     if (activeAge !== 'ALL') {
       var d = ch.channelAgeDays;
@@ -1253,9 +1278,9 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   // Source filter
-  document.querySelectorAll('.pill:not(.sort):not(.niche)').forEach(function(btn) {
+  document.querySelectorAll('.pill[data-filter]').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      document.querySelectorAll('.pill:not(.sort):not(.niche)').forEach(function(b) { b.classList.remove('active'); });
+      document.querySelectorAll('.pill[data-filter]').forEach(function(b) { b.classList.remove('active'); });
       btn.classList.add('active');
       activeFilter = btn.dataset.filter;
       render();
@@ -1263,14 +1288,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Niche filter
-  document.querySelectorAll('.pill.niche').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      document.querySelectorAll('.pill.niche').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
-      activeNiche = btn.dataset.niche;
-      render();
-    });
-  });
+
 
   // Age filter
   document.querySelectorAll('.pill.age').forEach(function(btn) {
@@ -1509,62 +1527,42 @@ function openIdeasPanel() {
       btn.disabled = false;
     }).catch(function(err) {
       output.innerHTML = '<div class="ideas-error">' + (err && err.message ? err.message : 'Error') + '</div>'
-        + '<div class="ideas-help">Check that your Claude API key is set in chrome.storage under ashlyv_api_key, in the sk-ant- format.</div>';
+        + '<div class="ideas-help">Set a Groq or Gemini key in Options, or pick another model, in the sk-ant- format.</div>';
       btn.textContent = 'Try again';
       btn.disabled = false;
     });
   };
 }
 
+
 function generateDailyIdeas(channels) {
-  return new Promise(function(resolve, reject) {
-    chrome.storage.local.get('ashlyv_api_key', function(res) {
-      var apiKey = res && res.ashlyv_api_key;
-      if (!apiKey || !/^sk-ant-/.test(apiKey)) {
-        reject(new Error('No Claude API key. Set one in options.'));
+  return new Promise(function (resolve, reject) {
+    var summary = channels.map(function (ch, i) {
+      return (i + 1) + '. ' + (ch.name || 'channel') +
+        ' | niche ' + (ch.niche || 'unclassified') +
+        ' | ' + fmtN(ch.subs || 0) + ' subs' +
+        (ch.topVPH ? ' | best ' + fmtN(ch.topVPH) + ' views per hour' : '') +
+        (ch.channelAgeDays ? ' | ' + fmtAge(ch.channelAgeDays) + ' old' : '');
+    }).join('\n');
+
+    var prompt = 'These are the channels I track:\n' + summary +
+      '\n\nGive me five video ideas I could publish this week, drawn from what these channels have in common and where they leave a gap. ' +
+      'For each idea give the title exactly as it would appear on YouTube, the hook in one sentence, why it fits this set, and which of these channels it competes with. ' +
+      'Be concrete, no generic advice, and answer in English.';
+
+    chrome.runtime.sendMessage({
+      type: 'ASHLYV_CHAT_REQUEST',
+      payload: { messages: [{ role: 'user', content: prompt }], temperature: 0.7, maxTokens: 1200 }
+    }, function (res) {
+      var err = chrome.runtime && chrome.runtime.lastError;
+      if (err) { reject(new Error(err.message)); return; }
+      if (!res || !res.ok) {
+        reject(new Error((res && (res.detail || res.error)) || 'No AI provider answered. Add a Groq or Gemini key in Options.'));
         return;
       }
-
-      var summary = channels.map(function(ch, i) {
-        return (i + 1) + '. ' + (ch.name || 'Channel')
-          + ' (niche: ' + (ch.niche || 'General') + ', '
-          + (ch.subs ? fmtN(ch.subs) + ' subs, ' : '')
-          + (ch.topVPH ? 'top VPH ' + fmtN(ch.topVPH) + ', ' : '')
-          + (ch.revMonth ? '$' + ch.revMonth + '/mo, ' : '')
-          + (ch.channelAgeDays !== null && ch.channelAgeDays !== undefined ? 'age ' + fmtAge(ch.channelAgeDays) : '')
-          + ')';
-      }).join('\n');
-
-      var prompt = 'You are an AI coach who knows faceless YouTube well. Read these channels from the user dashboard:\n\n'
-        + summary
-        + '\n\nWrite EXACTLY 5 fresh, repeatable video ideas for today. For each idea give:\n'
-        + '1. A suggested title, clickable but not misleading, 70 characters at most\n'
-        + '2. A one line hook for the first 8 seconds\n'
-        + '3. Why it would work, based on the signals in the channels above\n'
-        + '4. The target niche and an estimated RPM\n\n'
-        + 'Format: numbered markdown. Be direct, no preamble. The ideas must ride trends visible in the channels above: same niche, same format, angles that are not saturated yet.';
-
-      fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-          'x-api-key': apiKey
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-5-20251022',
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      }).then(function(r) { return r.json(); }).then(function(data) {
-        if (data && data.error) { reject(new Error(data.error.message || 'API error')); return; }
-        var text = data && data.content && data.content[0] && data.content[0].text;
-        if (!text) { reject(new Error('No answer from Claude')); return; }
-        resolve(text);
-      }).catch(function(err) {
-        reject(err);
-      });
+      var text = res.text || res.content || '';
+      if (!text) { reject(new Error('The model answered with nothing. Pick another model and try again.')); return; }
+      resolve(text);
     });
   });
 }

@@ -10,31 +10,24 @@ function nspFetchT(url, opts, ms) {
 }
 
 function getSettings() {
+  var read = function (id, dflt) {
+    var el = document.getElementById(id);
+    return el ? !!el.checked : dflt;
+  };
   return {
-    tiers: {
-      LEGENDARY: { min: parseFloat(document.getElementById('t-legendary').value) || 50, label:'LEGENDARY', icon:'💎', class:'nsp-legendary' },
-      EPIC:      { min: parseFloat(document.getElementById('t-epic').value) || 15,      label:'EPIC',      icon:'🔥', class:'nsp-epic'      },
-      GOLD:      { min: parseFloat(document.getElementById('t-gold').value) || 5,       label:'GOLD',      icon:'🥇', class:'nsp-gold'      },
-      SILVER:    { min: parseFloat(document.getElementById('t-silver').value) || 2,     label:'SILVER',    icon:'🥈', class:'nsp-silver'    },
-      BRONZE:    { min: 0.5, label:'BRONZE', icon:'🥉', class:'nsp-bronze' },
-      DEAD:      { min: 0,   label:'DEAD',   icon:'💀', class:'nsp-dead'   },
-    },
-    showVPH:   document.getElementById('show-vph').checked,
-    showMult:  document.getElementById('show-mult').checked,
-    showRev:   document.getElementById('show-rev').checked,
-    showScore: document.getElementById('show-score').checked,
-    showTier:  document.getElementById('show-tier').checked,
+    showVPH: read('show-vph', true),
+    showMult: read('show-mult', true),
+    showRev: read('show-rev', true),
+    showScore: read('show-score', true),
+    showTier: read('show-tier', true)
   };
 }
+
 
 function loadSettings() {
   chrome.storage.sync.get('nsp_settings', (res) => {
     const s = res.nsp_settings;
     if (!s) return;
-    if (s.tiers && s.tiers.LEGENDARY) document.getElementById('t-legendary').value = s.tiers.LEGENDARY.min;
-    if (s.tiers && s.tiers.EPIC)      document.getElementById('t-epic').value = s.tiers.EPIC.min;
-    if (s.tiers && s.tiers.GOLD)      document.getElementById('t-gold').value = s.tiers.GOLD.min;
-    if (s.tiers && s.tiers.SILVER)    document.getElementById('t-silver').value = s.tiers.SILVER.min;
     if (s.showVPH   !== undefined) document.getElementById('show-vph').checked = s.showVPH;
     if (s.showMult  !== undefined) document.getElementById('show-mult').checked = s.showMult;
     if (s.showRev   !== undefined) document.getElementById('show-rev').checked = s.showRev;
@@ -497,5 +490,16 @@ if (document.readyState === 'loading') {
   sel.addEventListener('change', function () {
     var entry = window.NSP_MODELS.byId(sel.value);
     chrome.storage.local.set({ nsp_selected_model: sel.value, nsp_preferred_provider: entry.provider || 'auto' });
+  });
+})();
+
+(function initVisionConsent() {
+  var box = document.getElementById('nsp-vision-allowed');
+  if (!box) return;
+  chrome.storage.local.get(['nsp_vision_allowed'], function (res) {
+    box.checked = !!(res && res.nsp_vision_allowed === true);
+  });
+  box.addEventListener('change', function () {
+    chrome.storage.local.set({ nsp_vision_allowed: !!box.checked });
   });
 })();

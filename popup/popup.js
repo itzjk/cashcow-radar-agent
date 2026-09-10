@@ -1,12 +1,11 @@
 // popup.js
 
 const TIER_CLASSES = {
-  LEGENDARY: 'mc-legendary',
-  EPIC: 'mc-epic',
-  GOLD: 'mc-gold',
-  SILVER: 'mc-silver',
-  BRONZE: 'mc-bronze',
-  DEAD: '',
+  VIRAL: 'mc-legendary',
+  HOT: 'mc-epic',
+  RISING: 'mc-gold',
+  ACTIVE: 'mc-silver',
+  SLOW: 'mc-bronze',
 };
 
 let sessionData = null;
@@ -75,8 +74,8 @@ function loadData() {
 function renderStats(session) {
   const analyzed = session?.analyzed || 0;
   const videos = session?.topVideos || [];
-  const goldPlus = videos.filter(v => ['GOLD', 'EPIC', 'LEGENDARY'].includes(v.tier)).length;
-  const legendary = videos.filter(v => v.tier === 'LEGENDARY').length;
+  const goldPlus = videos.filter(v => ['RISING', 'HOT', 'VIRAL'].includes(v.tier)).length;
+  const legendary = videos.filter(v => v.tier === 'VIRAL').length;
 
   document.getElementById('stat-analyzed').textContent = analyzed;
   document.getElementById('stat-gold').textContent = goldPlus;
@@ -110,9 +109,9 @@ function renderTopVideos(videos) {
     item.title = 'Open video';
 
     const tierClass = TIER_CLASSES[v.tier] || '';
-    const multStr = v.multiplier !== null && v.multiplier !== undefined
-      ? `<span class="metric-chip mc-mult">${formatMult(v.multiplier)}</span>` : '';
-    const tierBadge = v.tier && v.tier !== 'DEAD'
+    const multStr = v.outlierRatio !== null && v.outlierRatio !== undefined
+      ? `<span class="metric-chip mc-mult">${formatMult(v.outlierRatio)}</span>` : '';
+    const tierBadge = v.tier && v.tier !== 'SLOW'
       ? `<span class="metric-chip ${tierClass}">${v.tier}</span>` : '';
 
     item.innerHTML = `
@@ -124,7 +123,7 @@ function renderTopVideos(videos) {
           <span class="metric-chip mc-vph"> ${formatVPH(v.vph)} VPH</span>
           ${multStr}
           ${tierBadge}
-          <span class="metric-chip" style="color:rgba(255,255,255,.8);background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)">OS:${v.opportunityScore}</span>
+          <span class="metric-chip" style="color:rgba(255,255,255,.8);background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)">OS:${v.os}</span>
         </div>
       </div>
     `;
@@ -345,8 +344,8 @@ function exportCSV() {
     v.vph,
     v.multiplier ?? '',
     v.tier || '',
-    v.opportunityScore,
-    v.revenueEst || '',
+    v.os,
+    v.rev || '',
   ]);
 
   const csv = [headers, ...rows].map(r => r.join(',')).join('\n');

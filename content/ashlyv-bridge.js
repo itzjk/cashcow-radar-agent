@@ -89,8 +89,18 @@ window.addEventListener('message', function(event) {
 
     var payload = { ashlyv_nichos: saved };
     try {
-      if (JSON.stringify(payload).length > 102400) return;
-    } catch(e) { return; }
+      while (saved.length > 20 && JSON.stringify(payload).length > 102400) {
+        saved.length = Math.floor(saved.length * 0.8);
+        payload = { ashlyv_nichos: saved };
+      }
+      if (JSON.stringify(payload).length > 102400) {
+        window.postMessage({ type: 'ASHLYV_SAVE_RESULT', ok: false, error: 'storage_full' }, window.location.origin);
+        return;
+      }
+    } catch (e) {
+      window.postMessage({ type: 'ASHLYV_SAVE_RESULT', ok: false, error: 'storage_error' }, window.location.origin);
+      return;
+    }
     chrome.storage.local.set(payload, function() {
       if (openPage) {
         var base = chrome.runtime.getURL('ashlyv/ashlyv.html');
@@ -625,7 +635,8 @@ var NSP_RELAY_CALLS = {
   ASHLYV_ALERTS_READ: 1,
   ASHLYV_SHOW_NOTIFICATION: 1,
   ASHLYV_OPEN: 1,
-  NSP_FETCH_COUNTRY_FACELESS_FEED: 1
+  NSP_FETCH_COUNTRY_FACELESS_FEED: 1,
+  ASHLYV_CHAT_REQUEST: 1
 };
 
 var NSP_RELAY_KEYS = {
@@ -647,7 +658,9 @@ var NSP_RELAY_KEYS = {
   ashlyv_phase_notes_v1: 1,
   nsp_session_prefs: 1,
   zerack_channel_snapshots_v1: 1,
-  nsp_selected_model: 1
+  nsp_selected_model: 1,
+  nsp_vision_allowed: 1,
+  ashlyv_thumbnail_consent: 1
 };
 
 function nspRelayKeyAllowed(key) {

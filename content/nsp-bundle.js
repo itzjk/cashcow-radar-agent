@@ -1362,7 +1362,6 @@ function ashlyv_verifyEnvironment() {
 // SECURITY: Clears sensitive cache-like data on extension version changes.
 function ashlyv_checkInstalledVersion() {
   try {
-    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.storage || !chrome.storage.local) return;
     var current = (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
     nspStore.get(['ashlyv_installed_version']).then(function(res) {
       var previous = res && typeof res.ashlyv_installed_version === 'string' ? ashlyv_sanitize(res.ashlyv_installed_version).slice(0, 40) : '';
@@ -3186,6 +3185,18 @@ function ensureNspBadgeStyles() {
   (document.head || document.documentElement).appendChild(s);
 }
 
+var NSP_DISPLAY = { showVPH: true, showMult: true, showRev: true, showScore: true, showTier: true };
+
+function nspLoadDisplayPrefs() {
+  sendRuntimeMessage({ type: 'NSP_UI_PREFS_GET' }).then(function (res) {
+    var s = res && res.settings;
+    if (!s) return;
+    ['showVPH', 'showMult', 'showRev', 'showScore', 'showTier'].forEach(function (k) {
+      if (typeof s[k] === 'boolean') NSP_DISPLAY[k] = s[k];
+    });
+  });
+}
+
 function makeBadge(views, sc) {
   ensureNspBadgeStyles();
   var el = document.createElement('div');
@@ -3209,7 +3220,7 @@ function makeBadge(views, sc) {
   summary.title = 'Hover to see the full detail';
 
   if (sc.isShort) summary.appendChild(monoBadgeChip('▶', true));
-  summary.appendChild(monoBadgeChip('⚡ ' + fmtVPH(sc.vph) + '/h', true));
+  if (NSP_DISPLAY.showVPH) summary.appendChild(monoBadgeChip('⚡ ' + fmtVPH(sc.vph) + '/h', true));
   if (sc.totalRev > 0) {
     var fmtR = function(n) {
       if (n >= 1000) return '$' + (n / 1000).toFixed(1) + 'K';
@@ -3241,7 +3252,7 @@ function makeBadge(views, sc) {
   if (sc.isShort) r1.appendChild(monoBadgeChip('▶ SHORT', true));
   var vel = velocityLabel(sc.vph);
   r1.appendChild(monoBadgeChip('👁 ' + fmtN(views), false));
-  r1.appendChild(monoBadgeChip('⚡ ' + fmtVPH(sc.vph) + '/h', true));
+  if (NSP_DISPLAY.showVPH) r1.appendChild(monoBadgeChip('⚡ ' + fmtVPH(sc.vph) + '/h', true));
   r1.appendChild(monoBadgeChip(vel.text, false));
 
   var seoScore = calcSeoScore(sc.title, []);
@@ -3627,7 +3638,7 @@ var _session = { analyzed: 0, query: '', topVideos: [] };
 
 function trackVideo(vid, title, views, sc) {
   _session.analyzed++;
-  _session.topVideos.push({ videoId: vid, title: title, views: views, vph: sc.vph, tier: sc.tier.key, os: sc.os, rev: sc.rev });
+  _session.topVideos.push({ videoId: vid, title: title, views: views, vph: sc.vph, tier: sc.tier.key, os: sc.os, rev: sc.rev, channelName: sc.channelName || '', outlierRatio: (sc._outlierRatio != null ? sc._outlierRatio : null) });
   _session.topVideos.sort(function(a, b) { return b.os - a.os; });
   if (_session.topVideos.length > 30) _session.topVideos.length = 30;
   try {
@@ -3900,6 +3911,7 @@ function processCard(card) {
     var chMapEntry = chKey ? _channelMap[chKey] : null;
     if (chMapEntry && chMapEntry.avgViews > 0) {
       sc._outlierTier = getChannelOutlierTier(sc.views, chMapEntry.avgViews);
+      sc._outlierRatio = sc.views / chMapEntry.avgViews;
     }
   } catch(e) {}
 
@@ -4282,10 +4294,6 @@ function saveAshlyVNichoSecure(nichoEntry, openPage, channelQuery, urlQuery) {
   function fallbackLocalSave() {
     return new Promise(function(resolve) {
       try {
-        if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-          resolve({ ok: false });
-          return;
-        }
         nspStore.get(['ashlyv_nichos', 'ashlyv_nichos_backup']).then(function(res) {
           var saved = Array.isArray(res.ashlyv_nichos) ? res.ashlyv_nichos.slice(0, 240) : [];
           saved.unshift(entry);
@@ -7306,7 +7314,6 @@ var _nspChannelCacheLoaded = false;
 function nspLoadChannelCache() {
   return new Promise(function(resolve) {
     try {
-      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) { resolve({}); return; }
       nspStore.get(NSP_CHANNEL_CACHE_KEY).then(function(res) {
         var cache = (res && res[NSP_CHANNEL_CACHE_KEY]) || {};
         var now = Date.now();
@@ -7326,7 +7333,6 @@ function nspLoadChannelCache() {
 
 function nspSaveChannelCache() {
   try {
-    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
     var now = Date.now();
     var toStore = {};
     Object.keys(_channelFacelessCache).forEach(function(k) {
@@ -7472,7 +7478,6 @@ var ASHLYV_API_KEY_STORAGE_KEY = 'ashlyv_api_key';
 function ashlyVStorageGet(keys) {
   return new Promise(function(resolve) {
     try {
-      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) { resolve({}); return; }
       nspStore.get(keys).then(function(res) {
         var raw = res || {};
         var out = {};
@@ -7494,7 +7499,6 @@ function ashlyVStorageGet(keys) {
 function ashlyVStorageSet(payload) {
   return new Promise(function(resolve) {
     try {
-      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) { resolve(false); return; }
       if (!ashlyv_isPlainObject(payload)) { resolve(false); return; }
       var keys = Object.keys(payload).filter(function(k) { return ashlyv_safeKey(k); }).slice(0, 50);
       if (!keys.length) { resolve(true); return; }
@@ -12380,9 +12384,17 @@ function nspVisionJudgeItem(item) {
     } catch (e) { resolve(null); }
   });
 }
+var NSP_VISION_ALLOWED = false;
+
+function nspLoadVisionConsent() {
+  nspStore.get('nsp_vision_allowed').then(function (data) {
+    NSP_VISION_ALLOWED = !!(data && data.nsp_vision_allowed === true);
+  });
+}
+
 function nspRunVisionPass(topResults, listEl) {
   try {
-    if (localStorage.getItem('nsp_vision_off') === '1') return;
+    if (!NSP_VISION_ALLOWED) return;
     if (!Array.isArray(topResults) || !topResults.length) return;
     if (!listEl || typeof listEl.querySelectorAll !== 'function') return;
     function rowFor(item) {
@@ -14480,7 +14492,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
 
   // ───── OUTLIER ALERTS ─────
   try {
-    var hasStorage = (typeof chrome !== 'undefined') && chrome.storage && chrome.storage.local;
+    var hasStorage = true;
     var watchBox = document.createElement('div');
     watchBox.setAttribute('style', 'padding:14px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);');
     var wt = sectionTitle('◆ OUTLIER ALERTS');
@@ -14932,7 +14944,25 @@ function saveChannel(data) {
 }
 
 function saveToAllChannels(entry) {
-  try { sendRuntimeMessage({ type: 'NSP_SAVE_CHANNEL', data: entry }); } catch(e) {}
+  if (!entry || !entry.channelUrl) return;
+  var cached = _channelAgeCache[entry.channelUrl];
+  if (cached) {
+    if (entry.channelAgeDays == null && cached.channelAgeDays != null) entry.channelAgeDays = cached.channelAgeDays;
+    if (!entry.joinedDate && cached.joinedDate) entry.joinedDate = cached.joinedDate;
+    if (!entry.totalViews && cached.totalViews) entry.totalViews = cached.totalViews;
+    if (!entry.videoCount && cached.videoCount) entry.videoCount = cached.videoCount;
+    try { sendRuntimeMessage({ type: 'NSP_SAVE_CHANNEL', data: entry }); } catch (e) {}
+    return;
+  }
+  fetchChannelAgeFromAbout(entry.channelUrl, function(age) {
+    if (age) {
+      if (entry.channelAgeDays == null && age.channelAgeDays != null) entry.channelAgeDays = age.channelAgeDays;
+      if (!entry.joinedDate && age.joinedDate) entry.joinedDate = age.joinedDate;
+      if (!entry.totalViews && age.totalViews) entry.totalViews = age.totalViews;
+      if (!entry.videoCount && age.videoCount) entry.videoCount = age.videoCount;
+    }
+    try { sendRuntimeMessage({ type: 'NSP_SAVE_CHANNEL', data: entry }); } catch (e) {}
+  });
 }
 
 function createNSPLineIcon(kind, size) {
@@ -16145,6 +16175,23 @@ function verifyChannelMonetizationReal(ch, cb) {
 }
 
 // ── Claude API helpers (client-side, requires user API key) ──────────────────
+function nspAskModel(prompt, opts) {
+  opts = opts || {};
+  return sendRuntimeMessage({
+    type: 'ASHLYV_CHAT_REQUEST',
+    payload: {
+      messages: [{ role: 'user', content: String(prompt || '') }],
+      temperature: typeof opts.temperature === 'number' ? opts.temperature : 0.6,
+      maxTokens: opts.maxTokens || 1200
+    }
+  }).then(function (res) {
+    if (!res || !res.ok) throw new Error((res && (res.detail || res.error)) || 'no_provider');
+    var text = res.text || res.content || '';
+    if (!text) throw new Error('empty_answer');
+    return text;
+  });
+}
+
 function getClaudeApiKey() {
   return new Promise(function(resolve) {
     try {
@@ -16511,7 +16558,7 @@ function showThumbLabPanel(ch) {
       btn.disabled = true; btn.style.opacity = '.6';
       nspSetHTML(out, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Comparing ' + dataUrls.length + ' variants</div>');
       getClaudeApiKey().then(function(apiKey) {
-        if (!apiKey) { nspSetHTML(out, '<div style="color:rgba(255,217,61,.9);font-size:11px;padding:10px;">Claude API key missing in ASHLYV.</div>'); btn.disabled = false; btn.style.opacity = ''; return; }
+        if (!apiKey) { nspSetHTML(out, '<div style="color:rgba(255,217,61,.9);font-size:11px;padding:10px;">No AI provider configured. Add a key in Options and pick a modelng in ASHLYV.</div>'); btn.disabled = false; btn.style.opacity = ''; return; }
         var content = [{
           type: 'text',
           text: 'Compare these ' + dataUrls.length + ' thumbnails for the ' + niche.label + ' niche (RPM $' + niche.rpm + '). The first ' + dataUrls.length + ' images are the variants to score.\nReturn JSON: {"ranked":[{"rank":1,"variant":"A","score":0-100,"reason":"..."}],"winner":"A|B|C|D","why":"1-2 sentences"}'
@@ -16693,7 +16740,7 @@ function showTitleLabPanel(ch) {
       var apiKey = arr[0];
       var anchorTitles = arr[1].map(function(p) { return p.title; });
       if (!apiKey) {
-        nspSetHTML(result, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,217,61,.9);">Claude API key missing. Open the ASHLYV dashboard, API Key, and paste your sk-ant- key.</div>');
+        nspSetHTML(result, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,217,61,.9);">No AI provider configured. Add a key in Options and pick a modelng. Open the ASHLYV dashboard, API Key, and paste your sk-ant- key.</div>');
         rankBtn.disabled = false; rankBtn.style.opacity = '';
         return null;
       }
@@ -16950,7 +16997,7 @@ function showCommentsPanel(videoId) {
       return;
     }
     if (!apiKey) {
-      nspSetHTML(loading, '<div style="color:rgba(255,217,61,.9);">Claude API key missing. Open ASHLYV, API Key, and paste your sk-ant- key.</div><div style="margin-top:10px;color:rgba(255,255,255,.5);">Top 5 comments raw:</div>'
+      nspSetHTML(loading, '<div style="color:rgba(255,217,61,.9);">No AI provider answered. Pick a model in the assistant or add a key in Options- key.</div><div style="margin-top:10px;color:rgba(255,255,255,.5);">Top 5 comments raw:</div>'
         + '<div style="text-align:left;margin-top:8px;">' + comments.slice(0, 5).map(function(c, i) { return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:10.5px;line-height:1.5;">' + (i + 1) + '. ' + (c.text || '').slice(0, 200).replace(/[<>]/g, '') + ' <span style="color:rgba(255,255,255,.4);">(' + c.likes + ' likes)</span></div>'; }).join('') + '</div>');
       return;
     }
@@ -18502,7 +18549,6 @@ function _injectChannelOverlay_inner() {
 // the current channel. Used so user can launch these panels from the Dashboard.
 function handleNSPPendingChannelAction(ch) {
   if (!ch || !ch.channelUrl) return;
-  if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
   nspStore.get('nsp_pending_action').then(function(res) {
     var pending = res && res.nsp_pending_action;
     if (!pending || !pending.type) return;
@@ -23151,7 +23197,9 @@ window.addEventListener('message', function(event) {
   if (event.origin && event.origin !== window.location.origin) return;
   var data = event.data;
   if (!ashlyv_validateMessage(data, ['ASHLYV_OPEN_URL', 'ASHLYV_TRIGGER_SCAN', 'ASHLYV_RESULT', 'ASHLYV_PING'])) return;
-  if (typeof chrome === 'undefined' || !chrome.runtime || data.ashlyvInternal !== chrome.runtime.id) return;
+  var extId = '';
+  try { extId = document.documentElement.getAttribute('data-nsp-ext-id') || ''; } catch (eId) {}
+  if (!extId || data.ashlyvInternal !== extId) return;
   if (data.type !== 'ASHLYV_TRIGGER_SCAN') return;
   var query = typeof data.query === 'string' ? data.query.slice(0, 2000) : '';
   var nicheId = typeof data.nicheId === 'string' ? data.nicheId.slice(0, 200) : '';
@@ -24236,6 +24284,9 @@ try {
 
 setTimeout(injectProButton, 1500);
 setTimeout(injectProButton, 4000);
+nspLoadDisplayPrefs();
+nspLoadVisionConsent();
+
 setInterval(injectProButton, 1000);
 setTimeout(injectAshlyVScanNavigatorBar, 1200);
 setTimeout(injectAshlyVScanNavigatorBar, 3500);
