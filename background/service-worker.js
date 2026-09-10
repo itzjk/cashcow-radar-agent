@@ -881,7 +881,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     var hl = String(msg.hl || 'en').toLowerCase();
     var queries = Array.isArray(msg.queries) ? msg.queries.slice(0, 18) : [];
     var force = !!msg.force; // bypass cache
-    var cacheKey = 'nsp_country_feed_' + gl + '_' + hl;
+    var maxAgeHours = Number(msg.maxAgeHours) || 0;
+    var cacheKey = 'nsp_country_feed_' + gl + '_' + hl + '_' + (nspRecencyParams(maxAgeHours) || 'any');
     var TTL = 15 * 60 * 1000; // 15 min
 
     function returnCached(cached, source) {
@@ -903,7 +904,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         return;
       }
       // Fetch fresh
-      fetchCountryFacelessFeed(gl, hl, queries)
+      fetchCountryFacelessFeed(gl, hl, queries, maxAgeHours)
         .then(returnFresh)
         .catch(function(err) {
           console.warn('[NSP SW] InnerTube fetch error:', err && err.message);
@@ -1669,12 +1670,29 @@ function nspEmitProgress(payload) {
 
 // ── Main: fetch country faceless feed via InnerTube (trending + queries) ──
 // Emits live progress events via NSP_FEED_PROGRESS messages.
-function fetchCountryFacelessFeed(gl, hl, queries) {
+var NSP_RECENCY_PARAMS = [
+  { maxHours: 24, params: 'EgQIARAB' },
+  { maxHours: 168, params: 'EgQIAhAB' },
+  { maxHours: 720, params: 'EgQIAxAB' },
+  { maxHours: 8760, params: 'EgQIBBAB' }
+];
+
+function nspRecencyParams(maxAgeHours) {
+  var h = Number(maxAgeHours) || 0;
+  if (h <= 0) return '';
+  for (var i = 0; i < NSP_RECENCY_PARAMS.length; i++) {
+    if (h <= NSP_RECENCY_PARAMS[i].maxHours) return NSP_RECENCY_PARAMS[i].params;
+  }
+  return '';
+}
+
+function fetchCountryFacelessFeed(gl, hl, queries, maxAgeHours) {
   queries = (Array.isArray(queries) && queries.length) ? queries.slice(0, 18) : [];
   var opts = { gl: gl, hl: hl };
+  var recency = nspRecencyParams(maxAgeHours);
   var sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
 
-  nspEmitProgress({ stage: 'session', status: 'start', sessionId: sessionId, gl: gl, hl: hl, totalSteps: 2 + queries.length });
+  nspEmitProgress({ stage: 'session', status: 'start', sessionId: sessionId, gl: gl, hl: hl, totalSteps: queries.length });
 
   function fetchStep(stageId, label, promise) {
     nspEmitProgress({ stage: stageId, status: 'start', sessionId: sessionId, label: label });
@@ -1691,17 +1709,12 @@ function fetchCountryFacelessFeed(gl, hl, queries) {
   }
 
   var jobs = [];
-  jobs.push(fetchStep('home_fresh', 'FEwhat_to_watch (home fresh-user)',
-    innertubeFetch('browse', { browseId: 'FEwhat_to_watch' }, opts)));
-  // FIX: FEtrending/FEexplore devuelven HTTP 400 (YouTube los deprecó) → daba err siempre.
-  // Lo reemplazo por una BÚSQUEDA ordenada por subidas recientes (search SÍ funciona), que da
-  // contenido fresco del país igual de útil para el radar.
-  jobs.push(fetchStep('trending', 'Trending (search reciente)',
-    innertubeFetch('search', { query: 'tendencias', params: 'CAI%3D' }, opts)));
   queries.forEach(function(q, idx) {
     var stageId = 'search_' + idx;
+    var body = { query: q };
+    if (recency) body.params = recency;
     jobs.push(fetchStep(stageId, 'Search: "' + q + '"',
-      innertubeFetch('search', { query: q }, opts)));
+      innertubeFetch('search', body, opts)));
   });
 
   return Promise.all(jobs).then(function(arrays) {

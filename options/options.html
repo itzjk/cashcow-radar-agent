@@ -45,7 +45,7 @@
   <div class="subtitle">Settings — Configuración de métricas y display</div>
 
   <div class="section">
-    <div class="section-title">🏆 Tier Thresholds (Multiplier)</div>
+    <div class="section-title"> Tier Thresholds (Multiplier)</div>
     <div class="row2">
       <div class="field"><label>LEGENDARY (min multiplier)</label><input type="number" id="t-legendary" min="1" value="50"/></div>
       <div class="field"><label>EPIC (min multiplier)</label><input type="number" id="t-epic" min="1" value="15"/></div>
@@ -55,7 +55,7 @@
   </div>
 
   <div class="section" style="border-color:rgba(255, 255, 255,0.35);background:linear-gradient(135deg,rgba(255, 255, 255,0.04),rgba(255, 255, 255,0.04));">
-    <div class="section-title" style="color:var(--accentC);">⚡ ZERACK — Gemini API Key</div>
+    <div class="section-title" style="color:var(--accentC);"> ZERACK — Gemini API Key</div>
     <div class="field">
       <label style="color:var(--text);">API Key (Google Gemini, gratis)</label>
       <input type="text" id="nsp-gemini-key" placeholder="AIzaSy..." autocomplete="off" spellcheck="false" style="font-family:var(--mono);"/>
@@ -65,10 +65,10 @@
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button id="nsp-gemini-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255, 255, 255,0.55);background:linear-gradient(135deg,rgba(255, 255, 255,0.22),rgba(255, 255, 255,0.12));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-          💾 GUARDAR KEY
+           GUARDAR KEY
         </button>
         <button id="nsp-gemini-test-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-          🧪 PROBAR CONEXIÓN
+           PROBAR CONEXIÓN
         </button>
       </div>
       <div id="nsp-gemini-status" style="margin-top:10px;font-size:11px;font-weight:700;letter-spacing:.03em;line-height:1.5;min-height:18px;"></div>
@@ -77,7 +77,7 @@
 
   <!-- v3.8.0 — GROQ provider -->
   <div class="section" style="border-color:rgba(255, 45, 45,0.45);background:linear-gradient(135deg,rgba(255, 45, 45,0.06),rgba(255, 255, 255,0.04));">
-    <div class="section-title" style="color:#FF2D2D;">🚀 GROQ — Provider rápido (750-1000 tok/s)</div>
+    <div class="section-title" style="color:#FF2D2D;"> GROQ — Provider rápido (750-1000 tok/s)</div>
     <div class="field">
       <label style="color:var(--text);">Groq API Key (gratis, prioridad alta)</label>
       <input type="text" id="nsp-groq-key" placeholder="gsk_..." autocomplete="off" spellcheck="false" style="font-family:var(--mono);"/>
@@ -88,7 +88,7 @@
       <div style="margin-top:8px;">
         <label style="color:var(--muted);font-size:10.5px;">Modelo Groq:</label>
         <select id="nsp-groq-model" style="margin-left:6px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--text);font-family:var(--mono);font-size:11px;">
-          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant ⚡ RECOMENDADO (1500-2000 tok/s)</option>
+          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant  RECOMENDADO (1500-2000 tok/s)</option>
           <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (más inteligente, 250-400 tok/s)</option>
           <option value="llama-3.1-70b-versatile">llama-3.1-70b-versatile (~250 tok/s)</option>
           <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
@@ -97,10 +97,10 @@
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button id="nsp-groq-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255, 45, 45,0.55);background:linear-gradient(135deg,rgba(255, 45, 45,0.22),rgba(255, 255, 255,0.10));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-          💾 GUARDAR
+           GUARDAR
         </button>
         <button id="nsp-groq-test-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-          🧪 PROBAR GROQ
+           PROBAR GROQ
         </button>
       </div>
       <div id="nsp-groq-status" style="margin-top:10px;font-size:11px;font-weight:700;letter-spacing:.03em;line-height:1.5;min-height:18px;"></div>
@@ -109,7 +109,7 @@
 
   <!-- v3.8.0 — OLLAMA local provider -->
   <div class="section" style="border-color:rgba(255, 255, 255,0.45);background:linear-gradient(135deg,rgba(255, 255, 255,0.06),rgba(255, 255, 255,0.04));">
-    <div class="section-title" style="color:#A88FFF;">🦙 OLLAMA — Provider local (sin límites, offline)</div>
+    <div class="section-title" style="color:#A88FFF;"> OLLAMA — Provider local (sin límites, offline)</div>
     <div class="field">
       <label style="color:var(--text);display:flex;align-items:center;gap:8px;">
         <input type="checkbox" id="nsp-ollama-enabled" style="width:auto;"/>
@@ -131,10 +131,10 @@
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button id="nsp-ollama-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255, 255, 255,0.55);background:linear-gradient(135deg,rgba(255, 255, 255,0.22),rgba(255, 255, 255,0.10));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-          💾 GUARDAR
+           GUARDAR
         </button>
         <button id="nsp-ollama-test-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-          🧪 PROBAR OLLAMA
+           PROBAR OLLAMA
         </button>
       </div>
       <div id="nsp-ollama-status" style="margin-top:10px;font-size:11px;font-weight:700;letter-spacing:.03em;line-height:1.5;min-height:18px;"></div>
@@ -146,7 +146,7 @@
        finanzas=$22, negocios=$16, IA=$13, tech=$10, sleep/relax=$10.92, history=$5.50, gaming=$3.5,
        default=$3.0. Ver calcScore() en nsp-bundle.js L1975 y ASHLYV_NICHE_RPM en L1869. -->
   <div class="section" style="border-color:rgba(255, 255, 255,0.25);background:rgba(255, 255, 255,0.04);">
-    <div class="section-title" style="color:#FFFFFF;">ℹ️ RPM Automático por Nicho</div>
+    <div class="section-title" style="color:#FFFFFF;">ℹ RPM Automático por Nicho</div>
     <div style="font-size:11px;color:var(--muted);line-height:1.6;">
       El RPM se calcula <strong>automáticamente</strong> según el nicho detectado en cada título.
       No hay que configurar nada. Ejemplos de los valores aplicados:
@@ -170,7 +170,7 @@
   </div>
 
   <div class="section">
-    <div class="section-title">👁 Display Options</div>
+    <div class="section-title"> Display Options</div>
     <div class="toggle-row">
       <span class="toggle-label">Mostrar VPH (Views Per Hour)</span>
       <label class="toggle"><input type="checkbox" id="show-vph" checked/><span class="slider"></span></label>
@@ -193,8 +193,8 @@
     </div>
   </div>
 
-  <button class="save-btn" id="save-btn">💾 GUARDAR CONFIGURACIÓN</button>
-  <div class="saved-msg" id="saved-msg">✅ Configuración guardada</div>
+  <button class="save-btn" id="save-btn"> GUARDAR CONFIGURACIÓN</button>
+  <div class="saved-msg" id="saved-msg"> Configuración guardada</div>
 </div>
 
 <script src="options.js"></script>

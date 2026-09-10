@@ -2,23 +2,23 @@
 'use strict';
 
 var NSP_MARKET_META = {
-  global:      { label: 'Global',      flag: '🌍', gl: null, hl: null, lang: null },
-  usa:         { label: 'USA',         flag: '🇺🇸', gl: 'US', hl: 'en', lang: 'en' },
-  australia:   { label: 'Australia',   flag: '🇦🇺', gl: 'AU', hl: 'en', lang: 'en' },
-  uk:          { label: 'UK',          flag: '🇬🇧', gl: 'GB', hl: 'en', lang: 'en' },
-  canada:      { label: 'Canada',      flag: '🇨🇦', gl: 'CA', hl: 'en', lang: 'en' },
-  newzealand:  { label: 'New Zealand', flag: '🇳🇿', gl: 'NZ', hl: 'en', lang: 'en' },
-  spain:       { label: 'Spain',       flag: '🇪🇸', gl: 'ES', hl: 'es', lang: 'es' },
-  mexico:      { label: 'Mexico',      flag: '🇲🇽', gl: 'MX', hl: 'es', lang: 'es' },
-  germany:     { label: 'Germany',     flag: '🇩🇪', gl: 'DE', hl: 'de', lang: 'de' },
-  france:      { label: 'France',      flag: '🇫🇷', gl: 'FR', hl: 'fr', lang: 'fr' },
-  italy:       { label: 'Italy',       flag: '🇮🇹', gl: 'IT', hl: 'it', lang: 'it' },
-  japan:       { label: 'Japan',       flag: '🇯🇵', gl: 'JP', hl: 'ja', lang: 'ja' },
-  netherlands: { label: 'Netherlands', flag: '🇳🇱', gl: 'NL', hl: 'nl', lang: 'nl' },
-  sweden:      { label: 'Sweden',      flag: '🇸🇪', gl: 'SE', hl: 'sv', lang: 'sv' },
-  norway:      { label: 'Norway',      flag: '🇳🇴', gl: 'NO', hl: 'no', lang: 'no' },
-  denmark:     { label: 'Denmark',     flag: '🇩🇰', gl: 'DK', hl: 'da', lang: 'da' },
-  switzerland: { label: 'Switzerland', flag: '🇨🇭', gl: 'CH', hl: 'de', lang: 'de' }
+  global:      { label: 'Global',      flag: '', gl: null, hl: null, lang: null },
+  usa:         { label: 'USA',         flag: '', gl: 'US', hl: 'en', lang: 'en' },
+  australia:   { label: 'Australia',   flag: '', gl: 'AU', hl: 'en', lang: 'en' },
+  uk:          { label: 'UK',          flag: '', gl: 'GB', hl: 'en', lang: 'en' },
+  canada:      { label: 'Canada',      flag: '', gl: 'CA', hl: 'en', lang: 'en' },
+  newzealand:  { label: 'New Zealand', flag: '', gl: 'NZ', hl: 'en', lang: 'en' },
+  spain:       { label: 'Spain',       flag: '', gl: 'ES', hl: 'es', lang: 'es' },
+  mexico:      { label: 'Mexico',      flag: '', gl: 'MX', hl: 'es', lang: 'es' },
+  germany:     { label: 'Germany',     flag: '', gl: 'DE', hl: 'de', lang: 'de' },
+  france:      { label: 'France',      flag: '', gl: 'FR', hl: 'fr', lang: 'fr' },
+  italy:       { label: 'Italy',       flag: '', gl: 'IT', hl: 'it', lang: 'it' },
+  japan:       { label: 'Japan',       flag: '', gl: 'JP', hl: 'ja', lang: 'ja' },
+  netherlands: { label: 'Netherlands', flag: '', gl: 'NL', hl: 'nl', lang: 'nl' },
+  sweden:      { label: 'Sweden',      flag: '', gl: 'SE', hl: 'sv', lang: 'sv' },
+  norway:      { label: 'Norway',      flag: '', gl: 'NO', hl: 'no', lang: 'no' },
+  denmark:     { label: 'Denmark',     flag: '', gl: 'DK', hl: 'da', lang: 'da' },
+  switzerland: { label: 'Switzerland', flag: '', gl: 'CH', hl: 'de', lang: 'de' }
 };
 
 var NSP_FACELESS_QUERIES_BY_LANG = {
@@ -34,7 +34,7 @@ var NSP_FACELESS_QUERIES_BY_LANG = {
   ja: ['雑学 トップ10','都市伝説','怖い話','歴史 ドキュメンタリー','宇宙の謎','不思議な話','投資 初心者','心理学 解説','睡眠 瞑想','神話 解説','古代文明','ホラー 物語']
 };
 
-// ── Parsers (mirror of nsp-bundle.js subset) ──
+//  Parsers (mirror of nsp-bundle.js subset) 
 function pViews(t) {
   if (!t) return 0;
   t = ('' + t).toLowerCase().replace(/visualizaciones?|reproducciones?|views?|vistas?|aufrufe|vues|visualizzazioni|weergaven|visningar|回視聴|回再生/gi, '').trim();
@@ -286,7 +286,7 @@ function render() {
     if (STATE.sortKey === c.k) {
       var ar = document.createElement('span');
       ar.className = 'arrow';
-      ar.textContent = STATE.sortDir > 0 ? '▲' : '▼';
+      ar.textContent = STATE.sortDir > 0 ? '' : '';
       th.appendChild(ar);
     }
     th.addEventListener('click', function() {
@@ -331,7 +331,7 @@ function finishScan(okMsg) {
   STATE._progSess = null;
   var btn = $('btn-scan');
   btn.disabled = false;
-  btn.textContent = '🌍 ESCANEAR PAÍS';
+  btn.textContent = ' ESCANEAR PAÍS';
   if (okMsg) setStatus(okMsg, 'ok');
   setProgress(100);
 }
@@ -339,7 +339,7 @@ function finishScan(okMsg) {
 function onFatalError(msg) {
   if (STATE._watchdog) { clearTimeout(STATE._watchdog); STATE._watchdog = null; }
   finishScan(null);
-  setStatus('✗ ' + msg, 'error');
+  setStatus(' ' + msg, 'error');
   setProgress(0);
 }
 
@@ -356,12 +356,12 @@ function runScan() {
   STATE._firstErr = null;
   STATE._progSess = null;
   STATE._reqGl = market.gl;
-  __prog = { done: 0, error: 0, total: 2 + queries.length };
+  __prog = { done: 0, error: 0, total: queries.length };
   render();
   var btn = $('btn-scan');
   btn.disabled = true;
   btn.textContent = 'ESCANEANDO…';
-  setStatus(market.flag + ' Escaneando ' + market.label + ' — ' + queries.length + ' búsquedas faceless + feed + trending…');
+  setStatus('Scanning ' + market.label + ', ' + queries.length + ' faceless searches within the selected window');
   setProgress(4);
   if (STATE._watchdog) clearTimeout(STATE._watchdog);
   STATE._watchdog = setTimeout(function() { if (STATE.busy) onFatalError('Timeout: el service worker no respondió en 70s. Reintentá.'); }, 70000);
@@ -370,6 +370,7 @@ function runScan() {
     gl: market.gl,
     hl: market.hl,
     queries: queries,
+    maxAgeHours: parseFloat($('sel-age').value) || 0,
     force: false
   }, function(res) {
     if (STATE._watchdog) { clearTimeout(STATE._watchdog); STATE._watchdog = null; }
@@ -381,7 +382,7 @@ function runScan() {
     STATE.videos = vids;
     applyFilters();
     render();
-    finishScan('✓ ' + vids.length + ' videos de ' + market.label + (res.cached ? ' (cache)' : ' (frescos)') + ' — ordenados por señal faceless.');
+    finishScan(' ' + vids.length + ' videos de ' + market.label + (res.cached ? ' (cache)' : ' (frescos)') + ' — ordenados por señal faceless.');
   });
 }
 
@@ -436,7 +437,7 @@ function clearCache() {
   }).filter(Boolean);
   chrome.storage.local.remove(keys, function() {
     var err = chrome.runtime && chrome.runtime.lastError;
-    setStatus(err ? 'No pude limpiar el cache.' : '✓ Cache limpio (' + keys.length + ' países) — el próximo scan trae datos frescos.', err ? 'error' : 'ok');
+    setStatus(err ? 'No pude limpiar el cache.' : ' Cache limpio (' + keys.length + ' países) — el próximo scan trae datos frescos.', err ? 'error' : 'ok');
   });
 }
 

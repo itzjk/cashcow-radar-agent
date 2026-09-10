@@ -7,7 +7,7 @@ var activeAge    = 'ALL';
 var activeSort   = 'savedAt';
 var searchQuery  = '';
 var scannedNichos = [];
-var selectedChannels = {}; // key: channelUrl → bool
+var selectedChannels = {}; // key: channelUrl  bool
 var watchingCache = {};   // mirrors chrome.storage.local.nsp_watching
 
 function fmtAge(days) {
@@ -246,7 +246,7 @@ function render() {
     if (isExplodingChannel(ch)) {
       var explBadge = document.createElement('span');
       explBadge.className = 'exploding-badge';
-      explBadge.textContent = '💎 NEW & EXPLODING';
+      explBadge.textContent = ' NEW & EXPLODING';
       explBadge.title = '<6 meses + <50K subs + alta tracción';
       card.appendChild(explBadge);
     }
@@ -254,7 +254,7 @@ function render() {
     // Remove btn
     var rmBtn = document.createElement('button');
     rmBtn.className = 'ch-remove';
-    rmBtn.textContent = '✕';
+    rmBtn.textContent = '';
     rmBtn.title = 'Eliminar';
     rmBtn.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -335,9 +335,9 @@ function render() {
     var metaLine = document.createElement('div');
     metaLine.className = 'ch-meta';
     var parts = [];
-    if (ch.subs && !statsRow.querySelector('[data-lbl="Subs"]')) parts.push('👥 ' + fmtN(ch.subs));
-    if (ch.monetized === 'yes') parts.push('✅ Mon.');
-    else if (ch.monetized === 'likely') parts.push('🟡 Prob. Mon.');
+    if (ch.subs && !statsRow.querySelector('[data-lbl="Subs"]')) parts.push(' ' + fmtN(ch.subs));
+    if (ch.monetized === 'yes') parts.push(' Mon.');
+    else if (ch.monetized === 'likely') parts.push(' Prob. Mon.');
     if (parts.length) metaLine.textContent = parts.join('  ·  ');
     if (parts.length) body.appendChild(metaLine);
 
@@ -390,7 +390,7 @@ function render() {
 
     var thumbBtn = document.createElement('button');
     thumbBtn.className = 'ch-lab-btn';
-    thumbBtn.textContent = '🎨 Thumb Lab';
+    thumbBtn.textContent = ' Thumb Lab';
     thumbBtn.title = 'Abre el canal y lanza Thumb Lab';
     thumbBtn.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -400,7 +400,7 @@ function render() {
 
     var titleBtn = document.createElement('button');
     titleBtn.className = 'ch-lab-btn';
-    titleBtn.textContent = '✏️ Title Lab';
+    titleBtn.textContent = ' Title Lab';
     titleBtn.title = 'Abre el canal y lanza Title Lab';
     titleBtn.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -463,7 +463,7 @@ function removeChannel(url) {
   chrome.storage.local.set({ nsp_all_channels: allChannels }, render);
 }
 
-// ── BULK OPERATIONS ─────────────────────────────────────────────────────────
+//  BULK OPERATIONS 
 function getSelectedChannels() {
   var sel = [];
   for (var i = 0; i < allChannels.length; i++) {
@@ -487,11 +487,11 @@ function updateBulkBar() {
     bar.id = 'nsp-bulk-bar';
     bar.className = 'nsp-bulk-bar';
     bar.innerHTML = '<span class="nsp-bulk-count" id="nsp-bulk-count">0 seleccionados</span>'
-      + '<button class="nsp-bulk-btn" id="nsp-bulk-export">📥 Export selección</button>'
-      + '<button class="nsp-bulk-btn" id="nsp-bulk-ideas">💡 Ideas con estos</button>'
-      + '<button class="nsp-bulk-btn" id="nsp-bulk-watch">🔔 Watch (alertas)</button>'
-      + '<button class="nsp-bulk-btn danger" id="nsp-bulk-delete">🗑 Borrar</button>'
-      + '<button class="nsp-bulk-btn ghost" id="nsp-bulk-clear">✕ Limpiar selección</button>';
+      + '<button class="nsp-bulk-btn" id="nsp-bulk-export"> Export selección</button>'
+      + '<button class="nsp-bulk-btn" id="nsp-bulk-ideas"> Ideas con estos</button>'
+      + '<button class="nsp-bulk-btn" id="nsp-bulk-watch"> Watch (alertas)</button>'
+      + '<button class="nsp-bulk-btn danger" id="nsp-bulk-delete"> Borrar</button>'
+      + '<button class="nsp-bulk-btn ghost" id="nsp-bulk-clear"> Limpiar selección</button>';
     document.body.appendChild(bar);
     document.getElementById('nsp-bulk-export').onclick = function() {
       var data = getSelectedChannels();
@@ -539,11 +539,11 @@ function openIdeasPanelFor(channels) {
   var top = channels.slice(0, 10);
   modal.innerHTML = '<div class="nsp-modal-header">'
     + '<div class="nsp-modal-title">Ideas for ' + top.length + ' selected channels</div>'
-    + '<button class="nsp-modal-close" id="nsp-ideas-close-2">✕</button></div>'
+    + '<button class="nsp-modal-close" id="nsp-ideas-close-2"></button></div>'
     + '<div class="nsp-modal-body">'
     + '<div class="ideas-subhead">Five fresh angles built from the channels you picked</div>'
     + '<div class="ideas-channels" id="nsp-ideas-preview-2"></div>'
-    + '<button class="export-format-btn" id="nsp-ideas-gen-2">⚡ Generar ideas</button>'
+    + '<button class="export-format-btn" id="nsp-ideas-gen-2"> Generar ideas</button>'
     + '<div class="ideas-output" id="nsp-ideas-out-2"></div></div>';
   document.body.appendChild(backdrop);
 
@@ -559,17 +559,17 @@ function openIdeasPanelFor(channels) {
   document.getElementById('nsp-ideas-gen-2').onclick = function() {
     var btn = this;
     btn.disabled = true;
-    btn.textContent = '⚡ Consultando Claude...';
+    btn.textContent = ' Consultando Claude...';
     var out = document.getElementById('nsp-ideas-out-2');
     out.innerHTML = '<div class="ideas-loading">Generando ideas...</div>';
     generateDailyIdeas(top).then(function(text) {
       out.innerHTML = '<div class="ideas-result"></div>';
       out.querySelector('.ideas-result').textContent = text;
-      btn.textContent = '🔄 Generar otra ronda';
+      btn.textContent = ' Generar otra ronda';
       btn.disabled = false;
     }).catch(function(err) {
-      out.innerHTML = '<div class="ideas-error">⚠️ ' + (err && err.message ? err.message : 'Error') + '</div>';
-      btn.textContent = '🔄 Reintentar';
+      out.innerHTML = '<div class="ideas-error"> ' + (err && err.message ? err.message : 'Error') + '</div>';
+      btn.textContent = ' Reintentar';
       btn.disabled = false;
     });
   };
@@ -1196,7 +1196,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }, 4000);
 });
 
-// ── EXPORT (CSV / JSON) ─────────────────────────────────────────────────────
+//  EXPORT (CSV / JSON) 
 function getCurrentFilteredChannels() {
   // Re-apply current filters to allChannels
   return allChannels.filter(function(ch) {
@@ -1290,7 +1290,7 @@ function openExportModal() {
 
   modal.innerHTML = '<div class="nsp-modal-header">'
     + '  <div class="nsp-modal-title">Export channels</div>'
-    + '  <button class="nsp-modal-close" id="nsp-export-close">✕</button>'
+    + '  <button class="nsp-modal-close" id="nsp-export-close"></button>'
     + '</div>'
     + '<div class="nsp-modal-body">'
     + '  <div class="export-row">'
@@ -1298,11 +1298,11 @@ function openExportModal() {
     + '    <label class="export-radio"><input type="radio" name="export-scope" value="all"> All (<strong>' + totalAll + '</strong>)</label>'
     + '  </div>'
     + '  <div class="export-row">'
-    + '    <button class="export-format-btn" id="nsp-export-csv">📊 Descargar CSV<small>Excel / Sheets ready</small></button>'
-    + '    <button class="export-format-btn" id="nsp-export-json">📦 Descargar JSON<small>Para devs / re-import</small></button>'
+    + '    <button class="export-format-btn" id="nsp-export-csv"> Descargar CSV<small>Excel / Sheets ready</small></button>'
+    + '    <button class="export-format-btn" id="nsp-export-json"> Descargar JSON<small>Para devs / re-import</small></button>'
     + '  </div>'
     + '  <div class="export-row">'
-    + '    <button class="export-format-btn ghost" id="nsp-export-clipboard">📋 Copiar al portapapeles (JSON)</button>'
+    + '    <button class="export-format-btn ghost" id="nsp-export-clipboard"> Copiar al portapapeles (JSON)</button>'
     + '  </div>'
     + '</div>';
 
@@ -1320,13 +1320,13 @@ function openExportModal() {
     var data = getScope();
     navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(function() {
       var btn = document.getElementById('nsp-export-clipboard');
-      btn.textContent = '✓ Copiado ' + data.length + ' channels';
+      btn.textContent = ' Copiado ' + data.length + ' channels';
       setTimeout(function() { backdrop.remove(); }, 1200);
     });
   };
 }
 
-// ── IDEAS HOY (Claude AI sobre canales guardados) ────────────────────────────
+//  IDEAS HOY (Claude AI sobre canales guardados) 
 function openIdeasPanel() {
   var existing = document.getElementById('nsp-ideas-modal');
   if (existing) { existing.remove(); return; }
@@ -1345,13 +1345,13 @@ function openIdeasPanel() {
   }).slice(0, 8);
 
   modal.innerHTML = '<div class="nsp-modal-header">'
-    + '  <div class="nsp-modal-title">💡 Ideas de video — AI Coach</div>'
-    + '  <button class="nsp-modal-close" id="nsp-ideas-close">✕</button>'
+    + '  <div class="nsp-modal-title"> Ideas de video — AI Coach</div>'
+    + '  <button class="nsp-modal-close" id="nsp-ideas-close"></button>'
     + '</div>'
     + '<div class="nsp-modal-body">'
     + '  <div class="ideas-subhead">Claude analizará tus top ' + top.length + ' canales y generará 5 ideas frescas para hoy</div>'
     + '  <div class="ideas-channels" id="nsp-ideas-channels-preview"></div>'
-    + '  <button class="export-format-btn" id="nsp-ideas-generate">⚡ Generar ideas con Claude</button>'
+    + '  <button class="export-format-btn" id="nsp-ideas-generate"> Generar ideas con Claude</button>'
     + '  <div class="ideas-output" id="nsp-ideas-output"></div>'
     + '</div>';
 
@@ -1373,19 +1373,19 @@ function openIdeasPanel() {
   document.getElementById('nsp-ideas-generate').onclick = function() {
     var btn = this;
     btn.disabled = true;
-    btn.textContent = '⚡ Consultando Claude...';
+    btn.textContent = ' Consultando Claude...';
     var output = document.getElementById('nsp-ideas-output');
     output.innerHTML = '<div class="ideas-loading">Generando ideas (5-15s)...</div>';
 
     generateDailyIdeas(top).then(function(text) {
       output.innerHTML = '<div class="ideas-result"></div>';
       output.querySelector('.ideas-result').textContent = text;
-      btn.textContent = '🔄 Generar otra ronda';
+      btn.textContent = ' Generar otra ronda';
       btn.disabled = false;
     }).catch(function(err) {
-      output.innerHTML = '<div class="ideas-error">⚠️ ' + (err && err.message ? err.message : 'Error') + '</div>'
+      output.innerHTML = '<div class="ideas-error"> ' + (err && err.message ? err.message : 'Error') + '</div>'
         + '<div class="ideas-help">Verifica que tengas tu API key de Claude configurada en chrome.storage (ashlyv_api_key, formato sk-ant-...).</div>';
-      btn.textContent = '🔄 Reintentar';
+      btn.textContent = ' Reintentar';
       btn.disabled = false;
     });
   };

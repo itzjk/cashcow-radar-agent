@@ -82,7 +82,7 @@ function renderTable(rows) {
     l1.textContent = 'El índice está vacío todavía.';
     var l2 = document.createElement('div');
     l2.append('Corré un ');
-    var b = document.createElement('b'); b.textContent = 'SCAN 🦇';
+    var b = document.createElement('b'); b.textContent = 'SCAN ';
     l2.appendChild(b);
     l2.append(' en YouTube — cada scan alimenta esta base automáticamente y acá se acumula tu inteligencia de nichos.');
     e.appendChild(l1); e.appendChild(l2);
@@ -107,7 +107,7 @@ function renderTable(rows) {
     if (state.sortKey === c.k) {
       var ar = document.createElement('span');
       ar.className = 'arrow';
-      ar.textContent = state.sortDir > 0 ? '▲' : '▼';
+      ar.textContent = state.sortDir > 0 ? '' : '';
       th.appendChild(ar);
     }
     th.addEventListener('click', function () {
@@ -135,9 +135,9 @@ function renderTable(rows) {
     var tCell = document.createElement('td');
     var tSpan = document.createElement('span');
     if (!r.trendKnown) { tSpan.className = 'flat'; tSpan.textContent = '·'; tSpan.title = 'Pocos datos aún — la tendencia aparece tras ~6 scans de este nicho.'; }
-    else if (r.trend > 0.15) { tSpan.className = 'up'; tSpan.textContent = '▲ +' + Math.round(r.trend * 100) + '%'; }
-    else if (r.trend < -0.15) { tSpan.className = 'down'; tSpan.textContent = '▼ ' + Math.round(r.trend * 100) + '%'; }
-    else { tSpan.className = 'flat'; tSpan.textContent = '→'; }
+    else if (r.trend > 0.15) { tSpan.className = 'up'; tSpan.textContent = ' +' + Math.round(r.trend * 100) + '%'; }
+    else if (r.trend < -0.15) { tSpan.className = 'down'; tSpan.textContent = ' ' + Math.round(r.trend * 100) + '%'; }
+    else { tSpan.className = 'flat'; tSpan.textContent = ''; }
     tCell.appendChild(tSpan);
     tr.appendChild(tCell);
     var bCell = document.createElement('td');
@@ -172,7 +172,7 @@ function refresh() {
   renderTable(rows);
   $('foot').textContent = HAS_CHROME
     ? 'Datos 100% locales (chrome.storage) · el índice crece solo con cada SCAN · tope 400 nichos (borra los más viejos).'
-    : '⚠ Vista previa sin chrome.storage — abrí esta página desde la extensión para ver tu índice real.';
+    : ' Vista previa sin chrome.storage — abrí esta página desde la extensión para ver tu índice real.';
 }
 
 function load() {

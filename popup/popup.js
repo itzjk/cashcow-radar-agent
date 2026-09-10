@@ -13,7 +13,7 @@ let sessionData = null;
 let watchlist = [];
 let savedChannels = [];
 
-// ── Boot ────────────────────────────────────────────────────────────────
+//  Boot 
 document.addEventListener('DOMContentLoaded', () => {
   loadData();
   bindFooter();
@@ -71,7 +71,7 @@ function loadData() {
   });
 }
 
-// ── Stats ───────────────────────────────────────────────────────────────
+//  Stats 
 function renderStats(session) {
   const analyzed = session?.analyzed || 0;
   const videos = session?.topVideos || [];
@@ -89,7 +89,7 @@ function renderStats(session) {
   }
 }
 
-// ── Top Videos ──────────────────────────────────────────────────────────
+//  Top Videos 
 function renderTopVideos(videos) {
   const list = document.getElementById('top-list');
   const empty = document.getElementById('empty-top');
@@ -121,7 +121,7 @@ function renderTopVideos(videos) {
         <div class="video-title">${escHtml(v.title)}</div>
         <div class="video-channel">${escHtml(v.channelName)}</div>
         <div class="video-metrics">
-          <span class="metric-chip mc-vph">⚡ ${formatVPH(v.vph)} VPH</span>
+          <span class="metric-chip mc-vph"> ${formatVPH(v.vph)} VPH</span>
           ${multStr}
           ${tierBadge}
           <span class="metric-chip" style="color:rgba(255,255,255,.8);background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)">OS:${v.opportunityScore}</span>
@@ -137,7 +137,7 @@ function renderTopVideos(videos) {
   });
 }
 
-// ── Channels ─────────────────────────────────────────────────────────────
+//  Channels 
 function renderChannels() {
   if (!document.getElementById('channels-list')) return;
 
@@ -157,7 +157,7 @@ function renderChannels() {
     const card = document.createElement('div');
     card.className = 'ch-card';
 
-    // Avatar (clickable → open channel)
+    // Avatar (clickable  open channel)
     const avatarWrap = document.createElement('a');
     avatarWrap.href = '#';
     avatarWrap.className = 'ch-avatar-wrap';
@@ -203,7 +203,7 @@ function renderChannels() {
 
     const subsChip = document.createElement('span');
     subsChip.className = 'ch-chip ch-chip-blue';
-    subsChip.textContent = '👥 ' + formatN(ch.subs || 0);
+    subsChip.textContent = ' ' + formatN(ch.subs || 0);
     meta.appendChild(subsChip);
 
     if (ch.subGrowth !== null && ch.subGrowth !== undefined) {
@@ -221,10 +221,10 @@ function renderChannels() {
     }
 
     const mon = document.createElement('span');
-    if (ch.monetized === 'yes')    { mon.className = 'ch-chip ch-chip-green'; mon.textContent = '✅ Monetizado'; }
-    else if (ch.monetized === 'likely') { mon.className = 'ch-chip ch-chip-yellow'; mon.textContent = '🟡 Probable'; }
-    else if (ch.monetized === 'no')  { mon.className = 'ch-chip ch-chip-red';   mon.textContent = '❌ No monetiz.'; }
-    else                             { mon.className = 'ch-chip'; mon.textContent = '❓'; }
+    if (ch.monetized === 'yes')    { mon.className = 'ch-chip ch-chip-green'; mon.textContent = ' Monetizado'; }
+    else if (ch.monetized === 'likely') { mon.className = 'ch-chip ch-chip-yellow'; mon.textContent = ' Probable'; }
+    else if (ch.monetized === 'no')  { mon.className = 'ch-chip ch-chip-red';   mon.textContent = ' No monetiz.'; }
+    else                             { mon.className = 'ch-chip'; mon.textContent = ''; }
     meta.appendChild(mon);
 
     info.appendChild(meta);
@@ -233,7 +233,7 @@ function renderChannels() {
     // Remove button
     const rmBtn = document.createElement('button');
     rmBtn.className = 'ch-remove';
-    rmBtn.textContent = '✕';
+    rmBtn.textContent = '';
     rmBtn.title = 'Eliminar';
     rmBtn.addEventListener('click', () => {
       savedChannels.splice(idx, 1);
@@ -258,7 +258,7 @@ function formatN(n) {
   return '' + Math.round(n);
 }
 
-// ── Watchlist ────────────────────────────────────────────────────────────
+//  Watchlist 
 function renderWatchlist() {
   if (!document.getElementById('watchlist-items')) return;
 
@@ -280,8 +280,8 @@ function renderWatchlist() {
     item.className = 'wl-item';
     item.innerHTML = `
       <span class="wl-keyword">${escHtml(keyword)}</span>
-      <button class="wl-search-btn" data-idx="${idx}" title="Search on YouTube">🔍</button>
-      <button class="wl-remove-btn" data-idx="${idx}" title="Remove">✕</button>
+      <button class="wl-search-btn" data-idx="${idx}" title="Search on YouTube"></button>
+      <button class="wl-remove-btn" data-idx="${idx}" title="Remove"></button>
     `;
     item.querySelector('.wl-search-btn').addEventListener('click', () => {
       chrome.tabs.create({ url: `https://www.youtube.com/results?search_query=${encodeURIComponent(keyword)}` });
@@ -321,9 +321,9 @@ function saveWatchlist() {
   });
 }
 
-// ── Tabs ─────────────────────────────────────────────────────────────────
+//  Tabs 
 
-// ── Footer ───────────────────────────────────────────────────────────────
+//  Footer 
 function bindFooter() {
   document.getElementById('btn-export').addEventListener('click', exportCSV);
   openOnClick('btn-country-feed', 'country-feed/country-feed.html');
@@ -366,7 +366,7 @@ function exportCSV() {
   setTimeout(() => { try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────
+//  Helpers 
 function formatVPH(v) {
   if (!v) return '0';
   if (v >= 10000) return (v / 1000).toFixed(1) + 'K';
