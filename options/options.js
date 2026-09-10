@@ -492,3 +492,21 @@ if (document.readyState === 'loading') {
 } else {
   nspOptionsBoot();
 }
+
+(function initModelPicker() {
+  var sel = document.getElementById('nsp-selected-model');
+  if (!sel || !window.NSP_MODELS) return;
+  window.NSP_MODELS.list.forEach(function (entry) {
+    var opt = document.createElement('option');
+    opt.value = entry.id;
+    opt.textContent = entry.note ? entry.label + ' — ' + entry.note : entry.label;
+    sel.appendChild(opt);
+  });
+  chrome.storage.local.get(['nsp_selected_model'], function (res) {
+    sel.value = (res && res.nsp_selected_model) || 'auto';
+  });
+  sel.addEventListener('change', function () {
+    var entry = window.NSP_MODELS.byId(sel.value);
+    chrome.storage.local.set({ nsp_selected_model: sel.value, nsp_preferred_provider: entry.provider || 'auto' });
+  });
+})();

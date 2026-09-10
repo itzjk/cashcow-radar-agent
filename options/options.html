@@ -77,6 +77,15 @@
 
   <!-- v3.8.0 — GROQ provider -->
   <div class="section" style="border-color:rgba(255, 45, 45,0.45);background:linear-gradient(135deg,rgba(255, 45, 45,0.06),rgba(255, 255, 255,0.04));">
+    <div class="section-title">Assistant model</div>
+    <div class="field">
+      <label style="color:var(--text);">Model used by the assistant and every AI panel</label>
+      <select id="nsp-selected-model" style="width:100%;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:8px;padding:9px 10px;color:var(--text);font-size:12px;"></select>
+      <div style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.55;">
+        Auto uses whichever provider you configured below and is answering. Pick a model to force it; if that provider is rate limited the request still falls through to the next one you configured.
+      </div>
+    </div>
+
     <div class="section-title" style="color:#FF2D2D;"> GROQ — Provider rápido (750-1000 tok/s)</div>
     <div class="field">
       <label style="color:var(--text);">Groq API Key (gratis, prioridad alta)</label>
@@ -197,6 +206,7 @@
   <div class="saved-msg" id="saved-msg"> Configuración guardada</div>
 </div>
 
+<script src="../lib/nsp-models.js"></script>
 <script src="options.js"></script>
 <!-- INLINE SCRIPT REEMPLAZADO en v3.5.4 — MV3 CSP bloquea inline JS. Todo está en options.js -->
 </body>
