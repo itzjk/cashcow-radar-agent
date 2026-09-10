@@ -18,7 +18,7 @@ window.AshlyVAPI = (function() {
   function sendToSW(message, timeoutMs) {
     return new Promise(function(resolve, reject) {
       var timeout = setTimeout(function() {
-        reject(new Error('Service worker timeout despues de ' + ((timeoutMs || SW_TIMEOUT_MS) / 1000) + 's'));
+        reject(new Error('Service worker timed out after ' + ((timeoutMs || SW_TIMEOUT_MS) / 1000) + 's'));
       }, timeoutMs || SW_TIMEOUT_MS);
 
       try {
@@ -29,7 +29,7 @@ window.AshlyVAPI = (function() {
             return;
           }
           if (!response) {
-            reject(new Error('Sin respuesta del service worker'));
+            reject(new Error('No response from the service worker'));
             return;
           }
           resolve(response);
@@ -106,18 +106,18 @@ window.AshlyVAPI = (function() {
           colorContrast: Math.max(1, Math.min(10, Math.round((scores.contrast || overall) / 10))),
           curiosityHook: Math.max(1, Math.min(10, Math.round((scores.curiosity || overall) / 10))),
           faceDetected: d.faceDetected === true,
-          strengths: ['Contraste medido: ' + (d.contrast || 0), 'Brillo medido: ' + (d.brightness || 0)],
+          strengths: ['Measured contrast: ' + (d.contrast || 0), 'Measured brightness: ' + (d.brightness || 0)],
           weaknesses: d.improvements || [],
           improvements: d.improvements || [],
-          nicheRecommendation: channelName ? ('Validar contra el estilo del canal ' + channelName) : 'Compatible con validacion faceless basada en miniatura.'
+          nicheRecommendation: channelName ? ('Check it against the style of the channel ' + channelName) : 'Compatible with thumbnail-based faceless validation.'
         })
       };
     }).catch(function() {
       return getProviderStatus().then(function(provider) {
       keepAlive();
 
-      var systemPrompt = 'Eres un experto en YouTube thumbnails para canales faceless. Responde solo en espanol neutro. Analizas miniaturas con criterio de CTR, claridad, contraste y viralidad. Responde unicamente con JSON valido, sin markdown ni texto extra.';
-      var userPrompt = 'Analiza esta miniatura de YouTube' + (channelName ? ' del canal ' + channelName : '') + ' y devuelve EXACTAMENTE este JSON: {"ctrScore": <numero 1-100>, "overallScore": <numero 1-100>, "facelessCompatible": <true o false>, "verdict": <"VIRAL POTENTIAL" o "GOOD" o "NEEDS WORK" o "POOR">, "emotionScore": <numero 1-10>, "textReadability": <numero 1-10>, "colorContrast": <numero 1-10>, "curiosityHook": <numero 1-10>, "faceDetected": <true o false>, "strengths": [<string>, <string>, <string maximo>], "weaknesses": [<string>, <string>, <string maximo>], "improvements": [<string>, <string>, <string>, <string maximo>], "nicheRecommendation": <string>}';
+      var systemPrompt = 'You are an expert in YouTube thumbnails for faceless channels. Answer only in English. You judge thumbnails on CTR, clarity, contrast and viral potential. Answer only with valid JSON, no markdown and no extra text.';
+      var userPrompt = 'Analyze this YouTube thumbnail' + (channelName ? ' from the channel ' + channelName : '') + ' and return EXACTLY this JSON: {"ctrScore": <number 1-100>, "overallScore": <number 1-100>, "facelessCompatible": <true or false>, "verdict": <"VIRAL POTENTIAL" or "GOOD" or "NEEDS WORK" or "POOR">, "emotionScore": <number 1-10>, "textReadability": <number 1-10>, "colorContrast": <number 1-10>, "curiosityHook": <number 1-10>, "faceDetected": <true or false>, "strengths": [<string>, <string>, <string, max>], "weaknesses": [<string>, <string>, <string, max>], "improvements": [<string>, <string>, <string>, <string, max>], "nicheRecommendation": <string>}';
 
       if (provider.localAvailable) {
         return sendToSW({
@@ -129,13 +129,13 @@ window.AshlyVAPI = (function() {
           userPrompt: userPrompt
         }, 180000).then(function(res) {
           if (!res || !res.success) {
-            throw new Error((res && res.error) || 'Error local con Ollama Vision');
+            throw new Error((res && res.error) || 'Local Ollama Vision call failed');
           }
           return res;
         });
       }
 
-      if (!provider.anthropicKeyConfigured) throw new Error('No hay IA local activa ni API key configurada.');
+      if (!provider.anthropicKeyConfigured) throw new Error('No local AI is running and no API key is configured.');
 
       return getApiKey().then(function(apiKey) {
         return sendToSW({
@@ -155,15 +155,15 @@ window.AshlyVAPI = (function() {
     return getProviderStatus().then(function(provider) {
       keepAlive();
 
-      var systemPrompt = 'Eres un experto en canales de YouTube faceless. Responde solo en espanol neutro y unicamente con JSON valido, sin texto extra.';
+      var systemPrompt = 'You are an expert in faceless YouTube channels. Answer only in English and only with valid JSON, no extra text.';
       var contextStr = channelData ? JSON.stringify({
         subscribers: channelData.subs,
         totalViews: channelData.views,
         videoCount: channelData.videoCount,
         avgViews: channelData.avgViews,
         topTopics: channelData.topics
-      }) : 'datos no disponibles';
-      var userPrompt = 'Analiza el canal de YouTube llamado "' + channelName + '". Datos disponibles: ' + contextStr + '. Devuelve EXACTAMENTE este JSON: {"facelessScore": <numero 1-100>, "replicable": <true o false>, "niche": <string>, "rpmEstimate": <numero en USD>, "monthlyRevenueEstimate": <string>, "growthPotential": <"HIGH" o "MEDIUM" o "LOW">, "facelessTechnique": <string>, "strengths": [<string>, <string>], "weaknesses": [<string>, <string>], "replicationStrategy": <string>, "contentGaps": [<string>, <string>], "recommendedPostingFrequency": <string>, "competitionLevel": <"HIGH" o "MEDIUM" o "LOW">}';
+      }) : 'no data available';
+      var userPrompt = 'Analyze the YouTube channel named "' + channelName + '". Available data: ' + contextStr + '. Return EXACTLY this JSON: {"facelessScore": <number 1-100>, "replicable": <true or false>, "niche": <string>, "rpmEstimate": <number in USD>, "monthlyRevenueEstimate": <string>, "growthPotential": <"HIGH" or "MEDIUM" or "LOW">, "facelessTechnique": <string>, "strengths": [<string>, <string>], "weaknesses": [<string>, <string>], "replicationStrategy": <string>, "contentGaps": [<string>, <string>], "recommendedPostingFrequency": <string>, "competitionLevel": <"HIGH" or "MEDIUM" or "LOW">}';
 
       if (provider.localAvailable) {
         return sendToSW({
@@ -173,13 +173,13 @@ window.AshlyVAPI = (function() {
           messages: [{ role: 'user', content: userPrompt }]
         }, 120000).then(function(res) {
           if (!res || !res.success) {
-            throw new Error((res && res.error) || 'Error local con Ollama Chat');
+            throw new Error((res && res.error) || 'Local Ollama Chat call failed');
           }
           return res;
         });
       }
 
-      if (!provider.anthropicKeyConfigured) throw new Error('No hay IA local activa ni API key configurada.');
+      if (!provider.anthropicKeyConfigured) throw new Error('No local AI is running and no API key is configured.');
 
       return getApiKey().then(function(apiKey) {
         return sendToSW({
@@ -197,8 +197,8 @@ window.AshlyVAPI = (function() {
     return getProviderStatus().then(function(provider) {
       keepAlive();
 
-      var systemPrompt = 'Eres un experto en YouTube faceless. Responde solo en espanol neutro y unicamente con JSON valido.';
-      var userPrompt = 'Genera ideas de contenido faceless para el nicho "' + niche + '" en idioma ' + (language || 'espanol') + ' con RPM objetivo de $' + (rpmTarget || 8) + '+. Devuelve EXACTAMENTE este JSON: {"titles": [<10 titulos de videos>], "hooks": [<5 hooks de apertura>], "thumbnailConcepts": [<5 conceptos de miniatura sin cara>], "uploadSchedule": <string>, "monetizationTips": [<3 tips para maximizar RPM>]}';
+      var systemPrompt = 'You are an expert in faceless YouTube. Answer only in English and only with valid JSON.';
+      var userPrompt = 'Generate faceless content ideas for the niche "' + niche + '" in ' + (language || 'English') + ' with a target RPM of $' + (rpmTarget || 8) + '+. Return EXACTLY this JSON: {"titles": [<10 video titles>], "hooks": [<5 opening hooks>], "thumbnailConcepts": [<5 faceless thumbnail concepts>], "uploadSchedule": <string>, "monetizationTips": [<3 tips to maximize RPM>]}';
 
       if (provider.localAvailable) {
         return sendToSW({
@@ -208,13 +208,13 @@ window.AshlyVAPI = (function() {
           messages: [{ role: 'user', content: userPrompt }]
         }, 120000).then(function(res) {
           if (!res || !res.success) {
-            throw new Error((res && res.error) || 'Error local con Ollama Chat');
+            throw new Error((res && res.error) || 'Local Ollama Chat call failed');
           }
           return res;
         });
       }
 
-      if (!provider.anthropicKeyConfigured) throw new Error('No hay IA local activa ni API key configurada.');
+      if (!provider.anthropicKeyConfigured) throw new Error('No local AI is running and no API key is configured.');
 
       return getApiKey().then(function(apiKey) {
         return sendToSW({
@@ -250,7 +250,7 @@ window.AshlyVAPI = (function() {
         controller = new AbortController();
         timer = setTimeout(function() {
           try { controller.abort(); } catch (e) {}
-          reject(new Error('Backend timeout en ' + path));
+          reject(new Error('Backend timed out on ' + path));
         }, timeoutMs || 90000);
       }
       fetch(BACKEND_BASE_URL + path, {

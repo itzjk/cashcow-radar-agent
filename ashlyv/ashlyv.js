@@ -33,26 +33,26 @@ var app = {
 };
 
 var FILTER_HELP = {
-  high_rpm: 'Deja solo nichos con RPM alto.',
-  low_comp: 'Prioriza mercados con menos canales fuertes compitiendo.',
-  low_sat: 'Busca espacios menos saturados.',
-  fully_faceless: 'Solo formatos que pueden hacerse sin cara.',
-  easy_scale: 'Nichos repetibles para publicar muchas piezas.',
-  storytelling: 'Historias, documentales y narrativa.',
-  sleep: 'Contenido largo para dormir o escuchar de fondo.',
-  history: 'Historia, misterios antiguos y documentales.',
-  psychology: 'Psicologia, mente, comportamiento y datos.',
-  mystery: 'Misterios, secretos, paranormal o curiosidad.',
-  science: 'Ciencia, espacio, tecnologia o explicaciones.',
-  survival: 'Supervivencia, apagones, preparacion y crisis.',
-  religion: 'Religion, filosofia y contenido evergreen.',
-  trending: 'Nichos con senales de crecimiento reciente.',
-  underserved: 'Idiomas con demanda pero poca oferta buena.',
-  outlier: 'Donde videos pequenos pueden romper fuerte.',
-  saved_only: 'Solo oportunidades con datos guardados en tu archivo.',
-  new_only: 'Solo datos frescos.',
-  best_week: 'Senales fuertes guardadas esta semana.',
-  best_month: 'Senales fuertes guardadas este mes.'
+  high_rpm: 'Keeps only niches with a high RPM.',
+  low_comp: 'Favors markets with fewer strong channels competing.',
+  low_sat: 'Looks for less saturated spaces.',
+  fully_faceless: 'Only formats you can make without showing your face.',
+  easy_scale: 'Repeatable niches you can publish at volume.',
+  storytelling: 'Stories, documentaries and narrative.',
+  sleep: 'Long content for sleep or background listening.',
+  history: 'History, ancient mysteries and documentaries.',
+  psychology: 'Psychology, mind, behavior and data.',
+  mystery: 'Mysteries, secrets, paranormal and curiosity.',
+  science: 'Science, space, technology and explainers.',
+  survival: 'Survival, blackouts, prepping and crisis.',
+  religion: 'Religion, philosophy and evergreen content.',
+  trending: 'Niches with recent growth signals.',
+  underserved: 'Languages with demand but little good supply.',
+  outlier: 'Where small videos can break out hard.',
+  saved_only: 'Only opportunities backed by data in your archive.',
+  new_only: 'Fresh data only.',
+  best_week: 'Strong signals saved this week.',
+  best_month: 'Strong signals saved this month.'
 };
 
 var YOUTUBE_LOCALE_OVERRIDES = {
@@ -143,9 +143,9 @@ function rpmLabel(value) {
 
 function savedDateLabel(ts) {
   var time = toNumber(ts);
-  if (!time) return 'SIN FECHA';
+  if (!time) return 'NO DATE';
   var d = new Date(time);
-  if (isNaN(d.getTime())) return 'SIN FECHA';
+  if (isNaN(d.getTime())) return 'NO DATE';
   var y = d.getFullYear();
   var m = String(d.getMonth() + 1).padStart(2, '0');
   var day = String(d.getDate()).padStart(2, '0');
@@ -154,14 +154,14 @@ function savedDateLabel(ts) {
 
 function relTime(ts) {
   var delta = Date.now() - toNumber(ts);
-  if (delta <= 0) return 'ahora';
+  if (delta <= 0) return 'now';
   var hours = Math.floor(delta / 3600000);
-  if (hours < 1) return 'hace minutos';
-  if (hours < 24) return 'hace ' + hours + 'h';
+  if (hours < 1) return 'minutes ago';
+  if (hours < 24) return hours + 'h ago';
   var days = Math.floor(hours / 24);
-  if (days < 30) return 'hace ' + days + 'd';
+  if (days < 30) return days + 'd ago';
   var months = Math.floor(days / 30);
-  return 'hace ' + months + 'm';
+  return months + 'mo ago';
 }
 
 function isChannelEntry(entry) {
@@ -195,10 +195,10 @@ function getLanguageLabel(code) {
 
 function verdictLabel(verdict) {
   var raw = String(verdict || '').toUpperCase();
-  if (raw === 'ENTER NOW') return 'ENTRAR YA';
-  if (raw === 'TEST') return 'PROBAR';
-  if (raw === 'WATCH') return 'MONITOREAR';
-  if (raw === 'IGNORE') return 'IGNORAR';
+  if (raw === 'ENTER NOW') return 'ENTER NOW';
+  if (raw === 'TEST') return 'TEST';
+  if (raw === 'WATCH') return 'WATCH';
+  if (raw === 'IGNORE') return 'IGNORE';
   return verdict || '';
 }
 
@@ -258,7 +258,7 @@ function normalizeNichoEntry(item) {
   item = item || {};
   var language = detectEntryLanguage(item);
   return {
-    title: String(item.title || item.name || 'Sin titulo').trim(),
+    title: String(item.title || item.name || 'Untitled').trim(),
     niche: String(item.niche || 'General').trim(),
     nicheId: String(item.nicheId || (engine && engine.nicheScoring ? engine.nicheScoring.inferNicheIdFromText((item.niche || '') + ' ' + (item.title || '')) : 'history_documentary')).trim(),
     tier: String(item.tier || '').trim().toUpperCase(),
@@ -312,7 +312,7 @@ function mergeDashboardEntries(nichos, channels) {
   });
   (channels || []).forEach(function(channel) {
     var entry = normalizeNichoEntry({
-      title: channel.name || 'Canal guardado',
+      title: channel.name || 'Saved channel',
       channelName: channel.name || '',
       channelId: channel.channelId || '',
       channelUrl: channel.channelUrl || '',
@@ -369,7 +369,7 @@ function requestAnthropicProxy(message) {
           return;
         }
         if (!res) {
-          reject(new Error('Sin respuesta del service worker'));
+          reject(new Error('No response from the service worker'));
           return;
         }
         resolve(res);
@@ -511,50 +511,50 @@ function buildRobaNichoPrompt(snapshot) {
   var weak = (snapshot.weakSignals || []).map(function(item) { return '- ' + item; }).join('\n');
   var titles = (snapshot.titleExamples || []).map(function(item, idx) { return (idx + 1) + '. ' + item; }).join('\n');
   return [
-    'Actua como un operador senior de YouTube faceless especializado en robo de nichos competitivo.',
-    'Quiero atacar este nicho con una propuesta mejor, no una copia barata.',
-    'Trabaja solo con el snapshot de ASHLYV y di claramente donde faltan datos.',
+    'Act as a senior faceless YouTube operator who specializes in taking over competitive niches.',
+    'I want to enter this niche with a better offer, not a cheap copy.',
+    'Work only from the ASHLYV snapshot and say clearly where data is missing.',
     '',
-    'SNAPSHOT DEL NICHO',
-    '- Idioma: ' + snapshot.languageLabel,
-    '- Nicho: ' + snapshot.nicheLabel,
-    '- Query de ataque: ' + snapshot.searchQuery,
+    'NICHE SNAPSHOT',
+    '- Language: ' + snapshot.languageLabel,
+    '- Niche: ' + snapshot.nicheLabel,
+    '- Attack query: ' + snapshot.searchQuery,
     '- Opportunity score: ' + snapshot.opportunityScore + '/10',
     '- RPM: ' + rpmLabel(snapshot.estimatedRpm),
-    '- Competencia: ' + snapshot.competitionLabel + ' / ' + snapshot.competitionScore,
-    '- Saturacion: ' + snapshot.saturationLabel + ' / ' + snapshot.saturationScore,
+    '- Competition: ' + snapshot.competitionLabel + ' / ' + snapshot.competitionScore,
+    '- Saturation: ' + snapshot.saturationLabel + ' / ' + snapshot.saturationScore,
     '- Demand: ' + snapshot.demandLabel + ' / ' + snapshot.demandScore,
-    '- Velocidad proxy: ' + compactNumber(snapshot.velocity) + '/h',
-    '- Muestras visibles: ' + snapshot.sampleCount,
-    '- Competidores visibles: ' + snapshot.competitorCount,
+    '- Velocity proxy: ' + compactNumber(snapshot.velocity) + '/h',
+    '- Visible samples: ' + snapshot.sampleCount,
+    '- Visible competitors: ' + snapshot.competitorCount,
     '',
-    'TOP COMPETIDORES',
+    'TOP COMPETITORS',
     competitors || '- unknown',
     '',
-    'QUE FUNCIONA MAS',
+    'WHAT WORKS BEST',
     works || '- unknown',
     '',
-    'QUE HACEN DIFERENTE LOS GANADORES',
+    'WHAT THE WINNERS DO DIFFERENTLY',
     diffs || '- unknown',
     '',
-    'QUE SE VE FLOJO / REPETIDO',
+    'WHAT LOOKS WEAK OR REPEATED',
     weak || '- unknown',
     '',
-    'HUECOS PARA ENTRAR',
+    'GAPS TO ENTER',
     gaps || '- unknown',
     '',
-    'TITULOS / HOOKS A ESTUDIAR',
+    'TITLES AND HOOKS TO STUDY',
     titles || '- unknown',
     '',
-    'ENTREGAME:',
-    '1. Diagnostico del nicho y del nivel real de competencia.',
-    '2. Que esta funcionando exactamente y por que.',
-    '3. Que hacen diferente los ganadores respecto a la media.',
-    '4. Que no deberia copiar literalmente.',
-    '5. Un angulo de entrada mas fuerte y mas escalable.',
-    '6. Un sistema de titulos y thumbnails para entrar mejor.',
-    '7. 12 ideas de videos para atacar este nicho.',
-    '8. Riesgos de saturacion y como evitarlos.'
+    'GIVE ME:',
+    '1. A diagnosis of the niche and the real level of competition.',
+    '2. Exactly what is working and why.',
+    '3. What the winners do differently from the average channel.',
+    '4. What I should not copy literally.',
+    '5. A stronger, more scalable entry angle.',
+    '6. A title and thumbnail system to enter with.',
+    '7. 12 video ideas to attack this niche.',
+    '8. Saturation risks and how to avoid them.'
   ].join('\n');
 }
 
@@ -562,8 +562,8 @@ function fillRobaNichoPreview(snapshot) {
   currentRobaSnapshot = snapshot || null;
   currentRobaPrompt = buildRobaNichoPrompt(snapshot);
   document.getElementById('rn-summary').textContent = snapshot
-    ? snapshot.languageLabel + ' | ' + snapshot.nicheLabel + ' | Competencia ' + snapshot.competitionLabel + ' | Saturacion ' + snapshot.saturationLabel + ' | Demand ' + snapshot.demandLabel + '.'
-    : 'Selecciona un nicho y extrae la inteligencia competitiva.';
+    ? snapshot.languageLabel + ' | ' + snapshot.nicheLabel + ' | Competition ' + snapshot.competitionLabel + ' | Saturation ' + snapshot.saturationLabel + ' | Demand ' + snapshot.demandLabel + '.'
+    : 'Pick a niche and pull its competitive intelligence.';
   document.getElementById('rn-query').textContent = snapshot ? snapshot.searchQuery : '-';
   document.getElementById('rn-score').textContent = snapshot ? (snapshot.opportunityScore + '/10') : '0/10';
   document.getElementById('rn-competitors').textContent = snapshot ? String(snapshot.competitorCount || 0) : '0';
@@ -573,7 +573,7 @@ function fillRobaNichoPreview(snapshot) {
   function fillList(id, items) {
     var host = document.getElementById(id);
     host.innerHTML = '';
-    (items && items.length ? items : ['Sin data suficiente todavia.']).forEach(function(item) {
+    (items && items.length ? items : ['Not enough data yet.']).forEach(function(item) {
       host.appendChild(el('div', 'rn-list-item', item));
     });
   }
@@ -599,13 +599,13 @@ function fillRobaNichoPreview(snapshot) {
     });
     card.appendChild(el('div', 'rn-competitor-title', item.channelLabel));
     card.appendChild(el('div', 'rn-competitor-meta', compactNumber(item.avgVph) + '/h | RPM ' + rpmLabel(item.avgRpm) + ' | OS ' + item.avgOs + ' | ' + item.sampleCount + ' samples'));
-    card.appendChild(el('div', 'rn-competitor-copy', item.leadTitle || 'Sin titulo visible'));
+    card.appendChild(el('div', 'rn-competitor-copy', item.leadTitle || 'No visible title'));
     competitorGrid.appendChild(card);
   });
   if (!competitorGrid.childNodes.length) {
     var empty = el('div', 'rn-competitor');
-    empty.appendChild(el('div', 'rn-competitor-title', 'Sin competidores visibles'));
-    empty.appendChild(el('div', 'rn-competitor-copy', 'Guarda mas nichos o canales y ASHLYV va a profundizar mejor el mapa competitivo.'));
+    empty.appendChild(el('div', 'rn-competitor-title', 'No visible competitors'));
+    empty.appendChild(el('div', 'rn-competitor-copy', 'Save more niches or channels and ASHLYV will build a deeper competitive map.'));
     competitorGrid.appendChild(empty);
   }
 }
@@ -630,8 +630,8 @@ function copyRobaPrompt() {
   if (!currentRobaPrompt) return;
   try { navigator.clipboard.writeText(currentRobaPrompt); } catch (e) {}
   var btn = document.getElementById('rn-btn-copy');
-  btn.textContent = 'COPIADO';
-  setTimeout(function() { btn.textContent = 'Copiar intel'; }, 1400);
+  btn.textContent = 'COPIED';
+  setTimeout(function() { btn.textContent = 'Copy intel'; }, 1400);
 }
 
 function openRobaInChatGPT() {
@@ -743,33 +743,33 @@ function buildOpportunityActionRow(opportunity, options) {
     actions.appendChild(gptBtn);
   }
   if (options.includeScan !== false) {
-    var scanBtn = el('button', 'subtle-btn primary', 'Escanear en YT');
+    var scanBtn = el('button', 'subtle-btn primary', 'Scan on YouTube');
     bindActionButton(scanBtn, function() { scanOpportunityOnYouTube(opportunity); });
     actions.appendChild(scanBtn);
   }
   if (options.includeSearch !== false) {
-    var searchBtn = el('button', 'subtle-btn', 'Buscar nicho');
+    var searchBtn = el('button', 'subtle-btn', 'Search niche');
     bindActionButton(searchBtn, function() { searchOpportunityOnYouTube(opportunity); });
     actions.appendChild(searchBtn);
   }
   if (options.includeSave !== false) {
-    var saveBtn = el('button', 'subtle-btn', 'Guardar');
+    var saveBtn = el('button', 'subtle-btn', 'Save');
     bindActionButton(saveBtn, function() { saveOpportunity(opportunity); });
     actions.appendChild(saveBtn);
   }
   if (options.includeRoba) {
-    var robaBtn = el('button', 'subtle-btn', 'Roba Nicho');
+    var robaBtn = el('button', 'subtle-btn', 'Steal Niche');
     bindActionButton(robaBtn, function() { openRobaNicho(opportunity); });
     actions.appendChild(robaBtn);
   }
   if (options.includeWatch !== false) {
-    var watchBtn = el('button', 'subtle-btn', (app.state.watchlist || []).indexOf(opportunity.languageCode + '|' + opportunity.nicheId) >= 0 ? 'Monitoreado' : 'Monitorear');
+    var watchBtn = el('button', 'subtle-btn', (app.state.watchlist || []).indexOf(opportunity.languageCode + '|' + opportunity.nicheId) >= 0 ? 'Watching' : 'Watch');
     bindActionButton(watchBtn, function() { toggleWatchlist(opportunity); });
     actions.appendChild(watchBtn);
   }
   if (options.includeFocus) {
     var isFocused = getOpportunityKey(app.selectedOpportunity) === getOpportunityKey(opportunity);
-    var focusBtn = el('button', 'subtle-btn' + (isFocused ? ' primary' : ''), isFocused ? 'En foco' : 'Ver esta');
+    var focusBtn = el('button', 'subtle-btn' + (isFocused ? ' primary' : ''), isFocused ? 'In focus' : 'View this');
     bindActionButton(focusBtn, function() { focusOpportunity(opportunity); });
     actions.appendChild(focusBtn);
   }
@@ -899,15 +899,15 @@ function updateHero() {
   if (!app.selectedOpportunity) {
     topNicheEl.textContent = getMostCommonNiche();
     potentialEl.textContent = moneyLabel(totalMonthlyVisible());
-    titleEl.textContent = 'Radar premium de oportunidades globales';
-    descEl.textContent = 'ASHLYV ya cruza idiomas, nichos faceless, RPM, saturation y alertas en vivo sin romper tu archivo actual.';
+    titleEl.textContent = 'Premium radar of global opportunities';
+    descEl.textContent = 'ASHLYV cross-reads languages, faceless niches, RPM, saturation and live alerts without touching your current archive.';
     return;
   }
 
   topNicheEl.textContent = app.selectedOpportunity.languageLabel;
   potentialEl.textContent = moneyLabel(app.selectedOpportunity.estimatedRpm * 1000);
   titleEl.textContent = app.selectedOpportunity.recommendedNiche;
-  descEl.textContent = app.selectedOpportunity.why + ' Veredicto: ' + verdictLabel(app.selectedOpportunity.verdict) + '.';
+  descEl.textContent = app.selectedOpportunity.why + ' Verdict: ' + verdictLabel(app.selectedOpportunity.verdict) + '.';
 }
 
 function el(tag, className, text) {
@@ -1016,7 +1016,7 @@ function renderLanguageSelectorShell() {
     var locale = getYouTubeLocale(opp.languageCode);
     right.appendChild(el('div', 'engine-kicker', selectedLanguage !== 'auto' ? ('Top Niches In ' + opp.languageLabel) : 'Top Global Opportunities'));
     right.appendChild(el('div', 'engine-card-title', opp.languageLabel + ' - ' + localQuery));
-    right.appendChild(el('div', 'stack-item-meta', 'Nicho base: ' + opp.recommendedNiche + ' | YouTube ' + locale.gl + ' / ' + locale.hl));
+    right.appendChild(el('div', 'stack-item-meta', 'Base niche: ' + opp.recommendedNiche + ' | YouTube ' + locale.gl + ' / ' + locale.hl));
 
     var scoreRow = el('div', 'score-verdict-row');
     var scoreEl = el('div', 'engine-card-value', opp.opportunityScore + '/10');
@@ -1072,7 +1072,7 @@ function renderLanguageSelectorShell() {
       scopedOpportunities.forEach(function(item) {
         var isFocused = getOpportunityKey(item) === getOpportunityKey(opp);
       var card = el('div', 'stack-item stack-item-link' + (isFocused ? ' active-opportunity-card' : ''));
-        card.title = 'Usar este nicho como foco';
+        card.title = 'Use this niche as the focus';
         bindClickableCard(card, function() { focusOpportunity(item); });
 
         var headRow = el('div', 'stack-item-head');
@@ -1116,9 +1116,9 @@ function renderFiltersShell() {
 
   var head = el('div', 'engine-head');
   var left = el('div');
-  left.appendChild(el('div', 'engine-kicker', 'Filtros inteligentes'));
-  left.appendChild(el('div', 'engine-title', 'Filtrar oportunidades'));
-  left.appendChild(el('div', 'engine-copy', 'Activa filtros para dejar solo los nichos que cumplen esa condicion. Survival, por ejemplo, muestra oportunidades de supervivencia/apagones/preparacion; High RPM deja solo mercados con mejor pago.'));
+  left.appendChild(el('div', 'engine-kicker', 'Smart filters'));
+  left.appendChild(el('div', 'engine-title', 'Filter opportunities'));
+  left.appendChild(el('div', 'engine-copy', 'Turn on filters to keep only the niches that meet the condition. Survival, for example, shows survival, blackout and prepping opportunities. High RPM keeps only the better paying markets.'));
   head.appendChild(left);
   inner.appendChild(head);
 
@@ -1145,15 +1145,15 @@ function renderFiltersShell() {
   var summary = el('div', 'stack-item');
   summary.style.marginTop = '14px';
   if (!activeFilters.length) {
-    summary.appendChild(el('div', 'stack-item-title', 'Sin filtros activos'));
-    summary.appendChild(el('div', 'muted-copy', 'El motor esta mostrando el ranking completo del idioma seleccionado.'));
+    summary.appendChild(el('div', 'stack-item-title', 'No active filters'));
+    summary.appendChild(el('div', 'muted-copy', 'The engine is showing the full ranking for the selected language.'));
   } else {
-    summary.appendChild(el('div', 'stack-item-title', 'Filtros activos'));
+    summary.appendChild(el('div', 'stack-item-title', 'Active filters'));
     activeFilters.forEach(function(filterId) {
       var def = defs.find(function(item) { return item.id === filterId; });
-      summary.appendChild(el('div', 'stack-item-meta', (def ? def.label : filterId) + ': ' + (FILTER_HELP[filterId] || 'Refina el ranking actual.')));
+      summary.appendChild(el('div', 'stack-item-meta', (def ? def.label : filterId) + ': ' + (FILTER_HELP[filterId] || 'Refines the current ranking.')));
     });
-    var clearBtn = el('button', 'subtle-btn', 'Limpiar filtros');
+    var clearBtn = el('button', 'subtle-btn', 'Clear filters');
     clearBtn.style.marginTop = '12px';
     bindActionButton(clearBtn, function() {
       app.state.filters = [];
@@ -1174,20 +1174,20 @@ function renderComparisonShell() {
 
   var head = el('div', 'engine-head');
   var left = el('div');
-  left.appendChild(el('div', 'engine-kicker', 'Comparacion de oportunidades'));
-  left.appendChild(el('div', 'engine-title', (app.state.selectedLanguage || 'auto') !== 'auto' ? ('Top nichos en ' + getLanguageLabel(app.state.selectedLanguage)) : 'Top global diversificado'));
-  left.appendChild(el('div', 'engine-copy', 'Compara varios nichos, no uno solo. La tabla cambia con el idioma seleccionado y cada fila busca en el YouTube local de ese pais.'));
+  left.appendChild(el('div', 'engine-kicker', 'Opportunity comparison'));
+  left.appendChild(el('div', 'engine-title', (app.state.selectedLanguage || 'auto') !== 'auto' ? ('Top niches in ' + getLanguageLabel(app.state.selectedLanguage)) : 'Diversified global top'));
+  left.appendChild(el('div', 'engine-copy', 'Compare several niches, not just one. The table follows the selected language and every row searches the local YouTube for that country.'));
   head.appendChild(left);
   inner.appendChild(head);
 
   var sortRow = el('div', 'chip-row');
   [
-    ['opportunity', 'Mejor oportunidad'],
-    ['rpm', 'Mayor RPM'],
-    ['competition', 'Menor competencia'],
-    ['underserved', 'Mas gap'],
-    ['faceless', 'Mas faceless'],
-    ['growth', 'Mas velocidad']
+    ['opportunity', 'Best opportunity'],
+    ['rpm', 'Highest RPM'],
+    ['competition', 'Lowest competition'],
+    ['underserved', 'Biggest gap'],
+    ['faceless', 'Most faceless'],
+    ['growth', 'Fastest']
   ].forEach(function(def) {
     var btn = el('button', 'chip-btn' + (app.comparisonSort === def[0] ? ' active' : ''), def[1]);
     btn.onclick = function() {
@@ -1207,7 +1207,7 @@ function renderComparisonShell() {
   var table = el('table', 'comparison-table');
   var thead = document.createElement('thead');
   var headRow = document.createElement('tr');
-  ['Nicho local', 'Score', 'RPM', 'Competencia', 'Gap', 'Accion'].forEach(function(label) {
+  ['Local niche', 'Score', 'RPM', 'Competition', 'Gap', 'Action'].forEach(function(label) {
     headRow.appendChild(el('th', '', label));
   });
   thead.appendChild(headRow);
@@ -1225,7 +1225,7 @@ function renderComparisonShell() {
       tr.appendChild(el('td', '', value));
     });
     var actionCell = document.createElement('td');
-    var btn = el('button', 'subtle-btn', 'Buscar');
+    var btn = el('button', 'subtle-btn', 'Search');
     btn.style.minWidth = '92px';
     btn.style.height = '34px';
     bindActionButton(btn, function() { searchOpportunityOnYouTube(row); });
@@ -1283,7 +1283,7 @@ function renderRadarShell() {
   grid.appendChild(right);
   inner.appendChild(grid);
 
-  left.appendChild(el('div', 'engine-kicker', (app.state.selectedLanguage || 'auto') !== 'auto' ? ('Gaps en ' + getLanguageLabel(app.state.selectedLanguage)) : 'Top Underserved Languages'));
+  left.appendChild(el('div', 'engine-kicker', (app.state.selectedLanguage || 'auto') !== 'auto' ? ('Gaps in ' + getLanguageLabel(app.state.selectedLanguage)) : 'Top Underserved Languages'));
   left.appendChild(el('div', 'engine-title', 'Language Gap Radar'));
   var radarBase = (app.state.selectedLanguage || 'auto') !== 'auto'
     ? (app.opportunities || [])
@@ -1297,14 +1297,14 @@ function renderRadarShell() {
     var list = el('div', 'stack-list');
     underserved.slice(0, 6).forEach(function(item) {
       var card = el('div', 'stack-item stack-item-link');
-      card.title = 'Abrir nicho en YouTube';
+      card.title = 'Open niche on YouTube';
       bindClickableCard(card, function() { searchOpportunityOnYouTube(item); });
       card.appendChild(el('div', 'stack-item-title', item.languageLabel + ' - ' + getOpportunityQuery(item)));
       card.appendChild(el('div', 'stack-item-meta', 'Gap ' + item.languageGapScore + '/10 | Score ' + item.opportunityScore + '/10 | RPM ' + rpmLabel(item.estimatedRpm)));
       card.appendChild(el('div', 'muted-copy', item.comparisonNote));
       var actions = el('div', 'subtle-actions');
       actions.style.marginTop = '12px';
-      var ytBtn = el('button', 'subtle-btn', 'Ver Nicho en YT');
+      var ytBtn = el('button', 'subtle-btn', 'View niche on YouTube');
       ytBtn.onclick = function(ev) {
         ev.stopPropagation();
         searchOpportunityOnYouTube(item);
@@ -1337,7 +1337,7 @@ function renderRadarShell() {
       title: alert.title || alert.recommendedNiche || 'Opportunity alert',
       languageCode: alert.languageCode || app.state.selectedLanguage,
       languageLabel: getLanguageLabel(alert.languageCode),
-      nicheLabel: alert.nicheId || 'alerta',
+      nicheLabel: alert.nicheId || 'alert',
       vph: alert.opportunityScore ? Math.round(alert.opportunityScore * 45) : 0,
       os: Math.round((alert.opportunityScore || 0) * 10),
       source: 'alert'
@@ -1369,7 +1369,7 @@ function renderRadarShell() {
     signalRows.slice(0, 6).forEach(function(item) {
       var card = el('button', 'stack-item stack-item-link');
       card.type = 'button';
-      card.title = 'Abrir senal en YouTube';
+      card.title = 'Open signal on YouTube';
       card.onclick = function() { searchTextOnYouTube(item.title || item.nicheLabel, item.languageCode); };
       card.appendChild(el('div', 'stack-item-title', item.title));
       card.appendChild(el('div', 'stack-item-meta', item.languageLabel + ' | ' + item.nicheLabel + ' | ' + compactNumber(item.vph) + '/h | OS ' + item.os + ' | ' + item.source));
@@ -1397,7 +1397,7 @@ function renderAlertShell() {
     app.alertHistory.slice(0, 8).forEach(function(alert) {
       var card = el('button', 'alert-card stack-item-link');
       card.type = 'button';
-      card.title = 'Abrir alerta en YouTube';
+      card.title = 'Open alert on YouTube';
       card.onclick = function() { searchTextOnYouTube(alert.title || alert.recommendedNiche || '', alert.languageCode); };
       card.appendChild(el('div', 'engine-card-title', String(alert.type || 'opportunity').toUpperCase()));
       card.appendChild(el('div', 'stack-item-title', alert.title || 'New niche detected'));
@@ -1427,7 +1427,7 @@ function renderSavedByLanguageShell() {
     savedGroups.slice(0, 8).forEach(function(group) {
       var card = el('button', 'saved-language-card stack-item-link');
       card.type = 'button';
-      card.title = 'Abrir idioma guardado en YouTube';
+      card.title = 'Open saved language on YouTube';
       card.onclick = function() { searchSavedGroupOnYouTube(group); };
       card.appendChild(el('div', 'engine-card-title', group.label));
       card.appendChild(el('div', 'engine-card-value', String(group.total)));
@@ -1452,7 +1452,7 @@ function renderSavedByLanguageShell() {
     var item = topByLanguage[code];
     var card = el('button', 'stack-item stack-item-link');
     card.type = 'button';
-    card.title = 'Abrir top niche en YouTube';
+    card.title = 'Open top niche on YouTube';
     card.onclick = function() { searchOpportunityOnYouTube(item); };
     card.appendChild(el('div', 'stack-item-title', item.languageLabel + ' - ' + item.recommendedNiche));
     card.appendChild(el('div', 'stack-item-meta', 'Score ' + item.opportunityScore + '/10 | RPM ' + rpmLabel(item.estimatedRpm) + ' | ' + verdictLabel(item.verdict)));
@@ -1502,8 +1502,8 @@ function renderEmptyState(content) {
   empty.className = 'empty';
   empty.innerHTML =
     '<div class="empty-bat"><svg viewBox="0 0 100 60" fill="#fff"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg></div>' +
-    '<div class="empty-title">Sin guardados aun</div>' +
-    '<div class="empty-sub">Abre YouTube, guarda canales o nichos y aqui veras el archivo completo junto al motor global de idiomas.</div>';
+    '<div class="empty-title">Nothing saved yet</div>' +
+    '<div class="empty-sub">Open YouTube, save channels or niches, and the full archive shows up here next to the global language engine.</div>';
   content.appendChild(empty);
 }
 
@@ -1522,8 +1522,8 @@ function calculateGrade(entry) {
 function getMonetizationMethods(niche) {
   var n = String(niche || '').toLowerCase();
   if (n.indexOf('finance') !== -1 || n.indexOf('crypto') !== -1 || n.indexOf('finanzas') !== -1) return ['AdSense Premium', 'Broker affiliates', 'Digital products'];
-  if (n.indexOf('history') !== -1 || n.indexOf('historia') !== -1 || n.indexOf('science') !== -1 || n.indexOf('ciencia') !== -1) return ['AdSense educativo', 'App sponsorships', 'Memberships'];
-  if (n.indexOf('health') !== -1 || n.indexOf('fitness') !== -1 || n.indexOf('salud') !== -1) return ['AdSense salud', 'Afiliados', 'Info products'];
+  if (n.indexOf('history') !== -1 || n.indexOf('historia') !== -1 || n.indexOf('science') !== -1 || n.indexOf('ciencia') !== -1) return ['Educational AdSense', 'App sponsorships', 'Memberships'];
+  if (n.indexOf('health') !== -1 || n.indexOf('fitness') !== -1 || n.indexOf('salud') !== -1) return ['Health AdSense', 'Affiliates', 'Info products'];
   if (n.indexOf('survival') !== -1 || n.indexOf('hogar') !== -1 || n.indexOf('hvac') !== -1) return ['AdSense', 'Tool affiliates', 'Direct sponsors'];
   return ['Google AdSense', 'Amazon affiliates', 'Direct sponsors'];
 }
@@ -1563,8 +1563,8 @@ function fillBlueprintPreview(entry, prompt) {
     list.appendChild(li);
   });
   document.getElementById('bp-grade').textContent = grade;
-  document.getElementById('bp-potential-txt').textContent = 'Ingreso mensual estimado: ' + moneyLabel(entry.revMonth) + ' / mes';
-  document.getElementById('bp-hook').textContent = 'Gancho sugerido: abre con la promesa mas fuerte del tema "' + (entry.title || 'referencia') + '" y una consecuencia directa para la audiencia.';
+  document.getElementById('bp-potential-txt').textContent = 'Estimated monthly revenue: ' + moneyLabel(entry.revMonth) + ' / month';
+  document.getElementById('bp-hook').textContent = 'Suggested hook: open with the strongest promise in "' + (entry.title || 'reference') + '" and a direct consequence for the viewer.';
   document.getElementById('bp-strategy').textContent = prompt;
   currentBlueprintPrompt = prompt;
 }
@@ -1581,11 +1581,11 @@ function renderArchive() {
 
   if (!app.mergedEntries.length) {
     renderEmptyState(content);
-    count.textContent = '0 guardados';
+    count.textContent = '0 saved';
     return;
   }
 
-  count.textContent = app.mergedEntries.length + ' guardados';
+  count.textContent = app.mergedEntries.length + ' saved';
   var grid = document.createElement('div');
   grid.className = 'nicho-grid';
 
@@ -1618,24 +1618,24 @@ function renderArchive() {
     var topRow = document.createElement('div');
     topRow.className = 'card-top';
     topRow.appendChild(el('div', 'card-rank', '#' + (idx + 1)));
-    var tier = el('div', 'card-tier ' + (isViral ? 'tier-viral' : isHot ? 'tier-hot' : 'tier-other'), tierKey || (isChannelEntry(entry) ? 'CANAL' : 'N/A'));
+    var tier = el('div', 'card-tier ' + (isViral ? 'tier-viral' : isHot ? 'tier-hot' : 'tier-other'), tierKey || (isChannelEntry(entry) ? 'CHANNEL' : 'N/A'));
     topRow.appendChild(tier);
     card.appendChild(topRow);
 
-    card.appendChild(el('div', 'card-title', entry.title || 'Sin titulo'));
+    card.appendChild(el('div', 'card-title', entry.title || 'Untitled'));
     card.appendChild(el('div', 'card-niche', entry.niche || 'General'));
 
     var meta = document.createElement('div');
     meta.className = 'card-meta';
     meta.appendChild(metaChip(getLanguageLabel(entry.language).toUpperCase()));
-    meta.appendChild(metaChip(isChannelEntry(entry) ? 'CANAL GUARDADO' : 'NICHO GUARDADO'));
+    meta.appendChild(metaChip(isChannelEntry(entry) ? 'SAVED CHANNEL' : 'SAVED NICHE'));
     if (entry.subs > 0) meta.appendChild(metaChip(compactNumber(entry.subs) + ' SUBS'));
     meta.appendChild(metaChip(savedDateLabel(entry.savedAt)));
     card.appendChild(meta);
 
     var metrics = document.createElement('div');
     metrics.className = 'card-metrics';
-    metrics.appendChild(metricNode(entry.revMonth > 0 ? 'MES ' + moneyLabel(entry.revMonth) : 'MES N/A', 'm-month'));
+    metrics.appendChild(metricNode(entry.revMonth > 0 ? 'MONTH ' + moneyLabel(entry.revMonth) : 'MONTH N/A', 'm-month'));
     metrics.appendChild(metricNode('VPH ' + compactNumber(entry.vph) + '/H', 'm-vph'));
     metrics.appendChild(metricNode(entry.totalRev > 0 ? 'TOTAL ' + moneyLabel(entry.totalRev) : 'TOTAL N/A', 'm-rev'));
     metrics.appendChild(metricNode('RPM ' + rpmLabel(entry.rpm), 'm-rpm'));
@@ -1649,7 +1649,7 @@ function renderArchive() {
     actions.className = 'card-actions';
 
     var masterBtn = el('button', 'card-btn primary', 'THUMB LAB');
-    masterBtn.title = 'Analizar las miniaturas ganadoras del nicho + generar las tuyas';
+    masterBtn.title = 'Study the winning thumbnails in the niche and generate your own';
     masterBtn.onclick = function(e) {
       e.stopPropagation();
       try {
@@ -1665,7 +1665,7 @@ function renderArchive() {
     actions.appendChild(masterBtn);
 
     var langBtn = el('button', 'card-btn mini', 'LANG');
-    langBtn.title = 'Traducir';
+    langBtn.title = 'Translate';
     langBtn.onclick = function(e) {
       e.stopPropagation();
       openTransModal(entry.title || entry.niche || '');
@@ -1673,7 +1673,7 @@ function renderArchive() {
     actions.appendChild(langBtn);
 
     var deleteBtn = el('button', 'card-btn del', 'X');
-    deleteBtn.title = 'Eliminar';
+    deleteBtn.title = 'Delete';
     deleteBtn.onclick = function(e) {
       e.stopPropagation();
       removeSavedEntry(entry);
@@ -1733,7 +1733,7 @@ function clearAll() {
 
 function openTransModal(title) {
   document.getElementById('trans-original').textContent = title || '-';
-  document.getElementById('trans-result').textContent = 'Selecciona idioma y traduce.';
+  document.getElementById('trans-result').textContent = 'Pick a language and translate.';
   currentTranslated = '';
 
   var sel = document.getElementById('lang-select');
@@ -1752,7 +1752,7 @@ function openTransModal(title) {
 function doTranslate() {
   var title = document.getElementById('trans-original').textContent;
   var resultEl = document.getElementById('trans-result');
-  resultEl.textContent = 'Traduciendo...';
+  resultEl.textContent = 'Translating';
   fetch('https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=' + encodeURIComponent(targetLang) + '&dt=t&q=' + encodeURIComponent(title))
     .then(function(r) { return r.json(); })
     .then(function(data) {
@@ -1766,7 +1766,7 @@ function doTranslate() {
       resultEl.textContent = getLanguageLabel(targetLang) + ': ' + currentTranslated;
     })
     .catch(function() {
-      resultEl.textContent = 'Error al traducir';
+      resultEl.textContent = 'Could not translate';
     });
 }
 
@@ -1787,16 +1787,16 @@ function copyTranslated() {
   if (!currentTranslated) return;
   try { navigator.clipboard.writeText(currentTranslated); } catch (e) {}
   var btn = document.getElementById('btn-trans-copy');
-  btn.textContent = 'COPIADO';
-  setTimeout(function() { btn.textContent = 'Copiar'; }, 1400);
+  btn.textContent = 'COPIED';
+  setTimeout(function() { btn.textContent = 'Copy'; }, 1400);
 }
 
 function copyBlueprintPrompt() {
   if (!currentBlueprintPrompt) return;
   try { navigator.clipboard.writeText(currentBlueprintPrompt); } catch (e) {}
   var btn = document.getElementById('bp-btn-copy');
-  btn.textContent = 'COPIADO';
-  setTimeout(function() { btn.textContent = 'Copiar estrategia'; }, 1400);
+  btn.textContent = 'COPIED';
+  setTimeout(function() { btn.textContent = 'Copy strategy'; }, 1400);
 }
 
 function openBlueprintInChatGPT() {
@@ -1813,16 +1813,14 @@ function normalizeAshlyVToolPageUrl(toolUrl) {
   return clean;
 }
 
-// Abre una pestaña nueva (mantiene el hub abierto)
 function _openToolTab(url) {
   try { if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.create) { chrome.tabs.create({ url: url }); return; } } catch (e) {}
   try { window.open(url, '_blank', 'noopener'); return; } catch (e) {}
   window.location.href = url;
 }
 
-// v3.23.0 — Verifica que el archivo EXISTA antes de abrir. Si no existe (muchas tools
-// todavía no están construidas), muestra "en construcción" en vez del feo error de
-// Chrome "no se puede acceder a este archivo". Y abre SIEMPRE en pestaña aparte.
+// Checks the file exists first: many tools are not built yet, and Chrome's own
+// "file not found" page is worse than showing a coming-soon panel.
 function openAshlyVToolPage(toolUrl) {
   var clean = normalizeAshlyVToolPageUrl(toolUrl);
   if (!clean) return;
@@ -1838,7 +1836,6 @@ function openAshlyVToolPage(toolUrl) {
   } catch (e) { showAshlyVToolComingSoon(toolUrl); }
 }
 
-// Modal "en construcción" (reemplaza el error de archivo inexistente)
 function showAshlyVToolComingSoon(toolUrl) {
   var prev = document.getElementById('nsp-tool-soon'); if (prev && prev.parentNode) prev.parentNode.removeChild(prev);
   var ov = document.createElement('div');
@@ -1850,7 +1847,7 @@ function showAshlyVToolComingSoon(toolUrl) {
   var ic = document.createElement('div'); ic.textContent = '🚧'; ic.style.cssText = 'font-size:40px;margin-bottom:10px;';
   var t = document.createElement('div'); t.textContent = 'Could not open that tool'; t.style.cssText = 'font-size:16px;font-weight:900;color:#00DC82;margin-bottom:9px;';
   var d = document.createElement('div'); d.textContent = 'If you just updated, reload the extension in chrome://extensions and try again.'; d.style.cssText = 'font-size:12px;color:rgba(255,255,255,0.62);line-height:1.55;margin-bottom:16px;';
-  var c = document.createElement('button'); c.textContent = 'Cerrar'; c.style.cssText = 'display:block;margin:12px auto 0;background:transparent;border:none;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;font-family:inherit;';
+  var c = document.createElement('button'); c.textContent = 'Close'; c.style.cssText = 'display:block;margin:12px auto 0;background:transparent;border:none;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;font-family:inherit;';
   c.addEventListener('click', function () { if (ov.parentNode) ov.parentNode.removeChild(ov); });
   box.appendChild(ic); box.appendChild(t); box.appendChild(d); box.appendChild(c);
   ov.appendChild(box); document.documentElement.appendChild(ov);
@@ -2016,7 +2013,7 @@ function buildAshlyVToolModal(route, options) {
     bar.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;';
     (buttonDefs || []).forEach(function(def, index) {
       if (!def || typeof def.onClick !== 'function') return;
-      bar.appendChild(toolButton(def.label || 'ACCION', def.onClick, index === 0 || !!def.primary));
+      bar.appendChild(toolButton(def.label || 'ACTION', def.onClick, index === 0 || !!def.primary));
     });
     if (bar.childNodes.length) body.appendChild(bar);
   }
@@ -2027,7 +2024,7 @@ function buildAshlyVToolModal(route, options) {
     ta.select();
     try { document.execCommand('copy'); } catch (e) {}
     document.body.removeChild(ta);
-    showAshlyVToast(message || 'Copiado', 'success', 1800);
+    showAshlyVToast(message || 'Copied', 'success', 1800);
   }
   function copyToolText(text, message) {
     text = String(text || '').trim();
@@ -2035,7 +2032,7 @@ function buildAshlyVToolModal(route, options) {
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(function() {
-          showAshlyVToast(message || 'Copiado', 'success', 1800);
+          showAshlyVToast(message || 'Copied', 'success', 1800);
         }).catch(function() {
           fallbackCopy(text, message);
         });
@@ -2061,7 +2058,7 @@ function buildAshlyVToolModal(route, options) {
   }
   function collectTopTitles(list, limit) {
     return (list || []).slice(0, limit || 5).map(function(item, index) {
-      return (index + 1) + '. ' + String(item.title || item.niche || item.name || item.channelName || 'Sin titulo');
+      return (index + 1) + '. ' + String(item.title || item.niche || item.name || item.channelName || 'Untitled');
     }).join('\n');
   }
   function section(titleText, rows) {
@@ -2070,7 +2067,7 @@ function buildAshlyVToolModal(route, options) {
     wrap.appendChild(el('div', '', titleText));
     wrap.lastChild.style.cssText = 'font-size:14px;font-weight:900;letter-spacing:.12em;margin-bottom:12px;';
     if (!rows || !rows.length) {
-      wrap.appendChild(el('div', '', 'Sin datos suficientes todavia. Guarda mas nichos y canales para enriquecer esta herramienta.'));
+      wrap.appendChild(el('div', '', 'Not enough data yet. Save more niches and channels to feed this tool.'));
       wrap.lastChild.style.cssText = 'font-size:13px;line-height:1.7;color:rgba(255,255,255,.62);';
     } else {
       rows.forEach(function(row) {
@@ -2088,8 +2085,8 @@ function buildAshlyVToolModal(route, options) {
         if (row.action || row.secondaryAction) {
           var actions = document.createElement('div');
           actions.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;';
-          if (row.secondaryAction) actions.appendChild(toolButton(row.secondaryLabel || 'COPIAR', row.secondaryAction));
-          if (row.action) actions.appendChild(toolButton(row.actionLabel || 'ABRIR', row.action, true));
+          if (row.secondaryAction) actions.appendChild(toolButton(row.secondaryLabel || 'COPY', row.secondaryAction));
+          if (row.action) actions.appendChild(toolButton(row.actionLabel || 'OPEN', row.action, true));
           item.appendChild(actions);
         }
         wrap.appendChild(item);
@@ -2100,7 +2097,7 @@ function buildAshlyVToolModal(route, options) {
   function buildRevenueInput() {
     var wrap = document.createElement('div');
     wrap.style.cssText = 'margin-top:18px;padding:18px;border-radius:22px;border:1px solid rgba(255,255,255,.10);background:#090909;';
-    wrap.appendChild(el('div', '', 'SIMULADOR RAPIDO'));
+    wrap.appendChild(el('div', '', 'QUICK SIMULATOR'));
     wrap.lastChild.style.cssText = 'font-size:14px;font-weight:900;letter-spacing:.12em;margin-bottom:12px;';
     var grid = document.createElement('div');
     grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;';
@@ -2122,9 +2119,9 @@ function buildAshlyVToolModal(route, options) {
     views.oninput = recalc;
     rpm.oninput = recalc;
     [
-      { label: 'Views mensuales', node: views },
-      { label: 'RPM estimado', node: rpm },
-      { label: 'Ingreso proyectado', node: out }
+      { label: 'Monthly views', node: views },
+      { label: 'Estimated RPM', node: rpm },
+      { label: 'Projected revenue', node: out }
     ].forEach(function(entry) {
       var field = document.createElement('label');
       field.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
@@ -2150,38 +2147,38 @@ function buildAshlyVToolModal(route, options) {
     return wrap;
   }
   function buildPatternWorkbench() {
-    var wrap = buildWorkbench('TITLE LAB', 'Combina patron, nicho y angulo para sacar ideas listas para buscar o copiar.');
+    var wrap = buildWorkbench('TITLE LAB', 'Combine a pattern, a niche and an angle to get ideas ready to search or copy.');
     var grid = document.createElement('div');
     grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;';
     var seed = document.createElement('input');
     seed.type = 'text';
-    seed.value = keywordStats[0] ? keywordStats[0].word : 'historia';
+    seed.value = keywordStats[0] ? keywordStats[0].word : 'history';
     seed.style.cssText = 'padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.16);background:#0c0c0c;color:#FFFFFF;font-family:ui-monospace,monospace;';
     var niche = document.createElement('input');
     niche.type = 'text';
-    niche.value = topByRpm[0] ? (topByRpm[0].niche || topByRpm[0].title || '') : 'misterios';
+    niche.value = topByRpm[0] ? (topByRpm[0].niche || topByRpm[0].title || '') : 'mysteries';
     niche.style.cssText = seed.style.cssText;
     var out = document.createElement('div');
     out.style.cssText = 'margin-top:14px;display:grid;gap:10px;';
     function renderTitles() {
       while (out.firstChild) out.removeChild(out.firstChild);
-      var angles = ['que nadie explica', 'que cambia todo', 'que casi nadie conoce', 'que parece imposible', 'que podria darte views rapido'];
+      var angles = ['nobody explains', 'that changes everything', 'almost nobody knows', 'that looks impossible', 'that can bring views fast'];
       angles.forEach(function(angle, index) {
-        var titleText = 'Cómo ' + String(seed.value || '').trim() + ' en ' + String(niche.value || '').trim() + ': ' + angle;
+        var titleText = 'How ' + String(seed.value || '').trim() + ' works in ' + String(niche.value || '').trim() + ': the part ' + angle;
         var row = document.createElement('div');
         row.style.cssText = 'display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:12px;border:1px solid rgba(255,255,255,.08);border-radius:16px;background:#050505;';
         var copy = document.createElement('div');
         copy.style.cssText = 'flex:1;font-size:13px;line-height:1.6;font-weight:800;';
         copy.textContent = (index + 1) + '. ' + titleText;
         row.appendChild(copy);
-        row.appendChild(toolButton('COPIAR', function() { copyToolText(titleText, 'Idea copiada'); }));
-        row.appendChild(toolButton('BUSCAR', function() { searchNicheTerm(titleText, 'es'); }, true));
+        row.appendChild(toolButton('COPY', function() { copyToolText(titleText, 'Idea copied'); }));
+        row.appendChild(toolButton('SEARCH', function() { searchNicheTerm(titleText, 'es'); }, true));
         out.appendChild(row);
       });
     }
     [
-      { label: 'Patron base', node: seed },
-      { label: 'Nicho objetivo', node: niche }
+      { label: 'Base pattern', node: seed },
+      { label: 'Target niche', node: niche }
     ].forEach(function(entry) {
       var field = document.createElement('label');
       field.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
@@ -2193,20 +2190,20 @@ function buildAshlyVToolModal(route, options) {
     wrap.appendChild(grid);
     var controls = document.createElement('div');
     controls.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;';
-    controls.appendChild(toolButton('GENERAR TITULOS', renderTitles, true));
-    controls.appendChild(toolButton('COPIAR TODOS', function() {
+    controls.appendChild(toolButton('GENERATE TITLES', renderTitles, true));
+    controls.appendChild(toolButton('COPY ALL', function() {
       var lines = [];
       out.querySelectorAll('div').forEach(function(node) {
         if (node && node.textContent && /^\d+\./.test(node.textContent.trim())) lines.push(node.textContent.trim());
       });
-      copyToolText(lines.join('\n'), 'Pack copiado');
+      copyToolText(lines.join('\n'), 'Pack copied');
     }));
     wrap.appendChild(controls);
     wrap.appendChild(out);
     renderTitles();
   }
   function buildMarketWorkbench() {
-    var wrap = buildWorkbench('RPM FILTER', 'Filtra el archivo por RPM minimo y lanza la mejor oportunidad que cumpla ese corte.');
+    var wrap = buildWorkbench('RPM FILTER', 'Filter the archive by minimum RPM and launch the best opportunity above that cut.');
     var input = document.createElement('input');
     input.type = 'range';
     input.min = '1';
@@ -2221,20 +2218,20 @@ function buildAshlyVToolModal(route, options) {
     function renderMarket() {
       while (out.firstChild) out.removeChild(out.firstChild);
       var minRpm = toNumber(input.value || 0);
-      label.textContent = 'RPM minimo: ' + rpmLabel(minRpm);
+      label.textContent = 'Minimum RPM: ' + rpmLabel(minRpm);
       var matches = topByRpm.filter(function(item) { return toNumber(item.rpm || 0) >= minRpm; }).slice(0, 8);
       matches.forEach(function(item) {
         var row = document.createElement('div');
         row.style.cssText = 'display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:12px;border:1px solid rgba(255,255,255,.08);border-radius:16px;background:#050505;';
         var copy = document.createElement('div');
         copy.style.cssText = 'flex:1;font-size:13px;line-height:1.6;';
-        copy.textContent = (item.title || 'Sin titulo') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0);
+        copy.textContent = (item.title || 'Untitled') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0);
         row.appendChild(copy);
-        row.appendChild(toolButton('BUSCAR', function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); }, true));
+        row.appendChild(toolButton('SEARCH', function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); }, true));
         out.appendChild(row);
       });
       if (!matches.length) {
-        out.appendChild(el('div', '', 'Ningun nicho del archivo supera ese RPM ahora mismo.'));
+        out.appendChild(el('div', '', 'No niche in the archive is above that RPM right now.'));
         out.lastChild.style.cssText = 'font-size:12px;color:rgba(255,255,255,.62);';
       }
     }
@@ -2245,7 +2242,7 @@ function buildAshlyVToolModal(route, options) {
     renderMarket();
   }
   function buildGapWorkbench(gaps) {
-    var wrap = buildWorkbench('GAP LAUNCHER', 'Lanza busquedas nuevas con las brechas mas limpias del archivo.');
+    var wrap = buildWorkbench('GAP LAUNCHER', 'Launch fresh searches from the cleanest gaps in the archive.');
     var select = document.createElement('select');
     select.style.cssText = 'width:100%;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.16);background:#0c0c0c;color:#FFFFFF;font-family:ui-monospace,monospace;';
     (gaps || []).slice(0, 12).forEach(function(item, index) {
@@ -2256,13 +2253,13 @@ function buildAshlyVToolModal(route, options) {
     });
     var buttons = document.createElement('div');
     buttons.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;';
-    buttons.appendChild(toolButton('BUSCAR GAP', function() {
+    buttons.appendChild(toolButton('SEARCH GAP', function() {
       var item = gaps[Number(select.value || 0)];
       if (item) searchNicheTerm(item.title || item.niche || '', item.language || 'es');
     }, true));
-    buttons.appendChild(toolButton('COPIAR GAP', function() {
+    buttons.appendChild(toolButton('COPY GAP', function() {
       var item = gaps[Number(select.value || 0)];
-      if (item) copyToolText((item.title || item.niche || '') + ' | ' + rpmLabel(item.rpm || 0), 'Gap copiado');
+      if (item) copyToolText((item.title || item.niche || '') + ' | ' + rpmLabel(item.rpm || 0), 'Gap copied');
     }));
     wrap.appendChild(select);
     wrap.appendChild(buttons);
@@ -2280,7 +2277,7 @@ function buildAshlyVToolModal(route, options) {
     target.appendChild(el('div', '', titleText));
     target.lastChild.style.cssText = 'font-size:12px;font-weight:900;letter-spacing:.12em;margin:14px 0 8px;';
     if (!rows || !rows.length) {
-      target.appendChild(el('div', '', 'Sin resultados reales para esta busqueda.'));
+      target.appendChild(el('div', '', 'No real results for this search.'));
       target.lastChild.style.cssText = 'font-size:12px;color:rgba(255,255,255,.62);';
       return;
     }
@@ -2290,7 +2287,7 @@ function buildAshlyVToolModal(route, options) {
       item.style.cssText = 'display:flex;justify-content:space-between;gap:12px;align-items:flex-start;padding:11px 0;border-top:1px solid rgba(255,255,255,.06);';
       var copy = document.createElement('div');
       copy.style.cssText = 'min-width:0;flex:1;';
-      copy.appendChild(el('div', '', mapped.title || ('Resultado ' + (index + 1))));
+      copy.appendChild(el('div', '', mapped.title || ('Result ' + (index + 1))));
       copy.lastChild.style.cssText = 'font-size:13px;font-weight:900;line-height:1.45;';
       copy.appendChild(el('div', '', mapped.meta || ''));
       copy.lastChild.style.cssText = 'font-size:11px;color:rgba(255,255,255,.62);line-height:1.55;margin-top:5px;';
@@ -2298,9 +2295,9 @@ function buildAshlyVToolModal(route, options) {
       if (mapped.search || mapped.copy || mapped.url) {
         var actions = document.createElement('div');
         actions.style.cssText = 'display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;';
-        if (mapped.copy) actions.appendChild(toolButton('COPIAR', function() { copyToolText(mapped.copy, 'Resultado copiado'); }));
-        if (mapped.url) actions.appendChild(toolButton('ABRIR', function() { try { window.open(mapped.url, '_blank', 'noopener'); } catch (e) {} }, true));
-        if (mapped.search) actions.appendChild(toolButton('BUSCAR', function() { searchNicheTerm(mapped.search, 'es'); }, true));
+        if (mapped.copy) actions.appendChild(toolButton('COPY', function() { copyToolText(mapped.copy, 'Result copied'); }));
+        if (mapped.url) actions.appendChild(toolButton('OPEN', function() { try { window.open(mapped.url, '_blank', 'noopener'); } catch (e) {} }, true));
+        if (mapped.search) actions.appendChild(toolButton('SEARCH', function() { searchNicheTerm(mapped.search, 'es'); }, true));
         item.appendChild(actions);
       }
       target.appendChild(item);
@@ -2311,30 +2308,30 @@ function buildAshlyVToolModal(route, options) {
     var input = document.createElement('textarea');
     input.rows = 2;
     input.value = defaultValue || '';
-    input.placeholder = 'keyword, @canal o URL';
+    input.placeholder = 'keyword, @channel or URL';
     input.style.cssText = 'width:100%;resize:vertical;min-height:52px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.16);background:#0c0c0c;color:#fff;font-family:ui-monospace,monospace;line-height:1.5;';
     var controls = document.createElement('div');
     controls.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;';
     var out = document.createElement('div');
     out.style.cssText = 'margin-top:14px;';
-    controls.appendChild(toolButton(buttonLabel || 'EJECUTAR REAL', function() {
+    controls.appendChild(toolButton(buttonLabel || 'RUN FOR REAL', function() {
       clearNode(out);
       if (!window.AshlyVAPI) {
-        out.appendChild(el('div', '', 'AshlyVAPI no esta cargado en esta pagina.'));
+        out.appendChild(el('div', '', 'AshlyVAPI is not loaded on this page.'));
         return;
       }
-      out.appendChild(el('div', '', 'Procesando datos reales...'));
+      out.appendChild(el('div', '', 'Processing real data'));
       out.lastChild.style.cssText = 'font-size:12px;color:rgba(255,255,255,.62);';
       Promise.resolve(runFn(String(input.value || '').trim())).then(function(response) {
         clearNode(out);
         renderFn(out, response && response.data ? response.data : response);
       }).catch(function(error) {
         clearNode(out);
-        out.appendChild(el('div', '', 'Error real del backend: ' + (error && error.message ? error.message : error)));
+        out.appendChild(el('div', '', 'Backend error: ' + (error && error.message ? error.message : error)));
         out.lastChild.style.cssText = 'font-size:12px;color:#ff8f8f;line-height:1.6;';
       });
     }, true));
-    controls.appendChild(toolButton('COPIAR INPUT', function() { copyToolText(input.value, 'Input copiado'); }));
+    controls.appendChild(toolButton('COPY INPUT', function() { copyToolText(input.value, 'Input copied'); }));
     wrap.appendChild(input);
     wrap.appendChild(controls);
     wrap.appendChild(out);
@@ -2360,39 +2357,39 @@ function buildAshlyVToolModal(route, options) {
   var langRows = Object.keys(langMap).map(function(key) {
     return {
       title: key.toUpperCase(),
-      meta: langMap[key].count + ' nichos | RPM prom ' + rpmLabel(langMap[key].count ? (langMap[key].rpm / langMap[key].count) : 0)
+      meta: langMap[key].count + ' niches | avg RPM ' + rpmLabel(langMap[key].count ? (langMap[key].rpm / langMap[key].count) : 0)
     };
   }).sort(function(a, b) { return parseFloat((b.meta.match(/\$([\d.]+)/) || [0,0])[1]) - parseFloat((a.meta.match(/\$([\d.]+)/) || [0,0])[1]); });
 
   var routeConfig = {
     '/market-radar': {
       title: 'MARKET RADAR',
-      subtitle: 'Lee tu archivo y te deja actuar sobre los mejores RPM sin salir del dashboard.',
+      subtitle: 'Reads your archive and lets you act on the best RPM without leaving the dashboard.',
       render: function() {
         actionBar([
-          { label: 'BUSCAR TOP RPM', primary: true, onClick: function() { if (topByRpm[0]) searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language || 'es'); } },
-          { label: 'COPIAR TOP 5', onClick: function() { copyToolText(collectTopTitles(topByRpm, 5), 'Top RPM copiado'); } },
-          { label: 'ABRIR SCAN', onClick: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } }
+          { label: 'SEARCH TOP RPM', primary: true, onClick: function() { if (topByRpm[0]) searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language || 'es'); } },
+          { label: 'COPY TOP 5', onClick: function() { copyToolText(collectTopTitles(topByRpm, 5), 'Top RPM copied'); } },
+          { label: 'OPEN SCAN', onClick: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } }
         ]);
         var grid = cardGrid();
-        statCard(grid, 'Nichos guardados', String(nicheCount), 'Base actual de analisis');
-        statCard(grid, 'RPM promedio', rpmLabel(avgRpm), 'Promedio del archivo');
-        statCard(grid, 'Mejor RPM', rpmLabel(topByRpm[0] && topByRpm[0].rpm || 0), topByRpm[0] ? topByRpm[0].title : 'Sin lider');
+        statCard(grid, 'Saved niches', String(nicheCount), 'Current analysis base');
+        statCard(grid, 'Average RPM', rpmLabel(avgRpm), 'Archive average');
+        statCard(grid, 'Best RPM', rpmLabel(topByRpm[0] && topByRpm[0].rpm || 0), topByRpm[0] ? topByRpm[0].title : 'No leader yet');
         section('TOP RPM', topByRpm.slice(0, 10).map(function(item) {
-          return { title: item.title || 'Sin titulo', meta: (item.niche || 'General') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0), actionLabel: 'BUSCAR', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); }, secondaryLabel: 'COPIAR', secondaryAction: function() { copyToolText(item.title || '', 'Titulo copiado'); } };
+          return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); }, secondaryLabel: 'COPY', secondaryAction: function() { copyToolText(item.title || '', 'Title copied'); } };
         }));
         buildMarketWorkbench();
         buildBackendRunner(
           'REAL MARKET RADAR',
-          'Busca keywords reales en YouTube, calcula demanda/competencia y prioriza faceless sin usar datos guardados como muleta.',
-          topByRpm[0] ? (topByRpm[0].niche || topByRpm[0].title || 'documental misterio') : 'documental misterio, historia oculta, naturaleza salvaje',
-          'ESCANEAR MERCADO',
+          'Searches real keywords on YouTube, scores demand and competition, and puts faceless first without leaning on saved data.',
+          topByRpm[0] ? (topByRpm[0].niche || topByRpm[0].title || 'mystery documentary') : 'mystery documentary, hidden history, wild nature',
+          'SCAN THE MARKET',
           function(value) {
             var seeds = value.split(/[\n,]+/).map(function(x) { return x.trim(); }).filter(Boolean);
             return window.AshlyVAPI.marketRadar(seeds, 'es', 10);
           },
           function(out, data) {
-            renderBackendRows(out, 'OPORTUNIDADES REALES', data || [], function(item) {
+            renderBackendRows(out, 'REAL OPPORTUNITIES', data || [], function(item) {
               return {
                 title: item.keyword || 'Keyword',
                 meta: 'Sub ' + (item.subNiche || 'general') + ' | ' + (item.language || 'auto') + ' | vol ' + compactNumber(item.estimatedMonthlySearchVolume || 0) + '/mo | RPM ' + rpmLabel(item.estimatedRpm || 0) + ' | CPM ' + rpmLabel(item.estimatedCpm || 0) + ' | comp ' + (item.competitionLevel || Math.round(item.competitionScore || 0)) + ' | sat ' + (item.saturationLevel || Math.round(item.saturationScore || 0)) + ' | faceless ' + Math.round(item.facelessScore || 0) + ' | OS ' + Math.round(item.opportunityScore || 0),
@@ -2406,47 +2403,47 @@ function buildAshlyVToolModal(route, options) {
     },
     '/language-radar': {
       title: 'LANGUAGE RADAR',
-      subtitle: 'Te deja comparar idiomas y abrir una ruta de exploracion con el mismo tema en el idioma que mejor paga.',
+      subtitle: 'Compare languages and open the same topic in the language that pays best.',
       render: function() {
         actionBar([
-          { label: 'BUSCAR MEJOR IDIOMA', primary: true, onClick: function() { if (langRows[0]) searchNicheTerm((topByRpm[0] && (topByRpm[0].niche || topByRpm[0].title)) || langRows[0].title, langRows[0].title.toLowerCase()); } },
-          { label: 'COPIAR RANKING', onClick: function() { copyToolText(langRows.map(function(row, index) { return (index + 1) + '. ' + row.title + ' - ' + row.meta; }).join('\n'), 'Ranking copiado'); } }
+          { label: 'SEARCH BEST LANGUAGE', primary: true, onClick: function() { if (langRows[0]) searchNicheTerm((topByRpm[0] && (topByRpm[0].niche || topByRpm[0].title)) || langRows[0].title, langRows[0].title.toLowerCase()); } },
+          { label: 'COPY RANKING', onClick: function() { copyToolText(langRows.map(function(row, index) { return (index + 1) + '. ' + row.title + ' - ' + row.meta; }).join('\n'), 'Ranking copied'); } }
         ]);
         var grid = cardGrid();
-        statCard(grid, 'Idiomas activos', String(langRows.length), 'Idiomas visibles en tu archivo');
-        statCard(grid, 'Nicho mas repetido', recentNichos[0] ? String(recentNichos[0].niche || 'General') : 'N/A', 'Segun guardados recientes');
-        statCard(grid, 'RPM mejor idioma', langRows[0] ? langRows[0].meta.split('|')[1].trim() : '$0', langRows[0] ? langRows[0].title : 'Sin datos');
-        section('RANKING POR IDIOMA', langRows.slice(0, 10).map(function(row) {
-          return { title: row.title, meta: row.meta, actionLabel: 'EXPLORAR', action: function() { searchNicheTerm((topByRpm[0] && (topByRpm[0].niche || topByRpm[0].title)) || row.title, row.title.toLowerCase()); } };
+        statCard(grid, 'Active languages', String(langRows.length), 'Languages visible in your archive');
+        statCard(grid, 'Most repeated niche', recentNichos[0] ? String(recentNichos[0].niche || 'General') : 'N/A', 'Based on recent saves');
+        statCard(grid, 'Best language RPM', langRows[0] ? langRows[0].meta.split('|')[1].trim() : '$0', langRows[0] ? langRows[0].title : 'No data');
+        section('RANKING BY LANGUAGE', langRows.slice(0, 10).map(function(row) {
+          return { title: row.title, meta: row.meta, actionLabel: 'EXPLORE', action: function() { searchNicheTerm((topByRpm[0] && (topByRpm[0].niche || topByRpm[0].title)) || row.title, row.title.toLowerCase()); } };
         }));
       }
     },
     '/competitor-map': {
       title: 'COMPETITOR MAP',
-      subtitle: 'Muestra los canales mas fuertes y te deja abrirlos o buscar su lane al instante.',
+      subtitle: 'Shows the strongest channels and lets you open them or search their lane at once.',
       render: function() {
         actionBar([
-          { label: 'ABRIR CANAL TOP', primary: true, onClick: function() { if (topChannels[0]) openChannelTarget(topChannels[0]); } },
-          { label: 'BUSCAR COMPETENCIA', onClick: function() { if (topChannels[0]) searchNicheTerm(topChannels[0].name || topChannels[0].channelName || '', 'es'); } },
-          { label: 'COPIAR CANALES', onClick: function() { copyToolText(collectTopTitles(topChannels, 8), 'Canales copiados'); } }
+          { label: 'OPEN TOP CHANNEL', primary: true, onClick: function() { if (topChannels[0]) openChannelTarget(topChannels[0]); } },
+          { label: 'SEARCH COMPETITORS', onClick: function() { if (topChannels[0]) searchNicheTerm(topChannels[0].name || topChannels[0].channelName || '', 'es'); } },
+          { label: 'COPY CHANNELS', onClick: function() { copyToolText(collectTopTitles(topChannels, 8), 'Channels copied'); } }
         ]);
         var grid = cardGrid();
-        statCard(grid, 'Canales guardados', String(channelCount), 'Base actual');
-        statCard(grid, 'Canal top', topChannels[0] ? String(topChannels[0].name || topChannels[0].channelName || 'N/A') : 'N/A', 'Ordena por score visible y tamaño');
-        statCard(grid, 'Nichos asociados', String(new Set(nichos.map(function(item) { return item.niche || 'General'; })).size), 'Diversidad de lanes');
-        section('CANALES PRIORITARIOS', topChannels.map(function(item) {
-          return { title: item.name || item.channelName || 'Canal', meta: 'Subs ' + compactNumber(item.subs || 0) + ' | Top VPH ' + compactNumber(item.topVPH || 0) + '/h | Rev ' + moneyLabel(item.revMonth || 0), actionLabel: item.channelUrl ? 'ABRIR' : 'BUSCAR', action: function() { openChannelTarget(item); }, secondaryLabel: 'COPIAR', secondaryAction: function() { copyToolText(item.channelUrl || item.name || item.channelName || '', 'Canal copiado'); } };
+        statCard(grid, 'Saved channels', String(channelCount), 'Current base');
+        statCard(grid, 'Top channel', topChannels[0] ? String(topChannels[0].name || topChannels[0].channelName || 'N/A') : 'N/A', 'Sorted by visible score and size');
+        statCard(grid, 'Linked niches', String(new Set(nichos.map(function(item) { return item.niche || 'General'; })).size), 'Lane diversity');
+        section('PRIORITY CHANNELS', topChannels.map(function(item) {
+          return { title: item.name || item.channelName || 'Channel', meta: 'Subs ' + compactNumber(item.subs || 0) + ' | Top VPH ' + compactNumber(item.topVPH || 0) + '/h | Rev ' + moneyLabel(item.revMonth || 0), actionLabel: item.channelUrl ? 'OPEN' : 'SEARCH', action: function() { openChannelTarget(item); }, secondaryLabel: 'COPY', secondaryAction: function() { copyToolText(item.channelUrl || item.name || item.channelName || '', 'Channel copied'); } };
         }));
         buildBackendRunner(
           'REAL COMPETITOR MAP',
-          'Pega un @canal, URL o keyword. El backend busca competidores reales en YouTube y clasifica directo/emergente/adyacente.',
-          topChannels[0] ? (topChannels[0].channelUrl || topChannels[0].name || topChannels[0].channelName || '') : 'documental misterio',
-          'MAPEAR COMPETENCIA',
-          function(value) { return window.AshlyVAPI.competitorMap(value || 'documental misterio', 'es'); },
+          'Paste an @channel, a URL or a keyword. The backend finds real competitors on YouTube and sorts them into direct, emerging and adjacent.',
+          topChannels[0] ? (topChannels[0].channelUrl || topChannels[0].name || topChannels[0].channelName || '') : 'mystery documentary',
+          'MAP COMPETITORS',
+          function(value) { return window.AshlyVAPI.competitorMap(value || 'mystery documentary', 'es'); },
           function(out, data) {
-            renderBackendRows(out, 'COMPETIDORES REALES', (data && data.competitors) || [], function(item) {
+            renderBackendRows(out, 'REAL COMPETITORS', (data && data.competitors) || [], function(item) {
               return {
-                title: (item.type ? item.type.toUpperCase() + ' | ' : '') + (item.name || 'Canal'),
+                title: (item.type ? item.type.toUpperCase() + ' | ' : '') + (item.name || 'Channel'),
                 meta: 'score ' + Math.round(item.competitorScore || item.facelessSignal || 0) + ' | ' + (item.subscribersText || '') + ' | ' + (item.description || '').slice(0, 120),
                 url: item.url,
                 search: item.name,
@@ -2459,7 +2456,7 @@ function buildAshlyVToolModal(route, options) {
     },
     '/gap-finder': {
       title: 'GAP FINDER',
-      subtitle: 'Aisla huecos utiles y te deja lanzar una busqueda nueva sobre el mejor gap sin copiar nada a mano.',
+      subtitle: 'Isolates useful gaps and launches a fresh search on the best one with no copy and paste.',
       render: function() {
         var countMap = Object.create(null);
         nichos.forEach(function(item) {
@@ -2472,27 +2469,27 @@ function buildAshlyVToolModal(route, options) {
           return (toNumber(b.rpm || 0) * 8 + toNumber(b.os || 0)) - (toNumber(a.rpm || 0) * 8 + toNumber(a.os || 0));
         });
         actionBar([
-          { label: 'BUSCAR GAP TOP', primary: true, onClick: function() { if (gaps[0]) searchNicheTerm(gaps[0].title || gaps[0].niche || '', gaps[0].language || 'es'); } },
-          { label: 'COPIAR GAPS', onClick: function() { copyToolText(collectTopTitles(gaps, 6), 'Gaps copiados'); } }
+          { label: 'SEARCH TOP GAP', primary: true, onClick: function() { if (gaps[0]) searchNicheTerm(gaps[0].title || gaps[0].niche || '', gaps[0].language || 'es'); } },
+          { label: 'COPY GAPS', onClick: function() { copyToolText(collectTopTitles(gaps, 6), 'Gaps copied'); } }
         ]);
         var grid = cardGrid();
-        statCard(grid, 'Huecos detectados', String(gaps.length), 'Nicho poco repetido con señal fuerte');
-        statCard(grid, 'Mejor gap RPM', rpmLabel(gaps[0] && gaps[0].rpm || 0), gaps[0] ? gaps[0].title : 'Sin datos');
-        section('GAPS RECOMENDADOS', gaps.slice(0, 10).map(function(item) {
-          return { title: item.title || 'Sin titulo', meta: (item.niche || 'General') + ' | RPM ' + rpmLabel(item.rpm || 0) + ' | OS ' + Math.round(toNumber(item.os || 0)), actionLabel: 'BUSCAR', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); } };
+        statCard(grid, 'Gaps detected', String(gaps.length), 'Rarely repeated niche with a strong signal');
+        statCard(grid, 'Best gap RPM', rpmLabel(gaps[0] && gaps[0].rpm || 0), gaps[0] ? gaps[0].title : 'No data');
+        section('RECOMMENDED GAPS', gaps.slice(0, 10).map(function(item) {
+          return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | RPM ' + rpmLabel(item.rpm || 0) + ' | OS ' + Math.round(toNumber(item.os || 0)), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); } };
         }));
         buildGapWorkbench(gaps);
         buildBackendRunner(
           'REAL GAP FINDER',
-          'Analiza videos reales de una keyword o canal y detecta temas no cubiertos con score de oportunidad.',
-          gaps[0] ? (gaps[0].niche || gaps[0].title || 'historia oculta') : 'historia oculta',
-          'ENCONTRAR GAPS',
-          function(value) { return window.AshlyVAPI.gapFinder(value || 'historia oculta', 'es'); },
+          'Analyzes real videos for a keyword or channel and finds uncovered topics with an opportunity score.',
+          gaps[0] ? (gaps[0].niche || gaps[0].title || 'hidden history') : 'hidden history',
+          'FIND GAPS',
+          function(value) { return window.AshlyVAPI.gapFinder(value || 'hidden history', 'es'); },
           function(out, data) {
-            renderBackendRows(out, 'GAPS REALES', (data && data.gaps) || [], function(item) {
+            renderBackendRows(out, 'REAL GAPS', (data && data.gaps) || [], function(item) {
               return {
                 title: item.topic || 'Gap',
-                meta: 'OS ' + Math.round(item.opportunityScore || 0) + ' | demanda ' + Math.round(item.demandScore || 0) + ' | competencia ' + Math.round(item.competitionScore || 0),
+                meta: 'OS ' + Math.round(item.opportunityScore || 0) + ' | demand ' + Math.round(item.demandScore || 0) + ' | competition ' + Math.round(item.competitionScore || 0),
                 search: item.topic,
                 copy: item.topic
               };
@@ -2503,33 +2500,33 @@ function buildAshlyVToolModal(route, options) {
     },
     '/pattern-finder': {
       title: 'PATTERN FINDER',
-      subtitle: 'Te saca patrones repetidos y te deja convertirlos en una busqueda de contenido al instante.',
+      subtitle: 'Pulls repeated patterns and turns them into a content search right away.',
       render: function() {
         actionBar([
-          { label: 'COPIAR PATRONES', primary: true, onClick: function() { copyToolText(keywordStats.map(function(item, index) { return (index + 1) + '. ' + item.word + ' (' + item.count + ')'; }).join('\n'), 'Patrones copiados'); } },
-          { label: 'BUSCAR PATRON TOP', onClick: function() { if (keywordStats[0]) searchNicheTerm(keywordStats[0].word, 'es'); } }
+          { label: 'COPY PATTERNS', primary: true, onClick: function() { copyToolText(keywordStats.map(function(item, index) { return (index + 1) + '. ' + item.word + ' (' + item.count + ')'; }).join('\n'), 'Patterns copied'); } },
+          { label: 'SEARCH TOP PATTERN', onClick: function() { if (keywordStats[0]) searchNicheTerm(keywordStats[0].word, 'es'); } }
         ]);
         var grid = cardGrid();
-        statCard(grid, 'Titulos analizados', String(nicheCount), 'Base usada para patrones');
-        statCard(grid, 'Patron principal', keywordStats[0] ? keywordStats[0].word.toUpperCase() : 'N/A', keywordStats[0] ? (keywordStats[0].count + ' repeticiones') : 'Sin datos');
-        statCard(grid, 'Ultimo guardado', recentNichos[0] ? String(recentNichos[0].title || 'N/A').slice(0, 28) : 'N/A', recentNichos[0] ? rpmLabel(recentNichos[0].rpm || 0) : 'Sin datos');
-        section('PALABRAS REPETIDAS', keywordStats.map(function(item) {
-          return { title: item.word, meta: item.count + ' apariciones en titulos guardados', actionLabel: 'BUSCAR', action: function() { searchNicheTerm(item.word, 'es'); } };
+        statCard(grid, 'Titles analyzed', String(nicheCount), 'Base used for patterns');
+        statCard(grid, 'Main pattern', keywordStats[0] ? keywordStats[0].word.toUpperCase() : 'N/A', keywordStats[0] ? (keywordStats[0].count + ' repeats') : 'No data');
+        statCard(grid, 'Last saved', recentNichos[0] ? String(recentNichos[0].title || 'N/A').slice(0, 28) : 'N/A', recentNichos[0] ? rpmLabel(recentNichos[0].rpm || 0) : 'No data');
+        section('REPEATED WORDS', keywordStats.map(function(item) {
+          return { title: item.word, meta: item.count + ' appearances in saved titles', actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.word, 'es'); } };
         }));
         buildPatternWorkbench();
         buildBackendRunner(
           'REAL PATTERN FINDER',
-          'Toma una keyword o canal, analiza videos reales y devuelve hooks repetidos, duracion optima y formatos virales.',
-          keywordStats[0] ? keywordStats[0].word : 'misterio',
-          'DETECTAR PATRONES',
-          function(value) { return window.AshlyVAPI.patternFinder(value || 'misterio', 'es'); },
+          'Takes a keyword or a channel, reads real videos and returns repeated hooks, best length and viral formats.',
+          keywordStats[0] ? keywordStats[0].word : 'mystery',
+          'DETECT PATTERNS',
+          function(value) { return window.AshlyVAPI.patternFinder(value || 'mystery', 'es'); },
           function(out, data) {
             var patterns = data && data.patterns ? data.patterns : data;
-            renderBackendRows(out, 'HOOKS REPETIDOS', (patterns && patterns.repeatedHooks) || [], function(item) {
-              return { title: item.format || 'Formato', meta: (item.matches || 0) + ' coincidencias', search: item.format, copy: JSON.stringify(item) };
+            renderBackendRows(out, 'REPEATED HOOKS', (patterns && patterns.repeatedHooks) || [], function(item) {
+              return { title: item.format || 'Format', meta: (item.matches || 0) + ' matches', search: item.format, copy: JSON.stringify(item) };
             });
             renderBackendRows(out, 'FORMULAS', (patterns && patterns.topTitleFormulas) || [], function(item) {
-              return { title: String(item), meta: 'Formula detectada desde titulos reales', copy: String(item) };
+              return { title: String(item), meta: 'Formula detected from real titles', copy: String(item) };
             });
             renderJsonBlock(out, patterns || {});
           }
@@ -2538,84 +2535,84 @@ function buildAshlyVToolModal(route, options) {
     },
     '/trend-analyzer': {
       title: 'TREND ANALYZER',
-      subtitle: 'Convierte tus guardados mas recientes en acciones: buscar, copiar o profundizar ahora mismo.',
+      subtitle: 'Turns your most recent saves into actions: search, copy or dig deeper right now.',
       render: function() {
         actionBar([
-          { label: 'BUSCAR MAS RECIENTE', primary: true, onClick: function() { if (recentNichos[0]) searchNicheTerm(recentNichos[0].title || recentNichos[0].niche || '', recentNichos[0].language || 'es'); } },
-          { label: 'COPIAR RECIENTES', onClick: function() { copyToolText(collectTopTitles(recentNichos, 8), 'Recientes copiados'); } }
+          { label: 'SEARCH MOST RECENT', primary: true, onClick: function() { if (recentNichos[0]) searchNicheTerm(recentNichos[0].title || recentNichos[0].niche || '', recentNichos[0].language || 'es'); } },
+          { label: 'COPY RECENT', onClick: function() { copyToolText(collectTopTitles(recentNichos, 8), 'Recent copied'); } }
         ]);
         var grid = cardGrid();
-        statCard(grid, 'Guardados recientes', String(recentNichos.slice(0, 20).length), 'Ultimos movimientos del archivo');
-        statCard(grid, 'Mejor reciente RPM', rpmLabel(recentNichos[0] && recentNichos[0].rpm || 0), recentNichos[0] ? recentNichos[0].title : 'N/A');
-        statCard(grid, 'Pool visible', moneyLabel(recentNichos.slice(0, 20).reduce(function(sum, item) { return sum + toNumber(item.revMonth || 0); }, 0)), 'Suma de ingreso visible');
-        section('RECENTES CON FUERZA', recentNichos.slice(0, 12).map(function(item) {
-          return { title: item.title || 'Sin titulo', meta: (item.niche || 'General') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0), actionLabel: 'BUSCAR', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); } };
+        statCard(grid, 'Recent saves', String(recentNichos.slice(0, 20).length), 'Latest moves in the archive');
+        statCard(grid, 'Best recent RPM', rpmLabel(recentNichos[0] && recentNichos[0].rpm || 0), recentNichos[0] ? recentNichos[0].title : 'N/A');
+        statCard(grid, 'Visible pool', moneyLabel(recentNichos.slice(0, 20).reduce(function(sum, item) { return sum + toNumber(item.revMonth || 0); }, 0)), 'Sum of visible revenue');
+        section('RECENT AND STRONG', recentNichos.slice(0, 12).map(function(item) {
+          return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); } };
         }));
       }
     },
     '/revenue-calculator': {
       title: 'REVENUE CALCULATOR',
-      subtitle: 'Calcula, copia y abre el mejor lane segun ingreso visible y RPM de tu propio archivo.',
+      subtitle: 'Calculate, copy and open the best lane by visible revenue and RPM from your own archive.',
       render: function() {
         var topRevenue = nichos.slice().sort(function(a, b) { return toNumber(b.revMonth || 0) - toNumber(a.revMonth || 0); });
         actionBar([
-          { label: 'COPIAR TOP INGRESOS', primary: true, onClick: function() { copyToolText(collectTopTitles(topRevenue, 8), 'Top ingresos copiado'); } },
-          { label: 'BUSCAR LIDER', onClick: function() { if (topRevenue[0]) searchNicheTerm(topRevenue[0].title || topRevenue[0].niche || '', topRevenue[0].language || 'es'); } }
+          { label: 'COPY TOP REVENUE', primary: true, onClick: function() { copyToolText(collectTopTitles(topRevenue, 8), 'Top revenue copied'); } },
+          { label: 'SEARCH LEADER', onClick: function() { if (topRevenue[0]) searchNicheTerm(topRevenue[0].title || topRevenue[0].niche || '', topRevenue[0].language || 'es'); } }
         ]);
         var grid = cardGrid();
-        statCard(grid, 'Ingreso visible total', moneyLabel(nichos.reduce(function(sum, item) { return sum + toNumber(item.revMonth || 0); }, 0)), 'Suma del archivo');
-        statCard(grid, 'Ingreso promedio', moneyLabel(nicheCount ? (nichos.reduce(function(sum, item) { return sum + toNumber(item.revMonth || 0); }, 0) / nicheCount) : 0), 'Promedio por guardado');
-        statCard(grid, 'RPM promedio', rpmLabel(avgRpm), 'Base del calculo');
-        section('TOP INGRESO MENSUAL', topRevenue.slice(0, 10).map(function(item) {
-          return { title: item.title || 'Sin titulo', meta: moneyLabel(item.revMonth || 0) + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + (item.niche || 'General'), actionLabel: 'BUSCAR', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); } };
+        statCard(grid, 'Total visible revenue', moneyLabel(nichos.reduce(function(sum, item) { return sum + toNumber(item.revMonth || 0); }, 0)), 'Archive total');
+        statCard(grid, 'Average revenue', moneyLabel(nicheCount ? (nichos.reduce(function(sum, item) { return sum + toNumber(item.revMonth || 0); }, 0) / nicheCount) : 0), 'Average per save');
+        statCard(grid, 'Average RPM', rpmLabel(avgRpm), 'Basis of the calculation');
+        section('TOP MONTHLY REVENUE', topRevenue.slice(0, 10).map(function(item) {
+          return { title: item.title || 'Untitled', meta: moneyLabel(item.revMonth || 0) + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + (item.niche || 'General'), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); } };
         }));
         buildRevenueInput();
       }
     },
     '/nichemaster-os': {
       title: 'NICHEMASTER OS',
-      subtitle: 'Centro operativo real: abrir scan, lanzar ideas y buscar el siguiente lane prioritario sin salir del sistema.',
+      subtitle: 'Operations hub: open a scan, launch ideas and find the next priority lane without leaving the system.',
       render: function() {
         actionBar([
-          { label: 'ABRIR SCAN', primary: true, onClick: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } },
-          { label: 'ABRIR IDEAS', onClick: function() { closeAshlyVToolWorkspace(); openThumbnailModal(); setTimeout(function() { thumbSetTab('ideas'); }, 40); } },
-          { label: 'BUSCAR TOP', onClick: function() { if (topByRpm[0]) searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language || 'es'); } }
+          { label: 'OPEN SCAN', primary: true, onClick: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } },
+          { label: 'OPEN IDEAS', onClick: function() { closeAshlyVToolWorkspace(); openThumbnailModal(); setTimeout(function() { thumbSetTab('ideas'); }, 40); } },
+          { label: 'SEARCH TOP', onClick: function() { if (topByRpm[0]) searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language || 'es'); } }
         ]);
         var grid = cardGrid();
-        statCard(grid, 'Nichos', String(nicheCount), 'Guardados en el archivo');
-        statCard(grid, 'Canales', String(channelCount), 'Mapa competitivo local');
-        statCard(grid, 'RPM top', rpmLabel(topByRpm[0] && topByRpm[0].rpm || 0), topByRpm[0] ? topByRpm[0].niche : 'Sin datos');
-        statCard(grid, 'Lenguajes', String(langRows.length), 'Cobertura actual');
-        section('PROXIMO MOVIMIENTO', [
-          { title: topByRpm[0] ? ('Empieza por: ' + (topByRpm[0].niche || topByRpm[0].title || 'General')) : 'Guarda mas nichos primero', meta: topByRpm[0] ? ('RPM ' + rpmLabel(topByRpm[0].rpm || 0) + ' | Ingreso visible ' + moneyLabel(topByRpm[0].revMonth || 0)) : 'Sin suficientes datos para priorizar.', actionLabel: topByRpm[0] ? 'BUSCAR' : '', action: topByRpm[0] ? function() { searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language || 'es'); } : null }
+        statCard(grid, 'Niches', String(nicheCount), 'Saved in the archive');
+        statCard(grid, 'Channels', String(channelCount), 'Local competitive map');
+        statCard(grid, 'Top RPM', rpmLabel(topByRpm[0] && topByRpm[0].rpm || 0), topByRpm[0] ? topByRpm[0].niche : 'No data');
+        statCard(grid, 'Languages', String(langRows.length), 'Current coverage');
+        section('NEXT MOVE', [
+          { title: topByRpm[0] ? ('Start with: ' + (topByRpm[0].niche || topByRpm[0].title || 'General')) : 'Save more niches first', meta: topByRpm[0] ? ('RPM ' + rpmLabel(topByRpm[0].rpm || 0) + ' | Visible revenue ' + moneyLabel(topByRpm[0].revMonth || 0)) : 'Not enough data to prioritize.', actionLabel: topByRpm[0] ? 'SEARCH' : '', action: topByRpm[0] ? function() { searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language || 'es'); } : null }
         ]);
       }
     },
     '/text-to-video': {
       title: 'AI CONTENT ENGINE',
-      subtitle: 'Atajo operativo a Ideas y Scan. No mas texto suelto: desde aqui saltas directo al flujo productivo.',
+      subtitle: 'Shortcut into Ideas and Scan. No loose text: jump straight into the production flow.',
       render: function() {
         actionBar([
-          { label: 'ABRIR IDEAS', primary: true, onClick: function() { closeAshlyVToolWorkspace(); openThumbnailModal(); setTimeout(function() { thumbSetTab('ideas'); }, 40); } },
-          { label: 'ABRIR SCAN', onClick: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } },
-          { label: 'COPIAR TOP 5', onClick: function() { copyToolText(collectTopTitles(topByRpm, 5), 'Top copiado'); } }
+          { label: 'OPEN IDEAS', primary: true, onClick: function() { closeAshlyVToolWorkspace(); openThumbnailModal(); setTimeout(function() { thumbSetTab('ideas'); }, 40); } },
+          { label: 'OPEN SCAN', onClick: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } },
+          { label: 'COPY TOP 5', onClick: function() { copyToolText(collectTopTitles(topByRpm, 5), 'Top copied'); } }
         ]);
-        section('QUE HACE', [
-          { title: 'Genera titulos, hooks y conceptos de miniatura', meta: 'Todo corre desde el panel interno, sin depender de localhost:3000.', actionLabel: 'ABRIR IDEAS', action: function() { closeAshlyVToolWorkspace(); openThumbnailModal(); setTimeout(function() { thumbSetTab('ideas'); }, 40); } },
-          { title: 'Usa tu IA local o Anthropic', meta: 'Si ya tienes Ollama activa, la ruta sigue dentro de la extension.', actionLabel: 'ABRIR SCAN', action: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } }
+        section('WHAT IT DOES', [
+          { title: 'Generates titles, hooks and thumbnail concepts', meta: 'Everything runs from the internal panel, with no dependency on localhost:3000.', actionLabel: 'OPEN IDEAS', action: function() { closeAshlyVToolWorkspace(); openThumbnailModal(); setTimeout(function() { thumbSetTab('ideas'); }, 40); } },
+          { title: 'Uses your local AI or Anthropic', meta: 'If Ollama is already running, the route stays inside the extension.', actionLabel: 'OPEN SCAN', action: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } }
         ]);
         buildBackendRunner(
           'REAL AI CONTENT ENGINE',
-          'Genera un paquete completo de guion desde backend con OpenAI, Claude u Ollama. Si no hay proveedor AI, devuelve error real.',
-          topByRpm[0] ? (topByRpm[0].niche || topByRpm[0].title || 'misterios historicos faceless') : 'misterios historicos faceless',
-          'GENERAR GUION',
-          function(value) { return window.AshlyVAPI.generateContentScript(value || 'misterios historicos faceless', 'documentary faceless', 8, 'es'); },
+          'Generates a full script package from the backend with OpenAI, Claude or Ollama. With no AI provider it returns a real error.',
+          topByRpm[0] ? (topByRpm[0].niche || topByRpm[0].title || 'faceless historical mysteries') : 'faceless historical mysteries',
+          'GENERATE SCRIPT',
+          function(value) { return window.AshlyVAPI.generateContentScript(value || 'faceless historical mysteries', 'documentary faceless', 8, 'es'); },
           function(out, data) {
-            renderBackendRows(out, 'PAQUETE DE GUION', [
+            renderBackendRows(out, 'SCRIPT PACKAGE', [
               { title: data && data.title, meta: data && data.hook },
               { title: 'Thumbnail', meta: data && data.thumbnailConcept }
             ], function(item) {
-              return { title: item.title || 'Resultado', meta: item.meta || '', copy: JSON.stringify(data || {}) };
+              return { title: item.title || 'Result', meta: item.meta || '', copy: JSON.stringify(data || {}) };
             });
             renderJsonBlock(out, data || {});
           }
@@ -2742,10 +2739,10 @@ function showAshlyVToast(message, type, durationMs) {
 function showApiKeyError(message) {
   var box = document.getElementById('ashlyv-api-error');
   if (!box) return;
-  box.textContent = String(message || 'Error con la API key');
+  box.textContent = String(message || 'API key error');
   box.style.display = 'block';
   setTimeout(function() {
-    if (box.textContent === String(message || 'Error con la API key')) {
+    if (box.textContent === String(message || 'API key error')) {
       box.style.display = 'none';
     }
   }, 8000);
@@ -2769,26 +2766,26 @@ function updateApiKeyStatusIndicator() {
     if (status && status.localAvailable) {
       dot.style.background = '#00DC82';
       dot.style.boxShadow = '0 0 12px rgba(0,220,130,.35)';
-      textNode.textContent = 'Ollama local activa';
+      textNode.textContent = 'Local Ollama running';
       if (validateBtn) validateBtn.textContent = 'OLLAMA';
-      setThumbnailStatus('IA local detectada. Analisis listo sin creditos.', 'success');
+      setThumbnailStatus('Local AI detected. Analysis runs with no credits.', 'success');
       return;
     }
     return window.AshlyVAPI.getApiKey().then(function(key) {
     if (key) {
       dot.style.background = '#00DC82';
       dot.style.boxShadow = '0 0 12px rgba(0,220,130,.35)';
-      textNode.textContent = 'API Key configurada';
-      if (validateBtn && validateBtn.textContent === 'OLLAMA') validateBtn.textContent = 'VALIDAR API';
+      textNode.textContent = 'API key saved';
+      if (validateBtn && validateBtn.textContent === 'OLLAMA') validateBtn.textContent = 'VALIDATE API';
       if (input && !input.value) input.value = key;
-      setThumbnailStatus('API detectada y lista para usar.', 'success');
+      setThumbnailStatus('API detected and ready to use.', 'success');
       return;
     }
     dot.style.background = '#FF3D71';
     dot.style.boxShadow = '0 0 12px rgba(255,61,113,.35)';
-    textNode.textContent = 'API Key requerida para análisis AI';
-    if (validateBtn) validateBtn.textContent = 'VALIDAR API';
-    setThumbnailStatus('Pega tu key, valida y analiza.', 'muted');
+    textNode.textContent = 'API key required for AI analysis';
+    if (validateBtn) validateBtn.textContent = 'VALIDATE API';
+    setThumbnailStatus('Paste your key, validate it, then analyze.', 'muted');
     });
   });
 }
@@ -2839,7 +2836,7 @@ function normalizeImageDataUrl(dataUrl, maxDimension) {
         var width = img.naturalWidth || img.width || 0;
         var height = img.naturalHeight || img.height || 0;
         if (!width || !height) {
-          reject(new Error('No se pudo leer la imagen.'));
+          reject(new Error('Could not read the image.'));
           return;
         }
         var limit = Number(maxDimension) || 1568;
@@ -2849,7 +2846,7 @@ function normalizeImageDataUrl(dataUrl, maxDimension) {
         canvas.height = Math.max(1, Math.round(height * scale));
         var ctx = canvas.getContext('2d');
         if (!ctx) {
-          reject(new Error('No se pudo preparar la imagen.'));
+          reject(new Error('Could not prepare the image.'));
           return;
         }
         ctx.fillStyle = '#000000';
@@ -2862,7 +2859,7 @@ function normalizeImageDataUrl(dataUrl, maxDimension) {
       }
     };
     img.onerror = function() {
-      reject(new Error('No se pudo procesar la miniatura.'));
+      reject(new Error('Could not process the thumbnail.'));
     };
     img.src = String(dataUrl || '');
   });
@@ -2918,16 +2915,16 @@ function normalizeChannelResult(result) {
   return {
     facelessScore: num(result.facelessScore, 100),
     replicable: result.replicable === true,
-    niche: String(result.niche || 'Nicho no detectado').slice(0, 160),
+    niche: String(result.niche || 'Niche not detected').slice(0, 160),
     rpmEstimate: num(result.rpmEstimate, 9999),
     monthlyRevenueEstimate: String(result.monthlyRevenueEstimate || '$0-$0').slice(0, 80),
     growthPotential: pickEnum(result.growthPotential, ['HIGH', 'MEDIUM', 'LOW'], 'MEDIUM'),
-    facelessTechnique: String(result.facelessTechnique || 'Sin descripción').slice(0, 400),
+    facelessTechnique: String(result.facelessTechnique || 'No description').slice(0, 400),
     strengths: list(result.strengths),
     weaknesses: list(result.weaknesses),
-    replicationStrategy: String(result.replicationStrategy || 'Sin estrategia').slice(0, 500),
+    replicationStrategy: String(result.replicationStrategy || 'No strategy').slice(0, 500),
     contentGaps: list(result.contentGaps),
-    recommendedPostingFrequency: String(result.recommendedPostingFrequency || '2 videos por semana').slice(0, 120),
+    recommendedPostingFrequency: String(result.recommendedPostingFrequency || '2 videos per week').slice(0, 120),
     competitionLevel: pickEnum(result.competitionLevel, ['HIGH', 'MEDIUM', 'LOW'], 'MEDIUM')
   };
 }
@@ -3082,13 +3079,13 @@ function showAnalysisLoading() {
   title.style.marginTop = '18px';
   title.style.fontSize = '16px';
   title.style.fontWeight = '900';
-  title.textContent = 'Analizando miniatura con IA...';
+  title.textContent = 'Analyzing the thumbnail with AI';
 
   var sub = document.createElement('div');
   sub.style.marginTop = '8px';
   sub.style.fontSize = '12px';
   sub.style.color = 'rgba(255,255,255,.62)';
-  sub.textContent = 'Esto puede tomar 5-10 segundos';
+  sub.textContent = 'This takes 5 to 10 seconds';
 
   wrap.appendChild(circle);
   wrap.appendChild(spinner);
@@ -3118,16 +3115,16 @@ function displayThumbnailResults(data) {
   var verdictColor = data.verdict === 'VIRAL POTENTIAL' ? '#7B5CFF' : data.verdict === 'GOOD' ? '#00DC82' : data.verdict === 'NEEDS WORK' ? '#FFD700' : '#FF3D71';
   right.appendChild(createBadge(data.verdict, 'rgba(255,255,255,.04)', verdictColor, verdictColor));
   right.appendChild(createBadge('CTR Score: ' + Math.round(data.ctrScore) + '/100', 'rgba(255,255,255,.05)', '#fff'));
-  right.appendChild(createBadge(data.facelessCompatible ? 'FACELESS OK' : 'TIENE CARA', data.facelessCompatible ? 'rgba(0,220,130,.12)' : 'rgba(255,61,113,.12)', data.facelessCompatible ? '#00DC82' : '#FF3D71'));
+  right.appendChild(createBadge(data.facelessCompatible ? 'FACELESS OK' : 'SHOWS A FACE', data.facelessCompatible ? 'rgba(0,220,130,.12)' : 'rgba(255,61,113,.12)', data.facelessCompatible ? '#00DC82' : '#FF3D71'));
   header.appendChild(right);
   host.appendChild(header);
 
   var subsWrap = document.createElement('div');
   subsWrap.style.marginTop = '20px';
-  subsWrap.appendChild(createProgressRow('Emoción', data.emotionScore));
-  subsWrap.appendChild(createProgressRow('Legibilidad', data.textReadability));
-  subsWrap.appendChild(createProgressRow('Contraste', data.colorContrast));
-  subsWrap.appendChild(createProgressRow('Curiosidad', data.curiosityHook));
+  subsWrap.appendChild(createProgressRow('Emotion', data.emotionScore));
+  subsWrap.appendChild(createProgressRow('Readability', data.textReadability));
+  subsWrap.appendChild(createProgressRow('Contrast', data.colorContrast));
+  subsWrap.appendChild(createProgressRow('Curiosity', data.curiosityHook));
   host.appendChild(subsWrap);
 
   function renderPills(title, items, color) {
@@ -3144,28 +3141,28 @@ function displayThumbnailResults(data) {
     row.style.flexWrap = 'wrap';
     row.style.gap = '10px';
     row.style.marginTop = '12px';
-    (items && items.length ? items : ['Sin datos']).forEach(function(item) {
+    (items && items.length ? items : ['No data']).forEach(function(item) {
       row.appendChild(createBadge(item, color === 'green' ? 'rgba(0,220,130,.12)' : 'rgba(255,61,113,.12)', '#fff', color === 'green' ? 'rgba(0,220,130,.24)' : 'rgba(255,61,113,.24)'));
     });
     section.appendChild(row);
     host.appendChild(section);
   }
 
-  renderPills('Fortalezas', data.strengths, 'green');
-  renderPills('Debilidades', data.weaknesses, 'red');
+  renderPills('Strengths', data.strengths, 'green');
+  renderPills('Weaknesses', data.weaknesses, 'red');
 
   var improveTitle = document.createElement('div');
   improveTitle.style.marginTop = '20px';
   improveTitle.style.fontSize = '12px';
   improveTitle.style.letterSpacing = '.12em';
   improveTitle.style.color = 'rgba(255,255,255,.62)';
-  improveTitle.textContent = 'MEJORAS';
+  improveTitle.textContent = 'IMPROVEMENTS';
   host.appendChild(improveTitle);
 
   var improveList = document.createElement('ol');
   improveList.style.marginTop = '12px';
   improveList.style.paddingLeft = '18px';
-  (data.improvements.length ? data.improvements : ['Intenta de nuevo para recibir mejoras concretas.']).forEach(function(item) {
+  (data.improvements.length ? data.improvements : ['Run it again to get concrete improvements.']).forEach(function(item) {
     var li = document.createElement('li');
     li.style.marginTop = '10px';
     li.style.color = '#fff';
@@ -3180,7 +3177,7 @@ function displayThumbnailResults(data) {
   niche.style.borderRadius = '18px';
   niche.style.background = 'rgba(123,92,255,.12)';
   niche.style.border = '1px solid rgba(123,92,255,.2)';
-  niche.textContent = 'Nicho recomendado: ' + (data.nicheRecommendation || 'No especificado');
+  niche.textContent = 'Recommended niche: ' + (data.nicheRecommendation || 'Not specified');
   host.appendChild(niche);
 }
 
@@ -3202,7 +3199,7 @@ function showAnalysisError(message) {
   var text = document.createElement('div');
   text.style.color = '#fff';
   text.style.lineHeight = '1.6';
-  text.textContent = String(message || 'Error al analizar la miniatura');
+  text.textContent = String(message || 'Could not analyze the thumbnail');
   wrap.appendChild(text);
 
   var actions = document.createElement('div');
@@ -3213,7 +3210,7 @@ function showAnalysisError(message) {
   var retry = document.createElement('button');
   retry.className = 'thumb-btn';
   retry.type = 'button';
-  retry.textContent = 'Reintentar';
+  retry.textContent = 'Retry';
   retry.addEventListener('click', function() { handleThumbnailAnalyze(); });
   actions.appendChild(retry);
 
@@ -3221,7 +3218,7 @@ function showAnalysisError(message) {
     var config = document.createElement('button');
     config.className = 'thumb-btn secondary';
     config.type = 'button';
-    config.textContent = 'Configurar API Key';
+    config.textContent = 'Configure API key';
     config.addEventListener('click', openExtensionOptions);
     actions.appendChild(config);
   }
@@ -3258,7 +3255,7 @@ function loadThumbnailHistory() {
     if (!history.length) {
       var empty = document.createElement('div');
       empty.className = 'scan-empty-sub';
-      empty.textContent = 'No hay miniaturas analizadas todavía.';
+      empty.textContent = 'No thumbnails analyzed yet.';
       host.appendChild(empty);
       return;
     }
@@ -3285,7 +3282,7 @@ function loadThumbnailHistory() {
       timeNode.textContent = relTime(item.timestamp || Date.now());
       var channelNode = document.createElement('div');
       channelNode.style.fontWeight = '700';
-      channelNode.textContent = item.channelName || 'Canal sin nombre';
+      channelNode.textContent = item.channelName || 'Unnamed channel';
       meta.appendChild(timeNode);
       meta.appendChild(channelNode);
 
@@ -3300,8 +3297,8 @@ function loadThumbnailHistory() {
       details.disabled = true;
       details.className = 'thumb-btn secondary';
       details.style.opacity = '.55';
-      details.textContent = 'Re-analizar';
-      details.title = 'Sube la imagen de nuevo para re-analizar';
+      details.textContent = 'Re-analyze';
+      details.title = 'Upload the image again to re-analyze it';
       right.appendChild(details);
 
       card.appendChild(meta);
@@ -3327,20 +3324,20 @@ function ensureThumbnailConsent() {
       card.style.cssText = 'width:min(520px,calc(100vw - 32px));background:#0c0c12;border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:24px;';
       var title = document.createElement('div');
       title.style.cssText = 'font-size:24px;font-weight:800;margin-bottom:12px;';
-      title.textContent = 'Envío de imagen a Anthropic';
+      title.textContent = 'Sending an image to Anthropic';
       var body = document.createElement('div');
       body.style.cssText = 'line-height:1.7;color:rgba(255,255,255,.78);margin-bottom:20px;';
-      body.textContent = 'Esta función envía tu miniatura a la API de Anthropic para análisis con IA. No se envía ningún dato de tu cuenta de YouTube ni historial de navegación.';
+      body.textContent = 'This feature sends your thumbnail to the Anthropic API for AI analysis. No YouTube account data and no browsing history is sent.';
       var actions = document.createElement('div');
       actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;';
       var cancel = document.createElement('button');
       cancel.type = 'button';
       cancel.className = 'thumb-btn secondary';
-      cancel.textContent = 'CANCELAR';
+      cancel.textContent = 'CANCEL';
       var ok = document.createElement('button');
       ok.type = 'button';
       ok.className = 'thumb-btn';
-      ok.textContent = 'CONTINUAR';
+      ok.textContent = 'CONTINUE';
       cancel.addEventListener('click', function() {
         overlay.remove();
         resolve(false);
@@ -3387,13 +3384,13 @@ function runThumbnailAnalysis(imageBase64, mediaType, channelName) {
       clearInterval(keepAliveInterval);
 
       if (!response.success) {
-        showAnalysisError(response.error || 'Error al conectar con la API');
+        showAnalysisError(response.error || 'Could not connect to the API');
         return false;
       }
 
       var parsed = window.AshlyVAPI.parseApiJson(response.content);
       if (!parsed) {
-        showAnalysisError('La IA devolvio una respuesta invalida. Intenta de nuevo.');
+        showAnalysisError('The AI returned an invalid response. Try again.');
         return false;
       }
 
@@ -3401,20 +3398,20 @@ function runThumbnailAnalysis(imageBase64, mediaType, channelName) {
       displayThumbnailResults(normalized);
       saveThumbnailHistory(imageBase64, normalized, mediaType);
       loadThumbnailHistory();
-      setThumbnailStatus('Análisis completado.', 'success');
-      showAshlyVToast('Analisis completado', 'success', 2000);
+      setThumbnailStatus('Analysis finished.', 'success');
+      showAshlyVToast('Analysis finished', 'success', 2000);
       return true;
     })
     .catch(function(err) {
       clearInterval(keepAliveInterval);
-      var msg = err.message || 'Error desconocido';
+      var msg = err.message || 'Unknown error';
       setThumbnailStatus(msg, 'error');
       if (msg.indexOf('API key') >= 0) {
         showAnalysisError(msg);
       } else if (msg.indexOf('timeout') >= 0) {
-        showAnalysisError('La solicitud tardo demasiado. Verifica tu conexion.');
+        showAnalysisError('The request took too long. Check your connection.');
       } else {
-        showAnalysisError('Error: ' + msg + '. Si persiste, recarga la extension y prueba otra miniatura.');
+        showAnalysisError('Error: ' + msg + '. If it keeps happening, reload the extension and try another thumbnail.');
       }
       return false;
     });
@@ -3429,29 +3426,29 @@ function handleThumbnailAnalyze() {
   var channelName = String(channelInput && channelInput.value || '').trim();
   clearApiKeyError();
   if (!channelName) {
-    setThumbnailStatus('Escribe el canal primero.', 'error');
-    showAnalysisError('Escribe el nombre del canal antes de analizar.');
+    setThumbnailStatus('Enter the channel first.', 'error');
+    showAnalysisError('Enter the channel name before analyzing.');
     if (channelInput) channelInput.focus();
     return;
   }
   if (!file) {
-    setThumbnailStatus('Sube una miniatura primero.', 'error');
-    showAnalysisError('Sube una miniatura para continuar.');
+    setThumbnailStatus('Upload a thumbnail first.', 'error');
+    showAnalysisError('Upload a thumbnail to continue.');
     return;
   }
   if (!/^image\//i.test(file.type || '') || file.size > 8 * 1024 * 1024) {
-    setThumbnailStatus('Archivo inválido o demasiado grande. Máximo 8MB.', 'error');
-    showAnalysisError('El archivo debe ser una imagen válida de máximo 8MB.');
+    setThumbnailStatus('Invalid file or too large. Maximum 8MB.', 'error');
+    showAnalysisError('The file must be a valid image of 8MB or less.');
     return;
   }
   if (btn) {
     btn.disabled = true;
-    btn.textContent = 'ANALIZANDO...';
+    btn.textContent = 'ANALYZING';
   }
-  setThumbnailStatus('Analizando miniatura...', 'busy');
+  setThumbnailStatus('Analyzing the thumbnail', 'busy');
   ensureThumbnailConsent()
     .then(function(allowed) {
-      if (!allowed) throw new Error('Análisis cancelado por el usuario.');
+      if (!allowed) throw new Error('Analysis cancelled by the user.');
       return thumbFileToDataUrl(file);
     })
     .then(function(dataUrl) {
@@ -3470,12 +3467,12 @@ function handleThumbnailAnalyze() {
       return runThumbnailAnalysis(lastThumbnailAnalysisPayload.imageBase64, lastThumbnailAnalysisPayload.mediaType, lastThumbnailAnalysisPayload.channelName);
     })
     .catch(function(err) {
-      showAnalysisError(err && err.message ? err.message : 'No se pudo leer la miniatura.');
+      showAnalysisError(err && err.message ? err.message : 'Could not read the thumbnail.');
     })
     .then(function() {
       if (btn) {
         btn.disabled = false;
-        btn.textContent = 'ANALIZAR CON AI';
+        btn.textContent = 'ANALYZE WITH AI';
       }
     });
 }
@@ -3496,10 +3493,10 @@ function showChannelAnalysisLoading() {
   spinner.className = 'scan-spin';
   var title = document.createElement('div');
   title.className = 'scan-load-ttl';
-  title.textContent = 'ANALIZANDO CANAL...';
+  title.textContent = 'ANALYZING CHANNEL';
   var sub = document.createElement('div');
   sub.className = 'scan-load-sub';
-  sub.textContent = 'La IA está evaluando potencial faceless, RPM, competencia y estrategia.';
+  sub.textContent = 'The AI is scoring faceless potential, RPM, competition and strategy.';
   wrap.appendChild(spinner);
   wrap.appendChild(title);
   wrap.appendChild(sub);
@@ -3517,10 +3514,10 @@ function showChannelAnalysisError(message) {
   icon.textContent = 'X';
   var title = document.createElement('div');
   title.className = 'scan-empty-ttl';
-  title.textContent = 'Error al analizar canal';
+  title.textContent = 'Could not analyze the channel';
   var sub = document.createElement('div');
   sub.className = 'scan-empty-sub';
-  sub.textContent = String(message || 'Intenta de nuevo o verifica tu API key.');
+  sub.textContent = String(message || 'Try again or check your API key.');
   box.appendChild(icon);
   box.appendChild(title);
   box.appendChild(sub);
@@ -3564,7 +3561,7 @@ function displayChannelResults(data, channelName) {
   metrics.appendChild(createBadge('RPM: $' + data.rpmEstimate.toFixed(2), 'rgba(0,220,130,.12)', '#00DC82'));
   metrics.appendChild(createBadge(data.monthlyRevenueEstimate, 'rgba(255,255,255,.06)', '#fff'));
   metrics.appendChild(createBadge(data.growthPotential, 'rgba(255,255,255,.05)', data.growthPotential === 'HIGH' ? '#00DC82' : data.growthPotential === 'MEDIUM' ? '#FFD700' : '#FF3D71'));
-  metrics.appendChild(createBadge('Competencia ' + data.competitionLevel, 'rgba(255,255,255,.05)', data.competitionLevel === 'LOW' ? '#00DC82' : data.competitionLevel === 'MEDIUM' ? '#FFD700' : '#FF3D71'));
+  metrics.appendChild(createBadge('Competition ' + data.competitionLevel, 'rgba(255,255,255,.05)', data.competitionLevel === 'LOW' ? '#00DC82' : data.competitionLevel === 'MEDIUM' ? '#FFD700' : '#FF3D71'));
   metrics.appendChild(createBadge(data.replicable ? 'REPLICABLE' : 'NO REPLICABLE', data.replicable ? 'rgba(0,220,130,.12)' : 'rgba(255,61,113,.12)', '#fff'));
   card.appendChild(metrics);
 
@@ -3574,7 +3571,7 @@ function displayChannelResults(data, channelName) {
   technique.style.borderRadius = '18px';
   technique.style.border = '1px solid rgba(255,255,255,.08)';
   technique.style.background = 'rgba(255,255,255,.03)';
-  technique.textContent = 'Técnica faceless: ' + data.facelessTechnique;
+  technique.textContent = 'Faceless technique: ' + data.facelessTechnique;
   card.appendChild(technique);
 
   function appendPillSection(titleText, items, color) {
@@ -3590,21 +3587,21 @@ function displayChannelResults(data, channelName) {
     row.style.flexWrap = 'wrap';
     row.style.gap = '10px';
     row.style.marginTop = '10px';
-    (items.length ? items : ['Sin datos']).forEach(function(item) {
+    (items.length ? items : ['No data']).forEach(function(item) {
       row.appendChild(createBadge(item, color === 'green' ? 'rgba(0,220,130,.12)' : 'rgba(255,61,113,.12)', '#fff'));
     });
     card.appendChild(row);
   }
 
-  appendPillSection('Fortalezas', data.strengths, 'green');
-  appendPillSection('Debilidades', data.weaknesses, 'red');
+  appendPillSection('Strengths', data.strengths, 'green');
+  appendPillSection('Weaknesses', data.weaknesses, 'red');
 
   var strategyTitle = document.createElement('div');
   strategyTitle.style.marginTop = '18px';
   strategyTitle.style.fontSize = '12px';
   strategyTitle.style.letterSpacing = '.12em';
   strategyTitle.style.color = 'rgba(255,255,255,.62)';
-  strategyTitle.textContent = 'ESTRATEGIA DE REPLICACIÓN';
+  strategyTitle.textContent = 'REPLICATION STRATEGY';
   card.appendChild(strategyTitle);
 
   var strategy = document.createElement('div');
@@ -3618,13 +3615,13 @@ function displayChannelResults(data, channelName) {
   gapsTitle.style.fontSize = '12px';
   gapsTitle.style.letterSpacing = '.12em';
   gapsTitle.style.color = 'rgba(255,255,255,.62)';
-  gapsTitle.textContent = 'GAPS DE CONTENIDO';
+  gapsTitle.textContent = 'CONTENT GAPS';
   card.appendChild(gapsTitle);
 
   var gaps = document.createElement('ul');
   gaps.style.marginTop = '10px';
   gaps.style.paddingLeft = '18px';
-  (data.contentGaps.length ? data.contentGaps : ['Sin gaps detectados.']).forEach(function(item) {
+  (data.contentGaps.length ? data.contentGaps : ['No gaps detected.']).forEach(function(item) {
     var li = document.createElement('li');
     li.style.marginTop = '8px';
     li.textContent = item;
@@ -3643,7 +3640,7 @@ function displayChannelResults(data, channelName) {
   var ideasBtn = document.createElement('button');
   ideasBtn.type = 'button';
   ideasBtn.className = 'thumb-btn';
-  ideasBtn.textContent = 'ðŸ’¡ Generar Ideas de Contenido';
+  ideasBtn.textContent = 'Generate content ideas';
   ideasBtn.addEventListener('click', function() {
     var nicheInput = document.getElementById('ideas-niche-input');
     if (nicheInput) nicheInput.value = data.niche;
@@ -3675,10 +3672,9 @@ function runChannelAnalysis(channelName) {
     }
   } catch (e) {}
 
-  // Guard: si el cliente de IA no cargó, NO crear el intervalo (se filtraría) ni tirar
-  // sincrónicamente (dejaría el botón "ANALIZANDO..." colgado). Avisar y salir limpio.
+  // Exit before the keep-alive interval is created: otherwise it leaks and the button stays stuck.
   if (!window.AshlyVAPI || typeof window.AshlyVAPI.analyzeChannel !== 'function') {
-    showChannelAnalysisError('El cliente de IA no cargó. Recargá la página (F5).');
+    showChannelAnalysisError('The AI client did not load. Reload the page with F5.');
     return Promise.resolve(false);
   }
   var keepAliveInterval = setInterval(function() {
@@ -3697,7 +3693,7 @@ function runChannelAnalysis(channelName) {
       }
       var parsed = window.AshlyVAPI.parseApiJson(response.content);
       if (!parsed) {
-        showChannelAnalysisError('Respuesta inválida de la IA. Intenta de nuevo.');
+        showChannelAnalysisError('Invalid response from the AI. Try again.');
         return false;
       }
       displayChannelResults(parsed, channelName);
@@ -3705,12 +3701,12 @@ function runChannelAnalysis(channelName) {
     })
     .catch(function(err) {
       clearInterval(keepAliveInterval);
-      showChannelAnalysisError(err.message || 'Error desconocido');
+      showChannelAnalysisError(err.message || 'Unknown error');
       return false;
     });
   } catch (eSync) {
     clearInterval(keepAliveInterval);
-    showChannelAnalysisError((eSync && eSync.message) || 'Error iniciando el análisis');
+    showChannelAnalysisError((eSync && eSync.message) || 'Could not start the analysis');
     return Promise.resolve(false);
   }
 }
@@ -3725,14 +3721,14 @@ function handleScanAnalyze() {
   if (btn) {
     btn.disabled = true;
     btn.classList.add('loading');
-    btn.textContent = 'ANALIZANDO...';
+    btn.textContent = 'ANALYZING';
   }
   runChannelAnalysis(handle);
   setTimeout(function() {
     if (btn) {
       btn.disabled = false;
       btn.classList.remove('loading');
-      btn.textContent = 'ANALIZAR';
+      btn.textContent = 'ANALYZE';
     }
   }, 1200);
 }
@@ -3748,7 +3744,7 @@ function render() {
    SCAN CHANNEL - CHANNEL INTELLIGENCE ENGINE
 =============================================== */
 
-// SEGURIDAD: nunca hardcodear la API key (cualquiera que reciba la extensión la vería). Se lee de Opciones.
+// The API key is never hardcoded: anyone with the extension folder could read it. It comes from Options.
 var GROQ_KEY = (function () { try { return localStorage.getItem('nsp_groq_api_key') || ''; } catch (e) { return ''; } })();
 var scanCurrentMode = 'channel';
 var scanCurrentTab = 'snapshot';
@@ -4009,15 +4005,15 @@ function scanStealPotential(score, strategicValueScore, type) {
 }
 
 function scanWhyCompetitorMatters(c) {
-  if (c.type === 'DIRECT') return 'Ataca la misma audiencia con senales de nicho y formato comparables.';
-  if (c.type === 'FAST GROWING') return 'Canal pequeno/mediano con traccion reciente: sirve para detectar packaging que esta rompiendo ahora.';
-  if (c.type === 'ASPIRATIONAL') return 'Canal grande que funciona como blueprint de formato, cadencia y empaquetado.';
-  return 'Nicho cercano util para angulos, hooks y subtemas transferibles.';
+  if (c.type === 'DIRECT') return 'Goes after the same audience with comparable niche and format signals.';
+  if (c.type === 'FAST GROWING') return 'Small or mid channel with recent traction: useful for spotting packaging that is breaking out now.';
+  if (c.type === 'ASPIRATIONAL') return 'Large channel that works as a blueprint for format, cadence and packaging.';
+  return 'Nearby niche, useful for transferable angles, hooks and subtopics.';
 }
 
 function scanLearnFromCompetitor(c) {
-  var format = (c.formats || []).slice(0, 2).join(' + ') || 'formato';
-  return 'Estudiar su estructura de ' + format + ', los temas repetidos y como convierte curiosidad en clicks.';
+  var format = (c.formats || []).slice(0, 2).join(' + ') || 'format';
+  return 'Study its ' + format + ' structure, the repeated topics and how it turns curiosity into clicks.';
 }
 
 /* Markdown fallback renderer */
@@ -4049,7 +4045,7 @@ function renderSnapshot(text, container) {
 
   if (oport) {
     var h = document.createElement('div'); h.className = 'scan-hero-box';
-    var hl = document.createElement('div'); hl.className = 'scan-hero-lbl'; hl.textContent = 'OPORTUNIDAD CLAVE';
+    var hl = document.createElement('div'); hl.className = 'scan-hero-lbl'; hl.textContent = 'KEY OPPORTUNITY';
     var hv = document.createElement('div'); hv.className = 'scan-hero-txt'; hv.textContent = oport;
     h.appendChild(hl); h.appendChild(hv); container.appendChild(h);
   }
@@ -4058,7 +4054,7 @@ function renderSnapshot(text, container) {
     var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px';
     if (nicho) {
       var nBox = document.createElement('div'); nBox.className = 'scan-hero-box'; nBox.style.flex = '1';
-      var nLbl = document.createElement('div'); nLbl.className = 'scan-hero-lbl'; nLbl.textContent = 'NICHO EXACTO';
+      var nLbl = document.createElement('div'); nLbl.className = 'scan-hero-lbl'; nLbl.textContent = 'EXACT NICHE';
       var nVal = document.createElement('div'); nVal.className = 'scan-hero-txt'; nVal.style.fontSize = '13px'; nVal.textContent = nicho;
       nBox.appendChild(nLbl); nBox.appendChild(nVal);
       if (model) { var mB = document.createElement('div'); mB.className = 'scan-model-badge'; mB.textContent = model.split('-')[0].split('/')[0].trim(); nBox.appendChild(mB); }
@@ -4066,7 +4062,7 @@ function renderSnapshot(text, container) {
     }
     if (growth) {
       var gBox = document.createElement('div'); gBox.className = 'scan-hero-box';
-      var gLbl = document.createElement('div'); gLbl.className = 'scan-hero-lbl'; gLbl.textContent = 'PATRÓN DE CRECIMIENTO';
+      var gLbl = document.createElement('div'); gLbl.className = 'scan-hero-lbl'; gLbl.textContent = 'GROWTH PATTERN';
       var gBase = growth.split('(')[0].split('-')[0].trim();
       var gLow = gBase.toLowerCase();
       var gCls = gLow.includes('explos') ? 'explosivo' : gLow.includes('decay') ? 'decayendo' : 'estable';
@@ -4081,16 +4077,16 @@ function renderSnapshot(text, container) {
 
   if (posit) {
     var pb = document.createElement('div'); pb.className = 'scan-hero-box';
-    var pl = document.createElement('div'); pl.className = 'scan-hero-lbl'; pl.textContent = 'POSICIONAMIENTO ÚNICO';
+    var pl = document.createElement('div'); pl.className = 'scan-hero-lbl'; pl.textContent = 'UNIQUE POSITIONING';
     var pv = document.createElement('div'); pv.className = 'scan-hero-txt'; pv.textContent = posit;
     pb.appendChild(pl); pb.appendChild(pv); container.appendChild(pb);
   }
 
   var SNAP_FIELDS = [
-    {key:'AUDIENCIA',lbl:'Audiencia objetivo'},{key:'PSICOLOGIA_AUDIENCIA',lbl:'Psicología de audiencia'},
-    {key:'MONETIZACION',lbl:'Monetización & RPM'},{key:'FORTALEZAS',lbl:'Fortalezas'},
-    {key:'DEBILIDADES',lbl:'Debilidades'},{key:'ETAPA',lbl:'Etapa de crecimiento'},
-    {key:'VIRAL_POTENCIAL',lbl:'Potencial viral'}
+    {key:'AUDIENCIA',lbl:'Target audience'},{key:'PSICOLOGIA_AUDIENCIA',lbl:'Audience psychology'},
+    {key:'MONETIZACION',lbl:'Monetization and RPM'},{key:'FORTALEZAS',lbl:'Strengths'},
+    {key:'DEBILIDADES',lbl:'Weaknesses'},{key:'ETAPA',lbl:'Growth stage'},
+    {key:'VIRAL_POTENCIAL',lbl:'Viral potential'}
   ];
   var grid = document.createElement('div'); grid.className = 'scan-info-grid';
   SNAP_FIELDS.forEach(function(f) {
@@ -4131,7 +4127,7 @@ function makeCompCard(handle, name, subs, desc, threat, similarity, tag, growth)
   if (sim > 0) {
     var sw = document.createElement('div'); sw.className = 'scan-sim-wrap';
     var sr = document.createElement('div'); sr.className = 'scan-sim-row';
-    var sl = document.createElement('div'); sl.className = 'scan-sim-lbl'; sl.textContent = 'Similitud de nicho';
+    var sl = document.createElement('div'); sl.className = 'scan-sim-lbl'; sl.textContent = 'Niche similarity';
     var sp = document.createElement('div'); sp.className = 'scan-sim-pct'; sp.textContent = sim + '%';
     sr.appendChild(sl); sr.appendChild(sp); sw.appendChild(sr);
     var st = document.createElement('div'); st.className = 'scan-sim-track';
@@ -4143,8 +4139,8 @@ function makeCompCard(handle, name, subs, desc, threat, similarity, tag, growth)
   var right = document.createElement('div'); right.className = 'scan-comp-right';
   var tc = (threat || '').toLowerCase();
   var tcls = tc.includes('alto') ? 'alto' : tc.includes('bajo') ? 'bajo' : 'medio';
-  var tb = document.createElement('div'); tb.className = 'scan-threat ' + tcls; tb.textContent = (threat || 'Medio').toUpperCase();
-  var yb = document.createElement('a'); yb.className = 'scan-yt-link'; yb.href = ytUrl; yb.target = '_blank'; yb.textContent = '> Ver canal';
+  var tb = document.createElement('div'); tb.className = 'scan-threat ' + tcls; tb.textContent = (threat || 'Medium').toUpperCase();
+  var yb = document.createElement('a'); yb.className = 'scan-yt-link'; yb.href = ytUrl; yb.target = '_blank'; yb.textContent = '> View channel';
   right.appendChild(tb); right.appendChild(yb);
   card.appendChild(left); card.appendChild(right);
   return card;
@@ -4168,7 +4164,7 @@ function makeRichCompCard(c, ai) {
     var ha = document.createElement('a'); ha.className = 'scan-comp-handle'; ha.href = ytUrl; ha.target = '_blank'; ha.textContent = ytH;
     topRow.appendChild(ha);
   } else {
-    var nmOnly = document.createElement('div'); nmOnly.className = 'scan-comp-handle'; nmOnly.textContent = c.name || 'Espacio estimado';
+    var nmOnly = document.createElement('div'); nmOnly.className = 'scan-comp-handle'; nmOnly.textContent = c.name || 'Estimated space';
     topRow.appendChild(nmOnly);
   }
   var tg = document.createElement('div'); tg.className = 'scan-comp-tag'; tg.textContent = type; topRow.appendChild(tg);
@@ -4179,15 +4175,15 @@ function makeRichCompCard(c, ai) {
   var meta = [
     c.subs ? c.subs : '',
     c.avgRecentViews ? 'Avg views ' + compactNumber(c.avgRecentViews) : '',
-    c.lastVideoDays < 9999 ? 'Ultimo video ' + c.lastVideoDays + 'd' : (c.activityLabel || ''),
+    c.lastVideoDays < 9999 ? 'Last video ' + c.lastVideoDays + 'd' : (c.activityLabel || ''),
     (c.formats || []).length ? (c.formats || []).slice(0, 3).join(' + ') : ''
   ].filter(Boolean).join(' | ');
   if (meta) { var sb = document.createElement('div'); sb.className = 'scan-comp-sub'; sb.style.marginTop = '3px'; sb.textContent = meta; left.appendChild(sb); }
   if (desc) { var ds = document.createElement('div'); ds.className = 'scan-comp-desc'; ds.textContent = desc; left.appendChild(ds); }
 
   var insight = [
-    c.doesBetter ? 'Hace mejor: ' + c.doesBetter : '',
-    c.learn ? 'Aprender: ' + c.learn : ''
+    c.doesBetter ? 'Does better: ' + c.doesBetter : '',
+    c.learn ? 'Learn: ' + c.learn : ''
   ].filter(Boolean).join(' ');
   if (insight) { var ins = document.createElement('div'); ins.className = 'scan-comp-desc'; ins.textContent = insight; left.appendChild(ins); }
 
@@ -4207,7 +4203,7 @@ function makeRichCompCard(c, ai) {
   var tb = document.createElement('div'); tb.className = 'scan-threat ' + tcls; tb.textContent = 'STEAL ' + steal;
   right.appendChild(tb);
   if (ytH) {
-    var yb = document.createElement('a'); yb.className = 'scan-yt-link'; yb.href = ytUrl; yb.target = '_blank'; yb.textContent = 'Ver canal';
+    var yb = document.createElement('a'); yb.className = 'scan-yt-link'; yb.href = ytUrl; yb.target = '_blank'; yb.textContent = 'View channel';
     right.appendChild(yb);
   }
   card.appendChild(left); card.appendChild(right);
@@ -4265,9 +4261,9 @@ function renderCompetitors(text, container) {
 
   if (scanLastEstimatedCompetitors && scanLastEstimatedCompetitors.length > 0) {
     var notice = document.createElement('div'); notice.className = 'scan-hero-box'; notice.style.marginBottom = '12px';
-    var nl = document.createElement('div'); nl.className = 'scan-hero-lbl'; nl.textContent = 'SIN COMPETIDORES VERIFICADOS FUERTES';
+    var nl = document.createElement('div'); nl.className = 'scan-hero-lbl'; nl.textContent = 'NO STRONG VERIFIED COMPETITORS';
     var nv = document.createElement('div'); nv.className = 'scan-hero-txt'; nv.style.fontSize = '13px';
-    nv.textContent = 'No encontramos competidores verificados fuertes, pero detectamos estos espacios cercanos. Estan separados porque no pasan todos los filtros duros.';
+    nv.textContent = 'We found no strong verified competitors, but these nearby spaces showed up. They are listed apart because they fail some of the hard filters.';
     notice.appendChild(nl); notice.appendChild(nv); container.appendChild(notice);
     scanLastEstimatedCompetitors.forEach(function(c) { grid.appendChild(makeRichCompCard(c, {})); });
     container.appendChild(grid); return;
@@ -4276,9 +4272,9 @@ function renderCompetitors(text, container) {
   if (Array.isArray(scanLastRealCompetitors)) {
     var msg = document.createElement('div'); msg.className = 'scan-empty-state'; msg.style.padding = '30px 20px';
     var ico = document.createElement('div'); ico.className = 'scan-empty-icon'; ico.textContent = 'SC';
-    var ttl = document.createElement('div'); ttl.className = 'scan-empty-ttl'; ttl.textContent = 'Sin competidores verificados';
+    var ttl = document.createElement('div'); ttl.className = 'scan-empty-ttl'; ttl.textContent = 'No verified competitors';
     var sub = document.createElement('div'); sub.className = 'scan-empty-sub';
-    sub.textContent = 'No se encontraron canales activos para este nicho en YouTube. Las 3 búsquedas paralelas no retornaron canales activos con +5K subs.';
+    sub.textContent = 'No active channels were found for this niche on YouTube. The three parallel searches returned no active channel above 5K subscribers.';
     msg.appendChild(ico); msg.appendChild(ttl); msg.appendChild(sub);
     container.appendChild(msg); return;
   }
@@ -4286,15 +4282,15 @@ function renderCompetitors(text, container) {
 
 /* PATTERNS renderer */
 var PAT_FIELDS = [
-  {key:'FORMATO_VIDEO',  ico:'FV', lbl:'Formato de video'},
-  {key:'MODELO_HOOK',    ico:'HK', lbl:'Modelo de hook'},
-  {key:'VOZ_TIPO',       ico:'VZ', lbl:'Voz & tono'},
-  {key:'UPLOAD_DIA',     ico:'DY', lbl:'Días de publicación'},
-  {key:'UPLOAD_HORA',    ico:'HR', lbl:'Hora óptima'},
-  {key:'DURACION_OPTIMA',ico:'DR', lbl:'Duración óptima'},
-  {key:'THUMBNAIL_ESTILO',ico:'TH',lbl:'Estilo de thumbnail'},
-  {key:'TITULO_FORMULA', ico:'TT', lbl:'Fórmula de títulos'},
-  {key:'GANCHO_TIPO',    ico:'IN', lbl:'Tipo de gancho/intro'},
+  {key:'FORMATO_VIDEO',  ico:'FV', lbl:'Video format'},
+  {key:'MODELO_HOOK',    ico:'HK', lbl:'Hook model'},
+  {key:'VOZ_TIPO',       ico:'VZ', lbl:'Voice and tone'},
+  {key:'UPLOAD_DIA',     ico:'DY', lbl:'Publishing days'},
+  {key:'UPLOAD_HORA',    ico:'HR', lbl:'Best hour'},
+  {key:'DURACION_OPTIMA',ico:'DR', lbl:'Best length'},
+  {key:'THUMBNAIL_ESTILO',ico:'TH',lbl:'Thumbnail style'},
+  {key:'TITULO_FORMULA', ico:'TT', lbl:'Title formula'},
+  {key:'GANCHO_TIPO',    ico:'IN', lbl:'Hook and intro type'},
 ];
 function renderPatterns(text, container) {
   container.innerHTML = '';
@@ -4314,7 +4310,7 @@ function renderPatterns(text, container) {
   var hooksRaw = extractField(text,'FORMULA_HOOKS');
   if (hooksRaw) {
     var hookBox = document.createElement('div'); hookBox.className = 'scan-hook-box';
-    var hookLbl = document.createElement('div'); hookLbl.className = 'scan-hero-lbl'; hookLbl.textContent = 'GANCHOS DE APERTURA QUE FUNCIONAN';
+    var hookLbl = document.createElement('div'); hookLbl.className = 'scan-hero-lbl'; hookLbl.textContent = 'OPENING HOOKS THAT WORK';
     hookBox.appendChild(hookLbl);
     var hooksList = document.createElement('div'); hooksList.className = 'scan-hooks-list';
     hooksRaw.split('|').map(function(t){ return t.trim().replace(/^"+|"+$/g,''); }).filter(Boolean).forEach(function(t) {
@@ -4326,7 +4322,7 @@ function renderPatterns(text, container) {
   var titRaw = extractField(text,'TITULOS_VIRALES') || extractField(text,'TITULOS_EJEMPLO') || extractField(text,'TITULOS_TOP');
   if (titRaw) {
     var titBox = document.createElement('div'); titBox.className = 'scan-hero-box'; titBox.style.marginTop = '14px';
-    var titLbl = document.createElement('div'); titLbl.className = 'scan-hero-lbl'; titLbl.textContent = 'TÍTULOS VIRALES PARA ESTE NICHO';
+    var titLbl = document.createElement('div'); titLbl.className = 'scan-hero-lbl'; titLbl.textContent = 'VIRAL TITLES FOR THIS NICHE';
     titBox.appendChild(titLbl);
     var titList = document.createElement('div'); titList.className = 'scan-titles-list';
     titRaw.split('|').map(function(t){ return t.trim().replace(/^"+|"+$/g,''); }).filter(Boolean).forEach(function(t) {
@@ -4393,7 +4389,7 @@ function renderSubniches(text, container) {
     var bRow = document.createElement('div'); bRow.className = 'scan-sub-badges';
     if (pot)  { var b  = document.createElement('div'); b.className  = 'scan-sub-badge pot';  b.textContent  = 'Pot: ' + pot;      bRow.appendChild(b);  }
     if (comp) { var b2 = document.createElement('div'); b2.className = 'scan-sub-badge comp'; b2.textContent = 'Comp: ' + comp;    bRow.appendChild(b2); }
-    if (bar)  { var b3 = document.createElement('div'); b3.className = 'scan-sub-badge bar';  b3.textContent = 'Barrera: ' + bar;  bRow.appendChild(b3); }
+    if (bar)  { var b3 = document.createElement('div'); b3.className = 'scan-sub-badge bar';  b3.textContent = 'Barrier: ' + bar;  bRow.appendChild(b3); }
     if (trend) {
       var b4 = document.createElement('div');
       var tLow = trend.toLowerCase();
@@ -4409,16 +4405,16 @@ function renderSubniches(text, container) {
     var isSaved = savedNiches.some(function(s) { return s.nombre === nombre; });
     var saveBtn = document.createElement('button');
     saveBtn.className = 'scan-sub-save' + (isSaved ? ' saved' : '');
-    saveBtn.textContent = isSaved ? 'OK GUARDADO' : '+ GUARDAR SUBNICHO';
+    saveBtn.textContent = isSaved ? 'SAVED' : '+ SAVE SUBNICHE';
     saveBtn.addEventListener('click', function() {
       var stored = (function(){ try { return JSON.parse(localStorage.getItem('ashlyv_saved_subniches') || '[]') || []; } catch(e){ return []; } })();
       var idx = stored.findIndex(function(s) { return s.nombre === nombre; });
       if (idx > -1) {
         stored.splice(idx, 1);
-        saveBtn.className = 'scan-sub-save'; saveBtn.textContent = '+ GUARDAR SUBNICHO';
+        saveBtn.className = 'scan-sub-save'; saveBtn.textContent = '+ SAVE SUBNICHE';
       } else {
         stored.push({ nombre: nombre, pot: pot, comp: comp, bar: bar, trend: trend, why: why, vid: vid, savedAt: Date.now() });
-        saveBtn.className = 'scan-sub-save saved'; saveBtn.textContent = 'OK GUARDADO';
+        saveBtn.className = 'scan-sub-save saved'; saveBtn.textContent = 'SAVED';
       }
       localStorage.setItem('ashlyv_saved_subniches', JSON.stringify(stored));
     });
@@ -4433,9 +4429,9 @@ function renderSubniches(text, container) {
 function renderStrategy(text, container) {
   container.innerHTML = '';
   var MODES = [
-    { key: 'MODO_SEGURO',          label: 'SEGURO',          cls: 'seguro',          ico: 'SG' },
-    { key: 'MODO_AGRESIVO',        label: 'AGRESIVO',        cls: 'agresivo',        ico: 'AG' },
-    { key: 'MODO_DIFERENCIACION',  label: 'DIFERENCIACIÓN',  cls: 'diferenciacion',  ico: 'DF' }
+    { key: 'MODO_SEGURO',          label: 'SAFE',            cls: 'seguro',          ico: 'SG' },
+    { key: 'MODO_AGRESIVO',        label: 'AGGRESSIVE',      cls: 'agresivo',        ico: 'AG' },
+    { key: 'MODO_DIFERENCIACION',  label: 'DIFFERENTIATION', cls: 'diferenciacion',  ico: 'DF' }
   ];
   var modeKeys = MODES.map(function(m){ return m.key; }).join('|');
   var modeRe = new RegExp('(' + modeKeys + '):\\s*', 'i');
@@ -4464,7 +4460,7 @@ function renderStrategy(text, container) {
       var head = document.createElement('div'); head.className = 'scan-strat-head';
       var icoEl = document.createElement('div'); icoEl.className = 'scan-strat-ico'; icoEl.textContent = mode.ico;
       var hdrTxt = document.createElement('div'); hdrTxt.className = 'scan-strat-hdr-txt';
-      var mLbl = document.createElement('div'); mLbl.className = 'scan-strat-mode-lbl ' + mode.cls; mLbl.textContent = 'MODO ' + mode.label;
+      var mLbl = document.createElement('div'); mLbl.className = 'scan-strat-mode-lbl ' + mode.cls; mLbl.textContent = 'MODE ' + mode.label;
       var tEl = document.createElement('div'); tEl.className = 'scan-strat-ttl'; tEl.textContent = titulo;
       hdrTxt.appendChild(mLbl); hdrTxt.appendChild(tEl);
       head.appendChild(icoEl); head.appendChild(hdrTxt); card.appendChild(head);
@@ -4476,8 +4472,8 @@ function renderStrategy(text, container) {
       }
       if (riesgo || recomp || tiempo) {
         var footer = document.createElement('div'); footer.className = 'scan-strat-footer';
-        if (riesgo) { var rp = document.createElement('div'); rp.className = 'scan-strat-pill'; rp.textContent = 'Riesgo: ' + riesgo; footer.appendChild(rp); }
-        if (recomp) { var rep = document.createElement('div'); rep.className = 'scan-strat-pill'; rep.textContent = 'Ganancia: ' + recomp; footer.appendChild(rep); }
+        if (riesgo) { var rp = document.createElement('div'); rp.className = 'scan-strat-pill'; rp.textContent = 'Risk: ' + riesgo; footer.appendChild(rp); }
+        if (recomp) { var rep = document.createElement('div'); rep.className = 'scan-strat-pill'; rep.textContent = 'Reward: ' + recomp; footer.appendChild(rep); }
         if (tiempo) { var tp = document.createElement('div'); tp.className = 'scan-strat-pill'; tp.textContent = tiempo; footer.appendChild(tp); }
         card.appendChild(footer);
       }
@@ -4491,7 +4487,7 @@ function renderStrategy(text, container) {
   var phases = [], phaseBlocks = text.split(/\n(?=FASE_\d+:|FASE \d+:|Fase \d+:)/i);
   phaseBlocks.forEach(function(block, idx) {
     if (!block.match(/FASE_?\d+:|Fase \d+:/i) && idx !== 0) return;
-    var ttl = extractField(block,'TITULO') || 'Fase ' + (idx+1);
+    var ttl = extractField(block,'TITULO') || 'Phase ' + (idx+1);
     var dias = extractField(block,'DIAS') || '';
     var kpi = extractField(block,'KPI') || '';
     var acts = [];
@@ -4523,12 +4519,12 @@ function renderStrategy(text, container) {
 
 /* SCORES renderer */
 var SCORE_LABELS = {
-  POTENCIAL_NICHO:      'Potencial de Nicho',
-  NIVEL_COMPETENCIA:    'Nivel de Competencia',
-  RENTABILIDAD:         'Rentabilidad',
-  VELOCIDAD_CRECIMIENTO:'Velocidad de Crecimiento',
-  FACILIDAD_ENTRADA:    'Facilidad de Entrada',
-  SATURACION:           'Saturación de Mercado'
+  POTENCIAL_NICHO:      'Niche Potential',
+  NIVEL_COMPETENCIA:    'Competition Level',
+  RENTABILIDAD:         'Profitability',
+  VELOCIDAD_CRECIMIENTO:'Growth Speed',
+  FACILIDAD_ENTRADA:    'Ease Of Entry',
+  SATURACION:           'Market Saturation'
 };
 Object.assign(SCORE_LABELS, {
   MARKET_OPPORTUNITY_SCORE: 'Market Opportunity',
@@ -4567,7 +4563,7 @@ function scanRenderScores(text, container) {
   container.appendChild(grid);
   if (scores.__VEREDICTO) {
     var vb = document.createElement('div'); vb.className = 'scan-verdict-box';
-    var vl = document.createElement('div'); vl.className = 'scan-verdict-lbl'; vl.textContent = 'VEREDICTO FINAL';
+    var vl = document.createElement('div'); vl.className = 'scan-verdict-lbl'; vl.textContent = 'FINAL VERDICT';
     var vt = document.createElement('div'); vt.className = 'scan-verdict-txt'; vt.textContent = scores.__VEREDICTO;
     vb.appendChild(vl); vb.appendChild(vt); container.appendChild(vb);
   }
@@ -4942,7 +4938,7 @@ async function findUsefulCompetitors(targetInfo, selectedLang) {
   }
   verified = verified.sort(function(a, b) { return b.finalCompetitorScore - a.finalCompetitorScore; }).slice(0, 8).map(function(c) {
     c.whyMatters = scanWhyCompetitorMatters(c);
-    c.doesBetter = c.performanceScore >= 72 ? 'Mejor prueba de demanda reciente y empaquetado con mas clicks.' : 'Formato mas claro o subtema mejor posicionado.';
+    c.doesBetter = c.performanceScore >= 72 ? 'Better proof of recent demand and packaging that earns more clicks.' : 'Clearer format or a better positioned subtopic.';
     c.learn = scanLearnFromCompetitor(c);
     return c;
   });
@@ -4959,31 +4955,31 @@ function buildEstimatedCompetitorSpaces(targetInfo, targetProfile, selectedLang,
   var related = (targetProfile.tokens || []).slice(0, 6);
   var candidates = [
     {
-      name: niche + ' - canales medianos activos',
+      name: niche + ' - active mid-size channels',
       handle: '',
       type: 'ESTIMATED',
       finalCompetitorScore: 62,
       nicheSimilarity: 58,
       formats: targetProfile.formats || [],
-      activityLabel: 'pendiente de verificar',
+      activityLabel: 'not verified yet',
       avgRecentViews: 0,
-      whyMatters: 'No encontramos suficientes competidores verificados fuertes; este espacio cercano debe buscarse con keywords del nicho.',
-      doesBetter: 'Puede revelar angulos de entrada sin contaminar la lista verificada.',
-      learn: 'Buscar: ' + (queries[0] || related.join(' ')),
+      whyMatters: 'Not enough strong verified competitors were found. Search this nearby space with niche keywords.',
+      doesBetter: 'Can reveal entry angles without polluting the verified list.',
+      learn: 'Search: ' + (queries[0] || related.join(' ')),
       stealPotential: 'MEDIUM'
     },
     {
-      name: formats + ' en ' + getLanguageLabel(selectedLang || 'auto'),
+      name: formats + ' in ' + getLanguageLabel(selectedLang || 'auto'),
       handle: '',
       type: 'ESTIMATED',
       finalCompetitorScore: 59,
       nicheSimilarity: 55,
       formats: targetProfile.formats || [],
-      activityLabel: 'formato similar',
+      activityLabel: 'similar format',
       avgRecentViews: 0,
-      whyMatters: 'Sirve para estudiar estructura aunque el nicho exacto tenga baja visibilidad.',
-      doesBetter: 'Validar duracion, hooks y thumbnail antes de copiar temas.',
-      learn: 'Buscar formatos similares con: ' + related.slice(0, 4).join(' '),
+      whyMatters: 'Useful for studying structure even when the exact niche has low visibility.',
+      doesBetter: 'Check length, hooks and thumbnail before copying topics.',
+      learn: 'Search similar formats with: ' + related.slice(0, 4).join(' '),
       stealPotential: 'LOW'
     }
   ];
@@ -4993,7 +4989,7 @@ function buildEstimatedCompetitorSpaces(targetInfo, targetProfile, selectedLang,
     return Object.assign({}, c, {
       type: 'ESTIMATED',
       verified: false,
-      whyMatters: 'Cercano pero no pasa todos los filtros duros: ' + (c.rejectReasons || []).join(', ') + '.',
+      whyMatters: 'Close, but it fails some hard filters: ' + (c.rejectReasons || []).join(', ') + '.',
       stealPotential: 'LOW'
     });
   });
@@ -5009,7 +5005,7 @@ async function fetchYTRealData(handle) {
 
   try {
     scanSetStage(0);
-    scanSetLoadMsg('Escaneando canal @' + handle + ' en YouTube...');
+    scanSetLoadMsg('Scanning @' + handle + ' on YouTube');
     var langCode = (document.getElementById('scan-lang-sel') || {}).value || 'auto';
     var locale = getYouTubeLocale(langCode);
     info = await youtubeProvider.getChannelByUrl(handle, locale.hl + ',en;q=0.8');
@@ -5019,7 +5015,7 @@ async function fetchYTRealData(handle) {
     videoTitles = (info.videos || []).map(function(v) { return v.title; }).filter(Boolean).slice(0, 15);
 
     scanSetStage(1);
-    scanSetLoadMsg('Filtrando competidores activos con scoring duro...');
+    scanSetLoadMsg('Filtering active competitors with hard scoring');
     var found = await findUsefulCompetitors(info, langCode);
     competitors = found.verified || [];
     estimatedCompetitors = found.estimated || [];
@@ -5033,7 +5029,7 @@ async function fetchYTRealData(handle) {
     };
 
     scanSetStage(2);
-    scanSetLoadMsg('Extrayendo patrones de contenido...');
+    scanSetLoadMsg('Extracting content patterns');
   } catch(e) { /* continue with whatever we got */ }
 
   return { info: info, competitors: competitors, estimatedCompetitors: estimatedCompetitors, videoTitles: videoTitles, meta: meta };
@@ -5042,20 +5038,20 @@ async function callGroqScan(handle, lang) {
   if (window.AshlyVAPI && typeof window.AshlyVAPI.scanChannel === 'function') {
     try {
       scanSetStage(1);
-      scanSetLoadMsg('Conectando backend real de nichos...');
+      scanSetLoadMsg('Connecting to the niche backend');
       var backend = await window.AshlyVAPI.scanChannel(handle, lang || 'es');
       if (backend && backend.ok && backend.data) {
         scanLastRealCompetitors = backend.data.competitors || [];
         scanLastEstimatedCompetitors = [];
         scanLastScanMeta = backend.data.source || null;
         scanSetStage(4);
-        scanSetLoadMsg('Informe real generado desde YouTube + motor de nichos.');
+        scanSetLoadMsg('Report built from YouTube and the niche engine.');
         document.dispatchEvent(new CustomEvent('ashlyv:scan-complete', { detail: backend.data }));
         return backend.data.reportMarkdown || JSON.stringify(backend.data, null, 2);
       }
     } catch (backendErr) {
       console.warn('[ASHLYV] Backend scan failed, using in-extension scanner fallback:', backendErr);
-      scanSetLoadMsg('Backend no disponible; usando scanner interno real...');
+      scanSetLoadMsg('Backend unavailable, using the built-in scanner');
     }
   }
 
@@ -5066,7 +5062,7 @@ async function callGroqScan(handle, lang) {
   scanLastScanMeta = real.meta || null;
 
   scanSetStage(3);
-  scanSetLoadMsg('Generando inteligencia con IA...');
+  scanSetLoadMsg('Generating intelligence with AI');
 
   var titlesCtx = (real.videoTitles && real.videoTitles.length > 0)
     ? '\nTítulos recientes del canal (para análisis de patrones):\n' +
@@ -5254,12 +5250,12 @@ function handleScanAnalyze() {
   var btn = document.getElementById('scan-go-btn');
   btn.disabled = true;
   btn.classList.add('loading');
-  btn.textContent = 'ANALIZANDO...';
+  btn.textContent = 'ANALYZING';
   scanLastRealCompetitors = null; // reset - null means "fetch not done yet"
   scanLastEstimatedCompetitors = [];
   scanLastScanMeta = null;
   scanShowState('loading');
-  scanSetLoadMsg('Iniciando análisis de @' + handle + '...');
+  scanSetLoadMsg('Starting the analysis of @' + handle);
 
   callGroqScan(handle, lang)
     .then(function(report) {
@@ -5267,17 +5263,17 @@ function handleScanAnalyze() {
       saveScanChannelReport(handle, lang, report);
       btn.disabled = false;
       btn.classList.remove('loading');
-      btn.textContent = 'ANALIZAR';
+      btn.textContent = 'ANALYZE';
     })
     .catch(function(err) {
       scanShowState('empty');
       btn.disabled = false;
       btn.classList.remove('loading');
-      btn.textContent = 'ANALIZAR';
+      btn.textContent = 'ANALYZE';
       var emptyTitle = document.querySelector('.scan-empty-ttl');
       var emptySub = document.querySelector('.scan-empty-sub');
-      if (emptyTitle) emptyTitle.textContent = 'Error al analizar canal';
-      if (emptySub) emptySub.textContent = 'No se pudo conectar con el motor AI. Verifica tu conexion e intenta de nuevo. (' + (err.message || 'Error') + ')';
+      if (emptyTitle) emptyTitle.textContent = 'Could not analyze the channel';
+      if (emptySub) emptySub.textContent = 'Could not reach the AI engine. Check your connection and try again. (' + (err.message || 'Error') + ')';
     });
 }
 
@@ -5412,21 +5408,21 @@ function initEvents() {
       var keyInput = getApiKeyInput();
       var key = keyInput ? keyInput.value.trim() : '';
       clearApiKeyError();
-      thumbSaveApi.textContent = 'Validando...';
+      thumbSaveApi.textContent = 'Validating';
       thumbSaveApi.disabled = true;
       thumbSaveApi.style.borderColor = '';
       thumbSaveApi.style.color = '';
       chrome.runtime.sendMessage({ type: 'ASHLYV_PING' }, function(swHealth) {
         if (chrome.runtime.lastError || !swHealth || !swHealth.pong) {
-          thumbSaveApi.textContent = 'VALIDAR API';
+          thumbSaveApi.textContent = 'VALIDATE API';
           thumbSaveApi.disabled = false;
-          showApiKeyError('Service worker no responde. Recarga la extensión y vuelve a intentar.');
+          showApiKeyError('The service worker is not responding. Reload the extension and try again.');
           return;
         }
         if (!window.AshlyVAPI || typeof window.AshlyVAPI.validateApiKey !== 'function') {
-          thumbSaveApi.textContent = 'VALIDAR API';
+          thumbSaveApi.textContent = 'VALIDATE API';
           thumbSaveApi.disabled = false;
-          showApiKeyError('El cliente AI no cargo. Recarga la extension.');
+          showApiKeyError('The AI client did not load. Reload the extension.');
           return;
         }
         window.AshlyVAPI.validateApiKey(key)
@@ -5438,38 +5434,38 @@ function initEvents() {
                 thumbSaveApi.style.color = '#FFFFFF';
                 thumbSaveApi.disabled = false;
                 updateApiKeyStatusIndicator();
-                setThumbnailStatus('Ollama local activa y lista para usar.', 'success');
-                showAshlyVToast('IA local conectada', 'success', 2000);
+                setThumbnailStatus('Local Ollama running and ready to use.', 'success');
+                showAshlyVToast('Local AI connected', 'success', 2000);
                 return;
               }
               chrome.storage.local.set({ ashlyv_api_key: key }, function() {
-                thumbSaveApi.textContent = res.billingRequired ? 'SIN SALDO' : 'VALIDA';
+                thumbSaveApi.textContent = res.billingRequired ? 'NO CREDIT' : 'VALID';
                 thumbSaveApi.style.borderColor = '#FFFFFF';
                 thumbSaveApi.style.color = '#FFFFFF';
                 thumbSaveApi.disabled = false;
                 updateApiKeyStatusIndicator();
                 if (res.billingRequired) {
-                  setThumbnailStatus('API Key valida, pero la cuenta no tiene creditos', 'error');
-                  showApiKeyError(res.error || 'Tu cuenta Anthropic no tiene creditos.');
+                  setThumbnailStatus('API key is valid, but the account has no credit', 'error');
+                  showApiKeyError(res.error || 'Your Anthropic account has no credit.');
                 } else {
-                  setThumbnailStatus('API Key valida y guardada', 'success');
-                  showAshlyVToast('Guardado', 'success', 2000);
+                  setThumbnailStatus('API key valid and saved', 'success');
+                  showAshlyVToast('Saved', 'success', 2000);
                 }
               });
             } else {
-              thumbSaveApi.textContent = 'INVALIDA';
+              thumbSaveApi.textContent = 'INVALID';
               thumbSaveApi.style.borderColor = '#FFFFFF';
               thumbSaveApi.style.color = '#FFFFFF';
               thumbSaveApi.disabled = false;
-              showApiKeyError(res.error || 'Key rechazada por Anthropic');
+              showApiKeyError(res.error || 'Key rejected by Anthropic');
             }
           })
           .catch(function(err) {
-            thumbSaveApi.textContent = 'VALIDAR API';
+            thumbSaveApi.textContent = 'VALIDATE API';
             thumbSaveApi.disabled = false;
-            var msg = err && err.message ? err.message : 'Error desconocido';
+            var msg = err && err.message ? err.message : 'Unknown error';
             if (msg.indexOf('dangerous-direct-browser-access') >= 0) {
-              msg = 'La validacion no salio por el service worker. Reload ZERACK and try again.';
+              msg = 'Validation did not go through the service worker. Reload ZERACK and try again.';
             }
             showApiKeyError(msg);
           });
@@ -5612,12 +5608,12 @@ function renderIdeasResults(data) {
     btn.type = 'button';
     btn.className = 'thumb-btn secondary';
     btn.style.marginTop = '0';
-    btn.textContent = 'ðŸ“‹';
+    btn.textContent = 'COPY';
     btn.addEventListener('click', function() {
       copyTextWithFallback(text).then(function() {
         var original = btn.textContent;
         btn.textContent = 'OK';
-        showAshlyVToast('OK Copiado al portapapeles', 'success', 2000);
+        showAshlyVToast('Copied to clipboard', 'success', 2000);
         setTimeout(function() { btn.textContent = original; }, 2000);
       });
     });
@@ -5654,9 +5650,9 @@ function renderIdeasResults(data) {
     host.appendChild(section);
   }
 
-  appendListSection('Titulos Títulos de Videos', data.titles || [], true);
-  appendListSection('ðŸŽ£ Hooks de Apertura', data.hooks || [], true);
-  appendListSection('ðŸ–¼ï¸ Conceptos de Miniatura', data.thumbnailConcepts || [], false);
+  appendListSection('Video titles', data.titles || [], true);
+  appendListSection('Opening hooks', data.hooks || [], true);
+  appendListSection('Thumbnail concepts', data.thumbnailConcepts || [], false);
 
   var freq = document.createElement('div');
   freq.style.marginBottom = '18px';
@@ -5664,14 +5660,14 @@ function renderIdeasResults(data) {
   freq.style.borderRadius = '16px';
   freq.style.background = 'rgba(123,92,255,.12)';
   freq.style.border = '1px solid rgba(123,92,255,.2)';
-  freq.textContent = 'ðŸ“… Frecuencia de Subida: ' + String(data.uploadSchedule || 'Sin dato');
+  freq.textContent = 'Upload frequency: ' + String(data.uploadSchedule || 'No data');
   host.appendChild(freq);
 
   var tipsTitle = document.createElement('div');
   tipsTitle.style.fontSize = '16px';
   tipsTitle.style.fontWeight = '900';
   tipsTitle.style.marginBottom = '10px';
-  tipsTitle.textContent = 'Money Tips de Monetización';
+  tipsTitle.textContent = 'Monetization tips';
   host.appendChild(tipsTitle);
 
   var tips = document.createElement('ol');
@@ -5688,14 +5684,14 @@ function renderIdeasResults(data) {
   copyAll.type = 'button';
   copyAll.className = 'thumb-btn';
   copyAll.style.marginTop = '18px';
-  copyAll.textContent = 'COPIAR TODOS LOS TÍTULOS';
+  copyAll.textContent = 'COPY ALL TITLES';
   copyAll.addEventListener('click', function() {
     copyTextWithFallback((data.titles || []).map(function(item, index) {
       return (index + 1) + '. ' + String(item || '');
     }).join('\n')).then(function() {
       var original = copyAll.textContent;
-      copyAll.textContent = 'OK Copiado';
-      showAshlyVToast('OK Copiado al portapapeles', 'success', 2000);
+      copyAll.textContent = 'Copied';
+      showAshlyVToast('Copied to clipboard', 'success', 2000);
       setTimeout(function() { copyAll.textContent = original; }, 2000);
     });
   });
@@ -5711,19 +5707,19 @@ function handleIdeasGenerate() {
   var language = languageSelect ? languageSelect.value : 'Español';
   var rpmTarget = rpmInput ? rpmInput.value : '8';
   if (!niche) {
-    showAshlyVToast('Escribe un nicho antes de generar ideas.', 'error', 2400);
+    showAshlyVToast('Enter a niche before generating ideas.', 'error', 2400);
     if (nicheInput) nicheInput.focus();
     return;
   }
   if (button) {
     button.disabled = true;
-    button.textContent = 'GENERANDO...';
+    button.textContent = 'GENERATING';
   }
   window.AshlyVAPI.generateNicheIdeas(niche, language, rpmTarget)
     .then(function(response) {
-      if (!response.success) throw new Error(response.error || 'No se pudo generar ideas');
+      if (!response.success) throw new Error(response.error || 'Could not generate ideas');
       var parsed = window.AshlyVAPI.parseApiJson(response.content);
-      if (!parsed) throw new Error('La IA devolvió una respuesta inválida.');
+      if (!parsed) throw new Error('The AI returned an invalid response.');
       renderIdeasResults(parsed);
     })
     .catch(function(err) {
@@ -5732,12 +5728,12 @@ function handleIdeasGenerate() {
         thumbClear(host);
         var title = document.createElement('div');
         title.className = 'scan-empty-ttl';
-        title.textContent = 'No se pudieron generar ideas';
+        title.textContent = 'Could not generate ideas';
         var sub = document.createElement('div');
         sub.className = 'scan-empty-sub';
         sub.style.textAlign = 'left';
         sub.style.maxWidth = 'none';
-        sub.textContent = err && err.message ? err.message : 'Intenta de nuevo.';
+        sub.textContent = err && err.message ? err.message : 'Try again.';
         host.appendChild(title);
         host.appendChild(sub);
       }
@@ -5745,7 +5741,7 @@ function handleIdeasGenerate() {
     .then(function() {
       if (button) {
         button.disabled = false;
-        button.textContent = 'GENERAR IDEAS CON AI';
+        button.textContent = 'GENERATE IDEAS WITH AI';
       }
     });
 }
@@ -5789,13 +5785,13 @@ handleScanAnalyze = function() {
   if (btn) {
     btn.disabled = true;
     btn.classList.add('loading');
-    btn.textContent = 'ANALIZANDO...';
+    btn.textContent = 'ANALYZING';
   }
   runChannelAnalysis(handle).then(function() {
     if (btn) {
       btn.disabled = false;
       btn.classList.remove('loading');
-      btn.textContent = 'ANALIZAR';
+      btn.textContent = 'ANALYZE';
     }
   });
 };
@@ -5910,7 +5906,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     if (!el) return;
     el.value = value || '';
     el.readOnly = true;
-    el.title = 'Bloqueado al nicho seleccionado del scan';
+    el.title = 'Locked to the niche selected from the scan';
   }
 
   function populateAdvancedScanNichos() {
@@ -5922,13 +5918,13 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     if (!list.length) {
       var empty = document.createElement('option');
       empty.value = '';
-      empty.textContent = 'No hay nichos escaneados todavia';
+      empty.textContent = 'No scanned niches yet';
       select.appendChild(empty);
     } else {
       list.forEach(function(item, idx) {
         var opt = document.createElement('option');
         opt.value = String(idx);
-        opt.textContent = '#' + (idx + 1) + ' | ' + (item.niche || 'Nicho') + (item.title ? ' | ' + String(item.title).slice(0, 70) : '');
+        opt.textContent = '#' + (idx + 1) + ' | ' + (item.niche || 'Niche') + (item.title ? ' | ' + String(item.title).slice(0, 70) : '');
         select.appendChild(opt);
       });
       if (old && list[parseInt(old, 10)]) select.value = old;
@@ -5951,7 +5947,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     if (batch) {
       batch.value = advScanList().map(function(n) { return advChannelText(n); }).filter(Boolean).join('\n');
       batch.readOnly = true;
-      batch.title = 'Batch armado solo con canales de la lista escaneada';
+      batch.title = 'Batch built only from channels in the scanned list';
     }
     ['adv-check-age-btn', 'adv-viral-btn'].forEach(function(id) {
       var btn = document.getElementById(id);
@@ -5965,8 +5961,8 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     if (batchBtn) batchBtn.disabled = !advScanList().some(function(n) { return !!advChannelText(n); });
     if (summary) {
       summary.textContent = item
-        ? 'Seleccionado: ' + (item.niche || 'Nicho') + ' | ' + (item.title || 'resultado escaneado') + ' | ' + advLanguageText(item).toUpperCase()
-        : 'No hay nichos escaneados. Ejecuta un scan y vuelve a abrir PRO.';
+        ? 'Selected: ' + (item.niche || 'Niche') + ' | ' + (item.title || 'scanned result') + ' | ' + advLanguageText(item).toUpperCase()
+        : 'No scanned niches. Run a scan and open PRO again.';
     }
   }
 
@@ -6129,7 +6125,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
       var data = await API.apiScoreByLanguage(niche);
       var html = '<div style="margin-bottom:10px;padding:10px;background:rgba(255,217,61,0.1);border-radius:8px;">'
         + '<span style="font-size:16px;font-weight:800;color:#FFD93D;">Best: ' + data.bestLanguage.toUpperCase() + '</span>'
-        + ' <span style="font-size:14px;color:#00DC82;">' + data.bestScore + '/10 — ' + data.bestVerdict + '</span></div>';
+        + ' <span style="font-size:14px;color:#00DC82;">' + data.bestScore + '/10 | ' + data.bestVerdict + '</span></div>';
       html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">';
       data.results.forEach(function(r) {
         var vColor = r.verdict === 'ATTACK NOW' ? '#00DC82' : r.verdict === 'TEST CAREFULLY' ? '#FFD93D' : r.verdict === 'WATCH ONLY' ? '#FF9F43' : '#FF6B6B';
@@ -6249,10 +6245,8 @@ function switchAshlyvMode(mode) {
 }
 window.switchAshlyvMode = switchAshlyvMode;
 
-// v4.47.0 FIX MV3 CSP: los botones del switcher (SCANNER/REPLICATOR/BRAND) tenían onclick INLINE en
-// ashlyv.html, que la CSP de páginas de extensión (script-src 'self', sin 'unsafe-inline') BLOQUEA →
-// REPLICATOR y BRAND eran INALCANZABLES (solo SCANNER parecía andar, porque es el estado por defecto
-// del HTML). Se cablean acá con addEventListener (forma válida MV3); el onclick inline se quitó del HTML.
+// Wired here instead of inline onclick: the MV3 page CSP blocks inline handlers, which left
+// REPLICATOR and BRAND unreachable.
 (function wireAshlyvModeSwitcher() {
   var modes = [['mode-scanner', 'scanner'], ['mode-replicator', 'replicator'], ['mode-brand', 'brand']];
   modes.forEach(function (pair) {
@@ -6281,15 +6275,15 @@ window.switchAshlyvMode = switchAshlyvMode;
 
     try {
       // Step 1: Full scan
-      progress.textContent = '1/4 — Scanning channel...';
+      progress.textContent = '1/4 Scanning channel';
       var scan = await API.apiScanChannelFull(url, { language: lang, maxVideos: 100 });
 
       // Step 2: Viral metrics
-      progress.textContent = '2/4 — Analyzing viral patterns...';
+      progress.textContent = '2/4 Analyzing viral patterns';
       var viral = scan.viralMetrics || {};
 
       // Step 3: Sub-niches
-      progress.textContent = '3/4 — Generating replication angles...';
+      progress.textContent = '3/4 Generating replication angles';
       var channelName = (scan.channel && scan.channel.name) || url;
       var niche = (scan.analysis && scan.analysis.topKeywords && scan.analysis.topKeywords.length)
         ? scan.analysis.topKeywords.slice(0, 3).map(function(k) { return typeof k === 'string' ? k : k.term || k; }).join(' ')
@@ -6297,7 +6291,7 @@ window.switchAshlyvMode = switchAshlyvMode;
       var subniches = await API.apiGenerateSubniches(niche, { language: lang, channel: url });
 
       // Step 4: Render
-      progress.textContent = '4/4 — Building replication plan...';
+      progress.textContent = '4/4 Building replication plan';
 
       // Overview
       var ch = scan.channel || {};
@@ -6384,7 +6378,7 @@ window.switchAshlyvMode = switchAshlyvMode;
       for (var d = 0; d < 6; d++) {
         var title = allTitles[d] || 'Video ' + (d + 1);
         calHtml += '<div style="padding:8px;background:rgba(255,217,61,0.06);border-radius:8px;">'
-          + '<div style="font-size:10px;opacity:0.4;">' + weekLabels[d] + ' — ' + days[d] + '</div>'
+          + '<div style="font-size:10px;opacity:0.4;">' + weekLabels[d] + ', ' + days[d] + '</div>'
           + '<div style="font-size:11px;font-weight:600;margin-top:3px;">' + title + '</div></div>';
       }
       calHtml += '</div>';
@@ -6415,7 +6409,7 @@ window.switchAshlyvMode = switchAshlyvMode;
       results.style.display = 'none';
 
       try {
-        progress.textContent = 'Generating full replication scripts with AI... (30-90s)';
+        progress.textContent = 'Generating full replication scripts with AI, 30 to 90 seconds';
         var data = await API.apiReplicateContent(url, { language: lang, targetVideos: 5 });
 
         var plans = data.replicationPlans || [];
@@ -6546,7 +6540,7 @@ window.switchAshlyvMode = switchAshlyvMode;
           var seoColor = n.seoScore === 'HIGH' ? '#00DC82' : n.seoScore === 'MEDIUM' ? '#FFD93D' : '#FF6B6B';
           namesHtml += '<div style="padding:10px;margin:6px 0;background:rgba(0,0,0,0.2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">'
             + '<div><div style="font-size:16px;font-weight:800;color:#FFD93D;">' + n.name + '</div>'
-            + '<div style="font-size:11px;opacity:0.5;">' + n.handle + ' \u2014 ' + n.reasoning + '</div></div>'
+            + '<div style="font-size:11px;opacity:0.5;">' + n.handle + ' | ' + n.reasoning + '</div></div>'
             + '<div style="display:flex;gap:4px;">'
             + '<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:' + seoColor + '22;color:' + seoColor + ';">SEO: ' + n.seoScore + '</span>'
             + '<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(179,136,255,0.2);color:#B388FF;">Memo: ' + n.memorability + '</span>'
@@ -6643,9 +6637,7 @@ window.switchAshlyvMode = switchAshlyvMode;
 
 // ASHLYV DASHBOARD - ALL FEATURES ACTIVE
 
-// Scroll reveal estilo ClickMax: las cards arrancan ocultas y aparecen al entrar al viewport.
-// Autonomo: un IntersectionObserver + un MutationObserver re-registran cualquier card nueva
-// (el dashboard re-renderiza varias veces), sin tocar las funciones de render.
+// A MutationObserver re-registers new cards because the dashboard re-renders several times.
 (function () {
   try {
     if (!('IntersectionObserver' in window) || !document.body) return;

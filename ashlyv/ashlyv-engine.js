@@ -1850,29 +1850,29 @@ function buildGeneratedQueries(language) {
     var lines = [];
     var winnerPatterns = topPatternLabels(winners, 4);
     var restPatterns = topPatternLabels(rest, 4);
-    if (winnerPatterns.length) lines.push('Los ganadores repiten ' + winnerPatterns.join(' | ') + '.');
+    if (winnerPatterns.length) lines.push('The winners repeat ' + winnerPatterns.join(' | ') + '.');
     if (patternRate(winners, 'numbers / list hooks') - patternRate(rest, 'numbers / list hooks') >= 0.18) {
-      lines.push('Los outliers usan mas titulos con numeros y listas que el resto del nicho.');
+      lines.push('The outliers use more number and list titles than the rest of the niche.');
     }
     if (patternRate(winners, 'secret / forbidden hook') - patternRate(rest, 'secret / forbidden hook') >= 0.14) {
-      lines.push('Los videos fuertes meten mas curiosidad prohibida, secreto o misterio en el hook.');
+      lines.push('The strong videos put more forbidden curiosity, secrecy or mystery in the hook.');
     }
     if (patternRate(winners, 'explainer / documentary') - patternRate(rest, 'explainer / documentary') >= 0.14) {
-      lines.push('La competencia que gana empaqueta mejor como documental / explicado y no solo como titulo descriptivo.');
+      lines.push('The competition that wins packages as documentary or explainer, not just a descriptive title.');
     }
     var titleGap = avgTitleLength(winners) - avgTitleLength(rest);
-    if (titleGap >= 8) lines.push('Los ganadores tienden a titulos mas largos y descriptivos, con promesa mas clara.');
-    else if (titleGap <= -8) lines.push('Los ganadores tienden a titulos mas cortos y filosos, sin tanto relleno.');
+    if (titleGap >= 8) lines.push('The winners lean on longer, more descriptive titles with a clearer promise.');
+    else if (titleGap <= -8) lines.push('The winners lean on shorter, sharper titles with less filler.');
 
     var facelessGap = avg((winners || []).map(function(entry) { return entry.facelessScore; })) - avg((rest || []).map(function(entry) { return entry.facelessScore; }));
-    if (facelessGap >= 8) lines.push('Los mejores canales se ven mas faceless y sistematizados; menos personalidad, mas formato replicable.');
+    if (facelessGap >= 8) lines.push('The best channels look more faceless and systematic: less personality, more repeatable format.');
 
     var winnerTerms = topTitleTerms(winners, 6);
     var restTerms = topTitleTerms(rest, 6);
     var exclusiveWinnerTerms = winnerTerms.filter(function(token) { return restTerms.indexOf(token) === -1; }).slice(0, 4);
-    if (exclusiveWinnerTerms.length) lines.push('Palabras que aparecen mas en winners: ' + exclusiveWinnerTerms.join(', ') + '.');
+    if (exclusiveWinnerTerms.length) lines.push('Words that show up more in the winners: ' + exclusiveWinnerTerms.join(', ') + '.');
 
-    if (!lines.length && restPatterns.length) lines.push('El nicho se mueve entre ' + restPatterns.join(' | ') + ', pero aun falta una propuesta mas pulida para romper.');
+    if (!lines.length && restPatterns.length) lines.push('The niche moves between ' + restPatterns.join(' | ') + ', but a more polished angle is still missing.');
     return unique(lines).slice(0, 6);
   }
 
@@ -1881,19 +1881,19 @@ function buildGeneratedQueries(language) {
     var winnerTerms = topTitleTerms(winners, 6);
     var competitorLead = competitors[0] || null;
     if (winnerTerms.length) {
-      lines.push('Entrar usando el sistema ganador de hooks: ' + winnerTerms.slice(0, 4).join(', ') + ', pero con una promesa mas premium y limpia.');
+      lines.push('Enter with the winning hook system: ' + winnerTerms.slice(0, 4).join(', ') + ', but with a cleaner, more premium promise.');
     }
     if (opportunity && opportunity.competitionScore <= 4.2) {
-      lines.push('La competencia aun no esta blindada; hay espacio para clonar formato y mejorar empaque desde el primer lote.');
+      lines.push('The competition is not locked in yet, so there is room to clone the format and improve the packaging from the first batch.');
     }
     if (opportunity && opportunity.languageGapScore >= 7) {
-      lines.push('El idioma sigue subatendido: puedes entrar rapido antes de que la densidad de canales se cierre.');
+      lines.push('The language is still underserved, so you can move in before channel density closes it.');
     }
     if (competitorLead && competitorLead.sampleCount >= 3) {
-      lines.push('No copies al lider 1:1: toma su patron principal y muerdelo por subnicho, ritmo o promesa para no quedar como clon barato.');
+      lines.push('Do not copy the leader one to one: take the main pattern and differentiate by sub-niche, pacing or promise.');
     }
     if (avg((winners || []).map(function(entry) { return entry.vph; })) > avg((rest || []).map(function(entry) { return entry.vph; })) * 1.45) {
-      lines.push('Los winners estan muy por encima del baseline: conviene entrar con un piloto de 5 a 8 videos antes de escalar fuerte.');
+      lines.push('The winners sit far above the baseline, so pilot 5 to 8 videos before scaling hard.');
     }
     return unique(lines).slice(0, 5);
   }
@@ -1952,14 +1952,14 @@ function buildGeneratedQueries(language) {
       differenceSignals: buildCompetitiveDifferenceSignals(winners, rest),
       gapMoves: buildCompetitiveGapMoves(opportunity, competitors, winners, rest),
       whatWorks: unique([
-        winnerPatterns.length ? 'Patrones que mas convierten: ' + winnerPatterns.join(' | ') + '.' : '',
-        winnerTerms.length ? 'Hooks / palabras ganadoras: ' + winnerTerms.slice(0, 6).join(', ') + '.' : '',
-        competitors[0] ? 'Competidor visible mas fuerte: ' + competitors[0].channelLabel + ' con ' + compactNumber(competitors[0].avgVph) + '/h promedio.' : '',
+        winnerPatterns.length ? 'Patterns that convert best: ' + winnerPatterns.join(' | ') + '.' : '',
+        winnerTerms.length ? 'Winning hooks and words: ' + winnerTerms.slice(0, 6).join(', ') + '.' : '',
+        competitors[0] ? 'Strongest visible competitor: ' + competitors[0].channelLabel + ' at ' + compactNumber(competitors[0].avgVph) + '/h on average.' : '',
         opportunity.why || ''
       ].filter(Boolean)).slice(0, 5),
       weakSignals: unique([
-        rest.length ? 'Los rezagados repiten mas ' + (topPatternLabels(rest, 3).join(' | ') || 'titulos flojos') + ' sin una promesa potente.' : '',
-        restTerms.length ? 'Palabras mas presentes en la cola: ' + restTerms.slice(0, 5).join(', ') + '.' : ''
+        rest.length ? 'The laggards repeat ' + (topPatternLabels(rest, 3).join(' | ') || 'weak titles') + ' with no strong promise.' : '',
+        restTerms.length ? 'Words most present in the tail: ' + restTerms.slice(0, 5).join(', ') + '.' : ''
       ].filter(Boolean)).slice(0, 4),
       competitionShare: competitionShare,
       trendDelta: trendDelta,

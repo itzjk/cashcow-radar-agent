@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,39 +9,39 @@
 <body>
   <header class="tk-head" id="tk-head"></header>
   <div class="tk-wrap">
-    <p class="tk-sub">Pegá tu guion y lo divido en <b>escenas</b>. Escuchá cada bloque con voces del navegador (gratis, sin créditos), elegí voz, velocidad y tono, y exportá la <b>cola SSML</b> lista para tu motor TTS o para grabar.</p>
+    <p class="tk-sub">Paste your script and it splits into <b>scenes</b>. Play each block with the browser voices, no credits needed, pick voice, speed and pitch, then export the <b>SSML queue</b> for your own TTS engine or for recording.</p>
 
     <div class="tk-card">
-      <h3>1 · Guion</h3>
-      <textarea class="tk-in" id="script" rows="7" placeholder="Pegá acá tu guion / narración… (o llega solo desde ScriptPilot)"></textarea>
+      <h3>1 · Script</h3>
+      <textarea class="tk-in" id="script" rows="7" placeholder="Paste your script or narration here, or let ScriptPilot hand it over"></textarea>
       <div class="tk-row" style="margin-top:12px">
         <div class="tk-field">
-          <label>Voz</label>
+          <label>Voice</label>
           <select class="tk-in" id="voice"></select>
         </div>
         <div class="tk-field">
-          <label>Velocidad: <span id="rateV">1.0</span></label>
+          <label>Speed: <span id="rateV">1.0</span></label>
           <input class="tk-in" type="range" id="rate" min="0.5" max="1.6" step="0.05" value="1" />
         </div>
         <div class="tk-field">
-          <label>Tono: <span id="pitchV">1.0</span></label>
+          <label>Pitch: <span id="pitchV">1.0</span></label>
           <input class="tk-in" type="range" id="pitch" min="0.4" max="1.6" step="0.05" value="1" />
         </div>
         <div class="tk-field">
-          <label>Tamaño de escena</label>
+          <label>Scene size</label>
           <select class="tk-in" id="chunk">
-            <option value="sent">Por frase</option>
-            <option value="2" selected>2 frases</option>
-            <option value="3">3 frases</option>
-            <option value="para">Por párrafo</option>
+            <option value="sent">One sentence</option>
+            <option value="2" selected>2 sentences</option>
+            <option value="3">3 sentences</option>
+            <option value="para">One paragraph</option>
           </select>
         </div>
       </div>
       <div class="tk-row" style="margin-top:12px">
-        <button class="tk-btn primary" id="build">✂️ Dividir en escenas</button>
-        <button class="tk-btn" id="playAll">▶ Reproducir todo</button>
-        <button class="tk-btn" id="stop">⏹ Parar</button>
-        <button class="tk-btn" id="dlssml">⬇ Exportar SSML</button>
+        <button class="tk-btn primary" id="build">Split into scenes</button>
+        <button class="tk-btn" id="playAll">Play all</button>
+        <button class="tk-btn" id="stop">Stop</button>
+        <button class="tk-btn" id="dlssml">Export SSML</button>
       </div>
       <div class="tk-status" id="status"></div>
     </div>

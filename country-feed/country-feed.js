@@ -1,4 +1,3 @@
-// ZERACK Country Radar — resultados faceless por país (datos InnerTube reales)
 'use strict';
 
 var NSP_MARKET_META = {
@@ -162,9 +161,7 @@ function selectFacelessNicheGroups(videos) {
   var strongThreshold = 60;
   var strongest = buildFacelessNicheGroups(videos.filter(function(v) { return (v.facelessScore || 0) >= strongThreshold; }));
   if (strongest.length >= 6) return strongest.slice(0, 10);
-  // Fallback: antes devolvía [] con <6 grupos → el usuario veía "DONE · 0 nichos" AUNQUE
-  // hubiera videos válidos. Ahora mostramos los grupos fuertes que haya; si no hay ninguno,
-  // bajamos el umbral a 40 para no esconder todo.
+  // Returning [] below 6 groups hid valid videos behind a "0 niches" result, so show what there is.
   if (strongest.length) return strongest.slice(0, 10);
   var relaxed = buildFacelessNicheGroups(videos.filter(function(v) { return (v.facelessScore || 0) >= 40; }));
   return relaxed.slice(0, 10);
@@ -259,24 +256,24 @@ function render() {
   var nicheSet = {};
   rows.forEach(function(r) { nicheSet[r.niche] = 1; });
   $('results-count').textContent = rows.length
-    ? ((rows.length > 120 ? 'mostrando 120 de ' + rows.length + ' videos' : rows.length + ' videos') + ' · ' + Object.keys(nicheSet).length + ' nichos')
+    ? ((rows.length > 120 ? 'showing 120 of ' + rows.length + ' videos' : rows.length + ' videos') + ' · ' + Object.keys(nicheSet).length + ' niches')
     : '';
   if (!rows.length) {
     var e = document.createElement('div');
     e.className = 'empty';
-    e.textContent = STATE.videos.length ? 'Los filtros dejaron 0 resultados — bajá el VPH mínimo o ampliá la edad.' : 'Elegí un país y dale ESCANEAR PAÍS — resultados faceless reales del feed de ese mercado.';
+    e.textContent = STATE.videos.length ? 'The filters left nothing. Lower the minimum VPH or widen the age.' : 'Pick a country and hit SCAN COUNTRY to read real faceless results from that market feed.';
     wrap.appendChild(e);
     return;
   }
   var cols = [
     { k: 'title', label: 'Video' },
-    { k: 'channelName', label: 'Canal' },
-    { k: 'niche', label: 'Nicho' },
+    { k: 'channelName', label: 'Channel' },
+    { k: 'niche', label: 'Niche' },
     { k: 'views', label: 'Views' },
     { k: 'vph', label: 'VPH' },
     { k: 'facelessScore', label: 'Faceless' },
     { k: 'totalRev', label: '$ est' },
-    { k: 'hoursOld', label: 'Edad' }
+    { k: 'hoursOld', label: 'Age' }
   ];
   var table = document.createElement('table');
   var thead = document.createElement('tr');
@@ -347,9 +344,9 @@ function runScan() {
   if (STATE.busy) return;
   if (!HAS_EXT) { runDemo(); return; }
   var market = NSP_MARKET_META[$('sel-market').value];
-  if (!market || !market.gl) { setStatus('Elegí un mercado primero.', 'error'); return; }
+  if (!market || !market.gl) { setStatus('Pick a market first.', 'error'); return; }
   var queries = getActiveQueries();
-  if (!queries.length) { setStatus('Sin queries activas.', 'error'); return; }
+  if (!queries.length) { setStatus('No active searches.', 'error'); return; }
   STATE.busy = true;
   STATE.videos = [];
   STATE.rows = [];
@@ -360,11 +357,11 @@ function runScan() {
   render();
   var btn = $('btn-scan');
   btn.disabled = true;
-  btn.textContent = 'ESCANEANDO…';
+  btn.textContent = 'SCANNING';
   setStatus('Scanning ' + market.label + ', ' + queries.length + ' faceless searches within the selected window');
   setProgress(4);
   if (STATE._watchdog) clearTimeout(STATE._watchdog);
-  STATE._watchdog = setTimeout(function() { if (STATE.busy) onFatalError('Timeout: el service worker no respondió en 70s. Reintentá.'); }, 70000);
+  STATE._watchdog = setTimeout(function() { if (STATE.busy) onFatalError('Timed out: the service worker did not answer in 70 seconds. Try again.'); }, 70000);
   chrome.runtime.sendMessage({
     type: 'NSP_FETCH_COUNTRY_FACELESS_FEED',
     gl: market.gl,
@@ -377,7 +374,7 @@ function runScan() {
     if (!STATE.busy) return;
     var err = chrome.runtime && chrome.runtime.lastError;
     if (err) { onFatalError(err.message); return; }
-    if (!res || !res.ok) { onFatalError((res && res.error) || (STATE._firstErr || 'sin respuesta')); return; }
+    if (!res || !res.ok) { onFatalError((res && res.error) || (STATE._firstErr || 'no response')); return; }
     var raw = Array.isArray(res.videos) ? res.videos : [];
     var vids = [];
     try {
@@ -421,14 +418,14 @@ if (HAS_EXT && chrome.runtime.onMessage) {
     if (__prog.total) {
       var f = __prog.done + __prog.error;
       setProgress(6 + Math.round((f / __prog.total) * 88));
-      setStatus('Trayendo datos… ' + f + '/' + __prog.total + (__prog.error ? ' (' + __prog.error + ' err)' : ''));
+      setStatus('Fetching data ' + f + '/' + __prog.total + (__prog.error ? ' (' + __prog.error + ' failed)' : ''));
     }
   });
 }
 
 function exportCsv() {
-  if (!STATE.rows.length) { setStatus('Nada para exportar — escaneá primero.', 'error'); return; }
-  var head = 'titulo,canal,nicho,views,vph,faceless_score,revenue_est,horas_edad,video_url\n';
+  if (!STATE.rows.length) { setStatus('Nothing to export. Run a scan first.', 'error'); return; }
+  var head = 'title,channel,niche,views,vph,faceless_score,revenue_est,age_hours,video_url\n';
   var csv = head + STATE.rows.map(function(v) {
     function esc(s) { return '"' + String(s || '').replace(/"/g, '""') + '"'; }
     return [esc(v.title), esc(v.channelName), esc(v.niche), v.views, Math.round(v.vph), Math.round(v.facelessScore || 0), v.totalRev, Math.round(v.hoursOld || 0), 'https://www.youtube.com/watch?v=' + v.videoId].join(',');
@@ -445,27 +442,27 @@ function exportCsv() {
 
 function clearCache() {
   if (!HAS_EXT || typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-  if (STATE.busy) { setStatus('Esperá a que termine el scan antes de limpiar.', 'error'); return; }
+  if (STATE.busy) { setStatus('Wait for the scan to finish before clearing the cache.', 'error'); return; }
   var keys = Object.keys(NSP_MARKET_META).map(function(k) {
     var m = NSP_MARKET_META[k];
     return m.gl ? ('nsp_country_feed_' + m.gl + '_' + m.hl) : null;
   }).filter(Boolean);
   chrome.storage.local.remove(keys, function() {
     var err = chrome.runtime && chrome.runtime.lastError;
-    setStatus(err ? 'No pude limpiar el cache.' : ' Cache limpio (' + keys.length + ' países) — el próximo scan trae datos frescos.', err ? 'error' : 'ok');
+    setStatus(err ? 'The cache could not be cleared.' : 'Cache cleared for ' + keys.length + ' countries. The next scan pulls fresh data.', err ? 'error' : 'ok');
   });
 }
 
 function runDemo() {
   var demo = [
-    { videoId: 'demo1', title: 'La dinastía que desapareció sin dejar rastro', channelName: 'Crónicas Perdidas', viewsText: '412K views', publishedText: '2 days ago', lengthText: '18:42' },
+    { videoId: 'demo1', title: 'The dynasty that vanished without a trace', channelName: 'Lost Chronicles', viewsText: '412K views', publishedText: '2 days ago', lengthText: '18:42' },
     { videoId: 'demo2', title: 'KI erklärt: Was niemand über Rom wusste', channelName: 'Historia AI', viewsText: '128K views', publishedText: '1 day ago', lengthText: '14:10' },
-    { videoId: 'demo3', title: 'Top 12 secretos del océano profundo', channelName: 'Abismo Digital', viewsText: '89K views', publishedText: '3 days ago', lengthText: '22:03' }
+    { videoId: 'demo3', title: 'Top 12 secrets of the deep ocean', channelName: 'Digital Abyss', viewsText: '89K views', publishedText: '3 days ago', lengthText: '22:03' }
   ];
   STATE.videos = demo.map(processVideo).filter(Boolean);
   applyFilters();
   render();
-  setStatus('DEMO (vista previa sin extensión) — abrí esta página desde la extensión para escanear de verdad.', 'ok');
+  setStatus('Demo preview, running without the extension. Open this page from the extension to scan for real.', 'ok');
   setProgress(100);
 }
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -35,21 +35,21 @@
   <div class="tl-wrap">
     <aside class="tl-side">
       <div class="tl-nav" id="tl-views">
-        <button data-view="discover" class="active">🧭 Descubrir</button>
-        <button data-view="favorites">⭐ Favoritos</button>
+        <button data-view="discover" class="active">Discover</button>
+        <button data-view="favorites">Favorites</button>
       </div>
-      <h4>Ordenar</h4>
+      <h4>Sort</h4>
       <div class="tl-nav" id="tl-sorts">
-        <button data-sort="views" class="active">👁 Más vistas</button>
-        <button data-sort="vph">⚡ Más VPH (explotando)</button>
-        <button data-sort="recent">🆕 Más recientes</button>
+        <button data-sort="views" class="active">Most views</button>
+        <button data-sort="vph">Highest VPH</button>
+        <button data-sort="recent">Most recent</button>
       </div>
-      <h4>Nicho</h4>
+      <h4>Niche</h4>
       <div class="tl-nav" id="tl-niches"></div>
     </aside>
     <main class="tl-main">
       <div class="tl-bar">
-        <input class="tk-in" id="topic" placeholder="Buscar nicho, tema o canal…" style="flex:1;min-width:200px;" />
+        <input class="tk-in" id="topic" placeholder="Search a niche, topic or channel" style="flex:1;min-width:200px;" />
         <select class="tk-in" id="market" style="flex:0 0 auto;width:auto;">
           <option value="US|en">🇺🇸 EN</option>
           <option value="ES|es">🇪🇸 ES</option>
@@ -58,7 +58,7 @@
           <option value="DE|de">🇩🇪 DE</option>
           <option value="FR|fr">🇫🇷 FR</option>
         </select>
-        <button class="tk-btn" id="go" style="background:#0a0a0a;border:1px solid var(--neon);color:#fff;font-weight:900;flex:0 0 auto;">🦇 Buscar</button>
+        <button class="tk-btn" id="go" style="background:#0a0a0a;border:1px solid var(--neon);color:#fff;font-weight:900;flex:0 0 auto;">Search</button>
       </div>
       <div id="status" style="font-size:12px;font-weight:700;margin-bottom:12px;"></div>
       <div id="result"></div>

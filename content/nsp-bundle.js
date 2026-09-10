@@ -1,15 +1,6 @@
-﻿// NicheScanner Pro v3.13.0 — ZERACK: mentor AI de YouTube Automation nivel millones
-// El agente del scanner Y el de Studio ahora se llaman ZERACK. System prompt de élite:
-// mentor que construyó canales de 7 cifras, con conocimiento embebido (nicho/RPM,
-// packaging, retención, algoritmo, monetización en capas, sistemas) + metodología
-// diagnóstico→prescripción→próximo paso. Misión: que la persona genere millones SÍ O SÍ.
-// 17 tools + multi-provider (Groq/Ollama/Gemini). SCANNER INTACTO — cero cambios en pipeline.
+﻿console.log('[NSP] v4.92.1 starting');
 
-console.log('[NSP] v4.92.1 starting... (BUSCADOR DE NICHOS mas potente: re-rank por CONSISTENCIA DE CANAL — un canal viral de verdad aparece VARIAS veces en el feed y sube al top 10; el one-hit-wonder (un solo video pego, canal muerto) baja. Ademas DIVERSIDAD: el top son canales DISTINTOS, no 4 videos del mismo canal. 100% GRATIS y SIN ESPERA: solo cuenta apariciones en el pool ya recolectado (nspBoostByChannelConsistency), NO entra a ningun canal, NO hace fetches, invisible dentro de "analizando". El FILTRO DE NICHOS NO SE TOCA — solo se reordena su salida (le pido pool 40 via su propio parametro y corto a 10). Sigue: export sin error 5 (v4.35.1/2) + Policy Engine Fase 2. Editor app.js v4.36.0)');
-
-// nspSetHTML: único camino permitido para meter HTML en el DOM de youtube.com (Trusted Types).
-// Con TT activo crea una política propia ('nsp-html'); si el sitio la vetara, degrada a texto plano
-// en vez de reventar. En páginas sin TT (extensión) es un innerHTML normal.
+// Only path allowed to write HTML into the youtube.com DOM: Trusted Types blocks a bare innerHTML there.
 var _nspTTPolicy = null, _nspTTTried = false;
 function nspSetHTML(el, html) {
   if (!el) return;
@@ -27,9 +18,7 @@ function nspSetHTML(el, html) {
 
 // ── Global style ─────────────────────────────────────────────────────────────
 (function () {
-  // v4.49.0 — default Trusted Types policy: sin esto, todo el.innerHTML del scanner LANZA en
-  // youtube.com (ThumbLab/TitleLab/PRO/toasts morían en silencio). Passthrough de HTML propio;
-  // solo intercepta strings crudos→sink (que ya lanzaban) → no toca el overlay (usa DOM API).
+  // Without a default Trusted Types policy every innerHTML on youtube.com throws and the panels die silently.
   try {
     if (window.trustedTypes && window.trustedTypes.createPolicy && !window.__nspTTDefault) {
       window.trustedTypes.createPolicy('default', { createHTML: function (str) { return str; } });
@@ -166,9 +155,7 @@ var NSP_MARKET_META = {
   israel:      { label: 'Israel',      flag: '🇮🇱', gl: 'IL', hl: 'he', lang: 'he' },
   greece:      { label: 'Greece',      flag: '🇬🇷', gl: 'GR', hl: 'el', lang: 'el' }
 };
-// Inferencia de mercado por SCRIPT — para idiomas no-latinos sin detección de idioma
-// (ruso, árabe, hindi… caen a 'unknown' pero el script es claro). Da gl/hl regional
-// a la búsqueda en vez de usar la región del navegador del usuario.
+// Non-latin scripts fall to 'unknown' in language detection, so the writing system picks the market instead of the browser region.
 var NSP_SCRIPT_MARKET = {
   cyrillic: 'russia', arabic: 'arabic', devanagari: 'india', bengali: 'bangladesh',
   tamil: 'india', thai: 'thailand', hebrew: 'israel', greek: 'greece',
@@ -357,18 +344,11 @@ var AI_FACELESS_CHANNEL_WHITELIST = [
   'wisdomvines', 'wisdom vines', 'better ideas', 'aperture'
 ];
 
-// ════════════════════════════════════════════════════════════════════
-// NSP FACE-API CAPA 1 — Detección visual de cara en thumbnail (FASE 3.1)
-// ════════════════════════════════════════════════════════════════════
-// Usa face-api.js (v0.22.2) con tinyFaceDetector model local.
-// Carga modelo UNA vez por sesión. Cache por thumbnail URL.
-// Salida: { hasFace, faceArea, confidence, supported, unknown }
-// ════════════════════════════════════════════════════════════════════
-var NSP_FACE_AREA_THRESHOLD = 0.015;        // 1.5% del área del thumbnail
-var NSP_FACE_CONFIDENCE_THRESHOLD = 0.5;    // score mínimo del detector
-var _nspFaceApiModel = null;                // tinyFaceDetector loaded ref
-var _nspFaceApiLoadingPromise = null;       // dedupe loading concurrente
-var _nspFaceApiCache = {};                  // cache por thumbnail URL
+var NSP_FACE_AREA_THRESHOLD = 0.015;
+var NSP_FACE_CONFIDENCE_THRESHOLD = 0.5;
+var _nspFaceApiModel = null;
+var _nspFaceApiLoadingPromise = null;
+var _nspFaceApiCache = {};
 
 function nspHasCartoonFacelessSignalText(text) {
   text = String(text || '').toLowerCase();
@@ -485,12 +465,11 @@ function nspIsFaceApiReady() {
     && faceapi.nets.tinyFaceDetector.params;
 }
 
-// Carga el modelo UNA vez por sesión. Subsequent calls reusan la promise.
 function nspLoadFaceApiModel() {
   if (nspIsFaceApiReady()) return Promise.resolve(true);
   if (_nspFaceApiLoadingPromise) return _nspFaceApiLoadingPromise;
   if (typeof faceapi === 'undefined') {
-    console.warn('[NSP face-api] faceapi global not loaded — check manifest content_scripts order');
+    console.warn('[NSP face-api] faceapi global not loaded, check the manifest content_scripts order');
     return Promise.resolve(false);
   }
   // MV3 MAIN world has no chrome.runtime — read modelUrl from DOM attribute
@@ -504,7 +483,7 @@ function nspLoadFaceApiModel() {
     }
   } catch(eUrl) {}
   if (!modelUrl) {
-    console.warn('[NSP face-api] modelUrl unavailable — ashlyv-bridge.js (ISOLATED) may not have run yet');
+    console.warn('[NSP face-api] modelUrl unavailable, ashlyv-bridge.js (ISOLATED) may not have run yet');
     return Promise.resolve(false);
   }
   try {
@@ -516,7 +495,7 @@ function nspLoadFaceApiModel() {
       })
       .catch(function(err) {
         console.warn('[NSP face-api] model load FAILED:', err && err.message);
-        _nspFaceApiLoadingPromise = null; // permitir reintento
+        _nspFaceApiLoadingPromise = null;
         return false;
       });
     return _nspFaceApiLoadingPromise;
@@ -526,7 +505,6 @@ function nspLoadFaceApiModel() {
   }
 }
 
-// Obtener el <img> element del thumbnail. Prefiere DOM si ya está pintado.
 function nspGetThumbnailImg(item) {
   try {
     var card = item && (item.card || item.domElement);
@@ -538,7 +516,6 @@ function nspGetThumbnailImg(item) {
   return null;
 }
 
-// Detección de cara en thumbnail. Async. Cache por URL.
 function nspDetectFaceInThumbnail(item) {
   var sc = (item && item.sc) || {};
   var thumbUrl = sc.thumbUrl || sc.thumbnail || '';
@@ -600,8 +577,7 @@ function nspDetectFaceInThumbnail(item) {
   });
 }
 
-// Carga una imagen con crossOrigin='anonymous' para que WebGL pueda leer sus pixels.
-// i.ytimg.com sirve thumbnails con CORS Access-Control-Allow-Origin: *
+// Reloaded with crossOrigin='anonymous' so WebGL can read the pixels; i.ytimg.com serves thumbnails with Access-Control-Allow-Origin: *.
 function nspLoadImageWithCrossOrigin(srcUrl) {
   return new Promise(function(resolve, reject) {
     if (!srcUrl) { reject(new Error('no src')); return; }
@@ -615,7 +591,6 @@ function nspLoadImageWithCrossOrigin(srcUrl) {
   });
 }
 
-// Batch con concurrency limit (4 simultáneos para no saturar CPU).
 function nspBatchDetectFaces(items, concurrency) {
   concurrency = concurrency || 4;
   var queue = items.slice();
@@ -633,11 +608,9 @@ function nspBatchDetectFaces(items, concurrency) {
   return Promise.all(workers).then(function() { return results; });
 }
 
-// Filtro de items: quita los que tienen cara visible.
-// Logs detallados de qué items fueron rechazados (para validar contra los 4 falsos positivos).
 function nspApplyFaceApiFilter(items) {
   if (!items || !items.length) return Promise.resolve(items);
-  console.log('[NSP face-api] Analizando', items.length, 'thumbnails (threshold area=' + (NSP_FACE_AREA_THRESHOLD*100).toFixed(1) + '%)...');
+  console.log('[NSP face-api] Analyzing', items.length, 'thumbnails (threshold area=' + (NSP_FACE_AREA_THRESHOLD*100).toFixed(1) + '%)...');
   var startMs = Date.now();
   return nspBatchDetectFaces(items, 4).then(function(faceMap) {
     var kept = [];
@@ -661,7 +634,7 @@ function nspApplyFaceApiFilter(items) {
     });
     var elapsedMs = Date.now() - startMs;
     console.log('[NSP face-api] Done in ' + elapsedMs + 'ms. kept=' + kept.length + ', rejected=' + rejected.length + ', noImg=' + noImg + ', unsupported=' + unsupported);
-    console.log('[PIPELINE 6/6] Tras face-api: ' + kept.length + ' items', JSON.stringify({
+    console.log('[PIPELINE 6/6] After face-api: ' + kept.length + ' items', JSON.stringify({
       rejected_face_detected: rejected.length,
       kept_no_face: kept.length,
       noImg: noImg,
@@ -669,7 +642,7 @@ function nspApplyFaceApiFilter(items) {
       elapsedMs: elapsedMs
     }));
     if (rejected.length) {
-      console.log('[NSP face-api] REJECTED (cara detectada en thumbnail):',
+      console.log('[NSP face-api] REJECTED (face detected in thumbnail):',
         rejected.map(function(r) {
           var sc = (r && r.sc) || {};
           var title = String(sc.title || '').slice(0, 50);
@@ -1683,10 +1656,9 @@ function detectTextLanguageExtended(text) {
   var t = String(text || '');
   if (!t.trim()) return 'unknown';
   var lower = ' ' + t.toLowerCase() + ' ';
-  // Idiomas con señal FUERTE propia — ANTES del detector base, que los confunde por
-  // diacríticos compartidos (ç→fr en turco, í→cs en vietnamita). Solo con señal clara.
+  // Checked before the base detector, which confuses these languages by their shared diacritics.
   if (/[ığ]/.test(t) && /\b(için|nasıl|nasil|ile|bir|abone|nedir|videoda|çok|şu)\b/.test(lower)) return 'tr';
-  if (/[ạảấầẩẫậắằẳẵặẹẻẽếềểễệịỉĩọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹươđ]/.test(t)) return 'vi'; // diacríticos apilados = vietnamita
+  if (/[ạảấầẩẫậắằẳẵặẹẻẽếềểễệịỉĩọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹươđ]/.test(t)) return 'vi';
   if (/\byang\b/.test(lower) && /\b(untuk|dengan|adalah|tidak|saya|akan|ini|itu|sebuah)\b/.test(lower)) return 'id';
   if (/\bmga\b/.test(lower) && /\b(paano|kung|yung|naman|ako|talaga|sila)\b/.test(lower)) return 'tl';
   var detected = detectTextLanguage(text || '');
@@ -2105,7 +2077,7 @@ function nspExpandCleanScanWithApi(cleanResults, dedupedAll, targetMax) {
   return Promise.all(searchJobs).then(function(groups) {
     var videos = [];
     (groups || []).forEach(function(group) { videos = videos.concat(group || []); });
-    try { console.log('[NSP API EXPAND] grupos del bridge:', (groups || []).map(function(g) { return (g || []).length; }).join(','), '| total crudo:', videos.length); } catch (eGl) {}
+    try { console.log('[NSP API EXPAND] bridge groups:', (groups || []).map(function(g) { return (g || []).length; }).join(','), '| raw total:', videos.length); } catch (eGl) {}
     var apiItems = adaptInnertubeVideosToAshlyVItems(videos).filter(function(item) {
       return nspIsApiExpansionCandidate(item);
     });
@@ -2113,18 +2085,18 @@ function nspExpandCleanScanWithApi(cleanResults, dedupedAll, targetMax) {
       console.log('[NSP API EXPAND] no valid API candidates from', videos.length, 'videos');
       try {
         if (!videos.length) {
-          console.log('[NSP API EXPAND] diagnóstico: los search jobs devolvieron VACÍO (bridge/SW caído o queries sin resultados)');
+          console.log('[NSP API EXPAND] diagnostic: the search jobs came back empty, either the bridge or the service worker is down, or the queries returned nothing');
         } else {
-          var _dx = { total: 0, sinSc: 0, noFresh: 0, recycleBlock: 0, junk: 0, sinSenalFaceless: 0 };
+          var _dx = { total: 0, noSc: 0, noFresh: 0, recycleBlock: 0, junk: 0, noFacelessSignal: 0 };
           adaptInnertubeVideosToAshlyVItems(videos).forEach(function(it) {
             _dx.total++;
-            if (!it || !it.sc) { _dx.sinSc++; return; }
+            if (!it || !it.sc) { _dx.noSc++; return; }
             if (!isAshlyVFreshFeedCandidate(it)) { _dx.noFresh++; return; }
             if (isAshlyVPanelFillNoRecycleBlocked(it)) { _dx.recycleBlock++; return; }
             if (typeof nspIsUserReportedJunk === 'function' && nspIsUserReportedJunk(it)) { _dx.junk++; return; }
-            _dx.sinSenalFaceless++;
+            _dx.noFacelessSignal++;
           });
-          console.log('[NSP API EXPAND] diagnóstico del 0:', JSON.stringify(_dx));
+          console.log('[NSP API EXPAND] zero-result diagnostic:', JSON.stringify(_dx));
         }
       } catch (eDx) {}
       return { items: current, all: dedupedAll || [] };
@@ -2978,9 +2950,7 @@ var NICHE_RPM = [
   { rpm: 2,  label: 'Entretenimiento',    re: /vlog|challenge|prank|reaction|meme|funny|familia|ninos|bebe|reto|reaccion/i }
 ];
 
-// Mapa nicho (label de NICHE_RPM) → query de búsqueda REAL (es/en) para hallar
-// competidores. Antes se usaba la etiqueta cruda en español ("Cocina") como query,
-// que busca mal. `format:true` = nicho de FORMATO (define el canal sobre el tema).
+// Maps a NICHE_RPM label to a real search query, because the raw label searches badly on its own.
 var NICHE_LABEL_QUERY = {
   'Finanzas':            { es: 'finanzas personales inversión dinero', en: 'personal finance investing money' },
   'Negocios':            { es: 'negocios emprendimiento ingresos pasivos', en: 'business entrepreneurship passive income' },
@@ -3109,22 +3079,16 @@ function calcScore(views, hoursOld, isShort, title, durationSecs) {
   var vph = views / h;
   
   var t = (title || '').toLowerCase();
-  // ── RPM = nicho × idioma (geo) ───────────────────────────────────────────────
-  // FIX: antes el español se forzaba a 1.8 fijo (ignoraba el nicho) y los términos ES
-  // daban RPM más bajos que sus equivalentes EN (doble castigo). Ahora: RPM base del
-  // NICHO (bilingüe, en USD de mercado top tipo USA) × multiplicador por IDIOMA detectado.
-  // 1) RPM base del nicho (keywords ES + EN juntas, mismo número para el mismo nicho)
+  // RPM = niche base rate (same number in every language) multiplied by a geo factor for the detected language.
   var baseRpm = 3.0;
-  if (t.match(/sleep|relax|meditat|ambient|\brain\b|thunder|binaural|\bheal(ing)?\b|soundscape|dormir|relajar|lluvia|sonidos|ruido.?blanco|lofi/)) baseRpm = 10.0;   // FIX: heal/rain anclados (no roban health/train/brain)
-  else if (t.match(/finance|invest|trading|stock|\bmarket\b|budget|wealth|dividend|portfolio|finanzas|inversion|invertir|bolsa|acciones|riqueza|ahorro|presupuesto|dinero|rico|millonario|aktien|geld|verm[öo]gen|b[öo]rse|sparen|bourse|argent|riche|patrimoine|investir|[ée]pargne/)) baseRpm = 22.0;   // FIX: \bmarket\b (no roba "marketing") + quité "reich" (era historia alemana, no finanzas)
+  if (t.match(/sleep|relax|meditat|ambient|\brain\b|thunder|binaural|\bheal(ing)?\b|soundscape|dormir|relajar|lluvia|sonidos|ruido.?blanco|lofi/)) baseRpm = 10.0;
+  else if (t.match(/finance|invest|trading|stock|\bmarket\b|budget|wealth|dividend|portfolio|finanzas|inversion|invertir|bolsa|acciones|riqueza|ahorro|presupuesto|dinero|rico|millonario|aktien|geld|verm[öo]gen|b[öo]rse|sparen|bourse|argent|riche|patrimoine|investir|[ée]pargne/)) baseRpm = 22.0;
   else if (t.match(/crypto|bitcoin|ethereum|nft|defi|blockchain|cripto|criptomoneda|krypto|kryptow[äa]hrung|crypto.?monnaie/)) baseRpm = 18.0;
   else if (t.match(/business|entrepreneur|startup|marketing|ecommerce|dropship|passive.?income|negocio|emprend|marketing|ingresos.?pasivos|ganar.?dinero|ventas|vender|monetiz|unternehmen|gesch[äa]ft|verkauf|entreprise|vente|affaires/)) baseRpm = 16.0;
   else if (t.match(/legal|law|attorney|lawsuit|court|judge|insurance|mortgage|loan|credit.?card|abogado|ley|demanda|juicio|seguro|hipoteca|prestamo|credito|recht|anwalt|gericht|versicherung|hypothek|kredit|avocat|loi|proc[èe]s|assurance|hypoth[èe]que|cr[ée]dit/)) baseRpm = 14.0;
   else if (t.match(/real.?estate|property|rent|apartment|bienes.?raices|inmueble|propiedad|alquiler|renta|immobilien|wohnung|miete|immobilier|appartement|location/)) baseRpm = 12.0;
   else if (t.match(/artificial.?intelligence|machine.?learning|chatgpt|openai|gemini|midjourney|software|coding|programming|developer|python|tech|inteligencia.?artificial|automatizacion|programacion|codigo|tecnologia|k[üu]nstliche.?intelligenz|\bki\b|programmier|technologie|intelligence.?artificielle|\bia\b|programmation|technologie/)) baseRpm = 13.0;
   else if (t.match(/luxury|billionaire|mansion|yacht|supercar|lujo|millonario|mansion|lifestyle|luxus|million[äa]r|reichtum|luxe|milliardaire|richesse/)) baseRpm = 11.0;
-  // HOGAR / DIY / TRUCOS CASEROS / REPARACIÓN (moho, ducha, TV, electrodomésticos, "modo secreto"…)
-  // Audiencia con casa = anunciantes de hogar/herramientas/seguros. Keywords específicas para NO robarle a gaming.
   else if (t.match(/home.?(improvement|repair|hack|tip)|how.?to.?(fix|clean|repair|unclog)|life.?hack|\bappliance|plumbing|\bmold\b|\bmould\b|clogged|\brust\b|\bleak\b|secret.?mode|hidden.?(feature|setting)|casero|caseros|del.?hogar|repar(ar|aci[oó]n|a.?tu)|arregl(ar|a.?tu)|\bmoho\b|\bgotera\b|\bfuga\b|desatasc|[oó]xido|electrodom|lavadora|nevera|refrigerador|televisor|control.?remoto|modo.?secreto|funci[oó]n.?oculta|el.?fabricante|truco.?(de|del|para|casero)|haushalt|reparieren|schimmel|fernseher|ger[äa]t|geheim(er)?.?modus|waschmaschine|k[üu]hlschrank|r[ée]parer|moisissure|astuce|t[ée]l[ée]viseur|mode.?secret/)) baseRpm = 8.0;
   else if (t.match(/health|fitness|workout|diet|nutrition|medical|salud|ejercicio|dieta|nutricion|medic|bienestar|gesundheit|ern[äa]hrung|abnehmen|sant[ée]|r[ée]gime|nutrition/)) baseRpm = 7.0;
   else if (t.match(/history|ancient|war|empire|civil|medieval|nomad|pharaoh|roman|viking|historia|antigu|imperio|guerra|civiliz|faraon|romano|vikingo|conquista|edad.?media|geschichte|krieg|reich|kaiser|antike|mittelalter|histoire|guerre|empire|antiquit[ée]|m[ée]di[ée]val/)) baseRpm = 6.0;
@@ -3134,14 +3098,11 @@ function calcScore(views, hoursOld, isShort, title, durationSecs) {
   else if (t.match(/psychology|philosophy|stoic|motivation|success|psicologia|filosofia|estoic|motivacion|exito|mentalidad|psychologie|philosophie|erfolg|stoizismus|psychologie|philosophie|succ[èe]s|stoicisme/)) baseRpm = 5.0;
   else if (t.match(/true.?crime|paranormal|horror|creepy|conspiracy|crimen|narco|terror|paranormal|conspiracion|misterio|verbrechen|mord|geheimnis|unheimlich|crime|meurtre|myst[èe]re|effrayant/)) baseRpm = 4.5;
   else if (t.match(/cooking|recipe|food|kitchen|cocina|receta|comida|gastronom|kochen|rezept|essen|k[üu]che|cuisine|recette|nourriture/)) baseRpm = 4.0;
-  else if (t.match(/\bships?\b|\bboats?\b|titanic|\bnavy\b|barco|naufragio|buque|schiff|\bboote?\b|submarine|submarino|navire|bateau|naufrage/)) baseRpm = 4.0;   // FIX: ship/boat/boot anclados (no roban friendship/relationship/championship/reboot)
+  else if (t.match(/\bships?\b|\bboats?\b|titanic|\bnavy\b|barco|naufragio|buque|schiff|\bboote?\b|submarine|submarino|navire|bateau|naufrage/)) baseRpm = 4.0;
   else if (t.match(/gaming|minecraft|roblox|fortnite|gameplay|gta|videojuego|juego|spiel|videospiel|jeu.?vid[ée]o/)) baseRpm = 3.5;
   else if (t.match(/vlog|challenge|prank|reaction|meme|funny|reto|reaccion|gracioso/)) baseRpm = 2.5;
 
-  // 2) Multiplicador por IDIOMA / geo (USA/UK ≈ tope; Alemania/Europa alto; español medio)
-  var rpmGeo = 0.75, gl;   // default neutro si no hay señal clara
-  // FIX idioma: quitados tokens ES que colisionaban con inglés (son/un/de/la/los/las/por/este).
-  // Alemán/francés reforzados con palabras de CONTENIDO (doku, krieg, biografie…) para no caer al default 0.75.
+  var rpmGeo = 0.75, gl;
   if (/[ñ¿¡]|\b(cómo|por qué|porque|qué|años|año|niños|según|español|cuánto|gratis|dinero|cuál|quién|nunca|nuevo|nueva|mejores|secreto|así|también|aquí|cosas|hizo|tienen|estaban)\b/.test(t)) { rpmGeo = 0.48; gl = 'es'; }
   else if (/[ßäöü]|\b(der|die|das|und|wie|warum|geschichte|jahre?|welt|deutsch|nicht|über|für|sind|wird|doku|dokumentation|krieg|leben|geheimnis|biografie|entdeckung|gr[öo][sß]te|wahrheit|warum)\b/.test(t)) { rpmGeo = 0.95; gl = 'de'; }
   else if (/[àâçéèêëîïôûù]|\b(le|les|une|des|pourquoi|comment|histoire|monde|ans|français|c'est|n'est|être|plus|guerre|documentaire|vie|secret|v[ée]rit[ée]|d[ée]couverte)\b/.test(t)) { rpmGeo = 0.78; gl = 'fr'; }
@@ -3157,23 +3118,18 @@ function calcScore(views, hoursOld, isShort, title, durationSecs) {
   var tier = TIERS[TIERS.length - 1];
   for (var i = 0; i < TIERS.length; i++) { if (vph >= TIERS[i].min) { tier = TIERS[i]; break; } }
   
-  // Revenue total real: views acumuladas × RPM
   var totalRev = Math.round((views * 0.95) / 1000 * rpm);
 
-  // Revenue mes 1: reconstruir desde VPH long-tail para videos viejos
   var rev = 0;
   if (hoursOld !== null && hoursOld <= 720) {
-    // Video reciente: proyectar mes completo
     var hoursLeft = 720 - hoursOld;
     var futureViews = vph * 0.25 * hoursLeft;
     rev = Math.round(((views + futureViews) * 0.95) / 1000 * rpm);
   } else {
-    // Video viejo: estimar mes 1 desde VPH long-tail (~5% del pico)
     var vphPeak = vph / 0.05;
     rev = Math.round((vphPeak * 24 * 7 * 1.7) * 0.95 / 1000 * rpm);
   }
   
-  // OS: VPH = 70pts, bonus frescura sin penalidad por antiguedad
   var freshBonus = (hoursOld == null) ? 20 : (hoursOld <= 168 ? 30 : hoursOld <= 720 ? 15 : hoursOld <= 1440 ? 8 : 5);
   var vphScore = Math.min(Math.log(vph + 1) / Math.log(10) / 4, 1) * 70;
   var os = Math.min(Math.round(vphScore + freshBonus), 100);
@@ -3250,7 +3206,7 @@ function makeBadge(views, sc) {
   // ── SUMMARY (1 line, always visible, compact)
   var summary = document.createElement('div');
   summary.className = 'nsp-badge-summary';
-  summary.title = 'Pasa el cursor para ver el detalle completo';
+  summary.title = 'Hover to see the full detail';
 
   if (sc.isShort) summary.appendChild(monoBadgeChip('▶', true));
   summary.appendChild(monoBadgeChip('⚡ ' + fmtVPH(sc.vph) + '/h', true));
@@ -3269,7 +3225,7 @@ function makeBadge(views, sc) {
       'linear-gradient(135deg,rgba(255,255,255,.04),rgba(0,0,0,.92))',
       otS.color + '55'
     );
-    outChipSummary.title = otS.ratio.toFixed(1) + 'x sobre baseline del canal';
+    outChipSummary.title = otS.ratio.toFixed(1) + 'x over the channel baseline';
     summary.appendChild(outChipSummary);
   }
 
@@ -3312,7 +3268,7 @@ function makeBadge(views, sc) {
       'linear-gradient(135deg,rgba(255,255,255,.04),rgba(0,0,0,.92))',
       ot.color + '55'
     );
-    outChip.title = ot.ratio.toFixed(1) + 'x sobre baseline del canal';
+    outChip.title = ot.ratio.toFixed(1) + 'x over the channel baseline';
     r3.appendChild(outChip);
   }
 
@@ -3552,8 +3508,7 @@ function getBadgeInsertParent(card, titleEl, createHost) {
   host.className = 'nsp-channel-badge-host';
   host.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin:4px 0 2px;width:100%;';
 
-  // Preferido (pagina de canal / layout lockup): pegar el host JUSTO DEBAJO de la linea de views,
-  // como hermano siguiente del bloque de metadata. Es la posicion que pidio el dueno (arriba-izq).
+  // On the channel page the host goes right below the views line, as the metadata block's next sibling.
   try {
     var metaVM = card.querySelector('yt-content-metadata-view-model');
     if (metaVM && metaVM.parentNode) {
@@ -3835,14 +3790,11 @@ function processCard(card) {
   var key = (vidInfo ? vidInfo.id : '') || ('' + views + hoursOld);
   if (!key) return null;
 
-  // BLOQUEAR: canales de musica. Los canales verificados no se descartan aquí:
-  // muchos nichos faceless válidos vienen de canales verificados y el filtro final decide.
+  // Music channels are blocked here. Verified channels are not: many valid faceless niches are verified and the final filter decides.
   try {
-    // Buscar en todo el bloque del meta del video
     var chNameEl = card.querySelector('#channel-name a, ytd-channel-name a, .ytd-channel-name, ytd-video-meta-block a');
     var chName = chNameEl ? chNameEl.textContent.trim() : '';
 
-    // M1: badge ytd-badge-supported-renderer (cualquier posicion en la tarjeta asociado al canal)
     var verifiedBadge =
       card.querySelector('ytd-video-owner-renderer ytd-badge-supported-renderer') ||
       card.querySelector('#channel-name ytd-badge-supported-renderer') ||
@@ -3851,12 +3803,10 @@ function processCard(card) {
       card.querySelector('#byline-container ytd-badge-supported-renderer') ||
       card.querySelector('ytd-video-meta-block ytd-badge-supported-renderer');
 
-    // M2: aria-label con "verified"
     var ariaVerified = card.querySelector(
       '[aria-label*="verified"], [aria-label*="verificado"], [aria-label*="Verified"]'
     );
 
-    // M3: simbolo de check en texto del canal
     var chBlock = card.querySelector('#channel-name, ytd-channel-name');
     var chText = chBlock ? chBlock.textContent : '';
     var hasCheckMark = chText.indexOf('\u2713') > -1 || chText.indexOf('\u2714') > -1 || chText.indexOf('\u2611') > -1;
@@ -3874,11 +3824,8 @@ function processCard(card) {
     title = (titleEl || card.querySelector('h3 a') || {}).textContent || '';
   } catch(e) {}
 
-  // Chequear badge en el punto EXACTO de inserción
   var insertParent = getBadgeInsertParent(card, titleEl);
-  // FIX DOBLE PILL: en pagina de canal el video es un ytd-rich-item-renderer que CONTIENE un
-  // ytd-rich-grid-media; ambos entran por SEL y cada uno insertaba su badge en un parent distinto.
-  // Guard a nivel del CONTENEDOR del video (igual que ensureChannelCardBadge): maximo un badge por video.
+  // Guard at the video container, not the card: on a channel page a rich-item and its rich-grid-media both match and each inserted its own badge.
   var videoBox = (card.closest && card.closest('ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer')) || card;
   if ((videoBox.querySelector && videoBox.querySelector('.nsp-badge')) || (insertParent && insertParent.querySelector && insertParent.querySelector('.nsp-badge'))) {
     if (isAshlyVCardCollectionActive()) {
@@ -3927,7 +3874,7 @@ function processCard(card) {
   sc.views = views;
   sc.subs = subs;
   
-  // Bonus por Outlier (vs subs, retained for OS scoring)
+  // Outlier bonus against subscriber count, kept for the OS score.
   if (subs > 0) sc.os += calculateOutlierBonus(views, subs);
 
   // Resolve channel identity BEFORE makeBadge so we can compute channel-outlier tier
@@ -4064,9 +4011,7 @@ var _allScored = [];
 
 function ensureChannelCardBadge(card) {
   if (!isChannelPage() || !card) return null;
-  // FIX DOBLE PILL: mirar el CONTENEDOR del video (rich-item ancestro), no solo la card.
-  // En pagina de canal el lockup entra aparte y su badge cae FUERA del alcance de card.querySelector
-  // (esta arriba, en el rich-item), dejando pasar un 2do pill. Subir al contenedor lo evita.
+  // Look at the video container, not just the card: on a channel page the lockup's badge sits outside card.querySelector's reach and a second pill slips through.
   var nspBox = (card.closest && card.closest('ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer')) || card;
   var hasExistingBadge = !!(card.querySelector('.nsp-badge') || (nspBox !== card && nspBox.querySelector && nspBox.querySelector('.nsp-badge')));
   if (hasExistingBadge && !isAshlyVCardCollectionActive()) return null;
@@ -4113,7 +4058,7 @@ function run() {
     if (!sc && isChannelPage()) sc = ensureChannelCardBadge(cards[i]);
     if (sc) { n++; _allScored.push(sc); }
   }
-  // Red de seguridad anti DOBLE PILL: como mucho UN badge por contenedor de video, pase lo que pase.
+  // Safety net: at most one badge per video container, whatever happened above.
   try {
     document.querySelectorAll('ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer').forEach(function(box) {
       var bs = box.querySelectorAll('.nsp-badge');
@@ -4230,8 +4175,7 @@ function getAshlyVDashboardBaseUrl() {
     }
   } catch(e) {}
 
-  // El bridge ISOLATED expone el extension ID en este atributo del DOM (MAIN world
-  // NO tiene chrome.runtime). Es la fuente confiable en la página de YouTube.
+  // MAIN world has no chrome.runtime, so the ISOLATED bridge publishes the extension id on this DOM attribute.
   try {
     var domExtId = document.documentElement.getAttribute('data-nsp-ext-id');
     if (domExtId && /^[a-z]{32}$/i.test(domExtId)) {
@@ -4329,11 +4273,7 @@ function postAshlyVBridgeSaveOpen(entry, openPage, channelQuery, urlQuery) {
 function saveAshlyVNichoSecure(nichoEntry, openPage, channelQuery, urlQuery) {
   var entry = sanitizeAshlyVNichoEntry(nichoEntry);
   // ── FAST PATH (MAIN world) ────────────────────────────────────────────────
-  // El content script corre en MAIN world, donde chrome.runtime NO existe: por eso
-  // sendRuntimeMessage SIEMPRE falla y window.open('chrome-extension://…') está
-  // bloqueado por Chrome. El ÚNICO canal real es el bridge (ISOLATED). Vamos directo:
-  // guarda Y abre el dashboard en un solo mensaje, al instante, sin arrastrar la
-  // cadena de promesas que igual fallaría. Esto arregla "se demora / no abre".
+  // In MAIN world there is no chrome.runtime, so the bridge is the only channel: one message saves and opens the dashboard at once.
   if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
     var bridgedNow = postAshlyVBridgeSaveOpen(entry, !!openPage, channelQuery, urlQuery);
     return Promise.resolve({ ok: !!bridgedNow, bridged: bridgedNow, viaBridge: true });
@@ -4758,7 +4698,7 @@ function saveNicheToWatchlist(key) {
   } catch(e) {}
 }
 
-// ── ASHLYV: Highlight top 10 thumbnails con borde neón ──────────────────────
+// ── ASHLYV: highlight the top 10 thumbnails with a neon border ──────────────
 var _ashlyv_highlights = [];
 var _ashlyv_scan_in_progress = false;
 var _ashlyv_prepare_timer = null;
@@ -4770,7 +4710,6 @@ var _ashlyv_prepared_scrolls = 0;
 var _ashlyv_prepared_seen_order = 0;
 var _ashlyv_unique_video_map = new Map();
 var _ashlyv_duplicate_stats = { duplicateKeys: 0, duplicateVideoIds: 0, duplicateTitleChannel: 0, skippedInvalid: 0 };
-// Deep scan honesto: suficiente pool para 10 nichos reales, sin perseguir basura normal.
 var ASHLYV_MAX_UNIQUE_SCAN = 620;
 var ASHLYV_MAX_SCROLL_BATCHES = 56;
 var ASHLYV_STOP_AFTER_NO_NEW_BATCHES = 6;
@@ -5483,7 +5422,7 @@ function injectAshlyVScanNavigatorBar() {
     label.textContent = 'SCAN NAV ' + (data.idx + 1) + '/' + data.items.length;
     var title = document.createElement('div');
     title.style.cssText = 'font-size:11px;font-weight:850;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-    title.textContent = current.title || current.channel || 'Nicho';
+    title.textContent = current.title || current.channel || 'Niche';
     var channel = document.createElement('div');
     channel.style.cssText = 'font-size:9px;color:rgba(255,255,255,.52);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
     channel.textContent = current.channel || current.url;
@@ -5509,9 +5448,9 @@ function injectAshlyVScanNavigatorBar() {
       b.onclick = fn;
       return b;
     }
-    actions.appendChild(navBtn('ANTERIOR', data.idx <= 0, function() { openNextAshlyVScanNiche(-1); }));
-    actions.appendChild(navBtn('ACTUAL', false, function() { openAshlyVScanNavIndex(data.idx, false); }));
-    actions.appendChild(navBtn('SIGUIENTE', data.idx >= data.items.length - 1, function() { openNextAshlyVScanNiche(1); }));
+    actions.appendChild(navBtn('PREVIOUS', data.idx <= 0, function() { openNextAshlyVScanNiche(-1); }));
+    actions.appendChild(navBtn('CURRENT', false, function() { openAshlyVScanNavIndex(data.idx, false); }));
+    actions.appendChild(navBtn('NEXT', data.idx >= data.items.length - 1, function() { openNextAshlyVScanNiche(1); }));
     bar.appendChild(top);
     bar.appendChild(actions);
     document.body.appendChild(bar);
@@ -6256,7 +6195,7 @@ function isAshlyVGoodFacelessResultCandidate(item) {
   if (PERSON_NAME_PATTERNS && PERSON_NAME_PATTERNS.test && PERSON_NAME_PATTERNS.test(sc.channelName || '')) return false;
   if (!isAshlyVTargetAiFacelessCandidate(item)) return false;
   if (!isAshlyVAiFacelessEconomicallyViable(item)) return false;
-  // BACK to strict: 50/4 (último que mantenía calidad). Loop progresivo en showAshlyVScanOverlay rellena hasta 10
+  // Strict thresholds 50/4: the progressive loop in showAshlyVScanOverlay tops the list up to 10.
   if (!explicitFaceless && facelessScore < 50) return false;
   if (!explicitFaceless && titleScore < 4) return false;
   return true;
@@ -6712,7 +6651,7 @@ function tryRotateAshlyVHomeTopic(btnTxt) {
 
   setTimeout(function() {
     runAshlyVPreparedScan({
-      initialText: ' CARGANDO ' + target.label.toUpperCase().slice(0, 14),
+      initialText: ' LOADING ' + target.label.toUpperCase().slice(0, 14),
       progressText: target.label.toUpperCase().slice(0, 10) + ' ',
       progressStep: 18,
       maxScrolls: 18,
@@ -6729,7 +6668,7 @@ function waitForAshlyVHomeFeedReady(opts) {
   opts = opts || {};
   var btnTxt = opts.btnTxt || null;
   var previousSignature = opts.previousSignature || '';
-  var label = (opts.label || 'nuevo fyp').toUpperCase().slice(0, 14);
+  var label = (opts.label || 'new fyp').toUpperCase().slice(0, 14);
   var delay = opts.delay || 700;
   var maxAttempts = opts.maxAttempts || 24;
   var minLoaded = opts.minLoaded || 12;
@@ -6777,10 +6716,10 @@ function resumeAshlyVPendingHomeScan() {
   waitForAshlyVHomeFeedReady({
     btnTxt: btnTxt,
     previousSignature: previousSignature,
-    label: stage > 1 ? 'reload fyp' : 'nuevo fyp',
+    label: stage > 1 ? 'reload fyp' : 'new fyp',
     onReady: function() {
       runAshlyVPreparedScan({
-        initialText: ' NUEVO FYP...',
+        initialText: ' NEW FYP',
         progressText: 'FYP ',
         progressStep: 20,
         maxScrolls: 18,
@@ -6796,7 +6735,7 @@ function resumeAshlyVPendingHomeScan() {
       clearAshlyVHomeScanStage();
       clearAshlyVPendingHomeSignature();
       runAshlyVPreparedScan({
-        initialText: ' ESCANEANDO...',
+        initialText: ' SCANNING',
         progressText: 'FYP ',
         maxScrolls: 8,
         minScrolls: 2,
@@ -6830,8 +6769,8 @@ function runAshlyVPreparedScan(opts) {
     opts.scrollDistance = 1800;
     opts.scrollDelay = 600;
     opts.runDelay = 1100;
-    opts.initialText = ' STEALTH...';
-    opts.progressText = 'BUSCANDO ';
+    opts.initialText = ' STEALTH';
+    opts.progressText = 'SEARCHING ';
     console.log('[NSP] Stealth country scan mode active:', window._nspStealthCountryScan);
   }
 
@@ -6848,8 +6787,8 @@ function runAshlyVPreparedScan(opts) {
   var growthHeightThreshold = opts.growthHeightThreshold || 260;
   var scrollDistance = opts.scrollDistance || depthCfg.scrollDistance || (homeFeedScan ? Math.max(1200, Math.round(window.innerHeight * 1.35)) : 2500);
   var scrollDelay = opts.scrollDelay || depthCfg.scrollDelay || (homeFeedScan ? 700 : 400);
-  var initialText = opts.initialText || ' SCROLLING...';
-  var progressText = opts.progressText || 'BUSCANDO ';
+  var initialText = opts.initialText || ' SCROLLING';
+  var progressText = opts.progressText || 'SEARCHING ';
   var runDelay = opts.runDelay || depthCfg.runDelay || 1500;
   var scroller = document.scrollingElement || document.documentElement || document.body;
   var maxHomeDistance = Math.max(900, Math.round(window.innerHeight * 1.08));
@@ -6874,7 +6813,7 @@ function runAshlyVPreparedScan(opts) {
   } else if (homeFeedScan && stealthActive) {
     // Stealth mode override even in home feed: keep our 300/14 limits
     scrollDistance = Math.min(scrollDistance, maxHomeDistance);
-    console.log('[NSP] Stealth mode bypassed homeFeedScan defaults — keeping targetCards=' + targetCards + ' maxScrolls=' + maxScrolls);
+    console.log('[NSP] Stealth mode bypassed homeFeedScan defaults, keeping targetCards=' + targetCards + ' maxScrolls=' + maxScrolls);
   }
 
   if (opts.scrollToTop) {
@@ -7010,7 +6949,7 @@ function runAshlyVPreparedScan(opts) {
       totalUniqueCandidates: _ashlyv_unique_video_map.size,
       facelessApprox: facelessCount
     });
-    updateAshlyVScanningOverlayStatus('Escaneando batch ' + batchNumber + ' / candidatos únicos ' + _ashlyv_unique_video_map.size + ' / faceless ' + facelessCount);
+    updateAshlyVScanningOverlayStatus('Scanning batch ' + batchNumber + ' / unique candidates ' + _ashlyv_unique_video_map.size + ' / faceless ' + facelessCount);
     return { domCardsSeen: cards.length, newCandidates: newCount, facelessApprox: facelessCount };
   }
 
@@ -7033,8 +6972,8 @@ function runAshlyVPreparedScan(opts) {
       batches: _ashlyv_prepared_batch_stats
     });
     console.log('[ASHLYV PREP] finish=' + reason + ' scrolls=' + scrollCount + ' cards=' + cardCount);
-    console.log('[PIPELINE 1/6] Scan iniciado. Total items extraídos del DOM: ' + cardCount + ' (scrolls=' + scrollCount + ' reason=' + reason + ')');
-    if (btnTxt) btnTxt.textContent = ' ANALIZANDO...';
+    console.log('[PIPELINE 1/6] Scan started. Total items pulled from the DOM: ' + cardCount + ' (scrolls=' + scrollCount + ' reason=' + reason + ')');
+    if (btnTxt) btnTxt.textContent = ' ANALYZING';
     scheduleStep(function() {
       _ashlyv_prepare_timer = null;
       runAshlyVScan();
@@ -7123,7 +7062,7 @@ function startAshlyVHomeScan(step, btnTxt) {
 
   if (step === 1) {
     closeAshlyVScanUi();
-    if (btnTxt) btnTxt.textContent = ' NUEVO FYP...';
+    if (btnTxt) btnTxt.textContent = ' NEW FYP';
     setAshlyVPendingHomeScan(true);
     setAshlyVPendingHomeSignature(getAshlyVLoadedCardState(12).signature);
     try {
@@ -7138,7 +7077,7 @@ function startAshlyVHomeScan(step, btnTxt) {
 
   if (step === 2) {
     closeAshlyVScanUi();
-    if (btnTxt) btnTxt.textContent = ' RECARGANDO FYP...';
+    if (btnTxt) btnTxt.textContent = ' RELOADING FYP';
     setAshlyVPendingHomeScan(true);
     setAshlyVPendingHomeSignature(getAshlyVLoadedCardState(12).signature);
     try {
@@ -7153,7 +7092,7 @@ function startAshlyVHomeScan(step, btnTxt) {
 
   if (step === 3) {
     closeAshlyVScanUi();
-    if (btnTxt) btnTxt.textContent = ' RELOAD FINAL...';
+    if (btnTxt) btnTxt.textContent = ' FINAL RELOAD';
     setAshlyVPendingHomeScan(true);
     setAshlyVPendingHomeSignature(getAshlyVLoadedCardState(12).signature);
     try {
@@ -7198,7 +7137,6 @@ function highlightTopVideos(topCards) {
     if (sc.tier && sc.tier.key === 'VIRAL') { color = '#E040FF'; glow = 'rgba(224,64,255,0.8)'; }
     else if (sc.tier && sc.tier.key === 'HOT') { color = '#ffffff'; glow = 'rgba(255,255,255,0.7)'; }
 
-    // Aplicar neón al card Y a sus padres hasta encontrar el contenedor visible
     var targets = [
       card,
       card.querySelector('ytd-thumbnail'),
@@ -7268,7 +7206,6 @@ function autoScrollToHighlights(topCards) {
     }
   }
 
-  // Empezar desde arriba primero
   window.scrollTo({ top: 0, behavior: 'smooth' });
   setTimeout(scrollToNext, 800);
 }
@@ -7280,16 +7217,16 @@ function showScanReport() {
   // Fresh manual scan: reset deep-retry counter so auto-retry can kick in again.
   window._ashlyv_deep_retry_count = 0;
   runAshlyVPreparedScan({
-    initialText: ' SCROLLING...',
-    progressText: 'BUSCANDO ',
+    initialText: ' SCROLLING',
+    progressText: 'SEARCHING ',
     scrollToTop: true
   });
 }
 
 function runAshlyVScanAuto() {
   runAshlyVPreparedScan({
-    initialText: ' CARGANDO...',
-    progressText: 'CARGANDO ',
+    initialText: ' LOADING',
+    progressText: 'LOADING ',
     scrollToTop: true
   });
 }
@@ -7301,16 +7238,12 @@ function runAshlyVScanNoFilter() {
 
 
 // ── ASHLYV Faceless Detector via YouTube Data API ────────────────────────────
-// SEGURIDAD: nunca hardcodear la API key (cualquiera que reciba la extensión la vería + gastaría tu cuota).
-// Se lee de almacenamiento; vacía por defecto → las funciones que la usan (validación de canal por YouTube
-// Data API + comentarios) degradan a heurística. El usuario pone la suya en Opciones si la quiere.
+// The API key is never hardcoded: it is read from storage and empty by default, so channel validation and comments fall back to heuristics until the user adds their own key in Options.
 var YT_API_KEY = (function () { try { return localStorage.getItem('nsp_yt_data_api_key') || ''; } catch (e) { return ''; } })();
 var _channelFacelessCache = {};
 
-// Palabras que sugieren nombre de persona real
 var PERSON_NAME_PATTERNS = /^(el |la |los |las |the |mr\.?|mrs\.?|dr\.?|coach |pastor |prof\.?)?(([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}\s){1,2}[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})(\s(oficial|official|tv|yt|canal|channel))?$/i;
 
-// Palabras que sugieren canal faceless/temático
 var FACELESS_CHANNEL_PATTERNS = /history|facts|science|mystery|ancient|dark|horror|crime|true crime|psychology|stoic|philosophy|myth|legend|space|universe|quantum|survival|wilderness|finance|invest|crypto|wealth|money|tech|ai|animated|narrated|documentary|explained|knowledge|mind|brain|secret|hidden|forbidden|untold|curiosity|curious|learn|education|histor|ciencia|misterio|oscuro|crimen|psicolog|filosof|mitolog|espacio|universo|supervi|finanza|inversi|cripto|riqueza|tecnolog|animad|narrad|document|explicad|conocim|mente|secreto|oculto|prohibid/i;
 
 function analyzeFacelessScore(channelData) {
@@ -7324,7 +7257,7 @@ function analyzeFacelessScore(channelData) {
   // === CHANNEL NAME (peso 30-40) ===
   if (FACELESS_CHANNEL_PATTERNS.test(name)) score += 30;
   if (PERSON_NAME_PATTERNS.test(channelData.title || '')) score -= 25;
-  // Person name "Neymar Jr", "Jorge López", etc → strong reject
+  // Two plain capitalised words read as a person's name, so reject hard.
   if (/^[a-zà-ſ]{2,}\s+[a-zà-ſ]{2,}(\s+(jr|sr|oficial|official))?$/i.test((channelData.title || '').trim())) score -= 30;
 
   // === DESCRIPTION (peso ±35) ===
@@ -7335,39 +7268,37 @@ function analyzeFacelessScore(channelData) {
   // Live streaming / commentary
   if (/live\s+stream|live\s+commentary|reaction\s+channel|reacciones|mukbang|asmr/i.test(desc)) score -= 30;
 
-  // === VIDEO COUNT (peso 5-20) — canal con MUCHOS videos = content factory ===
+  // Video count: a channel with many videos is a content factory.
   if (videoCount > 200) score += 20;
   else if (videoCount > 100) score += 15;
   else if (videoCount > 50) score += 10;
   else if (videoCount > 20) score += 5;
-  else if (videoCount < 10) score -= 10; // canal joven personal probable
+  else if (videoCount < 10) score -= 10;
 
-  // === CHANNEL AGE + GROWTH (peso ±25) — clave para detectar automation ===
+  // Channel age against growth, the clearest automation signal.
   if (publishedAt) {
     var ageMonths = (Date.now() - new Date(publishedAt).getTime()) / (1000 * 60 * 60 * 24 * 30);
-    // Canal joven con tracción rápida = automation
-    if (ageMonths < 6 && subs > 50000) score += 25; // explosivo joven = automation
+    if (ageMonths < 6 && subs > 50000) score += 25;
     else if (ageMonths < 12 && subs > 100000) score += 20;
     else if (ageMonths < 24 && subs > 500000) score += 15;
-    // Canal muy viejo con pocos subs = personal/abandoned
     else if (ageMonths > 60 && subs < 50000) score -= 15;
-    // Upload velocity (canal de automation publica >4 videos/mes)
+    // Upload velocity: automation channels publish more than four videos a month.
     if (ageMonths > 1 && videoCount > 0) {
       var vidsPerMonth = videoCount / ageMonths;
-      if (vidsPerMonth > 10) score += 15; // factory de contenido
+      if (vidsPerMonth > 10) score += 15;
       else if (vidsPerMonth > 4) score += 8;
-      else if (vidsPerMonth < 1 && ageMonths > 12) score -= 10; // poco activo
+      else if (vidsPerMonth < 1 && ageMonths > 12) score -= 10;
     }
   }
 
-  // === SUBS SWEET SPOT (peso 5-10) — automation canales suelen 10K-2M ===
+  // Subscriber sweet spot: automation channels usually sit between 10K and 2M.
   if (subs >= 10000 && subs <= 2000000) score += 8;
-  else if (subs > 5000000) score -= 5; // mega canal = brand grande, no replicable
+  else if (subs > 5000000) score -= 5;
 
   return Math.max(0, Math.min(100, score));
 }
 
-// === PERSISTENT CACHE (chrome.storage.local) — TTL 7 días ===
+// Persistent cache in chrome.storage.local, 7 day TTL.
 var NSP_CHANNEL_CACHE_KEY = 'nsp_channel_faceless_v2';
 var NSP_CHANNEL_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days
 var _nspChannelCacheLoaded = false;
@@ -7380,7 +7311,6 @@ function nspLoadChannelCache() {
         var cache = (res && res[NSP_CHANNEL_CACHE_KEY]) || {};
         var now = Date.now();
         var clean = {};
-        // Limpiar expirados
         Object.keys(cache).forEach(function(k) {
           if (cache[k] && (now - cache[k].ts) < NSP_CHANNEL_CACHE_TTL) {
             clean[k] = cache[k];
@@ -7408,7 +7338,7 @@ function nspSaveChannelCache() {
   } catch(e) {}
 }
 
-// === BATCH FETCH — hasta 50 channelIds por request (1 unit quota) ===
+// Batch fetch, up to 50 channel ids per request and one quota unit.
 function getChannelFacelessScoreBatch(channelIds, callback) {
   // Sanitize IDs
   var ids = (channelIds || []).map(function(id) {
@@ -7419,7 +7349,6 @@ function getChannelFacelessScoreBatch(channelIds, callback) {
   var result = {};
   var toFetch = [];
 
-  // Check cache primero
   ids.forEach(function(id) {
     if (_channelFacelessCache[id] !== undefined) {
       result[id] = _channelFacelessCache[id];
@@ -7468,7 +7397,7 @@ function getChannelFacelessScoreBatch(channelIds, callback) {
           console.warn('[NSP API] SW fetch failed:', swResponse && swResponse.error, 'status:', swResponse && swResponse.status);
           if (swResponse && (swResponse.code === 403 || swResponse.status === 403)) {
             window._nspApiQuotaExceeded = true;
-            try { nspHideApiToast(false, { msg: 'Quota agotada — usando filtros locales' }); } catch(e) {}
+            try { nspHideApiToast(false, { msg: 'Quota used up, falling back to local filters' }); } catch(e) {}
           } else {
             try { nspHideApiToast(false, { msg: 'API error: ' + (swResponse && swResponse.error || 'unknown') }); } catch(e) {}
           }
@@ -7493,7 +7422,7 @@ function getChannelFacelessScoreBatch(channelIds, callback) {
           _channelFacelessCache[cid] = score;
           result[cid] = score;
         });
-        // Channels que no devolvió la API → score 0 (canal eliminado/inválido)
+        // A channel the API did not return is deleted or invalid, so it scores 0.
         batch.forEach(function(cid) {
           if (found[cid] === undefined) {
             _channelFacelessCache[cid] = 0;
@@ -7504,7 +7433,7 @@ function getChannelFacelessScoreBatch(channelIds, callback) {
       })
       .catch(function(err) {
         console.warn('[NSP API] batch fetch failed:', err && err.message);
-        // Si la API falla, score neutral 50 para no perder items
+        // If the API fails, a neutral 50 keeps the items in play.
         batch.forEach(function(cid) {
           if (result[cid] === undefined) {
             _channelFacelessCache[cid] = 50;
@@ -7522,14 +7451,13 @@ function getChannelFacelessScoreBatch(channelIds, callback) {
   });
 }
 
-// Legacy single-channel fetcher (mantener para retro-compat)
+// Legacy single-channel fetcher, kept for backwards compatibility.
 function getChannelFacelessScore(channelId, callback) {
   getChannelFacelessScoreBatch([channelId], function(result) {
     callback(result[channelId] != null ? result[channelId] : 50);
   });
 }
 
-// Cargar cache al iniciar
 try { nspLoadChannelCache(); } catch(e) {}
 
 // ── ASHLYV Alerts, RPM stats, thumbnail AI, phases, and debug UI ─────────────
@@ -7623,7 +7551,7 @@ function finishAshlyVDebugStats() {
 
 function getAshlyVResultTitle(item) {
   var sc = (item && item.sc) || {};
-  return (sc.title || item && item.title || 'Nicho sin titulo').trim();
+  return (sc.title || item && item.title || 'Untitled niche').trim();
 }
 
 function getAshlyVNicheTitle(item) {
@@ -7632,7 +7560,7 @@ function getAshlyVNicheTitle(item) {
   if (!label || label === 'General' || label === '🔮 General') {
     label = detectNicheLabel((sc.title || '') + ' ' + (_session.query || ''));
   }
-  if (!label || label === '🔮 General') label = (sc.title || 'Nicho faceless').slice(0, 70);
+  if (!label || label === '🔮 General') label = (sc.title || 'Faceless niche').slice(0, 70);
   return String(label).replace(/^🔮\s*/, '').trim();
 }
 
@@ -7748,7 +7676,7 @@ function checkAshlyVNicheAlerts(results) {
           facelessScore: getAshlyVFacelessScore(item),
           vph: Math.round(sc.vph || 0)
         };
-        fireAshlyVNotification('⚡ Nicho en alza: ' + nicheTitle, 'RPM subió de $' + alert.rpmBefore + ' a $' + alert.rpmAfter + ' — Este nicho está pagando más');
+        fireAshlyVNotification('Niche on the rise: ' + nicheTitle, 'RPM went from $' + alert.rpmBefore + ' to $' + alert.rpmAfter + ', this niche is paying more');
       } else if (!before && rpm >= 8) {
         alert = {
           nicheTitle: nicheTitle,
@@ -7759,7 +7687,7 @@ function checkAshlyVNicheAlerts(results) {
           facelessScore: getAshlyVFacelessScore(item),
           vph: Math.round(sc.vph || 0)
         };
-        fireAshlyVNotification('🔥 Nuevo nicho detectado: ' + nicheTitle, 'RPM estimado: $' + alert.rpmAfter + ' | VPH: ' + alert.vph + ' | Primera vez detectado');
+        fireAshlyVNotification('New niche detected: ' + nicheTitle, 'Estimated RPM: $' + alert.rpmAfter + ' | VPH: ' + alert.vph + ' | first time seen');
       }
       if (alert) alerts.push(alert);
       baselines[nicheId] = before ? Number(((before * 0.75) + (rpm * 0.25)).toFixed(2)) : Number(rpm.toFixed(2));
@@ -7790,8 +7718,8 @@ window.AshlyVAlerts = {
 function getAshlyVPageTypeBadgeText() {
   if (isHomeFeedPage && isHomeFeedPage()) return '🏠 HOME';
   if (isSearchPage && isSearchPage()) return '🔍 SEARCH';
-  if (/^\/@|^\/channel\/|^\/c\/|^\/user\//.test(String(location.pathname || ''))) return '📺 CANAL';
-  return '📺 CANAL';
+  if (/^\/@|^\/channel\/|^\/c\/|^\/user\//.test(String(location.pathname || ''))) return '📺 CHANNEL';
+  return '📺 CHANNEL';
 }
 
 /* Creates a reusable dark-theme AshlyV button. */
@@ -7922,15 +7850,15 @@ function requestAshlyVAnthropic(payload) {
   return new Promise(function(resolve, reject) {
     try {
       if (window._ashlyv_disable_api_calls) {
-        reject(new Error('API deshabilitada por seguridad'));
+        reject(new Error('API calls are disabled for safety'));
         return;
       }
       if (!ashlyv_checkApiRateLimit()) {
-        reject(new Error('Espera unos segundos antes de analizar otra miniatura'));
+        reject(new Error('Wait a few seconds before analyzing another thumbnail'));
         return;
       }
       if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-        reject(new Error('Background worker no disponible'));
+        reject(new Error('Background worker not available'));
         return;
       }
       payload = payload || {};
@@ -7944,12 +7872,12 @@ function requestAshlyVAnthropic(payload) {
         try {
           var err = chrome.runtime && chrome.runtime.lastError;
           if (err) {
-            reject(new Error(err.message || 'No se pudo conectar con background'));
+            reject(new Error(err.message || 'Could not reach the background worker'));
             return;
           }
         } catch(e) {}
         if (!res || !res.ok) {
-          reject(new Error(res && res.error ? res.error : 'No se pudo analizar la miniatura'));
+          reject(new Error(res && res.error ? res.error : 'Could not analyze the thumbnail'));
           return;
         }
         resolve(res.data);
@@ -7965,13 +7893,13 @@ function ensureAshlyVThumbnailConsent() {
   return ashlyVStorageGet('ashlyv_thumbnail_consent').then(function(res) {
     if (res.ashlyv_thumbnail_consent === true) return true;
     return new Promise(function(resolve) {
-      var consent = createAshlyVModal('ashlyv-thumbnail-consent-modal', 'CONSENTIMIENTO AI', false);
-      appendAshlyVText(consent.body, 'div', 'Esta función envía tu imagen a la API de Anthropic para análisis.', 'font-size:13px;line-height:1.7;margin-bottom:8px;color:#EAF0FF;');
-      appendAshlyVText(consent.body, 'div', 'No se envía ningún dato de tu cuenta de YouTube.', 'font-size:12px;line-height:1.7;color:rgba(234,240,255,.72);margin-bottom:18px;');
+      var consent = createAshlyVModal('ashlyv-thumbnail-consent-modal', 'AI CONSENT', false);
+      appendAshlyVText(consent.body, 'div', 'This feature sends your image to the Anthropic API for analysis.', 'font-size:13px;line-height:1.7;margin-bottom:8px;color:#EAF0FF;');
+      appendAshlyVText(consent.body, 'div', 'No data from your YouTube account is sent.', 'font-size:12px;line-height:1.7;color:rgba(234,240,255,.72);margin-bottom:18px;');
       var actions = document.createElement('div');
       actions.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;';
-      var cancel = ashlyVThemeButton('CANCELAR');
-      var ok = ashlyVThemeButton('CONTINUAR');
+      var cancel = ashlyVThemeButton('CANCEL');
+      var ok = ashlyVThemeButton('CONTINUE');
       cancel.onclick = function() { consent.close(); resolve(false); };
       ok.onclick = function() {
         var payload = {};
@@ -8018,8 +7946,8 @@ function renderAshlyVThumbnailResult(host, result) {
     });
     host.appendChild(wrap);
   }
-  pills('FORTALEZAS', result.strengths || [], '#00DC82');
-  pills('DEBILIDADES', result.weaknesses || [], '#FF4D6D');
+  pills('STRENGTHS', result.strengths || [], '#00DC82');
+  pills('WEAKNESSES', result.weaknesses || [], '#FF4D6D');
 
   var ol = document.createElement('ol');
   ol.style.cssText = 'margin-top:12px;color:#EAF0FF;font-size:11px;line-height:1.7;';
@@ -8027,10 +7955,10 @@ function renderAshlyVThumbnailResult(host, result) {
   host.appendChild(ol);
 
   [
-    ['Emoción', result.emotionScore],
-    ['Legibilidad', result.textReadability],
-    ['Contraste', result.colorContrast],
-    ['Curiosidad', result.curiosityHook]
+    ['Emotion', result.emotionScore],
+    ['Readability', result.textReadability],
+    ['Contrast', result.colorContrast],
+    ['Curiosity', result.curiosityHook]
   ].forEach(function(row) {
     var val = Math.max(0, Math.min(10, Number(row[1] || 0)));
     var line = document.createElement('div');
@@ -8045,7 +7973,7 @@ function renderAshlyVThumbnailHistory(host) {
   ashlyVStorageGet(ASHLYV_THUMBNAIL_HISTORY_KEY).then(function(res) {
     var history = res[ASHLYV_THUMBNAIL_HISTORY_KEY] || [];
     if (!history.length) {
-      appendAshlyVText(host, 'div', 'Aun no hay miniaturas analizadas.', 'padding:14px;color:rgba(234,240,255,.6);font-size:11px;');
+      appendAshlyVText(host, 'div', 'No thumbnails analyzed yet.', 'padding:14px;color:rgba(234,240,255,.6);font-size:11px;');
       return;
     }
     history.slice(0, 10).forEach(function(entry) {
@@ -8069,12 +7997,12 @@ function renderAshlyVThumbnailHistory(host) {
 
 /* Opens the thumbnail analyzer modal and handles upload/history tabs. */
 function showAshlyVThumbnailAnalyzerModal() {
-  var modal = createAshlyVModal('ashlyv-thumbnail-modal', 'ANALIZAR MINIATURA', false);
+  var modal = createAshlyVModal('ashlyv-thumbnail-modal', 'ANALYZE THUMBNAIL', false);
   var body = modal.body;
   var tabs = document.createElement('div');
   tabs.style.cssText = 'display:flex;gap:8px;margin-bottom:14px;';
-  var analyzeTab = ashlyVThemeButton('Analizar');
-  var historyTab = ashlyVThemeButton('Historial');
+  var analyzeTab = ashlyVThemeButton('Analyze');
+  var historyTab = ashlyVThemeButton('History');
   tabs.appendChild(analyzeTab);
   tabs.appendChild(historyTab);
   var analyzeWrap = document.createElement('div');
@@ -8093,19 +8021,19 @@ function showAshlyVThumbnailAnalyzerModal() {
     renderAshlyVThumbnailHistory(historyWrap);
   };
   var label1 = document.createElement('label');
-  label1.textContent = 'Sube tu miniatura';
+  label1.textContent = 'Upload your thumbnail';
   label1.style.cssText = 'display:block;font-size:11px;font-weight:900;margin-bottom:8px;';
   var file = document.createElement('input');
   file.type = 'file'; file.accept = 'image/*';
   file.style.cssText = 'width:100%;padding:10px;border-radius:10px;background:#0d1020;border:1px solid rgba(255,255,255,.14);color:#EAF0FF;margin-bottom:14px;';
   var label2 = document.createElement('label');
-  label2.textContent = 'O pega URL de canal competencia';
+  label2.textContent = 'Or paste a competitor channel URL';
   label2.style.cssText = 'display:block;font-size:11px;font-weight:900;margin-bottom:8px;';
   var competitor = document.createElement('input');
   competitor.type = 'text';
-  competitor.placeholder = 'https://youtube.com/@canal';
+  competitor.placeholder = 'https://youtube.com/@channel';
   competitor.style.cssText = file.style.cssText;
-  var submit = ashlyVThemeButton('ANALIZAR CON AI');
+  var submit = ashlyVThemeButton('ANALYZE WITH AI');
   var status = document.createElement('div');
   status.style.cssText = 'margin-top:12px;font-size:11px;color:rgba(234,240,255,.72);line-height:1.6;';
   var resultBox = document.createElement('div');
@@ -8113,16 +8041,16 @@ function showAshlyVThumbnailAnalyzerModal() {
 
   submit.onclick = function() {
     var imageFile = file.files && file.files[0];
-    if (!imageFile) { status.textContent = 'Sube una miniatura primero.'; return; }
+    if (!imageFile) { status.textContent = 'Upload a thumbnail first.'; return; }
     if (!/^image\//i.test(imageFile.type || '') || imageFile.size > 8 * 1024 * 1024) {
-      status.textContent = 'Archivo inválido o demasiado grande (máx. 8MB).';
+      status.textContent = 'That file is not an image, or it is larger than 8 MB.';
       return;
     }
     submit.disabled = true;
-    status.textContent = 'Analizando con Claude...';
+    status.textContent = 'Analyzing with Claude';
     var previewUrl = '';
     ensureAshlyVThumbnailConsent().then(function(allowed) {
-      if (!allowed) throw new Error('Análisis cancelado');
+      if (!allowed) throw new Error('Analysis cancelled');
       return fileToAshlyVDataUrl(imageFile);
     }).then(function(dataUrl) {
       previewUrl = dataUrl;
@@ -8135,7 +8063,7 @@ function showAshlyVThumbnailAnalyzerModal() {
     }).then(function(data) {
       var text = data && data.content && data.content[0] && data.content[0].text;
       var parsed = extractAshlyVJson(text);
-      if (!parsed) throw new Error('Error al parsear respuesta');
+      if (!parsed) throw new Error('Could not read the response');
       status.textContent = '';
       renderAshlyVThumbnailResult(resultBox, parsed);
       return ashlyVStorageGet(ASHLYV_THUMBNAIL_HISTORY_KEY).then(function(res) {
@@ -8145,7 +8073,7 @@ function showAshlyVThumbnailAnalyzerModal() {
         return ashlyVStorageSet(payload);
       });
     }).catch(function(err) {
-      status.textContent = err && err.message ? err.message : 'No se pudo analizar la miniatura.';
+      status.textContent = err && err.message ? err.message : 'Could not analyze the thumbnail.';
     }).then(function() {
       submit.disabled = false;
     });
@@ -8154,15 +8082,15 @@ function showAshlyVThumbnailAnalyzerModal() {
 
 function getAshlyVPhaseDefs() {
   return [
-    { id: 'phase1', title: 'PHASE 1 — YouTube Long-Form Faceless', weeks: 'Semanas 1-4', tools: 'ElevenLabs, Midjourney, CapCut', target: '1K subs + monetización YouTube', tasks: ['Elegir nicho con RPM > $8', 'Crear 4 videos con AI voice (ElevenLabs)', 'Optimizar thumbnails con NSP', 'Publicar 3x por semana', 'Alcanzar 1000 subs + 4000 horas de watch time'] },
-    { id: 'phase2', title: 'PHASE 2 — YouTube Shorts + TikTok Repurpose', weeks: 'Semanas 5-8', tools: 'OpusClip, AutoCut, TikTok Scheduler', target: '10K views/día', tasks: ['Recortar long-form en clips de 45-59s', 'Publicar 1 Short por día', 'Cross-post a TikTok automáticamente', 'A/B test de thumbnails', '10K views por día en Shorts'] },
-    { id: 'phase3', title: 'PHASE 3 — Instagram Reels Automation', weeks: 'Semanas 9-12', tools: 'Make.com, Publer, Canva API', target: '5K followers + brand deals', tasks: ['Conectar con Make.com o Zapier', 'Auto-post Reels desde TikTok', 'Crear templates Canva para cada nicho', '2 Reels por día sin trabajo manual', '5K seguidores Instagram'] },
-    { id: 'phase4', title: 'PHASE 4 — Pinterest + Podcast + Snapchat', weeks: 'Semanas 13-16', tools: 'Tailwind, Anchor.fm, Snapchat Creator', target: '$1000/mes multi-plataforma', tasks: ['Crear tableros Pinterest con clips', 'Lanzar podcast feed RSS', 'Snapchat Spotlight (mismo contenido)', 'Revenue tracking multi-plataforma', '$1000/mes ingresos combinados'] }
+    { id: 'phase1', title: 'PHASE 1: YouTube long form faceless', weeks: 'Weeks 1-4', tools: 'ElevenLabs, Midjourney, CapCut', target: '1K subs + YouTube monetization', tasks: ['Pick a niche with RPM above $8', 'Make 4 videos with an AI voice (ElevenLabs)', 'Tune thumbnails with NSP', 'Publish 3 times a week', 'Reach 1000 subs and 4000 watch hours'] },
+    { id: 'phase2', title: 'PHASE 2: YouTube Shorts and TikTok repurpose', weeks: 'Weeks 5-8', tools: 'OpusClip, AutoCut, TikTok Scheduler', target: '10K views a day', tasks: ['Cut long form into 45-59s clips', 'Publish one Short a day', 'Cross post to TikTok automatically', 'A/B test thumbnails', '10K views a day on Shorts'] },
+    { id: 'phase3', title: 'PHASE 3: Instagram Reels automation', weeks: 'Weeks 9-12', tools: 'Make.com, Publer, Canva API', target: '5K followers + brand deals', tasks: ['Connect Make.com or Zapier', 'Auto post Reels from TikTok', 'Build a Canva template per niche', '2 Reels a day with no manual work', '5K Instagram followers'] },
+    { id: 'phase4', title: 'PHASE 4: Pinterest, podcast and Snapchat', weeks: 'Weeks 13-16', tools: 'Tailwind, Anchor.fm, Snapchat Creator', target: '$1000 a month across platforms', tasks: ['Build Pinterest boards from clips', 'Launch an RSS podcast feed', 'Snapchat Spotlight with the same content', 'Track revenue per platform', '$1000 a month combined'] }
   ];
 }
 
 function showAshlyVPhaseRoadmapModal() {
-  var modal = createAshlyVModal('ashlyv-phases-modal', 'ROADMAP MULTI-PLATAFORMA', true);
+  var modal = createAshlyVModal('ashlyv-phases-modal', 'MULTI PLATFORM ROADMAP', true);
   modal.overlay.style.alignItems = 'stretch';
   modal.overlay.style.justifyContent = 'stretch';
   if (modal.overlay.firstChild) {
@@ -8254,30 +8182,30 @@ function showAshlyVPhaseRoadmapModal() {
       var low = Math.round(videosPerWeek * 4.3 * 50000 * 8 / 1000);
       var high = Math.round(low * 2.5);
 
-      appendAshlyVText(body, 'div', 'Sistema operativo de ejecución para canales faceless. Define capacidad, sigue hitos reales y documenta bloqueos por fase.', 'font-size:13px;color:rgba(255,255,255,.72);margin-bottom:20px;');
+      appendAshlyVText(body, 'div', 'Execution system for faceless channels. Set your capacity, track real milestones and write down what blocks each phase.', 'font-size:13px;color:rgba(255,255,255,.72);margin-bottom:20px;');
 
       var summary = document.createElement('div');
       summary.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px;';
-      textCard(summary, 'Progreso total', overall + '%', unlocked + ' fases desbloqueadas');
-      textCard(summary, 'Foco actual', focus.title.replace('PHASE ', 'FASE '), focus.weeks);
-      textCard(summary, 'Proyección 6 meses', '$' + low.toLocaleString() + ' — $' + high.toLocaleString() + '/mes', videosPerWeek + ' videos por semana');
-      textCard(summary, 'Meta mensual', '$' + Number(ops.revenueGoal || 0).toLocaleString(), 'Actual: $' + Number(ops.currentRevenue || 0).toLocaleString());
+      textCard(summary, 'Total progress', overall + '%', unlocked + ' phases unlocked');
+      textCard(summary, 'Current focus', focus.title, focus.weeks);
+      textCard(summary, '6 month projection', '$' + low.toLocaleString() + ' to $' + high.toLocaleString() + ' a month', videosPerWeek + ' videos per week');
+      textCard(summary, 'Monthly goal', '$' + Number(ops.revenueGoal || 0).toLocaleString(), 'Current: $' + Number(ops.currentRevenue || 0).toLocaleString());
       body.appendChild(summary);
 
       var opsCard = document.createElement('div');
       opsCard.style.cssText = 'margin-bottom:18px;padding:18px;border:1px solid rgba(255,255,255,.16);border-radius:22px;background:rgba(255,255,255,.02);';
-      appendAshlyVText(opsCard, 'div', 'PLAN OPERATIVO', 'font-size:14px;font-weight:900;letter-spacing:.12em;margin-bottom:14px;');
+      appendAshlyVText(opsCard, 'div', 'OPERATING PLAN', 'font-size:14px;font-weight:900;letter-spacing:.12em;margin-bottom:14px;');
       var opsGrid = document.createElement('div');
       opsGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;';
-      inputField(opsGrid, 'Videos por semana', 'weeklyVideos', 'Usado en la proyección y capacidad');
-      inputField(opsGrid, 'Horas por semana', 'hoursPerWeek', 'Capacidad real de producción');
-      inputField(opsGrid, 'Meta de ingreso mensual', 'revenueGoal', 'Objetivo financiero');
-      inputField(opsGrid, 'Ingreso mensual actual', 'currentRevenue', 'Seguimiento de avance');
-      inputField(opsGrid, 'Subs actuales', 'currentSubscribers', 'Base del canal');
+      inputField(opsGrid, 'Videos per week', 'weeklyVideos', 'Used for the projection and your capacity');
+      inputField(opsGrid, 'Hours per week', 'hoursPerWeek', 'Real production capacity');
+      inputField(opsGrid, 'Monthly revenue goal', 'revenueGoal', 'Financial target');
+      inputField(opsGrid, 'Current monthly revenue', 'currentRevenue', 'Progress tracking');
+      inputField(opsGrid, 'Current subs', 'currentSubscribers', 'Channel baseline');
       opsCard.appendChild(opsGrid);
       var toolbar = document.createElement('div');
       toolbar.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;';
-      var exportBtn = ashlyVThemeButton('EXPORTAR PLAN');
+      var exportBtn = ashlyVThemeButton('EXPORT PLAN');
       exportBtn.style.cssText = 'padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.04);color:#FFFFFF;font-family:ui-monospace,monospace;font-size:10px;font-weight:900;letter-spacing:.08em;cursor:pointer;';
       exportBtn.onclick = function() {
         var blob = new Blob([JSON.stringify({ progress: progress, ops: ops, notes: notes }, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -8288,7 +8216,7 @@ function showAshlyVPhaseRoadmapModal() {
         a.click();
         setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
       };
-      var resetBtn = ashlyVThemeButton('RESET FASES');
+      var resetBtn = ashlyVThemeButton('RESET PHASES');
       resetBtn.style.cssText = exportBtn.style.cssText;
       resetBtn.onclick = function() {
         progress = {};
@@ -8304,13 +8232,13 @@ function showAshlyVPhaseRoadmapModal() {
         var prevPct = idx === 0 ? 100 : pctFor(defs[idx - 1]);
         var locked = idx > 0 && prevPct < 75;
         var pct = pctFor(phase);
-        var status = locked ? 'BLOQUEADO' : (pct >= 100 ? 'COMPLETADO' : 'ACTIVO');
+        var status = locked ? 'LOCKED' : (pct >= 100 ? 'COMPLETE' : 'ACTIVE');
         var card = document.createElement('div');
         card.style.cssText = 'position:relative;margin-bottom:16px;padding:18px;border-radius:22px;background:#090909;border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.03);';
         var top = document.createElement('div');
         top.style.cssText = 'display:flex;justify-content:space-between;gap:12px;align-items:flex-start;';
         var left = document.createElement('div');
-        appendAshlyVText(left, 'div', phase.title.replace('PHASE', 'FASE'), 'font-size:18px;font-weight:900;letter-spacing:.01em;');
+        appendAshlyVText(left, 'div', phase.title, 'font-size:18px;font-weight:900;letter-spacing:.01em;');
         appendAshlyVText(left, 'div', phase.weeks, 'font-size:11px;color:rgba(255,255,255,.58);margin-top:6px;');
         appendAshlyVText(left, 'div', 'Tools: ' + phase.tools, 'font-size:11px;color:rgba(255,255,255,.58);margin-top:6px;');
         appendAshlyVText(left, 'div', 'Target: ' + phase.target, 'font-size:11px;color:#FFFFFF;margin-top:6px;');
@@ -8346,10 +8274,10 @@ function showAshlyVPhaseRoadmapModal() {
         });
         var noteWrap = document.createElement('div');
         noteWrap.style.cssText = 'margin-top:16px;';
-        appendAshlyVText(noteWrap, 'div', 'Notas operativas', 'font-size:11px;color:rgba(255,255,255,.62);margin-bottom:8px;font-weight:700;');
+        appendAshlyVText(noteWrap, 'div', 'Operating notes', 'font-size:11px;color:rgba(255,255,255,.62);margin-bottom:8px;font-weight:700;');
         var note = document.createElement('textarea');
         note.value = notes[phase.id] || '';
-        note.placeholder = 'Bloqueos, ideas, SOPs, herramientas, aprendizajes...';
+        note.placeholder = 'Blockers, ideas, SOPs, tools, lessons';
         note.style.cssText = 'width:100%;min-height:88px;padding:12px 14px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:#0c0c0c;color:#FFFFFF;font-family:ui-monospace,monospace;resize:vertical;';
         note.onchange = function() {
           notes[phase.id] = note.value.slice(0, 3000);
@@ -8360,7 +8288,7 @@ function showAshlyVPhaseRoadmapModal() {
         if (locked) {
           var lock = document.createElement('div');
           lock.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.58);border-radius:22px;font-size:18px;font-weight:900;letter-spacing:.08em;color:#FFFFFF;';
-          lock.textContent = 'BLOQUEADO';
+          lock.textContent = 'LOCKED';
           card.appendChild(lock);
         }
         body.appendChild(card);
@@ -8371,7 +8299,7 @@ function showAshlyVPhaseRoadmapModal() {
 }
 
 function showAshlyVRPMLeaderboardModal() {
-  var modal = createAshlyVModal('ashlyv-rpm-modal', '💰 NICHOS QUE MÁS PAGAN', true);
+  var modal = createAshlyVModal('ashlyv-rpm-modal', 'HIGHEST PAYING NICHES', true);
   var body = modal.body;
   var filter = 'all';
   try {
@@ -8427,18 +8355,18 @@ function showAshlyVRPMLeaderboardModal() {
     }
     function render() {
       clearAshlyVNode(body);
-      appendAshlyVText(body, 'div', 'Ranking de RPM basado en tus scans', 'font-size:13px;color:rgba(234,240,255,.7);margin-bottom:16px;');
+      appendAshlyVText(body, 'div', 'RPM ranking from your scans', 'font-size:13px;color:rgba(234,240,255,.7);margin-bottom:16px;');
       var controls = document.createElement('div');
       controls.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;';
-      [['all','Todos'],['high','💰 Alto ($15+)'],['mid','📈 Medio ($8-15)'],['low','📉 Bajo (<$8)']].forEach(function(f) {
+      [['all','All'],['high','High ($15+)'],['mid','Mid ($8-15)'],['low','Low (<$8)']].forEach(function(f) {
         var b = ashlyVThemeButton(f[1]);
         if (filter === f[0]) b.style.background = 'rgba(123,92,255,.38)';
         b.onclick = function() { filter = f[0]; render(); };
         controls.appendChild(b);
       });
-      var exportBtn = ashlyVThemeButton('EXPORTAR CSV');
+      var exportBtn = ashlyVThemeButton('EXPORT CSV');
       exportBtn.onclick = function() {
-        var csvRows = ['Nicho,RPM Promedio,Mejor RPM,Veces Visto,Tendencia'].concat(rows().map(function(r) {
+        var csvRows = ['Niche,Average RPM,Best RPM,Times seen,Trend'].concat(rows().map(function(r) {
           var trend = r.bestRpm > r.avgRpm * 1.1 ? '↑' : (r.bestRpm < r.avgRpm * 0.9 ? '↓' : '→');
           return ['"' + String(r.title).replace(/"/g, '""') + '"', r.avgRpm, r.bestRpm, r.timesSeen, trend].join(',');
         }));
@@ -8449,14 +8377,14 @@ function showAshlyVRPMLeaderboardModal() {
         setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
       };
       controls.appendChild(exportBtn);
-      var refreshBtn = ashlyVThemeButton('ACTUALIZAR');
+      var refreshBtn = ashlyVThemeButton('REFRESH');
       refreshBtn.onclick = function() { showAshlyVRPMLeaderboardModal(); };
       controls.appendChild(refreshBtn);
       body.appendChild(controls);
       var table = document.createElement('div');
       var head = document.createElement('div');
       head.style.cssText = 'display:grid;grid-template-columns:50px 1fr 90px 90px 90px 90px;gap:8px;padding:8px;color:rgba(234,240,255,.55);font-size:10px;font-weight:900;border-bottom:1px solid rgba(255,255,255,.12);';
-      ['#', 'Nicho', 'RPM Prom', 'Mejor RPM', 'Veces Visto', 'Tendencia'].forEach(function(txt) { appendAshlyVText(head, 'span', txt); });
+      ['#', 'Niche', 'Avg RPM', 'Best RPM', 'Times seen', 'Trend'].forEach(function(txt) { appendAshlyVText(head, 'span', txt); });
       table.appendChild(head);
       rows().forEach(function(r, i) {
         var c = r.avgRpm >= 15 ? 'rgba(0,220,130,0.4)' : (r.avgRpm >= 8 ? 'rgba(255,200,0,0.3)' : 'rgba(255,255,255,.16)');
@@ -8480,7 +8408,7 @@ function showAshlyVRPMLeaderboardModal() {
 function timeAgoAshlyV(ts) {
   var diff = Math.max(0, Date.now() - Number(ts || 0));
   var min = Math.floor(diff / 60000);
-  if (min < 1) return 'ahora';
+  if (min < 1) return 'now';
   if (min < 60) return min + 'm';
   var h = Math.floor(min / 60);
   if (h < 24) return h + 'h';
@@ -8490,9 +8418,9 @@ function timeAgoAshlyV(ts) {
 /* Returns a human day bucket label for an alert timestamp. */
 function getAshlyVAlertDayGroup(ts) {
   var diff = Math.max(0, Date.now() - Number(ts || 0));
-  if (diff < 24 * 60 * 60 * 1000) return 'Hoy';
-  if (diff < 48 * 60 * 60 * 1000) return 'Ayer';
-  return 'Esta semana';
+  if (diff < 24 * 60 * 60 * 1000) return 'Today';
+  if (diff < 48 * 60 * 60 * 1000) return 'Yesterday';
+  return 'This week';
 }
 
 /* Opens the alert dropdown and groups recent alerts by day. */
@@ -8511,7 +8439,7 @@ function showAshlyVAlertDropdown(container, badge) {
     dd.style.cssText = 'position:absolute;right:34px;top:42px;width:310px;max-height:360px;overflow:auto;background:#07080f;border:1px solid rgba(123,92,255,.55);border-radius:12px;box-shadow:0 18px 60px rgba(0,0,0,.8);padding:10px;z-index:3;';
     var actions = document.createElement('div');
     actions.style.cssText = 'display:flex;gap:8px;margin-bottom:10px;';
-    var mark = ashlyVThemeButton('Marcar todo leído');
+    var mark = ashlyVThemeButton('Mark all read');
     mark.style.flex = '1';
     mark.onclick = function() { var p = {}; p[ASHLYV_ALERTS_UNREAD_KEY] = 0; ashlyVStorageSet(p); if (badge) badge.style.display = 'none'; };
     actions.appendChild(mark);
@@ -8525,10 +8453,9 @@ function showAshlyVAlertDropdown(container, badge) {
       }
       var row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:9px 4px;border-bottom:1px solid rgba(255,255,255,.08);font-size:10px;line-height:1.35;';
-      var icon = alert.alertType === 'new_high_rpm' ? '🔥' : '⚡';
       var title = document.createElement('div');
       title.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-      title.textContent = icon + ' ' + String(alert.nicheTitle || 'Nicho').slice(0, 40);
+      title.textContent = String(alert.nicheTitle || 'Niche').slice(0, 40);
       var ago = document.createElement('div');
       ago.style.cssText = 'color:rgba(234,240,255,.55);flex-shrink:0;';
       ago.textContent = timeAgoAshlyV(alert.timestamp);
@@ -8538,11 +8465,11 @@ function showAshlyVAlertDropdown(container, badge) {
     });
     if (!list.length) {
       var empty = document.createElement('div');
-      empty.textContent = 'Sin alertas todavía.';
+      empty.textContent = 'No alerts yet.';
       empty.style.cssText = 'padding:12px;color:rgba(234,240,255,.55);font-size:10px;';
       dd.appendChild(empty);
     }
-    var clear = ashlyVThemeButton('Limpiar historial');
+    var clear = ashlyVThemeButton('Clear history');
     clear.style.cssText += 'flex:1;border-color:rgba(255,77,109,.45);background:rgba(255,77,109,.12);';
     clear.onclick = function() {
       var p = {}; p[ASHLYV_ALERT_HISTORY_KEY] = []; p[ASHLYV_ALERTS_UNREAD_KEY] = 0;
@@ -8595,46 +8522,30 @@ function showAshlyVDebugOverlay() {
   (dbg.rejectedSamples || []).forEach(function(sample) {
     var row = document.createElement('div');
     row.style.cssText = 'padding:10px;border-bottom:1px solid rgba(255,255,255,.08);font-size:11px;line-height:1.5;';
-    row.textContent = '[' + sample.reason + '] ' + sample.title + (sample.channel ? ' — ' + sample.channel : '');
+    row.textContent = '[' + sample.reason + '] ' + sample.title + (sample.channel ? ' - ' + sample.channel : '');
     body.appendChild(row);
   });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// NSP CLEAN SCAN v3.1 — Filtro nuevo desde cero (mayo 2026)
-//
-// Diseño: 3 passes progresivos. Negative filter SIEMPRE aplica. Solo positive se relaja.
-// Objetivo: 5 garantizados mínimo, 8-10 con suerte. SIN pools de rescate basura.
-//
-// Decisiones tomadas:
-// A) 5 garantizados mín / 8-10 max ✓
-// B) Positive signal obligatorio solo en home feed ✓
-// C) Sin whitelist de canales (acepta cualquier canal si título matchea positive)
-// D) Si pass 3 da <5, muestra lo que haya con log warn (no inventa items)
+// Clean scan: the negative filter always applies, only the positive signal relaxes per pass.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 var NSP_CLEAN_NEGATIVE = /\b(nba|nfl|mlb|mls|ufc|wnba|nhl|fifa|copa america|copa mundial|world cup|premier league|champions league|la liga|serie a|bundesliga|europa league|formula 1|f1|grand prix|nascar|olympics?|olimpiadas?|highlights|partido|partidos|match|matches|game \d|juego \d|jornada|goal\b|gol\b|gols|goles|touchdown|home run|knockout|boxing|boxeo|wrestling|lucha libre|soccer|football|f[uú]tbol|basketball|baloncesto|b[eé]isbol|baseball|cricket|tennis|tenis|golf|aaron judge|messi|cristiano|neymar|mbappe|lebron|kobe|jordan)\b|\b(official video|music video|video oficial|videoclip|vevo|lyric video|lyrics video|audio oficial|official audio|concert|concierto|en concierto|tour 202\d|festival 202\d|live performance|en vivo|livestream|live stream)\b|\b(with ai|using ai|with chatgpt|using chatgpt|with claude|using claude|i made .* with ai|ganar (?:dinero )?con ia|gana con ia|monetizar con ia|ai prompts?|prompts? para|how i made \$|cómo gané \$|how i earned \$|i earned \$|how i automated|automated my|viralizar|crece tu canal|grow your channel|hack the algorithm|algorithm hack|eleven ?labs|11 ?labs)\b|\b(vlog|vlogger|storytime|story time|grwm|get ready with me|day in (?:my|the) life|mi día|un día (?:en|con)|mi rutina|daily routine|night routine|morning routine|q&a\b|qna\b|preguntas y respuestas|haul|unboxing)\b|\b(i tried|prob[eé]|i went to|fui a|we built|we made|we tried|we went|i bought|compr[eé]|i visited|visit[eé]|i stayed|me qued[eé] en|i ate|com[ií]|comimos|i lived|viv[ií])\b|\b(domina el arte|el arte de la|secretos para conquistar|c[oó]mo dejar de|cambia tu vida|self.?improvement|superaci[oó]n personal|life coach|coach de|coaching|mentor[ií]a|mentorship|7 h[aá]bitos|7 habits|stop doing|deja de hacer|cómo ser exitoso|how to be successful)\b|\b(trump|biden|harris|milei|petro|sheinbaum|amlo|bukele|maduro|putin|zelensky|elections?|elecciones|congress|congreso|gobierno|government|breaking news|último momento|noticias hoy|news today)\b|\b(reaction to|reacci[oó]n a|reacciono a|react to|reacting to|reactions)\b|\b(podcast|episode \d|ep\. \d|ep \d)\b|\b(gameplay|walkthrough|speedrun|playthrough|let'?s play|jugando|stream|streamer|twitch|minecraft|fortnite|gta|roblox|valorant|league of legends|csgo|warzone|apex legends|free fire)\b|\b(review|reviewing|reseña|reseñando|crítica de|tier ranking my|ranking my|my favorite|mis favoritos|my top|mi top|i ranked)\b|\b(iphone \d|samsung|tesla|cybertruck|macbook|apple|airpods|playstation|xbox|nintendo switch|tech tip|unboxing my|building my|installing|setup tour|room tour|house tour|apartment tour|car tour|tour de mi|gira de mi)\b|\b(challenge|reto|desafío|24 hours|24 horas|i spent|gast[eé]|pasé)\b|\b(trailer|tr[aá]iler|teaser|behind the scenes|making of|bts\b|coming soon|pr[oó]ximamente)\b|\b(announcement|anuncio importante|big news|noticias importantes|important update|actualizaci[oó]n importante)\b|\b(my (?:new|first|last|best|favorite) (?:car|house|phone|game|video|girlfriend|family|trip|book|story|memory)|mi (?:nuevo|primer|último|mejor|favorito) (?:carro|casa|tel[eé]fono|juego|video))\b/i;
 
 var NSP_CLEAN_POSITIVE_STRICT = /\btop\s*\d+\b|\b(?:los|las)\s+\d+\s+(?:m[aá]s|peores|mejores)\b|\b\d+\s+(?:things|reasons|ways|secrets|facts|cosas|razones|formas|datos|misterios|animals|countries|movies|songs|inventions|inventos)\b|\b(?:best|worst|biggest|craziest|weirdest|strangest|smartest|deadliest|scariest|most expensive|most dangerous|hardest|easiest)\s+\d+\b|\b(ranking|ranked|rank\b|every rank|tier list|tierlist|iceberg|countdown|list of)\b|\b(story of|history of|the story of|the history of|the truth about|la verdad sobre|la historia de|the rise (?:and fall )?of|rise and fall|el ascenso (?:y caída )?of|el ascenso y caída|origin of|the origin of|origen de|qué pasó (?:con|en)|what happened (?:to|with)|how did .* (?:die|fail|disappear|escape|survive)|cómo (?:murió|cayó|desapareció|sobrevivió))\b|\b(mystery|misterio|misterios|unsolved|sin resolver|cold case|caso (?:sin resolver|abierto|frío)|true crime|crimen real|paranormal|cryptid|cryptozoology|conspiracy|conspiración|deep dive|hidden|oculto|forbidden|prohibido|forgotten|olvidado|lost (?:city|civilization|world|tomb|treasure)|ancient (?:civilization|mystery|secret|tomb|pyramid|tomb)|civilizaci[oó]n (?:antigua|perdida)|pir[aá]mides? prohibidas?|atlantis|atl[aá]ntida|bermuda)\b|\b(facts|datos curiosos|datos interesantes|datos incre[ií]bles|datos asombrosos|did you know|sab[ií]as que|believe it or not|amazing facts|fun facts|mind blowing|increíble pero cierto)\b|\b(animated|animation|cartoon|cartoons|infographic|infograf[ií]a|stick figure|whiteboard|stop motion|cgi explainer|narrated|narraci[oó]n|narrated by|voice over|voiceover|voz en off|with narration|con narraci[oó]n|narrated documentary)\b|\b(how (?:it|they) (?:work|works|happened|started|made|exist|survived)|how (?:does|did|do|to) .* (?:work|happen|exist|survive)|why (?:does|did|do|is|are|don'?t|can'?t) .* (?:fail|work|happen|exist|matter|disappear|die)|what (?:happened|if|is|are|makes|killed)|what would happen|por qué (?:los|las|el|la|no|fracas[oó]|murió)|cómo funciona|cómo se (?:hace|hizo|forma|construye)|cómo lograron)\b|\b(boring history|history for sleep|sleep stories?|sleep history|dark side of|el lado oscuro de|behind the (?:legend|history|story))\b|\b(ancient|antiguo|antigua|civilizaci[oó]n|civilization|empire|imperio|mythology|mitolog[ií]a|legend|leyenda|cosmos|universo|space|espacio|nasa|pyramid|pirámide)\b/i;
 
-// Pass 2: añade SOLO patrones específicos de explainer/documentary/secret-history.
-// NO añade palabras sueltas genéricas (eso era el bug de v3.1.0 que dejaba pasar "cosas normales").
+// Pass 2 adds only explainer and secret history phrases: single generic words let ordinary videos through.
 var NSP_CLEAN_POSITIVE_MED = new RegExp(NSP_CLEAN_POSITIVE_STRICT.source + '|\\b(historical documentary|documentary about ancient|documentary on (?:ancient|lost|mystery|conspiracy|cold case)|explained in \\d|breakdown of (?:the|why|how)|deep dive into|deconstructing|the science of|la ciencia de|the psychology of|la psicolog[ií]a de|the secret history of|historia secreta de|inside (?:the|every) (?:ancient|lost|forbidden|hidden))\\b|\\b(why .* (?:disappeared|collapsed|fell|failed|vanished|escaped|survived|killed|destroyed|ended)|what really happened|qué pasó realmente|the real reason|la verdadera razón)\\b', 'i');
 var NSP_CLEAN_SLEEP_HISTORY_POSITIVE = "\\b(?:sleepless\\s+historian|sleepy\\s+historian|history\\s+for\\s+sleep|boring\\s+history|historia\\s+para\\s+dormir|geschichte\\s+zum\\s+einschlafen|jobs\\s+in\\s+(?:tudor|medieval|victorian|roman|ancient)|you'?d\\s+actually\\s+want|would\\s+actually\\s+want)\\b";
 NSP_CLEAN_POSITIVE_STRICT = new RegExp(NSP_CLEAN_POSITIVE_STRICT.source + '|' + NSP_CLEAN_SLEEP_HISTORY_POSITIVE, 'i');
 NSP_CLEAN_POSITIVE_MED = new RegExp(NSP_CLEAN_POSITIVE_MED.source + '|' + NSP_CLEAN_SLEEP_HISTORY_POSITIVE, 'i');
 
-// Pass 3 ELIMINADO. Era el culpable de "cosas normales" — matcheaba palabras sueltas como
-// "facts/story/history/science" que YouTube usa generalmente, dejando pasar contenido regular.
-// Si Pass 1 y Pass 2 dan <5, ahora se devuelve lo que haya con mensaje honesto.
+// Pass 3 was removed: it matched single words such as facts or history, so ordinary videos passed.
 
-// ── CONSISTENCIA DE CANAL (v4.36.0, pedido del usuario) ──────────────────────
-// Sube los canales VIRAL DE VERDAD y baja los "one-hit-wonder" (un solo video pegó,
-// el canal está muerto). El truco: un canal consistente aparece VARIAS VECES en lo que
-// el scan YA recolectó (varios de sus videos rankean); el muerto aparece UNA sola vez.
-// Por eso NO entra a ningún canal, NO hace fetches y NO agrega espera — solo CUENTA
-// apariciones en el pool en memoria y REORDENA. NO toca el filtro de nichos (decide
-// quién pasa); solo cambia el ORDEN de los que ya pasaron. Funciones PURAS, sin DOM.
+// Channel consistency: a channel whose videos appear several times in the pool ranks above one hit wonders.
+// Appearances are counted in the pool already in memory, so this adds no fetches and no wait.
+// It only reorders items that already passed the niche filter, it never changes which ones pass.
 function nspChannelKeyOf(item) {
   var sc = (item && item.sc) || item || {};
   var k = sc.channelId || sc.channelUrl || sc.channelName || sc.channelHandle || '';
@@ -8643,32 +8554,28 @@ function nspChannelKeyOf(item) {
 function nspBoostByChannelConsistency(rankedList, fullPool) {
   try {
     if (!Array.isArray(rankedList) || rankedList.length < 2) return rankedList || [];
-    var freq = Object.create(null);   // cuántas veces aparece cada canal en TODO el pool recolectado (gratis)
+    var freq = Object.create(null);
     (Array.isArray(fullPool) ? fullPool : []).forEach(function(it) {
       var k = nspChannelKeyOf(it); if (k) freq[k] = (freq[k] || 0) + 1;
     });
-    // Bandas: canales con >=2 apariciones (consistentes) ARRIBA, one-hit (1) ABAJO.
-    // Dentro de cada banda manda el VPH (orden que ya traía del filtro) → estable, no inventa nada.
     var withIdx = rankedList.map(function(it, i) { return { it: it, i: i, c: freq[nspChannelKeyOf(it)] || 1 }; });
     withIdx.sort(function(a, b) {
       var ab = a.c >= 2 ? 1 : 0, bb = b.c >= 2 ? 1 : 0;
-      if (ab !== bb) return bb - ab;                                                  // consistente primero
+      if (ab !== bb) return bb - ab;
       var av = Number((a.it.sc && a.it.sc.vph) || 0), bv = Number((b.it.sc && b.it.sc.vph) || 0);
-      if (bv !== av) return bv - av;                                                  // luego VPH
-      return a.i - b.i;                                                               // estable (no reordena empates)
+      if (bv !== av) return bv - av;
+      return a.i - b.i;
     });
     var consist = withIdx.filter(function(x) { return x.c >= 2; }).length;
-    // DIVERSIDAD POR CANAL: el top debe ser CANALES distintos, no 4 videos del mismo canal.
-    // 1ª ronda = el mejor video de cada canal (en el orden consistente-primero ya calculado);
-    // 2ª ronda = los repetidos al final (solo entran si no hay 10 canales únicos). No pierde items.
+// Channel diversity: one video per channel first, repeats appended after, so the top is distinct channels.
     var seen = Object.create(null), firsts = [], rest = [];
     withIdx.forEach(function(x) {
       var k = nspChannelKeyOf(x.it);
       if (k && seen[k]) { rest.push(x.it); } else { if (k) seen[k] = 1; firsts.push(x.it); }
     });
-    console.log('[NSP CONSISTENCIA] ' + consist + '/' + rankedList.length + ' apariciones de canal consistente · ' + firsts.length + ' canales únicos arriba; one-hit-wonders abajo (filtro de nichos intacto)');
+    console.log('[NSP CONSISTENCY] ' + consist + '/' + rankedList.length + ' repeat channel appearances, ' + firsts.length + ' distinct channels on top, one hit wonders below');
     return firsts.concat(rest);
-  } catch (e) { console.warn('[NSP CONSISTENCIA] error, devuelvo orden original:', e && e.message); return rankedList; }
+  } catch (e) { console.warn('[NSP CONSISTENCY] failed, keeping the original order:', e && e.message); return rankedList; }
 }
 
 function nspCleanScanFilter(allItems, targetMin, targetMax) {
@@ -8715,9 +8622,9 @@ function nspCleanScanFilter(allItems, targetMin, targetMax) {
       return true;
     });
     console.log('[NSP CLEAN ' + label + ']', counters);
-    if (rejectExamples.negative.length) console.log('[NSP CLEAN ' + label + '] rechazados por NEGATIVE:', rejectExamples.negative);
-    if (rejectExamples.noPositive.length) console.log('[NSP CLEAN ' + label + '] rechazados sin POSITIVE:', rejectExamples.noPositive);
-    if (rejectExamples.noFacelessFormat.length) console.log('[NSP CLEAN ' + label + '] rechazados sin FORMATO FACELESS:', rejectExamples.noFacelessFormat);
+    if (rejectExamples.negative.length) console.log('[NSP CLEAN ' + label + '] rejected by NEGATIVE:', rejectExamples.negative);
+    if (rejectExamples.noPositive.length) console.log('[NSP CLEAN ' + label + '] rejected without POSITIVE:', rejectExamples.noPositive);
+    if (rejectExamples.noFacelessFormat.length) console.log('[NSP CLEAN ' + label + '] rejected without FACELESS FORMAT:', rejectExamples.noFacelessFormat);
     return kept;
   }
 
@@ -8743,26 +8650,24 @@ function nspCleanScanFilter(allItems, targetMin, targetMax) {
     return out2;
   }
 
-  // Pass 3 ELIMINADO en v3.1.1 — era el responsable de "cosas normales" según user feedback.
-  // Mejor mostrar 2-4 nichos correctos que 10 con basura. La calidad sobre la cantidad.
+  // Pass 3 was removed: showing 2-4 correct niches beats 10 padded with junk.
   var best = pass2.length ? pass2 : pass1;
   var outFinal = sortByVPH(best).slice(0, targetMax);
-  console.log('[NSP CLEAN] ⚠ No alcanzó target ' + targetMin + '. Devolviendo ' + outFinal.length + ' items HONESTOS (feed no tiene más Automation hoy).');
+  console.log('[NSP CLEAN] target ' + targetMin + ' not reached, returning the ' + outFinal.length + ' items that really passed.');
   return outFinal;
 }
 
 function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNiche, bestVideo, btnTxt) {
   _ashlyv_scan_running = false;
 
-  // ── NSP CLEAN SCAN entrada (home feed) — bypassa toda la cadena vieja de filtros ──
+  // The home feed goes through the clean scan, which bypasses the older filter chain.
   if (isHomeFeedPage() && !window._ashlyv_no_filter) {
     var incomingTopResults = dedupeAshlyVResults(topResults || []);
     var dedupedAll = dedupeAshlyVResults((allResults || []).concat(topResults || []));
     window._ashlyv_last_all_results = dedupedAll;
-    // v3.15.0 — Recolecta TODO el feed al corpus de mercado (todos los nichos, no solo top 10)
+    // The whole feed feeds the market corpus, not only the top 10.
     try { nspCorpusCollectFromScan(dedupedAll); } catch(eCorpus) {}
-    // Filtro de nichos INTACTO — solo le pido un pool más amplio (40) usando su propio parámetro,
-    // reordeno por consistencia de canal (one-hit-wonders abajo) y corto a 10. El filtro no cambia.
+    // The niche filter is untouched: it is asked for a wider pool (40), reordered by channel consistency, then cut to 10.
     var cleanResults = nspBoostByChannelConsistency(nspCleanScanFilter(dedupedAll, 5, 40), dedupedAll).slice(0, 10);
     if (incomingTopResults.length) {
       var priorityPool = dedupeAshlyVResults(incomingTopResults.concat(cleanResults).concat(dedupedAll));
@@ -8783,7 +8688,7 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
         );
       }
       window._ashlyv_last_all_results = renderPool;
-      // Expone los topResults globalmente para que NSP Coach pueda usarlos como contexto
+      // NSP Coach reads these top results as context.
       try { window._ashlyv_last_top_results = topResults || []; } catch(eExpose) {}
       finishAshlyVDebugStats();
       clearAshlyVHomeScanStage();
@@ -8811,15 +8716,14 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
       _commitCleanRender(finalItems, dedupedAll);
     }
 
-    // POST-FILTER face-api: solo kick CONFIRMED faces (unknown/unsupported pasan).
-    // nspApplyFaceApiFilter ya implementa exactamente esa semántica.
+    // The face-api post filter drops only confirmed faces; unknown and unsupported pass through.
     if (typeof nspApplyFaceApiFilter === 'function' && cleanResults.length) {
-      console.log('[NSP CLEAN] Running face-api post-filter on', cleanResults.length, 'items...');
+      console.log('[NSP CLEAN] running the face-api post filter on', cleanResults.length, 'items');
       nspApplyFaceApiFilter(cleanResults).then(function(faceFiltered) {
         console.log('[NSP CLEAN] After face-api post-filter:', cleanResults.length, '->', faceFiltered.length);
         _renderClean(faceFiltered);
       }).catch(function(err) {
-        console.warn('[NSP CLEAN] face-api post-filter error, rendering sin face check:', err && err.message);
+        console.warn('[NSP CLEAN] face-api post-filter failed, rendering without the face check:', err && err.message);
         _renderClean(cleanResults);
       });
     } else {
@@ -8828,7 +8732,7 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
     return;
   }
 
-  // ── Path no-home (search, country-feed) — usa lógica vieja sin cambios ──
+  // Search and country feed keep the older path unchanged.
   topResults = dedupeAshlyVResults(topResults || []).filter(function(item) {
     return isAshlyVUserStrictFacelessNicheCandidate(item) && isAshlyVStrongFacelessFallbackSignal(item);
   });
@@ -8884,9 +8788,7 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
     }
   }
 
-  // ── NSP CHOKEPOINT FINAL en finalizeAshlyVScanResults — quitar junk de TODOS los items
-  // que vinieron de los 6 fallbacks (selectAshlyVFeedOnlyStrictTopTen, emergencyTop, absoluteTop,
-  // forcedTop, ensureAshlyVGuaranteedFacelessTopTen, normalize). Esos fallbacks NO aplicaban junk filter.
+  // Final chokepoint: the six fallback paths above never apply the junk filter, so it runs once here.
   try {
     if (typeof nspIsUserReportedJunk === 'function') {
       var _finBefore = (topResults || []).length;
@@ -8903,8 +8805,8 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
         return true;
       });
       var _junkRemoved = _finBefore - topResults.length;
-      console.log('[PIPELINE 4/6] Tras junk filter: ' + topResults.length + ' items (' + _junkRemoved + ' rechazados como junk)');
-      if (_junkRejected.length) console.log('[PIPELINE 4/6] TOP 5 rechazados:', _junkRejected);
+      console.log('[PIPELINE 4/6] after junk filter: ' + topResults.length + ' items (' + _junkRemoved + ' rejected as junk)');
+      if (_junkRejected.length) console.log('[PIPELINE 4/6] top 5 rejected:', _junkRejected);
     }
   } catch(eFinChoke) { console.warn('[NSP finalize-chokepoint] error:', eFinChoke); }
 
@@ -8917,9 +8819,7 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
     setAshlyVScanInProgress(false);
     if (isHomeFeedPage() && topResults.length) setAshlyVHomeScanStage(0);
 
-    // ── NSP API FILTER — validar canales vía YouTube Data API ──
-    // Para cada item, obtener score real del canal (subs, age, videoCount, description).
-    // Score >= 50 = faceless validado por DATOS. Score < 50 = canal personal/sospechoso.
+    // Channel validation through the YouTube Data API: 50 or more reads as faceless, below 50 as a personal channel.
     try {
       if (typeof getChannelFacelessScoreBatch === 'function' && topResults && topResults.length) {
         // DEBUG: log first 3 items to understand what fields exist
@@ -8939,11 +8839,11 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
           return cid || '';
         }).filter(function(id) { return id && id.length >= 20; });
 
-        console.log('[NSP API DEBUG] Extracted channelIds:', channelIds.length, 'of', topResults.length, '— sample:', channelIds.slice(0, 3));
+        console.log('[NSP API DEBUG] extracted channelIds:', channelIds.length, 'of', topResults.length, 'sample:', channelIds.slice(0, 3));
 
         if (!channelIds.length) {
           console.log('[NSP API] ⚠ No valid channelIds extracted from any item — skipping API validation. Items will use local filters only.');
-          try { nspHideApiToast(false, { msg: 'No channelIds disponibles — items sin validar' }); } catch(e) {}
+          try { nspHideApiToast(false, { msg: 'No channel ids available, items were not validated' }); } catch(e) {}
           nspApplyFaceApiFilter(topResults).then(function(filtered) {
             topResults = filtered;
             showAshlyVScanOverlay(topResults, allResults.length, avgOS, avgRpm, topNiche, bestVideo, btnTxt);
@@ -8951,10 +8851,10 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
           return;
         }
 
-        console.log('[NSP API] Validating', channelIds.length, 'channels via YouTube Data API...');
-        try { nspShowApiToast('⚙ Validando ' + channelIds.length + ' canales vía YouTube API...'); } catch(e) {}
+        console.log('[NSP API] validating', channelIds.length, 'channels through the YouTube Data API');
+        try { nspShowApiToast('Validating ' + channelIds.length + ' channels through the YouTube API'); } catch(e) {}
         getChannelFacelessScoreBatch(channelIds, function(scores) {
-          // Annotate items with API score — usa la misma lógica de extracción
+          // Annotate items with the API score, using the same id extraction as above.
           topResults.forEach(function(item) {
             var sc = (item && item.sc) || {};
             var cid = sc.channelId || sc.channelHandle || (item && item.channelId) || '';
@@ -8968,10 +8868,7 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
             item._nspApiChannelId = cid || '';
           });
 
-          // Filter: items con score API >= 50 (validados por datos del canal)
-          // Score >= 70 = faceless garantizado por datos
-          // Score 50-69 = borderline (pasa pero baja en ranking)
-          // Score < 50 = canal personal/sospechoso → REJECT
+          // 70 or more is a safe faceless channel, 50 to 69 passes but ranks lower, below 50 is rejected.
           var beforeApi = topResults.length;
           var validated = topResults.filter(function(item) {
             return Number(item._nspApiScore || 0) >= 50;
@@ -8980,14 +8877,14 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
             return Number(item._nspApiScore || 0) < 50;
           });
 
-          // Si quedan >=3 validados, usar solo esos; sino mantener los que hay
+          // Keep only validated items when at least 3 survive, otherwise keep them all.
           if (validated.length >= 3) {
             topResults = validated;
           } else {
             console.log('[NSP API] Validated < 3 (' + validated.length + '), keeping all', beforeApi, 'and trusting other filters');
           }
 
-          // Reordenar: API score >= 70 primero, luego por VPH/views
+          // API score 70 or more first, then by VPH.
           topResults.sort(function(a, b) {
             var aH = Number(a._nspApiScore || 0) >= 70 ? 1 : 0;
             var bH = Number(b._nspApiScore || 0) >= 70 ? 1 : 0;
@@ -9006,7 +8903,7 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
           try {
             var _swAvail = !!(typeof chrome !== 'undefined' && chrome && chrome.runtime && chrome.runtime.sendMessage);
             var _validated = Object.keys(scores || {}).length;
-            console.log('[PIPELINE 5/6] Tras API filter: ' + afterApi + ' items', JSON.stringify({
+            console.log('[PIPELINE 5/6] after API filter: ' + afterApi + ' items', JSON.stringify({
               sw_available: _swAvail,
               channels_requested: channelIds.length,
               channels_validated_api: _validated,
@@ -9024,17 +8921,16 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
               }));
           }
 
-          // Después del API filter → aplicar face-api filter (Capa 1)
           nspApplyFaceApiFilter(topResults).then(function(filtered) {
             topResults = filtered;
             showAshlyVScanOverlay(topResults, allResults.length, avgOS, avgRpm, topNiche, bestVideo, btnTxt);
           });
         });
-        return; // Esperando API → render se ejecuta cuando llegue
+        return;
       }
     } catch(eApi) { console.warn('[NSP API] integration error:', eApi); }
 
-    // Fallback sin API
+    // No API available.
     nspApplyFaceApiFilter(topResults).then(function(filtered) {
       topResults = filtered;
       showAshlyVScanOverlay(topResults, allResults.length, avgOS, avgRpm, topNiche, bestVideo, btnTxt);
@@ -9615,17 +9511,14 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
     return item;
   }
 
-  // Extraer channel IDs del DOM
   candidateResults.forEach(function(item, idx) {
     var card = item.card;
     var channelId = null;
-    // Buscar en ytInitialData primero
     var vidInfo = getVidId(card);
     if (vidInfo && vidInfo.id) {
       var ytEntry = getYtMap()[vidInfo.id];
       if (ytEntry && ytEntry.channelId) channelId = ytEntry.channelId;
     }
-    // Fallback: buscar en DOM
     if (!channelId) {
       var chLink = card.querySelector('a[href*="/channel/"]');
       if (chLink) {
@@ -9635,7 +9528,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
       }
     }
     item._channelId = channelId;
-    // Hasta 50 canales por request
+    // The API accepts at most 50 channels per request.
     if (channelId && channelIds.indexOf(channelId) === -1 && channelIds.length < 49) {
       channelIds.push(channelId);
     }
@@ -9704,7 +9597,6 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
     return;
   }
 
-  // Batch request para todos los channels de una vez
   var url = 'https://www.googleapis.com/youtube/v3/channels'
     + '?part=snippet,statistics'
     + '&id=' + channelIds.join(',')
@@ -9727,7 +9619,6 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         });
       }
 
-      // Ordenar candidates por multiplicador faceless
       candidateResults.forEach(function(item) {
         var fs = item._channelId ? (facelessScores[item._channelId] || 50) : 50;
         var baseFaceless = getAshlyVBaseFacelessScore(item);
@@ -9740,15 +9631,14 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
 
         // Light prefilter: keep low-value items out, but don't kill faceless candidates too early.
         if (!isAshlyVAiFacelessEconomicallyViable(item) || (item._facelessScore || 0) < 30 || getAshlyVAgeMeta(item).tooOld) {
-          item._combinedScore = 0; // muerto, no entra al top
+          item._combinedScore = 0;
           return;
         }
 
-        // Step 2: Si título NO es faceless-topic → penalti leve (multiplier 0.6)
+        // A title that is not a faceless topic takes a light penalty.
         var topicMult = item._isFacelessTopic ? 1.0 : 0.6;
 
-        // Multiplicador base por faceless score de canal
-        // fs=35→0.7, fs=50→1.0 (neutral), fs=80+→1.6+
+        // Channel faceless score as a multiplier: 35 gives 0.7, 50 is neutral, 80 or more gives 1.6 and up.
         var fsMult = Math.max(0.1, (fs / 50));
         var prefText = getAshlyVLanguageText(item);
         if (!matchesUserScanPreferences(prefText)) {
@@ -9765,7 +9655,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
       });
 
       // ═══════════════════════════════════════════════════════════════════
-      // TOP NICHOS FACELESS — Niche-Group Selection Engine v2
+      // TOP FACELESS NICHES: niche group selection engine v2
       // ═══════════════════════════════════════════════════════════════════
       var ASHLYV_MIN_FACELESS_RESULTS = 10;
       var ageStats = { tooOld: 0, staleNoVPH: 0, fresh: 0, recent: 0, older: 0 };
@@ -10847,8 +10737,8 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         console.log('[ASHLYV] Final no-bad-format fill:', top10.length, 'pool:', finalFillPool.length);
       }
 
-      console.log('[ASHLYV] Cascada: paso1=' + cascadeStep60.length + ' | paso2=' + cascadeStep50.length + ' | paso3=' + cascadeStep40.length + ' | final=' + top10.length);
-      console.log('[ASHLYV] Umbral final usado: ' + thresholdUsed);
+      console.log('[ASHLYV] Cascade: step1=' + cascadeStep60.length + ' | step2=' + cascadeStep50.length + ' | step3=' + cascadeStep40.length + ' | final=' + top10.length);
+      console.log('[ASHLYV] Final threshold used: ' + thresholdUsed);
       console.log('[ASHLYV] Final picks preview:', top10.map(function(item) {
         var sc = item.sc || {};
         return {
@@ -10944,7 +10834,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         }).length;
         var deepPoolCount = finalSeedPool.filter(function(x) { return Number(x && x.scrollBatch || 0) >= 10; }).length;
         console.log('DEPTH DISTRIBUTION', { earlyCount: earlyCount, midCount: midCount, deepCount: deepCount });
-        console.log('FACILESS BY DEPTH', { earlyPoolCount: earlyPoolCount, midPoolCount: midPoolCount, deepPoolCount: deepPoolCount });
+        console.log('FACELESS BY DEPTH', { earlyPoolCount: earlyPoolCount, midPoolCount: midPoolCount, deepPoolCount: deepPoolCount });
         if (finalSeedPool.some(function(x) { return Number(x && x.scrollBatch || 0) >= 10; }) && deepCount === 0) {
           throw new Error('FAIL: Deep candidates exist but finalTop selected none.');
         }
@@ -11008,8 +10898,8 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         // ── Final logging ──
         console.log('[ASHLYV] Niche Groups: ' + groupKeys.length + ' | Picks: ' + pickedPrimary.length + ' | Final: ' + finalTop10.length);
         console.log('[ASHLYV] Primary rejects: duration=' + rejectStats.badDuration + ' | automation=' + rejectStats.notAutomation + ' | nonMonetizable=' + rejectStats.nonMonetizable + ' | notFaceless=' + rejectStats.notFaceless);
-        console.log('[ASHLYV] Edad rejects: tooOld=' + ageStats.tooOld + ' | staleNoVPH=' + ageStats.staleNoVPH);
-        console.log('[ASHLYV] Edad distribución: <7d=' + ageStats.fresh + ' | 7-30d=' + ageStats.recent + ' | 30-90d=' + ageStats.older);
+        console.log('[ASHLYV] Age rejects: tooOld=' + ageStats.tooOld + ' | staleNoVPH=' + ageStats.staleNoVPH);
+        console.log('[ASHLYV] Age spread: <7d=' + ageStats.fresh + ' | 7-30d=' + ageStats.recent + ' | 30-90d=' + ageStats.older);
         console.log('[ASHLYV] Faceless detection: ' + cleanPool.length + '/' + candidateResults.length);
         if (finalTop10.length < ASHLYV_MIN_FACELESS_RESULTS) {
           console.log('[ASHLYV] Only ' + finalTop10.length + ' valid faceless niche groups found.');
@@ -11332,8 +11222,7 @@ var AshlyVMemory = (function() {
   }
 
   function hasSeenNiche(nicheLabel) {
-    // Broad labels like "Historia" or "Supervivencia" are lanes, not exact topics.
-    // Blocking them causes scan #2 to starve and return 4-9 results.
+    // Broad niche labels are lanes, not exact topics; blocking them starves the second scan.
     return false;
   }
 
@@ -11663,7 +11552,7 @@ var AshlyVFaceless = (function() {
     return 'not_faceless';
   }
 
-  // HARD REJECT explícito — noticias, política, deportes, música
+  // Explicit hard reject: news, politics, sports and music.
   var OBVIOUS_REJECT = /shakira|bad bunny|j balvin|maluma|ozuna|karol g|rosalia|daddy yankee|anuel|nicky jam|rauw|myke towers|farruko|arcangel|reggaeton|trap latino|corrido|narco|cartel|regional mexicano|grupero|cumbia|vallenato|merengue|nba|nfl|nhl|mlb|fifa|uefa|laliga|premier league|champions|wwe|ufc|espn|fox news|cnn|bbc|telemundo|univision|caracol|televisa|latinus|trump|biden|putin|zelensky|petro|sheinbaum|milei|maduro|bukele|lula|modi|macron|netanyahu|obrador|amlo|iran|irán|ormuz|palestin|hamas|hezbollah|gaza|israel|misil|missile|ultimatum|abre fuego|dispara|amenaza terrorista|amenaza nuclear|ataque militar|ataque terrorista|ataque aéreo|buque de guerra|ejército de|🚨|🔴|en vivo|live stream|transmisión en vivo|breaking|última hora|urgente|alerta máxima|noticiero|telediario|noticias de|partido de|goles del|resumen de|highlights|resultado final|marcador|segundo tiempo|primer tiempo|liga mx|selección|mundial|copa america|eurocopa|formula 1|nascar|superbowl|olimpiadas|tour de france|official music video|music video|video oficial|lyrics|lyric video|vevo|grammy|oscar|emmy|concierto|concert|tour|en vivo con|live at|ft\.|feat\.|\(official|videoclip|clip oficial|estreno|nuevo sencillo|nuevo album|nueva canción|telenovela|novela|serie completa|pelicula completa|full movie|capítulo completo|episodio completo|misa de|culto cristiano|sermón|predicación|pastor |iglesia |evangelio|dios dice|señor jesús|testigos de jehov|estafa de|me timaron|me robaron|vlog|daily vlog|mi día|my day|grwm|get ready|storytime|q&a|unboxing|haul|reaction|reacción|reacting|mi rutina|my routine|me fui a|llegué a|primer día|mi nueva|mi nuevo|compré|renté|probando comida|mukbang|asmr eating|stand.?up|show de|programa de|episodio \d|temporada \d|capítulo \d|segunda emisión|primera emisión|transmitiendo|streaming ahora|minecraft|roblox|fortnite|gameplay|walkthrough|playthrough|speedrun|podcast|podcasts|mix\b|mixes|playlist|study music|sleep music|white noise|river sound|waterfall|thunderstorm|lluvia para dormir|sonido de lluvia|relaxing music|deep sleep|ocean sounds/i;
 
   var FEED_GENERIC_REJECT = /podcast|podcasts|interview|entrevista|music|música|musica|piano|orchestra|orquesta|chopin|mozart|beethoven|playlist|mix\b|mixes|sports?|deportes|baseball|basketball|football|soccer|fútbol|tennis|golf|boxing|mma|ufc|banana ball|finals?|game\b|match\b|highlights|best moments?|greatest moments?|launch(?:es|ing)?|mission update|press conference|official\b|trailer|teaser|biblia|bible|iglesia|church|cat[oó]lic|serm[oó]n|predicaci[oó]n|sabiduría|sabiduria|quotes|frases|affirmations|afirmaciones|production line|manufacturing|assembly line|factory tour|car manufacturing/i;
@@ -11688,7 +11577,7 @@ var AshlyVFaceless = (function() {
       return ashlyVDebugReject('recentGate', item, { facelessScore: 0, classification: 'hard_reject', titleScore: -999, channelScore: 0 });
     }
 
-    // 1. Hard reject obvio
+    // 1. Obvious hard reject
     var aiProfile = getAshlyVGenerativeAiProfile(item);
 
     if (OBVIOUS_REJECT.test(t)) return ashlyVDebugReject('OBVIOUS_REJECT', item, { facelessScore: 0, classification: 'hard_reject', titleScore: -999, channelScore: 0, aiCategory: aiProfile.category, aiFacelessScore: aiProfile.score });
@@ -11701,13 +11590,12 @@ var AshlyVFaceless = (function() {
     if (!window._ashlyv_no_filter && strictSearchSession && isSearchPage() && !isHomeFeedPage() && !HOME_REPLICABLE_REQUIRED.test(full)) return ashlyVDebugReject('HOME_REPLICABLE', item, { facelessScore: 0, classification: 'hard_reject', titleScore: -999, channelScore: 0 });
     if (!window._ashlyv_no_filter && isHomeFeedPage() && FEED_GENERIC_REJECT.test(full) && !HOME_TOPIC_SIGNAL.test(full)) return ashlyVDebugReject('homeGeneric', item, { facelessScore: 0, classification: 'hard_reject', titleScore: -999, channelScore: 0 });
 
-    // 2. Score de título
+    // 2. Title score
     var tScore = scoreTitle(title);
     if (tScore === -999) return ashlyVDebugReject('titleHardReject', item, { facelessScore: 0, classification: 'hard_reject', titleScore: -999, channelScore: 0 });
     var total = tScore + cScore;
 
-    // 3. GATE: si no tiene señales positivas claras, rechazar
-    // No queremos neutrales — solo faceless confirmados o borderline alto
+    // 3. Gate: an item without clear positive signals is rejected, neutral is not enough.
     if (strictSearchSession && isSearchPage() && !isHomeFeedPage() && (total < -5 || tScore < -3)) return ashlyVDebugReject('gate', item, { facelessScore: 28, classification: 'hard_reject', titleScore: tScore, channelScore: cScore });
     if (total < -10 && tScore <= -5) return ashlyVDebugReject('lowScore', item, { facelessScore: 20, classification: 'hard_reject', titleScore: tScore, channelScore: cScore });
 
@@ -11763,7 +11651,7 @@ function runAshlyVScan() {
   showAshlyVScanningOverlay();
   window._ashlyv_scan_mode = window._ashlyv_no_filter ? 'search' : 'feed';
   var btnTxt = getAshlyVScanButtonTextNode();
-  if (btnTxt) btnTxt.textContent = ' ANALIZANDO...';
+  if (btnTxt) btnTxt.textContent = ' ANALYZING';
 
   AshlyVMemory.ensureLoaded(true)
     .catch(function() { return null; })
@@ -11899,11 +11787,11 @@ function runAshlyVScan() {
       // ── PIPELINE INSTRUMENTATION (CHECKPOINTS 2 + 3) ──
       try {
         var _rejStats = (window._ashlyv_debug_stats && window._ashlyv_debug_stats.rejectionCounts) || {};
-        console.log('[PIPELINE 2/6] Tras filtros básicos: ' + replicableResults.length + ' items (de ' + allResults.length + ' originales)');
+        console.log('[PIPELINE 2/6] after basic filters: ' + replicableResults.length + ' items (from ' + allResults.length + ')');
         console.log('[PIPELINE 2/6] Rejection counts:', JSON.stringify(_rejStats));
         var _gv2Flag = false;
         try { _gv2Flag = localStorage.getItem('nsp_gate_v2') === '1'; } catch (eGvF) {}
-        console.log('[PIPELINE 2/6] GATE V2 ' + (_gv2Flag ? 'ON' : 'OFF (sombra)') + ': faceless seguros que el gate estricto rechaza = ' + (window._nspGateV2Would || 0) + (_gv2Flag ? ' | admitidos extra = ' + (window._nspGateV2Admitted || 0) : " (para activar: localStorage.setItem('nsp_gate_v2','1') y re-escanear)"));
+        console.log('[PIPELINE 2/6] GATE V2 ' + (_gv2Flag ? 'ON' : 'OFF (shadow mode)') + ': safe faceless items the strict gate rejects = ' + (window._nspGateV2Would || 0) + (_gv2Flag ? ' | extra admitted = ' + (window._nspGateV2Admitted || 0) : " (to turn it on: localStorage.setItem('nsp_gate_v2','1') and scan again)"));
 
         // CHECKPOINT 3: classify counts + TOP 5 not_faceless titles
         var _classCounts = { faceless: 0, borderline: 0, not_faceless: 0, hard_reject: 0, unknown: 0 };
@@ -11919,8 +11807,8 @@ function runAshlyVScan() {
             _notFacelessTitles.push(ch + ' | ' + t);
           }
         });
-        console.log('[PIPELINE 3/6] Tras classify():', (allFiltered || []).length, 'items', JSON.stringify(_classCounts));
-        console.log('[PIPELINE 3/6] TOP 5 rechazados como not_faceless:', _notFacelessTitles);
+        console.log('[PIPELINE 3/6] after classify():', (allFiltered || []).length, 'items', JSON.stringify(_classCounts));
+        console.log('[PIPELINE 3/6] top 5 rejected as not_faceless:', _notFacelessTitles);
       } catch(eCp23) { console.warn('[PIPELINE 2-3] log error:', eCp23 && eCp23.message); }
 
       var candidateResults = replicableResults.slice();
@@ -12072,9 +11960,9 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
     var hdr = document.createElement('div');
     hdr.id = 'hdr';
     var hL = document.createElement('div');
-    var t1 = document.createElement('div'); t1.id = 'hdr-title'; t1.textContent = '🦇 TOP NICHOS FACELESS';
+    var t1 = document.createElement('div'); t1.id = 'hdr-title'; t1.textContent = 'TOP FACELESS NICHES';
     var memSt = AshlyVMemory.getStats();
-    var t2 = document.createElement('div'); t2.id = 'hdr-sub'; t2.textContent = 'DRAG TO MOVE • ' + topResults.length + ' TOPS • ' + memSt.seenTitles + ' GUARDADOS';
+    var t2 = document.createElement('div'); t2.id = 'hdr-sub'; t2.textContent = 'DRAG TO MOVE • ' + topResults.length + ' TOPS • ' + memSt.seenTitles + ' SAVED';
     hL.appendChild(t1); hL.appendChild(t2);
     var closeBtn = document.createElement('button'); closeBtn.id = 'close-btn'; closeBtn.textContent = '✕';
     closeBtn.onclick = function() { host.remove(); if(btnTxt) btnTxt.textContent = 'SCAN'; };
@@ -12106,9 +11994,9 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
       var l = document.createElement('div'); l.className = 'stat-lbl'; l.textContent = lbl;
       s.appendChild(v); s.appendChild(l); return s;
     }
-    statsEl.appendChild(makeStat(String(totalVideos), 'escaneados', '#fff'));
+    statsEl.appendChild(makeStat(String(totalVideos), 'scanned', '#fff'));
     statsEl.appendChild(makeStat(String(topResults.length), 'faceless', '#00DC82'));
-    statsEl.appendChild(makeStat('$' + (avgRpm || '0.00'), 'rpm prom', '#fff'));
+    statsEl.appendChild(makeStat('$' + (avgRpm || '0.00'), 'avg rpm', '#fff'));
     panel.appendChild(statsEl);
 
     // ── Video list ─────────────────────────────────────────────────────────
@@ -12116,7 +12004,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
     if (!topResults.length) {
       var emptyEl = document.createElement('div');
       emptyEl.style.cssText = 'padding:18px 14px;color:rgba(255,255,255,0.65);font-size:10px;line-height:1.6;';
-      emptyEl.textContent = 'No encontre nichos faceless virales nuevos en este scan. Filtro HARD: max 2 meses, minimo 10K views y sin repetidos.';
+      emptyEl.textContent = 'No new viral faceless niches in this scan. The hard filter keeps videos under 2 months old, above 10K views, and never repeats one.';
       listEl.appendChild(emptyEl);
     }
     topResults.forEach(function(item, idx) {
@@ -12135,7 +12023,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
       var info = document.createElement('div'); info.className = 'info';
       var titleEl = document.createElement('div'); titleEl.className = 'title'; titleEl.textContent = (sc.title || '').slice(0, 46);
       var vphFmt = sc.vph >= 1000 ? (sc.vph / 1000).toFixed(1) + 'K' : Math.round(sc.vph);
-      var metaEl = document.createElement('div'); metaEl.className = 'meta'; metaEl.textContent = '⚡' + vphFmt + '/h · $' + (sc.totalRev || 0).toLocaleString();
+      var metaEl = document.createElement('div'); metaEl.className = 'meta'; metaEl.textContent = vphFmt + '/h · $' + (sc.totalRev || 0).toLocaleString();
       info.appendChild(titleEl); info.appendChild(metaEl);
 
       var badge = document.createElement('span'); badge.className = 'badge';
@@ -12143,17 +12031,17 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
       
       var isOutlier = (sc.views > (sc.subs * 5)) || (!sc.subs && sc.views > 100000);
       if (isOutlier) {
-        badge.textContent = '🔥 OUTLIER';
+        badge.textContent = 'OUTLIER';
         badge.style.borderColor = '#00DC82';
         badge.style.color = '#00DC82';
       } else {
         badge.textContent = (item._facelessScore >= 50) ? 'FACELESS' : (sc.tier && sc.tier.key) || 'N/A';
       }
 
-      var saveBtn = document.createElement('button'); saveBtn.className = 'save-btn'; saveBtn.textContent = '💾';
+      var saveBtn = document.createElement('button'); saveBtn.className = 'save-btn'; saveBtn.textContent = 'SAVE';
       saveBtn.onclick = function(e) {
-        e.stopPropagation(); // Evitar que row.onclick scrollee el video
-        saveBtn.textContent = '✅';
+        e.stopPropagation();
+        saveBtn.textContent = 'SAVED';
         var facelessAnalysis = item._facelessAnalysis || { facelessScore: 50, classification: 'borderline' };
         var languageCode = detectTextLanguage(getAshlyVLanguageText({ sc: sc })) || 'unknown';
         var nicheId = ASHLYV_ENGINE && ASHLYV_ENGINE.nicheScoring ? ASHLYV_ENGINE.nicheScoring.inferNicheIdFromText((sc.title || '') + ' ' + (_session.query || '')) : '';
@@ -12193,7 +12081,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
         
         saveAshlyVNichoSecure(nichoEntry, true, sc.title || '', sc.channelUrl || '');
 
-        setTimeout(function(){ saveBtn.textContent = '💾'; }, 1500);
+        setTimeout(function(){ saveBtn.textContent = 'SAVE'; }, 1500);
       };
 
       row.appendChild(rank); row.appendChild(info); row.appendChild(badge); row.appendChild(saveBtn);
@@ -12206,17 +12094,17 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
       var footerEl = document.createElement('div'); footerEl.id = 'footer';
       
       var searchBtn = document.createElement('button');
-      searchBtn.textContent = '🔍 BUSCAR MEJOR NICHO';
+      searchBtn.textContent = 'SEARCH THE BEST NICHE';
       searchBtn.onclick = function() { openLocalizedYouTubeSearch((bestVideo.title || '').slice(0, 60)); };
       footerEl.appendChild(searchBtn);
 
       var trBtn = document.createElement('button');
       trBtn.style.marginTop = '8px';
-      trBtn.textContent = '🌐 TRADUCIR Y BUSCAR';
+      trBtn.textContent = 'TRANSLATE AND SEARCH';
       trBtn.onclick = function() {
-        trBtn.textContent = 'TRADUCIENDO...';
+        trBtn.textContent = 'TRANSLATING';
         translateTitle(bestVideo.title || '', function(t, targetLang) {
-          trBtn.textContent = '🌐 TRADUCIR Y BUSCAR';
+          trBtn.textContent = 'TRANSLATE AND SEARCH';
           openLocalizedYouTubeSearch(t, targetLang);
         }, getForcedTranslationTargetLanguage(bestVideo.title || ''));
       };
@@ -12225,7 +12113,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
       var freshBtn = document.createElement('button');
       freshBtn.style.marginTop = '8px';
       freshBtn.style.cssText = 'width:100%;padding:9px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:none;color:rgba(255,255,255,0.5);font-size:9px;font-weight:900;cursor:pointer;font-family:ui-monospace,monospace;letter-spacing:0.1em;margin-top:8px;';
-      freshBtn.textContent = '🔄 NUEVO SCAN (RESULTADOS FRESCOS)';
+      freshBtn.textContent = 'NEW SCAN (FRESH RESULTS)';
       freshBtn.onclick = function() {
         // 1. MARK current top results as SEEN (so next scan won't repeat them).
         //    Memory is PERSISTED → next scan excludes these videos/channels/topics.
@@ -12291,13 +12179,13 @@ function showAshlyVScanningOverlay() {
     panel.id = 'panel';
     var hdr = document.createElement('div');
     hdr.id = 'hdr';
-    hdr.textContent = 'TOP NICHOS FACELESS';
+    hdr.textContent = 'TOP FACELESS NICHES';
     var pulse = document.createElement('div');
     pulse.id = 'pulse';
-    pulse.textContent = 'Escaneando YouTube...';
+    pulse.textContent = 'Scanning YouTube';
     var sub = document.createElement('div');
     sub.id = 'sub';
-    sub.textContent = 'Analizando resultados faceless y RPM estimado';
+    sub.textContent = 'Analyzing faceless results and estimated RPM';
     pulse.appendChild(sub);
     for (var i = 0; i < 3; i++) {
       var sk = document.createElement('div');
@@ -12316,7 +12204,7 @@ function updateAshlyVScanningOverlayStatus(message) {
     var host = document.getElementById('nsp-shadow-host');
     if (!host || !host.shadowRoot) return;
     var sub = host.shadowRoot.getElementById('sub');
-    if (sub) sub.textContent = String(message || 'Analizando resultados faceless y RPM estimado');
+    if (sub) sub.textContent = String(message || 'Analyzing faceless results and estimated RPM');
   } catch(e) {}
 }
 
@@ -12337,12 +12225,12 @@ function nspIsUserReportedJunk(item) {
 	    // 1. Cloned X Channel / I Cloned ...
     if (/\b(i\s+)?clon(ed|ing|e)\s+(a\s+|an\s+|the\s+|this\s+|my\s+)?(viral\s+)?(youtube\s+)?(channel|video|account)/i.test(t)) return true;
     if (/\bclonar\s+(un\s+|el\s+|este\s+)?(canal|video|youtube)/i.test(t)) return true;
-    // 2. Crea/Crear Videos / Make Videos / How To Make Videos
+    // 2. Make videos, how to make videos
     if (/\b(crea|crear|crea[rd])\s+(un\s+|el\s+|los\s+)?videos?\b/i.test(t)) return true;
     if (/c[oó]mo\s+(crear|hacer|grabar|editar|subir|monetizar)\s+(un\s+|los\s+|tus\s+)?videos?\b/i.test(t)) return true;
     if (/\bhow\s+to\s+(make|create|build|launch|grow|monetize|turn|convert|transform)\b/i.test(t)) return true;
     if (/\bmake\s+(viral\s+|long\s+|faceless\s+|ai\s+)?videos?\b/i.test(t)) return true;
-    // 3. MONETIZA / Monetize / monetización
+    // 3. Monetize
     if (/\bmonetiz[ae](?:r|d[oa]|ndo|ci[oó]n|tion|ed|ing)?\b/i.test(t)) return true;
     // 4. Container house / homestead / floorboards / tiny house / off grid (personal life)
     if (/\b(container\s+house|tiny\s+house|homestead|off[\-\s]?grid|cabin\s+life|van\s+life|floorboards?|wood\s+floor)\b/i.test(t)) return true;
@@ -12369,10 +12257,9 @@ function nspIsUserReportedJunk(item) {
     // 10. "I made/built/created X with AI"
     if (/\bi\s+(made|built|created|designed|generated|tested|tried|used)\s+(a\s+|an\s+|the\s+|this\s+|my\s+)?(claymation|cartoon|anime|animation|short|video|movie|film|story|character|logo|website|app|game|niche|channel)\b/i.test(t)) return true;
     if (/\bwith\s+(free\s+)?ai\b|using\s+(free\s+)?ai\b/i.test(t)) return true;
-    // 11. "Explicad[oa]s en N min" (formato animado Stigman)
+    // 11. Explained in N minutes, animated format
     if (/\bexplicad[oa]s?\s+en\s+\d+\s*(minutos?|min\b|seg|segundos?|horas?)/i.test(t)) return true;
     // 12. Animated / animation / cartoon classics + 3D animation variants
-    // Captura "animated", "animations", "animation", "animator" — todas las variantes
     if (/\banimat(ed|ions?|or|ing)\b/i.test(t)) return true;
     if (/\banimaci[oó]n(es)?\b/i.test(t)) return true;
     if (/\b(cartoon|cartoons|dibujo[s]?\s+animado[s]?|caricatura[s]?)\b/i.test(t)) return true;
@@ -12400,18 +12287,18 @@ function nspIsUserReportedJunk(item) {
     // 18. Channel patterns: AI Pay / Cash Cow / Faceless Empire
     if (/^(ai|gpt|chatgpt)\s+(pay|cash|money|profit|hustle|empire|tools?|hacks?|coach|millionaire)/i.test(c.trim())) return true;
     if (/\b(pay\s+you|cash\s+cow|faceless\s+empire|make\s+money\s+hub|ai\s+(pay|cash|hustle))\b/i.test(c)) return true;
-    // 19. RETOS / CHALLENGES / common youtuber formats
+    // 19. Challenges and other common youtuber formats
     if (/\b(reto|retos|challenge|challenges|24\s*horas?|24\s*hours?|72\s*horas?|72\s*hours?|sobreviv[ií]\s+|i\s+(survived|spent|lived)|gast[eé]\s+\$|me\s+gast[eé]|spending\s+\$|prob[eé]\s+por\s+\d+|tried\s+for\s+\d+|d[ií]a\s+\d+\s+sin|day\s+\d+\s+without|sin\s+(comer|dormir|hablar|salir|internet|m[oó]vil)|without\s+(food|sleep|talking|going\s+out|internet|phone))\b/i.test(t)) return true;
-    // 20. Reaction/opinion video formats (youtubers comunes)
+    // 20. Reaction and opinion formats
     if (/\b(reaccion(?:ando|amos|aron|[eé])?\s+(a|al|los|las|con)|react(?:ing|s|ion)\s+to|opinion\s+sobre|opinando\s+(sobre|de)|hablemos\s+de|let'?s\s+talk\s+about|i\s+(react|reacted)\s+to|reaccion[eé]\s+a)\b/i.test(t)) return true;
-    // 21. Storytime / "lo que paso" / "esto me paso" personal
+    // 21. Storytime and personal what happened to me formats
     if (/\b(storytime|story\s+time|mi\s+(experiencia|historia)\s+con|my\s+experience\s+(with|in|at)|lo\s+que\s+(me\s+)?pas[oó]|what\s+happened\s+(to\s+me|when\s+i)|esto\s+(me\s+)?pas[oó]|me\s+sucedi[oó]|me\s+pas[oó]\s+(esto|algo|lo)|i\s+got\s+(scammed|caught|kicked|banned)|me\s+(estafaron|robaron|enga[ñn]aron))\b/i.test(t)) return true;
-    // 22. Youtuber/streamer common formats: "drama", "exposed", "expuesto"
+    // 22. Youtuber and streamer drama formats
     if (/\b(drama\s+(de|del|con|entre)|drama\s+youtube|expuesto|exposed|destrozad[oa]|destroyed|destruy[oé]|destroyed\s+by|cancelad[oa]|cancelled|live\s+reaction|reaccion\s+en\s+vivo)\b/i.test(t)) return true;
-    // 23. Personal life updates / behind-the-scenes (creador hablando)
+    // 23. Personal life updates and behind the scenes
     if (/\b(mi\s+(canal|equipo|setup|estudio|familia|gato|perro|novia|novio|pareja|esposa|marido|hijo|hija)|my\s+(channel|team|setup|studio|family|cat|dog|girlfriend|boyfriend|wife|husband|son|daughter)|behind\s+the\s+scenes|detr[aá]s\s+de\s+(c[aá]maras|escenas))\b/i.test(t)) return true;
 
-    // 24. ANIME CHARACTER FIGHTS — Saitama, Goku, Naruto, etc. (personajes conocidos)
+    // 24. Anime character fights: Saitama, Goku, Naruto and the like
     if (/\b(saitama|goku|vegeta|naruto|sasuke|itachi|madara|luffy|zoro|sanji|ichigo|natsu|gon|killua|edward\s+elric|deku|bakugo|todoroki|tanjiro|nezuko|zenitsu|gojo|sukuna|yuji|megumi|boros|frieza|cell|broly|jiren|whis|beerus|all\s+might|aizen|kaido|big\s+mom|shanks|akainu|enel)\b/i.test(t)) return true;
     // "X vs Y" + battle/fight signal = anime/game fight
     if (/\b\w+\s+vs\.?\s+\w+\b/i.test(t) && /\b(battle|battles|fight|duel|showdown|pelea|combate|epic\s+fight|who\s+wins|who\s+would\s+win|qui[eé]n\s+gana|qui[eé]n\s+ganar[ií]a)\b/i.test(t)) return true;
@@ -12421,13 +12308,13 @@ function nspIsUserReportedJunk(item) {
     if (/\b(insane|crazy|epic|amazing|incredible|best)\s+(piano|guitar|drum|violin|music|musical)\s+(battle|duel|moment|performance|skill)/i.test(t)) return true;
     if (/\b(music|musical|piano|guitar|drum|violin)\s+(prodigy|genius|virtuoso|master)\b/i.test(t)) return true;
 
-    // 26. "Cómo usar IA" / "Use AI" / "Cómo usar X tool" — tutorial de uso de herramientas
+    // 26. How to use AI, tool usage tutorials
     if (/\bc[oó]mo\s+(usar|utilizar|aprovechar|sacar\s+provecho\s+de)\s+(la\s+|una\s+|las\s+|esta\s+|esa\s+)?(ia|ai|chatgpt|claude|midjourney|gemini|gpt|deepseek)\b/i.test(t)) return true;
     if (/\b(how\s+to|how\s+i)\s+(use|using)\s+(ai|chatgpt|claude|midjourney|gemini|this\s+ai|that\s+ai)\b/i.test(t)) return true;
     if (/\bteach(es|ing)?\s+(you|me|us)?\s*(how\s+to\s+)?(use\s+)?(ai|chatgpt)/i.test(t)) return true;
     if (/\bguide\s+(to|for|on)\s+(using\s+)?(ai|chatgpt|claude|midjourney)\b/i.test(t)) return true;
 
-    // 28. SELF-HELP / COACH / SOFT SKILLS — "Domina el arte de la conversación" tipo content
+    // 28. Self help, coaching and soft skills content
     if (/\bdomin(a|ar|e|en|emos|ando|ado)\s+(el\s+|la\s+|los\s+|las\s+)?(arte|t[eé]cnica|h[aá]bito|h[aá]bitos|secret[oa]s?|habilidad|estrategia|m[eé]todo|sistema|ley|principio|truco|hack)\s+(de|del|para)/i.test(t)) return true;
     if (/\bmaster(s|ed|ing)?\s+(the\s+)?(art|skill|technique|habit|secret|principle)\s+(of|to)/i.test(t)) return true;
     if (/\bel\s+arte\s+(de|del)\s+(la\s+|el\s+|los\s+|las\s+)?(conversaci[oó]n|hablar|comunicar|persuadir|negociar|liderar|expresar|seducir|atraer|escuchar|vender|influir|convencer|emprender|invertir|delegar|ense[ñn]ar|aprender|estudiar|memorizar|concentrarse|enfocarse|decir\s+no|gestionar|administrar)\b/i.test(t)) return true;
@@ -12436,14 +12323,14 @@ function nspIsUserReportedJunk(item) {
     if (/\b(learn|learning)\s+to\s+(speak|communicate|persuade|negotiate|lead|listen|sell|focus|delegate|manage|say\s+no|stop\s+being)/i.test(t)) return true;
     if (/\bc[oó]mo\s+(hablar|conversar|comunicar|persuadir|negociar|liderar|expresar|escuchar|seducir|atraer|vender|delegar|enfocarte|concentrarte|gestionar|memorizar|decir\s+no|dejar\s+de|empezar\s+a|estudiar|emprender|invertir|ahorrar)\b/i.test(t)) return true;
     if (/\bhow\s+to\s+(speak|communicate|persuade|negotiate|lead|listen|sell|focus|delegate|manage|memorize|say\s+no|stop\s+being|start\s+being|study|invest|save)\b/i.test(t)) return true;
-    // "X secretos / X claves / X reglas / X habilidades / X principios" + tema personal
+    // N secrets, keys, rules or habits plus a personal topic
     if (/\b\d+\s+(secretos|claves|reglas|h[aá]bitos|principios|habilidades|estrategias|t[eé]cnicas|m[eé]todos|leyes|trucos|hacks)\s+(de|del|para|que)/i.test(t)) return true;
     if (/\b\d+\s+(secrets|keys|rules|habits|principles|skills|strategies|techniques|methods|laws|tricks|hacks)\s+(of|to|for|that)/i.test(t)) return true;
     // Self-help guru patterns
     if (/\b(jordan\s+peterson|tony\s+robbins|tim\s+ferriss?|gary\s+vee|gary\s+vaynerchuk|robert\s+kiyosaki|brian\s+tracy|simon\s+sinek|jim\s+rohn|earl\s+nightingale|robin\s+sharma|zig\s+ziglar)\b/i.test(t)) return true;
     if (/\b(mindset|mentalidad|self[\s\-]?help|auto[\s\-]?ayuda|personal\s+development|desarrollo\s+personal|motivational\s+(speech|talk|video)|charla\s+motivacional)\b/i.test(t)) return true;
 
-    // 29. VIDEOJUEGOS específicos (gameplay/walkthrough/news del juego)
+    // 29. Specific video games: gameplay, walkthrough, game news
     if (/\b(gta\s*(v|6|5|iv|vi|online|rp)|grand\s+theft\s+auto|minecraft|roblox|fortnite|valorant|warzone|cod|call\s+of\s+duty|league\s+of\s+legends|lol\b|cs\s*:?go|counter[\s\-]strike|apex\s+legends|apex\b|overwatch|dota\s*2?|world\s+of\s+warcraft|wow\b|hearthstone|tft|teamfight\s+tactics|elden\s+ring|dark\s+souls|fifa\s*(20)?2[0-9]|nba\s+2k|madden|pokemon\s+(go|sword|shield|scarlet|violet)|zelda\s+(botw|totk|tears|breath)|mario\s+(kart|odyssey|wonder)|sonic\s+frontiers|halo\s+(infinite|5|reach)|destiny\s*2?|rust\s+game|ark\s+survival|sea\s+of\s+thieves|valheim|terraria|stardew\s+valley|among\s+us|fall\s+guys|rocket\s+league|sims\s*[4-5]?|the\s+sims|skyrim|witcher\s*3|cyberpunk\s+2077|red\s+dead\s+(redemption|2)|rdr\s*2?|baldur'?s\s+gate|hogwarts\s+legacy|spider[\s\-]?man\s+(ps4|ps5|2|miles))\b/i.test(t)) return true;
 	    if (nspIsFacelessSportsExplainerText(full)) return false;
 	    if (/\b(gameplay|walkthrough|playthrough|speedrun|let'?s\s+play|jugando\s+a|playing\s+as)\b/i.test(t)) return true;
@@ -12528,7 +12415,7 @@ function nspRunVisionPass(topResults, listEl) {
       var badge = row.querySelector('.badge'); if (!badge) return;
       var conf = Math.max(0, Math.min(100, Math.round(Number(v.confidence) || 0)));
       if (v.faceless) {
-        badge.textContent = '👁 ' + conf + '% FACELESS';
+        badge.textContent = conf + '% FACELESS';
         badge.style.cssText = 'border:1px solid rgba(0,255,150,0.55); background:rgba(0,255,150,0.10); color:#0f9;';
       } else {
         badge.textContent = '⚠ ' + String(v.type || 'no-faceless').slice(0, 14);
@@ -12554,8 +12441,7 @@ function nspRunVisionPass(topResults, listEl) {
   } catch (e) { console.warn('[NSP VISION] pass error:', e && e.message); }
 }
 function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche, bestVideo, btnTxt) {
-  // v3.8.4 — SIEMPRE expone topResults al agente, desde cualquier path (home/search/country-feed).
-  // Antes solo se seteaba en _renderClean (home feed only) → search results no llegaban al agente.
+  // Top results are exposed to the agent from every path (home, search, country feed).
   try { window._ashlyv_last_top_results = (topResults || []).slice(); } catch(eExpose) {}
   try { window._nspLastScanTs = Date.now(); } catch(eScanTs) {}
   try {
@@ -12579,7 +12465,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
   try {
     // ── PIPELINE INSTRUMENTATION (CHECKPOINT FINAL) ──
     try {
-      console.log('[PIPELINE FINAL] ' + ((topResults && topResults.length) || 0) + ' items mostrados al usuario');
+      console.log('[PIPELINE FINAL] ' + ((topResults && topResults.length) || 0) + ' items shown to the user');
       (topResults || []).forEach(function(item, idx) {
         var sc = (item && item.sc) || {};
         var t = String(sc.title || '').slice(0, 60);
@@ -12591,7 +12477,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
       });
     } catch(eCpF) { console.warn('[PIPELINE FINAL] log error:', eCpF && eCpF.message); }
 
-    // ── ÚNICA capa adicional: nspIsUserReportedJunk (mata ChatGPT/AI Tools/Clone/etc) ──
+    // One extra layer: nspIsUserReportedJunk drops AI tool, clone and money making titles.
     try { topResults = (topResults || []).filter(function(item) { return !nspIsUserReportedJunk(item); }); } catch(_e) {}
 
     var overlayVisibleFallbackPool = [];
@@ -12743,7 +12629,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
     t2.id = 'hdr-sub';
     function refreshHeaderSub() {
       var memSt = AshlyVMemory.getStats();
-      t2.textContent = 'DRAG TO MOVE | ' + topResults.length + ' TOPS | ' + memSt.seenTitles + ' GUARDADOS';
+      t2.textContent = 'DRAG TO MOVE | ' + topResults.length + ' TOPS | ' + memSt.seenTitles + ' SAVED';
     }
     refreshHeaderSub();
     hL.appendChild(t1);
@@ -12779,16 +12665,16 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
       s.appendChild(l);
       return s;
     }
-    statsEl.appendChild(makeStat(String(totalVideos), 'escaneados', '#fff'));
+    statsEl.appendChild(makeStat(String(totalVideos), 'scanned', '#fff'));
     statsEl.appendChild(makeStat(String(topResults.length), 'faceless ai', '#fff'));
     avgRpm = calculateAshlyVTopResultsAvgRpm(topResults, avgRpm);
-    statsEl.appendChild(makeStat('$' + (avgRpm || '0.00'), 'rpm prom', '#fff'));
+    statsEl.appendChild(makeStat('$' + (avgRpm || '0.00'), 'avg rpm', '#fff'));
     panel.appendChild(statsEl);
     var quality = getAshlyVScanQuality(topResults.length);
     var qualityEl = document.createElement('div');
     qualityEl.id = 'quality';
     qualityEl.style.color = quality.color;
-    qualityEl.textContent = 'Scan: ' + totalVideos + ' escaneados → ' + topResults.length + ' FACELESS_AI (' + (totalVideos ? Math.round((topResults.length / totalVideos) * 100) : 0) + '%) | ' + quality.label;
+    qualityEl.textContent = 'Scan: ' + totalVideos + ' scanned, ' + topResults.length + ' FACELESS_AI (' + (totalVideos ? Math.round((topResults.length / totalVideos) * 100) : 0) + '%) | ' + quality.label;
     qualityEl.onclick = function(ev) {
       if (ev.shiftKey) showAshlyVDebugOverlay();
     };
@@ -12800,17 +12686,17 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
         var prefsHint = NspScanPrefs.get();
         var metaHint = NSP_MARKET_META[prefsHint.market] || {};
         var flagHint = metaHint.flag || '🌐';
-        var marketName = metaHint.label || 'tu mercado';
+        var marketName = metaHint.label || 'your market';
         var hint = document.createElement('div');
         hint.id = 'nsp-zero-hint';
         hint.style.cssText = 'margin:10px 14px;padding:12px;border-radius:10px;'
           + 'background:rgba(255,217,61,0.08);border:1px solid rgba(255,217,61,0.4);'
           + 'color:rgba(255,217,61,0.95);font-family:ui-monospace,monospace;font-size:11px;line-height:1.55;';
-        nspSetHTML(hint, '<div style="font-weight:900;margin-bottom:5px;">' + flagHint + ' Filtro HARD activo: ' + marketName + '</div>'
-          + '<div style="font-weight:500;color:rgba(255,217,61,0.78);">Los ' + totalVideos + ' videos del feed no son del idioma de este mercado. '
-          + '<strong>Recarga YouTube</strong> para que el feed cargue contenido del país correcto, o cambia a Global desde el botón globo.</div>');
+        nspSetHTML(hint, '<div style="font-weight:900;margin-bottom:5px;">' + flagHint + ' Hard filter on: ' + marketName + '</div>'
+          + '<div style="font-weight:500;color:rgba(255,217,61,0.78);">None of the ' + totalVideos + ' videos in the feed are in this market language. '
+          + '<strong>Reload YouTube</strong> so the feed loads content from the right country, or switch to Global with the globe button.</div>');
         var reloadBtn = document.createElement('button');
-        reloadBtn.textContent = '🔄 Recargar YouTube';
+        reloadBtn.textContent = 'Reload YouTube';
         reloadBtn.style.cssText = 'margin-top:8px;padding:6px 12px;border-radius:6px;border:1px solid rgba(255,217,61,0.55);'
           + 'background:rgba(255,217,61,0.15);color:#FFD93D;font-weight:800;font-size:10.5px;cursor:pointer;font-family:inherit;letter-spacing:0.05em;';
         reloadBtn.onclick = function() { try { location.reload(); } catch(e) {} };
@@ -12820,28 +12706,25 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
     } catch(eHint) {}
     var actionBar = document.createElement('div');
     actionBar.id = 'actions';
-    // RPM reemplazado por AGENT — abre NSP Coach conversacional (v3.3.0).
-    // Comportamiento RPM viejo accesible vía Shift+Click para no perderlo.
+    // The RPM button now opens NSP Coach; shift click still opens the old RPM leaderboard.
     var agentBtn = document.createElement('button');
-    agentBtn.textContent = '⚡ ZERACK';
-    agentBtn.title = 'Hablá con ZERACK, tu mentor AI de YouTube Automation. Shift+Click → leaderboard RPM viejo';
+    agentBtn.textContent = 'ZERACK';
+    agentBtn.title = 'Talk to ZERACK, your YouTube automation mentor. Shift click opens the old RPM leaderboard.';
     agentBtn.onclick = function(ev) {
       if (ev && ev.shiftKey) { showAshlyVRPMLeaderboardModal(); return; }
       try { openNspCoachChat(); } catch(eCoach) { console.warn('[NSP COACH] open error:', eCoach && eCoach.message); }
     };
-    // v3.21.0 — El PREDICTOR de viralidad y el analizador de miniatura se movieron a
-    // YouTube Studio (al lado del título y de la miniatura, en el momento de subir el
-    // video). Ya NO van en el panel del scan.
+    // The viral predictor and the thumbnail analyzer now live in YouTube Studio, next to the title and the thumbnail at upload time.
     var phaseBtn = document.createElement('button');
-    phaseBtn.textContent = 'FASES';
+    phaseBtn.textContent = 'PHASES';
     phaseBtn.onclick = function() { showAshlyVPhaseRoadmapModal(); };
     var openFirstBtn = document.createElement('button');
-    openFirstBtn.textContent = 'ABRIR #1';
+    openFirstBtn.textContent = 'OPEN #1';
     openFirstBtn.onclick = function(ev) {
       startAshlyVScanNavigation(topResults || [], 0, !!(ev && (ev.metaKey || ev.ctrlKey)));
     };
     var openNextBtn = document.createElement('button');
-    openNextBtn.textContent = 'SIGUIENTE';
+    openNextBtn.textContent = 'NEXT';
     openNextBtn.onclick = function(ev) {
       var data = saveAshlyVScanNavigationQueue(topResults || [], 0);
       if (!data) return;
@@ -12878,10 +12761,8 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
     } else {
       topResults = topResults.slice(0, 10).map(normalizeAshlyVGuaranteedFacelessResult);
     }
-    // FIX: este guard re-filtraba con thresholds estrictos (facelessScore>=50, titleScore>=4)
-    // eliminando los items que el force-to-10 había añadido con criterio más laxo. Resultado:
-    // stats decía "10 FACELESS" pero solo se renderaban 3 rows. Solución: solo reemplazar si
-    // el guard NO pierde items (es decir, solo si encuentra >= mismo número).
+    // This guard used to re-filter with stricter thresholds and dropped items that force-to-10 had added,
+    // so the stats said 10 while only 3 rows rendered. It now replaces the list only when it loses nothing.
     var renderGoodPool = (isHomeFeedPage() && !window._ashlyv_no_filter)
       ? dedupeAshlyVResults(topResults || [])
       : dedupeAshlyVResults((topResults || []).concat((window._ashlyv_last_all_results || []).slice()).concat((_ashlyv_prepared_candidates_list || []).slice()));
@@ -12893,8 +12774,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
       console.log('[ASHLYV] Render good faceless guard SKIPPED (would reduce ' + topResults.length + ' -> ' + renderGoodTop.length + ')');
     }
 
-    // ── ÚLTIMO CHOKEPOINT — justo antes del render forEach. Mata CUALQUIER junk que se haya
-    // colado desde cualquier path. Esta es la última línea de defensa absoluta.
+    // Last chokepoint before the render loop: it drops any junk that slipped in from any path.
 	    try {
 	      if (typeof nspIsUserReportedJunk === 'function') {
 	        var _renderBefore = topResults.length;
@@ -13131,7 +13011,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
 	      if (_statsVals && _statsVals[2]) _statsVals[2].textContent = '$' + (avgRpm || '0.00');
 	      var _quality = getAshlyVScanQuality(topResults.length);
 	      qualityEl.style.color = _quality.color;
-	      qualityEl.textContent = 'Scan: ' + totalVideos + ' escaneados → ' + topResults.length + ' FACELESS_AI (' + (totalVideos ? Math.round((topResults.length / totalVideos) * 100) : 0) + '%) | ' + _quality.label;
+	      qualityEl.textContent = 'Scan: ' + totalVideos + ' scanned, ' + topResults.length + ' FACELESS_AI (' + (totalVideos ? Math.round((topResults.length / totalVideos) * 100) : 0) + '%) | ' + _quality.label;
 	      refreshHeaderSub();
 	      var _zeroHint = shadow.getElementById('nsp-zero-hint');
 	      if (_zeroHint && topResults.length) _zeroHint.remove();
@@ -13144,7 +13024,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
 	    if (!topResults.length) {
 	      var emptyEl = document.createElement('div');
 	      emptyEl.style.cssText = 'padding:18px 14px;color:rgba(255,255,255,0.65);font-size:10px;line-height:1.6;';
-	      emptyEl.textContent = 'No encontre nichos faceless validos en este feed. Filtro HARD: max 2 meses, minimo 10K views, sin reciclados.';
+	      emptyEl.textContent = 'No valid faceless niches in this feed. The hard filter keeps videos under 2 months old, above 10K views, and never repeats one.';
 	      listEl.appendChild(emptyEl);
 	    }
 
@@ -13166,7 +13046,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
       var dot = document.createElement('div');
       dot.className = 'rpm-dot';
       dot.style.background = '#FFFFFF';
-      dot.title = 'RPM estimado: $' + Number(sc.rpm || 0).toFixed(2);
+      dot.title = 'Estimated RPM: $' + Number(sc.rpm || 0).toFixed(2);
       var rank = document.createElement('div');
       rank.className = 'rank';
       rank.style.color = color;
@@ -13270,7 +13150,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
       trBtn.style.marginTop = '8px';
       trBtn.textContent = 'TRANSLATE + SEARCH';
       trBtn.onclick = function() {
-        trBtn.textContent = 'TRANSLATING...';
+        trBtn.textContent = 'TRANSLATING';
         translateTitle(bestVideo.title || '', function(t, targetLang) {
           trBtn.textContent = 'TRANSLATE + SEARCH';
           openLocalizedYouTubeSearch(t, targetLang);
@@ -13281,9 +13161,9 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
 
     var altLangBtn = document.createElement('button');
     altLangBtn.style.marginTop = '8px';
-    altLangBtn.textContent = isHomeFeedPage() ? 'OTRO FYP MISMO IDIOMA' : 'OTRO NICHO MISMO IDIOMA';
+    altLangBtn.textContent = isHomeFeedPage() ? 'ANOTHER FEED, SAME LANGUAGE' : 'ANOTHER NICHE, SAME LANGUAGE';
     altLangBtn.onclick = function() {
-      altLangBtn.textContent = 'BUSCANDO OTRO...';
+      altLangBtn.textContent = 'SEARCHING';
       if (isHomeFeedPage() && !window._ashlyv_no_filter) {
         if (!tryNextAshlyVHomeScan(getAshlyVScanButtonTextNode())) {
           setAshlyVHomeScanStage(0);
@@ -13298,7 +13178,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
     var freshBtn = document.createElement('button');
     freshBtn.style.marginTop = '8px';
     freshBtn.style.cssText = 'width:100%;padding:9px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:none;color:rgba(255,255,255,0.7);font-size:9px;font-weight:900;cursor:pointer;font-family:ui-monospace,monospace;letter-spacing:0.1em;margin-top:8px;';
-    freshBtn.textContent = isHomeFeedPage() ? 'BUSCAR OTRO FYP' : 'REESCANEAR PAGINA';
+    freshBtn.textContent = isHomeFeedPage() ? 'FIND ANOTHER FEED' : 'RESCAN PAGE';
     freshBtn.onclick = function() {
       closeAshlyVScanUi();
       if (isHomeFeedPage() && !window._ashlyv_no_filter) {
@@ -13315,21 +13195,21 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
     var resetBtn = document.createElement('button');
     resetBtn.style.marginTop = '8px';
     resetBtn.style.cssText = 'width:100%;padding:9px;border-radius:6px;border:1px solid rgba(255,255,255,0.22);background:rgba(255,255,255,0.04);color:#fff;font-size:9px;font-weight:900;cursor:pointer;font-family:ui-monospace,monospace;letter-spacing:0.1em;margin-top:8px;';
-    resetBtn.textContent = 'RESET MEMORIA';
+    resetBtn.textContent = 'RESET MEMORY';
     resetBtn.onclick = function() {
-      resetBtn.textContent = 'LIMPIANDO...';
+      resetBtn.textContent = 'CLEARING';
       AshlyVRecentRuns.reset();
       clearAshlyVStableNoRecycleHistory();
       AshlyVMemory.reset()
         .then(function() {
           clearAshlyVHomeScanStage();
           refreshHeaderSub();
-          resetBtn.textContent = 'MEMORIA LIMPIA';
-          setTimeout(function() { resetBtn.textContent = 'RESET MEMORIA'; }, 1500);
+          resetBtn.textContent = 'MEMORY CLEARED';
+          setTimeout(function() { resetBtn.textContent = 'RESET MEMORY'; }, 1500);
         })
         .catch(function() {
           resetBtn.textContent = 'ERROR';
-          setTimeout(function() { resetBtn.textContent = 'RESET MEMORIA'; }, 1500);
+          setTimeout(function() { resetBtn.textContent = 'RESET MEMORY'; }, 1500);
         });
     };
     footerEl.appendChild(resetBtn);
@@ -13347,8 +13227,8 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
       try { if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } catch(e3) {}
       proBtn.textContent = 'PRO OPEN';
       try {
-        // v3.7.2 — Skip toggleProPanel (usa innerHTML que YouTube Trusted Types bloquea).
-        // Vamos directo al panel inline que usa createElement (Trusted Types safe).
+        // toggleProPanel is skipped because it uses innerHTML, which YouTube Trusted Types blocks.
+        // This inline panel builds nodes with createElement instead.
         var oldPanel = shadow.querySelector('#nsp-pro-panel');
         if (oldPanel) {
           oldPanel.style.display = 'flex';
@@ -13389,7 +13269,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
         var header = proEl('div', 'padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.10);display:flex;align-items:center;justify-content:space-between;background:#050505;');
         var titleWrap = proEl('div');
         titleWrap.appendChild(proEl('div', 'font-size:13px;font-weight:950;letter-spacing:.16em;', 'PRO TOOLS'));
-        titleWrap.appendChild(proEl('div', 'font-size:9px;color:rgba(255,255,255,.50);margin-top:3px;', 'PANEL EXCLUSIVO DEL SCAN'));
+        titleWrap.appendChild(proEl('div', 'font-size:9px;color:rgba(255,255,255,.50);margin-top:3px;', 'SCAN ONLY PANEL'));
         var closeButton = proEl('button', 'width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.06);color:#fff;font-size:15px;font-weight:900;cursor:pointer;', 'X');
         closeButton.id = 'nsp-pro-close';
         closeButton.type = 'button';
@@ -13423,18 +13303,18 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
 
         var scanProItems = (topResults || []).slice(0, 60);
         var scanPick = proEl('div', 'background:rgba(0,220,130,.08);border:1px solid rgba(0,220,130,.22);border-radius:10px;padding:10px;margin-bottom:10px;');
-        scanPick.appendChild(proEl('div', 'font-size:9px;color:#00DC82;font-weight:950;letter-spacing:.12em;margin-bottom:7px;', 'USA SOLO NICHOS DE ESTE SCAN'));
+        scanPick.appendChild(proEl('div', 'font-size:9px;color:#00DC82;font-weight:950;letter-spacing:.12em;margin-bottom:7px;', 'USES ONLY NICHES FROM THIS SCAN'));
         var scanSelect = proEl('select', 'background:#000;border:1px solid rgba(255,255,255,.14);color:#fff;border-radius:6px;font-size:11px;box-sizing:border-box;width:100%;padding:8px;');
         scanSelect.id = 'pro-scan-item';
         scanProItems.forEach(function(scanItem, scanIdx) {
           var scanSc = (scanItem && scanItem.sc) || scanItem || {};
           var scanOpt = document.createElement('option');
           scanOpt.value = String(scanIdx);
-          scanOpt.textContent = '#' + (scanIdx + 1) + ' | ' + ((scanSc.title || scanItem._nicheLabel || 'Nicho escaneado').slice(0, 90));
+          scanOpt.textContent = '#' + (scanIdx + 1) + ' | ' + ((scanSc.title || scanItem._nicheLabel || 'Scanned niche').slice(0, 90));
           scanSelect.appendChild(scanOpt);
         });
         scanPick.appendChild(scanSelect);
-        scanPick.appendChild(proEl('div', 'font-size:9px;color:rgba(255,255,255,.50);line-height:1.4;margin-top:7px;', 'Las tools se rellenan desde el resultado seleccionado. No usan canales o keywords manuales.'));
+        scanPick.appendChild(proEl('div', 'font-size:9px;color:rgba(255,255,255,.50);line-height:1.4;margin-top:7px;', 'The tools read the selected result. They do not take manual channels or keywords.'));
         body.insertBefore(scanPick, toolsView);
 
         function resultBox(id) {
@@ -13485,29 +13365,27 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           el.textContent = String(html == null ? '' : html).replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
         };
         var esc = function(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
-        // v3.7.1 — PRO usa Gemini directo (eliminado backend Python local que el usuario no tiene)
-        // Cada path traduce a un prompt específico. La respuesta se parsea como JSON.
+        // PRO calls the model directly; each path becomes a prompt and the answer is parsed as JSON.
         var post = async function(path, body) {
           body = body || {};
           var prompts = {
-            '/niche/channel-age': 'Analiza el canal YouTube "' + (body.channel || '') + '" para faceless replicability con maxMonths=' + (body.maxMonths || 3) + '. Estima cuántos meses tiene el canal basado en el nombre/URL si no tienes datos. Devuelve SOLO JSON: {"pass": true|false, "monthsOld": número, "createdDate": "YYYY-MM"}. Pass=true si monthsOld <= maxMonths.',
-            '/niche/viral-metrics': 'Estima métricas virales del canal YouTube "' + (body.channel || '') + '". Devuelve SOLO JSON: {"viralVideoCount": número, "velocityTier": "HOT"|"WARM"|"COLD", "viralRatio": % entero}.',
-            '/niche/search-titles': 'Devuelve los 5 canales YouTube top del nicho "' + (body.keywords || '') + '" en idioma ' + (body.language || 'es') + '. SOLO JSON: {"count": número, "channels": [{"name":"...", "totalViews": número}]}.',
-            '/niche/score-by-language': 'Score del nicho "' + (body.niche || '') + '" en 5 idiomas (es/en/pt/de/fr). SOLO JSON: {"bestLanguage": "es", "languages": [{"language":"es", "score": 0-100, "verdict":"breve"}]}.',
-            '/niche/replicate-content': 'Generá 3 ideas de videos replicables del canal "' + (body.channel || '') + '" en idioma ' + (body.language || 'es') + '. SOLO JSON: {"source": {"name":"..."}, "videos": [{"title":"...", "hook":"primeros 5 segundos"}]}.',
-            '/niche/build-brand': 'Diseñá brand para nicho "' + (body.niche || '') + '" tono ' + (body.tone || 'pro') + ' idioma ' + (body.language || 'es') + '. SOLO JSON: {"channelNames": ["op1","op2","op3"], "bio": "una línea", "strategySummary": "2-3 frases"}.'
+            '/niche/channel-age': 'Analyze the YouTube channel "' + (body.channel || '') + '" for faceless replicability with maxMonths=' + (body.maxMonths || 3) + '. With no data, estimate the age of the channel in months from its name or URL. Return ONLY JSON: {"pass": true|false, "monthsOld": number, "createdDate": "YYYY-MM"}. pass is true when monthsOld <= maxMonths.',
+            '/niche/viral-metrics': 'Estimate viral metrics for the YouTube channel "' + (body.channel || '') + '". Return ONLY JSON: {"viralVideoCount": number, "velocityTier": "HOT"|"WARM"|"COLD", "viralRatio": whole percent}.',
+            '/niche/search-titles': 'Return the top 5 YouTube channels in the niche "' + (body.keywords || '') + '" for language ' + (body.language || 'es') + '. ONLY JSON: {"count": number, "channels": [{"name":"...", "totalViews": number}]}.',
+            '/niche/score-by-language': 'Score the niche "' + (body.niche || '') + '" across 5 languages (es/en/pt/de/fr). ONLY JSON: {"bestLanguage": "es", "languages": [{"language":"es", "score": 0-100, "verdict":"one short line"}]}.',
+            '/niche/replicate-content': 'Give 3 replicable video ideas from the channel "' + (body.channel || '') + '" in language ' + (body.language || 'es') + '. ONLY JSON: {"source": {"name":"..."}, "videos": [{"title":"...", "hook":"the first 5 seconds"}]}.',
+            '/niche/build-brand': 'Design a brand for the niche "' + (body.niche || '') + '" with tone ' + (body.tone || 'pro') + ' in language ' + (body.language || 'es') + '. ONLY JSON: {"channelNames": ["op1","op2","op3"], "bio": "one line", "strategySummary": "2-3 sentences"}.'
           };
           var prompt = prompts[path];
-          if (!prompt) throw new Error('Path desconocido: ' + path);
-          if (typeof nspCoachSendApi !== 'function') throw new Error('Coach API no disponible — recargá la extensión');
-          var resp = await nspCoachSendApi([{ role:'user', content: prompt }], 'Sos un experto en YouTube Automation faceless. Responde SOLO con JSON válido, sin texto extra, sin markdown, sin ```json. Si no sabés un dato, estimá basado en patrones del nicho.', false);
+          if (!prompt) throw new Error('Unknown path: ' + path);
+          if (typeof nspCoachSendApi !== 'function') throw new Error('Coach API not available, reload the extension');
+          var resp = await nspCoachSendApi([{ role:'user', content: prompt }], 'You are an expert in faceless YouTube automation. Answer with valid JSON only: no extra text, no markdown, no code fence. When a value is unknown, estimate it from patterns in the niche.', false);
           var text = String(resp && resp.text || '').trim();
-          // Limpia markdown si vino con ```json
           text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
           try {
             return JSON.parse(text);
           } catch(eJson) {
-            // Si Gemini no devolvió JSON válido, devolver el texto crudo wrappeado
+            // The model did not return valid JSON, so the raw text is passed back.
             return { _rawText: text, _parseError: true };
           }
         };
@@ -13547,11 +13425,11 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           var niche = selectedScanNiche();
           ['#pro-age-channel', '#pro-viral-channel', '#pro-rep-channel'].forEach(function(sel) {
             var el = q(sel);
-            if (el) { el.value = ch; el.readOnly = true; el.title = 'Bloqueado al nicho seleccionado del scan'; }
+            if (el) { el.value = ch; el.readOnly = true; el.title = 'Locked to the niche selected in the scan'; }
           });
           ['#pro-title-keywords', '#pro-global-niche', '#pro-brand-niche'].forEach(function(sel) {
             var el = q(sel);
-            if (el) { el.value = niche; el.readOnly = true; el.title = 'Bloqueado al nicho seleccionado del scan'; }
+            if (el) { el.value = niche; el.readOnly = true; el.title = 'Locked to the niche selected in the scan'; }
           });
           var lang = selectedScanLanguage().slice(0, 2).toLowerCase();
           var repLang = q('#pro-rep-language');
@@ -13574,29 +13452,29 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           };
         });
         q('#pro-age-btn').onclick = async function() {
-          out('#pro-age-result', 'Loading...');
+          out('#pro-age-result', 'Loading');
           try {
             var d = await post('/niche/channel-age', { channel: selectedScanChannel(), maxMonths: Number(val('#pro-age-months') || 3) });
             out('#pro-age-result', '<b>' + esc(d.pass === false ? 'FAIL' : 'PASS') + '</b> · ' + esc(d.monthsOld || d.ageMonths || '?') + ' months · ' + esc(d.createdDate || d.created || ''));
           } catch(err) { out('#pro-age-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
         };
         q('#pro-viral-btn').onclick = async function() {
-          out('#pro-viral-result', 'Loading...');
+          out('#pro-viral-result', 'Loading');
           try {
             var d = await post('/niche/viral-metrics', { channel: selectedScanChannel() });
             out('#pro-viral-result', '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;"><div><b>' + esc(d.viralVideoCount || 0) + '</b><br>viral</div><div><b>' + esc(d.velocityTier || '-') + '</b><br>tier</div><div><b>' + esc(d.viralRatio || 0) + '%</b><br>ratio</div></div>');
           } catch(err) { out('#pro-viral-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
         };
         q('#pro-title-btn').onclick = async function() {
-          out('#pro-title-result', 'Loading...');
+          out('#pro-title-result', 'Loading');
           try {
             var d = await post('/niche/search-titles', { keywords: selectedScanNiche(), language: selectedScanLanguage() });
             var arr = d.channels || d.results || [];
-            out('#pro-title-result', '<b>' + esc(d.count || arr.length || 0) + ' resultados</b><br>' + arr.slice(0,5).map(function(c) { return esc(c.name || c.channel || '-') + ' · ' + esc(c.totalViews || c.views || 0); }).join('<br>'));
+            out('#pro-title-result', '<b>' + esc(d.count || arr.length || 0) + ' results</b><br>' + arr.slice(0,5).map(function(c) { return esc(c.name || c.channel || '-') + ' · ' + esc(c.totalViews || c.views || 0); }).join('<br>'));
           } catch(err) { out('#pro-title-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
         };
         q('#pro-global-btn').onclick = async function() {
-          out('#pro-global-result', 'Loading...');
+          out('#pro-global-result', 'Loading');
           try {
             var d = await post('/niche/score-by-language', { niche: selectedScanNiche() });
             var langs = d.languages || d.scores || [];
@@ -13604,7 +13482,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           } catch(err) { out('#pro-global-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
         };
         q('#pro-rep-btn').onclick = async function() {
-          out('#pro-rep-result', 'Loading...');
+          out('#pro-rep-result', 'Loading');
           try {
             var d = await post('/niche/replicate-content', { channel: selectedScanChannel(), language: val('#pro-rep-language'), targetVideos: 3 });
             var vids = d.videos || d.items || [];
@@ -13612,7 +13490,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           } catch(err) { out('#pro-rep-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
         };
         q('#pro-brand-btn').onclick = async function() {
-          out('#pro-brand-result', 'Loading...');
+          out('#pro-brand-result', 'Loading');
           try {
             var d = await post('/niche/build-brand', { niche: selectedScanNiche(), language: val('#pro-brand-language'), tone: val('#pro-brand-tone') });
             out('#pro-brand-result', '<b>' + esc((d.channelNames || d.names || []).join(', ') || d.name || '-') + '</b><br>' + esc(d.bio || d.strategySummary || d.strategy || ''));
@@ -13658,7 +13536,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
 
     try { nspRunVisionPass(topResults, listEl); } catch (eVP) {}
 
-    if (btnTxt) btnTxt.textContent = topResults.length ? ' SCAN OK' : ' REINTENTAR';
+    if (btnTxt) btnTxt.textContent = topResults.length ? ' SCAN OK' : ' RETRY';
     setTimeout(function() {
       if (btnTxt) btnTxt.textContent = ' SCAN';
     }, 3000);
@@ -13728,7 +13606,7 @@ function injectFilterBar() {
   // NSP label
   var lbl = document.createElement('span');
   lbl.style.cssText = 'color:#7B5CFF;font-weight:700;font-size:11px;letter-spacing:.1em;';
-  lbl.textContent = '⚡ NSP';
+  lbl.textContent = 'NSP';
   bar.appendChild(lbl);
   bar.appendChild(sep());
 
@@ -13762,7 +13640,7 @@ function injectFilterBar() {
   var saveBtn = document.createElement('button');
   saveBtn.style.cssText = 'padding:3px 10px;border-radius:999px;border:1px solid rgba(0,220,130,.3);'
     + 'background:rgba(0,220,130,.08);color:#00DC82;font-size:10.5px;font-weight:600;';
-  saveBtn.textContent = '💾 SAVE NICHE';
+  saveBtn.textContent = 'SAVE NICHE';
   saveBtn.addEventListener('click', function() {
     var q = new URLSearchParams(location.search).get('search_query') || '';
     if (!q) return;
@@ -13770,8 +13648,8 @@ function injectFilterBar() {
       var wl = JSON.parse(localStorage.getItem('nsp_watchlist') || '[]');
       if (wl.indexOf(q) === -1) { wl.push(q); localStorage.setItem('nsp_watchlist', JSON.stringify(wl)); }
     } catch(e) {}
-    saveBtn.textContent = '✅ SAVED!';
-    setTimeout(function() { saveBtn.textContent = '💾 SAVE NICHE'; }, 2000);
+    saveBtn.textContent = 'SAVED';
+    setTimeout(function() { saveBtn.textContent = 'SAVE NICHE'; }, 2000);
   });
   bar.appendChild(saveBtn);
 
@@ -13811,7 +13689,7 @@ function calcNicheSignals(scored) {
   if (!scored || scored.length < 3) return null;
   var total = scored.length;
 
-  // 1. DEMAND — % de videos RISING o mejor
+  // 1. Demand: share of videos at RISING or better.
   var risingPlus = 0;
   for (var i = 0; i < scored.length; i++) {
     var tk = scored[i].tier.key;
@@ -13819,7 +13697,7 @@ function calcNicheSignals(scored) {
   }
   var demand = Math.round((risingPlus / total) * 100);
 
-  // 2. GROWTH TREND — videos nuevos (<7 días) vs viejos en VPH
+  // 2. Growth trend: VPH of videos under 7 days old against older ones.
   var freshVPH = 0, freshN = 0, oldVPH = 0, oldN = 0;
   for (var j = 0; j < scored.length; j++) {
     var sv = scored[j];
@@ -13834,7 +13712,7 @@ function calcNicheSignals(scored) {
     growthTrend = Math.min(100, Math.max(0, Math.round(ratio * 40)));
   }
 
-  // 3. SATURACIÓN — cuántos canales únicos hay (más canales = menos saturado)
+  // 3. Saturation: more distinct channels means less saturated.
   var chKeys = Object.keys(_channelMap);
   var saturation;
   if (chKeys.length === 0) { saturation = 40; }
@@ -13843,13 +13721,13 @@ function calcNicheSignals(scored) {
     saturation = Math.min(100, Math.max(0, Math.round((5 - vidsPerCh) / 4 * 100)));
   }
 
-  // 4. RPM VALUE — RPM promedio normalizado ($2 → 0, $22 → 100)
+  // 4. RPM value: average RPM normalized, $2 is 0 and $22 is 100.
   var totalRPM = 0;
   for (var k = 0; k < scored.length; k++) totalRPM += scored[k].rpm;
   var avgRPM = total ? totalRPM / total : 0;
   var rpmScore = Math.min(100, Math.max(0, Math.round((avgRPM - 2) / 20 * 100)));
 
-  // 5. OPORTUNIDAD — OS promedio + boost de HOT recientes (<72h)
+  // 5. Opportunity: average outlier score plus a boost for HOT videos under 72h.
   var totalOS = 0, recentHot = 0;
   for (var l = 0; l < scored.length; l++) {
     totalOS += scored[l].os;
@@ -13859,21 +13737,19 @@ function calcNicheSignals(scored) {
   var avgOS = totalOS / total;
   var entryWindow = Math.min(100, Math.round(avgOS * 0.7 + (recentHot / total) * 300));
 
-  // Score compuesto (ponderado)
   var composite = Math.round(
     demand * 0.30 + growthTrend * 0.25 + saturation * 0.10 + rpmScore * 0.20 + entryWindow * 0.15
   );
 
-  // Veredicto final
   var verdict, verdictCol, verdictBg;
   if (composite >= 72 && rpmScore >= 40) {
-    verdict = '💎 HIDDEN GEM'; verdictCol = '#FFD700'; verdictBg = 'rgba(255,215,0,.15)';
+    verdict = 'HIDDEN GEM'; verdictCol = '#FFD700'; verdictBg = 'rgba(255,215,0,.15)';
   } else if (composite >= 60) {
-    verdict = '🟢 ENTER NOW';   verdictCol = '#00DC82'; verdictBg = 'rgba(0,220,130,.12)';
+    verdict = 'ENTER NOW'; verdictCol = '#00DC82'; verdictBg = 'rgba(0,220,130,.12)';
   } else if (composite >= 38) {
-    verdict = '🟡 WATCH & WAIT'; verdictCol = '#F5A623'; verdictBg = 'rgba(245,166,35,.1)';
+    verdict = 'WATCH AND WAIT'; verdictCol = '#F5A623'; verdictBg = 'rgba(245,166,35,.1)';
   } else {
-    verdict = '🔴 SATURADO';    verdictCol = '#FF4444'; verdictBg = 'rgba(255,68,68,.12)';
+    verdict = 'SATURATED'; verdictCol = '#FF4444'; verdictBg = 'rgba(255,68,68,.12)';
   }
 
   return {
@@ -13899,7 +13775,6 @@ function injectCompetitionMeter() {
     + 'margin:0 0 12px;font-family:ui-monospace,monospace;overflow:hidden;'
     + 'box-shadow:0 4px 24px rgba(0,0,0,.4);position:relative;z-index:99;animation:nspFadeIn .4s ease;';
 
-  // ── Lado izquierdo: Score + Veredicto ──
   var left = document.createElement('div');
   left.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;'
     + 'padding:14px 20px;min-width:110px;border-right:1px solid rgba(255,255,255,.07);'
@@ -13924,7 +13799,6 @@ function injectCompetitionMeter() {
 
   panel.appendChild(left);
 
-  // ── Lado derecho: Barras de señal ──
   var right = document.createElement('div');
   right.style.cssText = 'display:flex;flex-direction:column;justify-content:center;gap:6px;padding:12px 16px;flex:1;';
 
@@ -13932,7 +13806,7 @@ function injectCompetitionMeter() {
   header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;';
   var titleEl = document.createElement('span');
   titleEl.style.cssText = 'color:#7B5CFF;font-weight:700;font-size:10px;letter-spacing:.1em;';
-  titleEl.textContent = '⚡ NICHE SIGNAL RADAR';
+  titleEl.textContent = 'NICHE SIGNAL RADAR';
   header.appendChild(titleEl);
   if (_session.query) {
     var qtag = document.createElement('span');
@@ -13943,11 +13817,11 @@ function injectCompetitionMeter() {
   right.appendChild(header);
 
   var signals = [
-    { label: '📈 DEMANDA',    score: sig.demand,      hint: sig.risingPlus + '/' + sig.total + ' RISING+' },
-    { label: '🚀 TENDENCIA',  score: sig.growthTrend, hint: 'nuevos vs viejos VPH' },
-    { label: '🚪 ENTRADA',    score: sig.saturation,  hint: Object.keys(_channelMap).length + ' canales distintos' },
-    { label: '💰 RPM',        score: sig.rpmScore,    hint: '$' + sig.avgRPM.toFixed(1) + ' RPM est.' },
-    { label: '🎯 OPORTUNIDAD',score: sig.entryWindow, hint: 'OS promedio + HOT recientes' },
+    { label: 'DEMAND',      score: sig.demand,      hint: sig.risingPlus + '/' + sig.total + ' RISING+' },
+    { label: 'TREND',       score: sig.growthTrend, hint: 'new vs old VPH' },
+    { label: 'ENTRY',       score: sig.saturation,  hint: Object.keys(_channelMap).length + ' distinct channels' },
+    { label: 'RPM',         score: sig.rpmScore,    hint: '$' + sig.avgRPM.toFixed(1) + ' est. RPM' },
+    { label: 'OPPORTUNITY', score: sig.entryWindow, hint: 'average OS plus recent HOT' },
   ];
 
   for (var i = 0; i < signals.length; i++) {
@@ -14169,8 +14043,8 @@ function buildExplodingBadgeElement() {
     + 'animation:nspPulseGlow 2s ease-in-out infinite;'
     + 'font-family:ui-monospace,monospace;cursor:default;user-select:none;'
     + 'white-space:nowrap;flex-shrink:0;';
-  pill.textContent = '💎 NEW & EXPLODING';
-  pill.title = 'Canal joven con crecimiento explosivo (fórmula NSP/NEXLEV)';
+  pill.textContent = 'NEW & EXPLODING';
+  pill.title = 'Young channel growing fast (NSP formula)';
 
   // Inject keyframes once
   if (!document.getElementById('nsp-pulse-glow-kf')) {
@@ -14346,7 +14220,7 @@ function fetchChannelAgeFromAbout(channelUrl, callback) {
 // Helper: format channel age compactly
 function formatChannelAge(days) {
   if (days === null || days === undefined) return null;
-  if (days < 1) return 'HOY';
+  if (days < 1) return 'TODAY';
   if (days < 7) return days + 'd';
   if (days < 30) return Math.round(days / 7) + 'w';
   if (days < 365) return Math.round(days / 30) + 'mo';
@@ -14368,14 +14242,13 @@ function isNewAndExploding(ch, avgVPH) {
   var avgViewsPerVideo = (ch.videoCount && ch.totalViews && ch.videoCount > 0)
     ? (ch.totalViews / ch.videoCount) : 0;
 
-  // ── GUARD anti-falso-positivo: "NEW & EXPLODING" exige TRACCIÓN REAL — o videos con vistas de verdad,
-  // o velocidad de subs alta. Sin esto, un canal NUEVO con un video recién subido daba VPH transitorio
-  // alto (13 vistas en 1h = VPH alto) y se marcaba "explotando" SIN tener ni un video viral. Mata ese caso.
+  // New and exploding needs real traction: either videos with real views or fast subscriber growth.
+  // Without this, a brand new channel with one fresh video showed a spike of VPH (13 views in an hour) and was marked exploding.
   if (avgViewsPerVideo < 3000 && subsPerMonth < 1000 && subs < 1000) return false;
 
   // ── Path 1: classic NEXLEV (<6 months + <50K subs + traction)
   if (ch.channelAgeDays <= 180 && subs <= 50000 && subs > 0) {
-    if (avgVPH >= 50 && avgViewsPerVideo >= 2000) return true;   // VPH alto PERO con vistas reales (no VPH transitorio)
+    if (avgVPH >= 50 && avgViewsPerVideo >= 2000) return true;
     if (avgViewsPerVideo >= 50000) return true;
   }
 
@@ -14446,7 +14319,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
   var dragHandle = document.createElement('div');
   dragHandle.setAttribute('style', 'width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:' + NEON + ';flex-shrink:0;font-size:14px;line-height:1;');
   dragHandle.textContent = '✥';
-  dragHandle.title = 'Arrastra para mover';
+  dragHandle.title = 'Drag to move';
   hdr.appendChild(dragHandle);
 
   var hLeft = document.createElement('div');
@@ -14456,7 +14329,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
   hT.textContent = '◆ TRACKING';
   var hS = document.createElement('div');
   hS.setAttribute('style', 'font-size:10px;color:' + DIM + ';margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;');
-  hS.textContent = String(ch.name || 'canal').slice(0, 40);
+  hS.textContent = String(ch.name || 'channel').slice(0, 40);
   hLeft.appendChild(hT);
   hLeft.appendChild(hS);
   hdr.appendChild(hLeft);
@@ -14559,8 +14432,8 @@ function openTrackingPanel(ch, subGrowthMonth) {
     var statusBox = document.createElement('div');
     statusBox.setAttribute('style', 'padding:14px;border-radius:8px;background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.25);');
 
-    var statusEmoji = '⚡', statusText = 'SIN DATOS', statusColor = DIM;
-    var velocityText = 'Necesita 2+ snapshots';
+    var statusEmoji = '', statusText = 'NO DATA', statusColor = DIM;
+    var velocityText = 'Needs 2 or more snapshots';
     var projectionText = '—';
 
     if (history.length >= 2) {
@@ -14571,16 +14444,16 @@ function openTrackingPanel(ch, subGrowthMonth) {
       var subsGain = last.subs - first.subs;
       var subsPerDay = daysSpan > 0 ? subsGain / daysSpan : 0;
 
-      if (subsPerDay > 100) { statusEmoji = '🚀'; statusText = 'ACELERANDO'; statusColor = NEON; }
-      else if (subsPerDay > 0) { statusEmoji = '➡️'; statusText = 'ESTABLE'; statusColor = FG; }
-      else if (subsPerDay === 0) { statusEmoji = '😴'; statusText = 'ESTANCADO'; statusColor = DIM; }
-      else { statusEmoji = '📉'; statusText = 'DECRECIENDO'; statusColor = '#FF4488'; }
+      if (subsPerDay > 100) { statusEmoji = ''; statusText = 'ACCELERATING'; statusColor = NEON; }
+      else if (subsPerDay > 0) { statusEmoji = ''; statusText = 'STEADY'; statusColor = FG; }
+      else if (subsPerDay === 0) { statusEmoji = ''; statusText = 'FLAT'; statusColor = DIM; }
+      else { statusEmoji = ''; statusText = 'DECLINING'; statusColor = '#FF4488'; }
 
-      velocityText = (subsPerDay >= 0 ? '+' : '') + fmtN(Math.round(subsPerDay)) + ' subs/día';
+      velocityText = (subsPerDay >= 0 ? '+' : '') + fmtN(Math.round(subsPerDay)) + ' subs/day';
 
       if (subsPerDay > 0) {
         var proj3mo = (ch.subs || 0) + Math.round(subsPerDay * 90);
-        projectionText = '~' + fmtN(proj3mo) + ' en 3 meses';
+        projectionText = '~' + fmtN(proj3mo) + ' in 3 months';
       }
     }
 
@@ -14605,17 +14478,17 @@ function openTrackingPanel(ch, subGrowthMonth) {
     body.appendChild(statusBox);
   } catch(e) { console.warn('[NSP] status err:', e); }
 
-  // ───── ALERTAS DE OUTLIERS ─────
+  // ───── OUTLIER ALERTS ─────
   try {
     var hasStorage = (typeof chrome !== 'undefined') && chrome.storage && chrome.storage.local;
     var watchBox = document.createElement('div');
     watchBox.setAttribute('style', 'padding:14px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);');
-    var wt = sectionTitle('◆ ALERTAS DE OUTLIERS');
+    var wt = sectionTitle('◆ OUTLIER ALERTS');
     wt.style.marginTop = '0';
     watchBox.appendChild(wt);
     var watchSub = document.createElement('div');
     watchSub.setAttribute('style', 'font-size:10px;color:' + DIM + ';margin-top:5px;line-height:1.5;');
-    watchSub.textContent = 'Notifica cuando publique video con VPH ≥ 100 o ≥50K views en <72h.';
+    watchSub.textContent = 'Alerts you when this channel posts a video above 100 VPH or 50K views within 72 hours.';
     watchBox.appendChild(watchSub);
 
     var watchBtn = document.createElement('button');
@@ -14623,7 +14496,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
     watchBtn.setAttribute('style', btnBaseStyle);
 
     if (!hasStorage) {
-      watchBtn.textContent = 'No disponible (recarga extensión)';
+      watchBtn.textContent = 'Not available, reload the extension';
       watchBtn.disabled = true;
       watchBtn.style.opacity = '0.5';
       watchBtn.style.cursor = 'not-allowed';
@@ -14633,7 +14506,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
           nspStore.get('nsp_watching').then(function(res) {
             var w = (res && res.nsp_watching) || {};
             var on = !!w[ch.channelUrl];
-            watchBtn.textContent = on ? '✓ ACTIVADO' : '+ ACTIVAR ALERTAS';
+            watchBtn.textContent = on ? '✓ ON' : '+ TURN ON ALERTS';
             watchBtn.style.background = on ? NEON : 'transparent';
             watchBtn.style.color = on ? '#000' : NEON;
           });
@@ -14665,7 +14538,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
 
   // ───── QUICK ACTIONS GRID (4 buttons) ─────
   try {
-    body.appendChild(sectionTitle('◆ ACCIONES RÁPIDAS'));
+    body.appendChild(sectionTitle('◆ QUICK ACTIONS'));
     var grid = document.createElement('div');
     grid.setAttribute('style', 'display:grid;grid-template-columns:1fr 1fr;gap:6px;');
 
@@ -14707,12 +14580,12 @@ function openTrackingPanel(ch, subGrowthMonth) {
     }
 
     // Copy URL
-    grid.appendChild(quickBtn('🔗', 'Copiar URL', function() {
+    grid.appendChild(quickBtn('', 'Copy URL', function() {
       try {
         navigator.clipboard.writeText(ch.channelUrl || location.href).then(function() {
           var t = document.createElement('div');
           t.setAttribute('style', 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);z-index:2147483647;padding:10px 18px;background:' + NEON + ';color:#000;border-radius:8px;font-family:ui-monospace;font-size:11px;font-weight:800;');
-          t.textContent = '✓ URL copiada';
+          t.textContent = 'URL copied';
           document.body.appendChild(t);
           setTimeout(function() { t.remove(); }, 1500);
         });
@@ -14720,14 +14593,14 @@ function openTrackingPanel(ch, subGrowthMonth) {
     }));
 
     // Export CSV (history)
-    grid.appendChild(quickBtn('📊', 'Export CSV', function() {
+    grid.appendChild(quickBtn('', 'Export CSV', function() {
       try {
         var raw = JSON.parse(localStorage.getItem('nsp_sub_history') || '{}');
         var h = raw[ch.channelId] || raw[ch.channelUrl] || [];
         if (!h.length) {
           var t = document.createElement('div');
           t.setAttribute('style', 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);z-index:2147483647;padding:10px 18px;background:#FF4488;color:#000;border-radius:8px;font-family:ui-monospace;font-size:11px;font-weight:800;');
-          t.textContent = '⚠ Sin histórico para exportar';
+          t.textContent = 'No history to export';
           document.body.appendChild(t);
           setTimeout(function() { t.remove(); }, 2000);
           return;
@@ -14747,23 +14620,23 @@ function openTrackingPanel(ch, subGrowthMonth) {
     }));
 
     // Mark as VIP / favorite
-    grid.appendChild(quickBtn('⭐', 'Toggle VIP', function() {
+    grid.appendChild(quickBtn('', 'Toggle VIP', function() {
       try {
         var vips = JSON.parse(localStorage.getItem('nsp_vip_channels') || '{}');
         var key = ch.channelId || ch.channelUrl;
         if (vips[key]) {
           delete vips[key];
-          showToast('Quitado de VIP', '#FF4488');
+          showToast('Removed from VIP', '#FF4488');
         } else {
           vips[key] = { name: ch.name, addedAt: Date.now() };
-          showToast('★ Marcado VIP', NEON);
+          showToast('Marked VIP', NEON);
         }
         localStorage.setItem('nsp_vip_channels', JSON.stringify(vips));
       } catch(e) {}
     }));
 
     // Open in Social Blade
-    grid.appendChild(quickBtn('📈', 'Social Blade', function() {
+    grid.appendChild(quickBtn('', 'Social Blade', function() {
       try {
         var url = ch.channelId
           ? 'https://socialblade.com/youtube/channel/' + ch.channelId
@@ -14788,7 +14661,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
   try {
     var snap = document.createElement('button');
     snap.setAttribute('style', 'padding:10px 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:' + FG + ';font-weight:700;font-size:11px;letter-spacing:0.08em;cursor:pointer;font-family:inherit;width:100%;');
-    snap.textContent = '📸 Guardar snapshot AHORA (' + fmtN(ch.subs || 0) + ')';
+    snap.textContent = 'Save snapshot now (' + fmtN(ch.subs || 0) + ')';
     snap.onclick = function() {
       try {
         var rawS = JSON.parse(localStorage.getItem('nsp_sub_history') || '{}');
@@ -14796,7 +14669,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
         if (!rawS[cid]) rawS[cid] = [];
         rawS[cid].push({ subs: ch.subs || 0, ts: Date.now() });
         localStorage.setItem('nsp_sub_history', JSON.stringify(rawS));
-        snap.textContent = '✓ Snapshot guardado';
+        snap.textContent = 'Snapshot saved';
         snap.style.color = NEON;
         snap.style.borderColor = NEON;
         snap.disabled = true;
@@ -14804,17 +14677,17 @@ function openTrackingPanel(ch, subGrowthMonth) {
           if (panel.parentNode) panel.remove();
           openTrackingPanel(ch, subGrowthMonth);
         }, 800);
-      } catch(e) { snap.textContent = '⚠ Error'; }
+      } catch(e) { snap.textContent = 'Error'; }
     };
     body.appendChild(snap);
   } catch(e) { console.warn('[NSP] snap err:', e); }
 
-  // ───── NOTAS DEL CANAL ─────
+  // ───── CHANNEL NOTES ─────
   try {
-    body.appendChild(sectionTitle('◆ NOTAS'));
+    body.appendChild(sectionTitle('◆ NOTES'));
     var noteArea = document.createElement('textarea');
     noteArea.setAttribute('style', 'width:100%;min-height:60px;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.02);color:' + FG + ';font-family:inherit;font-size:11px;resize:vertical;box-sizing:border-box;');
-    noteArea.placeholder = 'Tu nota sobre este canal (estrategia, ideas, observaciones)...';
+    noteArea.placeholder = 'Your note on this channel: strategy, ideas, what you noticed';
     var noteKey = 'nsp_note_' + (ch.channelId || ch.channelUrl || 'unk');
     try { noteArea.value = localStorage.getItem(noteKey) || ''; } catch(e) {}
     var saveTimer;
@@ -14832,12 +14705,12 @@ function openTrackingPanel(ch, subGrowthMonth) {
     var rawH = JSON.parse(localStorage.getItem('nsp_sub_history') || '{}');
     var histList = rawH[ch.channelId] || rawH[ch.channelUrl] || [];
 
-    body.appendChild(sectionTitle('◆ HISTÓRICO (' + histList.length + ')'));
+    body.appendChild(sectionTitle('◆ HISTORY (' + histList.length + ')'));
 
     if (!histList.length) {
       var em = document.createElement('div');
       em.setAttribute('style', 'padding:14px;text-align:center;font-size:10.5px;color:' + DIM + ';background:rgba(255,255,255,0.02);border:1px dashed rgba(255,255,255,0.15);border-radius:8px;line-height:1.6;');
-      em.textContent = 'Sin histórico. Click "📸 Guardar snapshot AHORA" para forzar uno.';
+      em.textContent = 'No history yet. Use Save snapshot now to record the first one.';
       body.appendChild(em);
     } else {
       var sortedH = histList.slice().sort(function(a, b) { return b.ts - a.ts; });
@@ -15130,7 +15003,7 @@ function createNSPInteractiveMetricPill(primaryText, altText, iconKind, strong) 
   pill.dataset.nspState = 'primary';
   pill.setAttribute('role', 'button');
   pill.tabIndex = 0;
-  pill.title = 'Click para alternar';
+  pill.title = 'Click to switch';
   pill.style.cursor = 'pointer';
   pill.style.transition = 'transform .16s ease,box-shadow .16s ease,border-color .16s ease';
   function toggle() {
@@ -15269,7 +15142,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   htitleMain.textContent = ch.name;
   var htitleSub = document.createElement('span');
   htitleSub.style.cssText = 'color:rgba(234,240,255,.35);font-size:10px;';
-  htitleSub.textContent = '⚡ NSP Quick Channel Stats';
+  htitleSub.textContent = 'NSP quick channel stats';
   htitle.appendChild(htitleMain);
   htitle.appendChild(htitleSub);
   hdrLeft.appendChild(htitle);
@@ -15284,18 +15157,18 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   closeBtn.onmouseout  = function() { this.style.borderColor = 'rgba(255,255,255,.12)'; this.style.color = 'rgba(234,240,255,.4)'; };
   closeBtn.addEventListener('click', function() {
     panel.remove();
-    try { sessionStorage.removeItem('nsp_reopen_stats'); } catch(eSS) {}   // cierre explícito → olvidar persistencia
+    try { sessionStorage.removeItem('nsp_reopen_stats'); } catch(eSS) {}
     var statsBtnLive = document.getElementById('nsp-stats-btn');
     if (statsBtnLive) {
-      statsBtnLive.textContent = 'VER STATS';
+      statsBtnLive.textContent = 'VIEW STATS';
       setNSPMonoButtonActive(statsBtnLive, false);
     }
   });
   hdr.appendChild(closeBtn);
   panel.appendChild(hdr);
 
-  // ── PERSISTENCIA (pedido v4.32): recordar que este panel está abierto, para re-abrirlo solo
-  // cuando vuelvas al canal después de un redirect / back. Se olvida al cerrarlo con la X.
+  // Remember that this panel is open so it reopens after a redirect or a back navigation.
+  // Closing it with the X forgets that.
   rangeKey = rangeKey || 'all';
   try {
     sessionStorage.setItem('nsp_reopen_stats', JSON.stringify({
@@ -15308,14 +15181,13 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
     }));
   } catch(eSS) {}
 
-  // ── RANGO DE STATS (pedido v4.32): ESTE MES / MES PASADO / 3 MESES / TODO — capado a la EDAD
-  // del canal (un canal de 1 mes NO ofrece "mes pasado" ni "3 meses": no existían).
+  // Stat ranges are capped to the channel age: a one month old channel has no last month or 3 month range.
   var allScored = scored || [];
   var chAgeDays = (ch && ch.channelAgeDays != null) ? ch.channelAgeDays : null;
-  var nspRanges = [{ key: 'm0', label: 'ESTE MES', minD: 0, maxD: 30 }];
-  if (chAgeDays == null || chAgeDays > 35) nspRanges.push({ key: 'm1', label: 'MES PASADO', minD: 30, maxD: 60 });
-  if (chAgeDays == null || chAgeDays > 65) nspRanges.push({ key: 'q', label: '3 MESES', minD: 0, maxD: 90 });
-  nspRanges.push({ key: 'all', label: chAgeDays != null ? ('TODO · ' + (chAgeDays >= 60 ? Math.round(chAgeDays / 30) + ' MESES' : chAgeDays + ' DÍAS')) : 'TODO', minD: 0, maxD: Infinity });
+  var nspRanges = [{ key: 'm0', label: 'THIS MONTH', minD: 0, maxD: 30 }];
+  if (chAgeDays == null || chAgeDays > 35) nspRanges.push({ key: 'm1', label: 'LAST MONTH', minD: 30, maxD: 60 });
+  if (chAgeDays == null || chAgeDays > 65) nspRanges.push({ key: 'q', label: '3 MONTHS', minD: 0, maxD: 90 });
+  nspRanges.push({ key: 'all', label: chAgeDays != null ? ('ALL · ' + (chAgeDays >= 60 ? Math.round(chAgeDays / 30) + ' MONTHS' : chAgeDays + ' DAYS')) : 'ALL', minD: 0, maxD: Infinity });
   if (!nspRanges.some(function(r) { return r.key === rangeKey; })) rangeKey = 'all';
   var activeRange = null;
   for (var nri = 0; nri < nspRanges.length; nri++) if (nspRanges[nri].key === rangeKey) activeRange = nspRanges[nri];
@@ -15329,7 +15201,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
     + 'border-bottom:1px solid rgba(255,255,255,.06);background:rgba(123,92,255,.03);';
   var rangeTag = document.createElement('span');
   rangeTag.style.cssText = 'font-size:8.5px;color:rgba(234,240,255,.35);letter-spacing:.12em;text-transform:uppercase;margin-right:4px;';
-  rangeTag.textContent = '📅 RANGO';
+  rangeTag.textContent = 'RANGE';
   rangeBar.appendChild(rangeTag);
   nspRanges.forEach(function(r) {
     var chip = document.createElement('button');
@@ -15351,7 +15223,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   if (activeRange && activeRange.key !== 'all' && !scored.length && allScored.length) {
     var noVidWarn = document.createElement('div');
     noVidWarn.style.cssText = 'padding:8px 20px;font-size:10px;color:rgba(255,217,61,.85);border-bottom:1px solid rgba(255,255,255,.05);';
-    noVidWarn.textContent = '⚠ Sin videos subidos en este rango — métricas en 0. Elige otro rango.';
+    noVidWarn.textContent = 'No videos published in this range, so every metric reads 0. Pick another range.';
     panel.appendChild(noVidWarn);
   }
 
@@ -15376,23 +15248,23 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   // Channel verdict
   var verdict, verdictSub, verdictGrad, verdictBorder;
   if (avgVPH >= 1000) {
-    verdict = '🔴 NICHO VIRAL'; verdictSub = 'Explosivo. Replica YA — alta demanda comprobada.';
+    verdict = 'VIRAL NICHE'; verdictSub = 'Exploding. Demand is proven, replicate it now.';
     verdictGrad = 'linear-gradient(135deg,rgba(200,0,255,.2),rgba(123,92,255,.15))';
     verdictBorder = 'rgba(200,0,255,.4)';
   } else if (avgVPH >= 200) {
-    verdict = '🔥 NICHO CALIENTE'; verdictSub = 'Alta tracción. Vale mucho la pena entrar ahora.';
+    verdict = 'HOT NICHE'; verdictSub = 'Strong traction. Worth entering now.';
     verdictGrad = 'linear-gradient(135deg,rgba(255,80,0,.18),rgba(255,150,0,.12))';
     verdictBorder = 'rgba(255,80,0,.4)';
   } else if (avgVPH >= 50) {
-    verdict = '⚡ NICHO EN CRECIMIENTO'; verdictSub = 'Crecimiento sólido. Buen momento para entrar.';
+    verdict = 'GROWING NICHE'; verdictSub = 'Solid growth. A good moment to enter.';
     verdictGrad = 'linear-gradient(135deg,rgba(255,200,0,.15),rgba(255,150,0,.08))';
     verdictBorder = 'rgba(255,200,0,.4)';
   } else if (avgVPH >= 10) {
-    verdict = '✅ NICHO ESTABLE'; verdictSub = 'Crecimiento lento pero consistente. Competencia moderada.';
+    verdict = 'STEADY NICHE'; verdictSub = 'Slow but consistent growth, moderate competition.';
     verdictGrad = 'linear-gradient(135deg,rgba(0,220,130,.12),rgba(0,168,255,.08))';
     verdictBorder = 'rgba(0,220,130,.3)';
   } else {
-    verdict = '😴 NICHO LENTO'; verdictSub = 'Poca tracción. Considera buscar un nicho más activo.';
+    verdict = 'SLOW NICHE'; verdictSub = 'Little traction. Consider a more active niche.';
     verdictGrad = 'linear-gradient(135deg,rgba(80,80,80,.15),rgba(50,50,50,.1))';
     verdictBorder = 'rgba(100,100,100,.3)';
   }
@@ -15418,7 +15290,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   vOS.textContent = 'OS:' + avgOS;
   var vOSLabel = document.createElement('span');
   vOSLabel.style.cssText = 'font-size:9px;color:rgba(234,240,255,.35);letter-spacing:.06em;text-transform:uppercase;';
-  vOSLabel.textContent = 'Score promedio canal';
+  vOSLabel.textContent = 'Average channel score';
   vRight.appendChild(vOS);
   vRight.appendChild(vOSLabel);
   verdictBanner.appendChild(vLeft);
@@ -15449,17 +15321,17 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
     return cell;
   }
 
-  var subs7dLabel = subs7d !== null ? (subs7d >= 0 ? '+' : '') + fmtN(subs7d) : 'Pocos datos';
+  var subs7dLabel = subs7d !== null ? (subs7d >= 0 ? '+' : '') + fmtN(subs7d) : 'Not enough data';
   var subs7dColor = subs7d === null ? 'rgba(234,240,255,.3)' : (subs7d >= 0 ? '#00DC82' : '#FF6B6B');
-  statsRow.appendChild(statCell('👥', subs7dLabel, 'Subs ganados 7d', subs7dColor, false));
+  statsRow.appendChild(statCell('', subs7dLabel, 'Subs gained in 7d', subs7dColor, false));
 
   var revLabel = revMonth > 0 ? (revMonth >= 1000 ? '$' + (revMonth / 1000).toFixed(1) + 'K' : '$' + revMonth) : 'N/A';
-  statsRow.appendChild(statCell('💰', revLabel, 'Est. ingresos/mes', '#00DC82', false));
+  statsRow.appendChild(statCell('', revLabel, 'Est. revenue per month', '#00DC82', false));
 
-  statsRow.appendChild(statCell('⏱', avgLen ? fmtDurationSecs(avgLen) : '--', 'Duración promedio', '#2EE9FF', false));
+  statsRow.appendChild(statCell('', avgLen ? fmtDurationSecs(avgLen) : '--', 'Average length', '#2EE9FF', false));
 
   var freqLabel = uploadFreqDays ? 'c/' + uploadFreqDays + 'd' : '--';
-  statsRow.appendChild(statCell('📅', freqLabel, 'Frecuencia upload', '#FFD700', true));
+  statsRow.appendChild(statCell('', freqLabel, 'Upload frequency', '#FFD700', true));
 
   panel.appendChild(statsRow);
 
@@ -15477,22 +15349,22 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
     return s;
   }
 
-  detail.appendChild(detailChip('📹 ' + scored.length + ' videos analizados', '#A88FFF', 'rgba(123,92,255,.1)', 'rgba(123,92,255,.25)'));
-  detail.appendChild(detailChip('👁 ' + fmtN(ch.subs) + ' subs', '#2EE9FF', 'rgba(46,233,255,.1)', 'rgba(46,233,255,.3)'));
+  detail.appendChild(detailChip(scored.length + ' videos analyzed', '#A88FFF', 'rgba(123,92,255,.1)', 'rgba(123,92,255,.25)'));
+  detail.appendChild(detailChip(fmtN(ch.subs) + ' subs', '#2EE9FF', 'rgba(46,233,255,.1)', 'rgba(46,233,255,.3)'));
 
   if (subGrowth !== null) {
     var gc = subGrowth >= 0 ? '#00DC82' : '#FF6B6B';
-    detail.appendChild(detailChip((subGrowth >= 0 ? '+' : '') + fmtN(subGrowth) + '/mes', gc, 'rgba(0,220,130,.08)', 'rgba(0,220,130,.2)'));
+    detail.appendChild(detailChip((subGrowth >= 0 ? '+' : '') + fmtN(subGrowth) + '/mo', gc, 'rgba(0,220,130,.08)', 'rgba(0,220,130,.2)'));
   }
 
   var rpmColor = detectedRpm >= 10 ? '#00DC82' : detectedRpm >= 6 ? '#FFD700' : '#888';
   detail.appendChild(detailChip('$' + detectedRpm + ' RPM', rpmColor, 'rgba(255,255,255,.04)', 'rgba(255,255,255,.1)'));
 
   var monLabel2, monColor2;
-  if (ch.monetized === 'yes')         { monLabel2 = '✅ Monetizado';       monColor2 = '#00DC82'; }
-  else if (ch.monetized === 'likely') { monLabel2 = '🟡 Prob. monetizado'; monColor2 = '#FFD700'; }
-  else if (ch.monetized === 'no')     { monLabel2 = '❌ No monetizado';    monColor2 = '#FF6B6B'; }
-  else                                { monLabel2 = '❓ Desconocido';      monColor2 = '#888'; }
+  if (ch.monetized === 'yes')         { monLabel2 = 'Monetized';          monColor2 = '#00DC82'; }
+  else if (ch.monetized === 'likely') { monLabel2 = 'Likely monetized';   monColor2 = '#FFD700'; }
+  else if (ch.monetized === 'no')     { monLabel2 = 'Not monetized';      monColor2 = '#FF6B6B'; }
+  else                                { monLabel2 = 'Unknown';            monColor2 = '#888'; }
   detail.appendChild(detailChip(monLabel2, monColor2, 'rgba(255,255,255,.04)', 'rgba(255,255,255,.1)'));
 
   panel.appendChild(detail);
@@ -15524,20 +15396,20 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   }
 
   var fmtM = function(n) { return n >= 1000 ? '$' + (n/1000).toFixed(1) + 'K' : '$' + n; };
-  var freqStr = uploadFreqDays ? '1 video c/' + uploadFreqDays + 'd' : (scored.length + ' videos analizados');
-  var vidsStr = vidsPerMonth ? '~' + vidsPerMonth + ' videos/mes' : '--';
-  var projStr = replicaMonthly ? fmtM(replicaMonthly) + '/mes' : '--';
+  var freqStr = uploadFreqDays ? '1 video every ' + uploadFreqDays + 'd' : (scored.length + ' videos analyzed');
+  var vidsStr = vidsPerMonth ? '~' + vidsPerMonth + ' videos/mo' : '--';
+  var projStr = replicaMonthly ? fmtM(replicaMonthly) + '/mo' : '--';
   var avgRevStr = fmtM(avgRevPerVid) + '/video';
 
   var secHdr = document.createElement('div');
   secHdr.style.cssText = 'padding:10px 20px 4px;font-size:9.5px;color:rgba(234,240,255,.3);'
     + 'letter-spacing:.08em;text-transform:uppercase;font-weight:700;border-bottom:1px solid rgba(255,255,255,.04);';
-  secHdr.textContent = '🚀 Si Replicas Este Canal';
+  secHdr.textContent = 'If you replicate this channel';
   panel.appendChild(secHdr);
 
-  repRow.appendChild(repCell('📅', freqStr, 'Ritmo del canal', 'frecuencia de subida', '#FFD700', false));
-  repRow.appendChild(repCell('📹', vidsStr, 'Videos/mes', 'si igualas su ritmo', '#2EE9FF', false));
-  repRow.appendChild(repCell('💸', projStr, 'Ganancia proyectada', avgRevStr + ' promedio', '#00DC82', true));
+  repRow.appendChild(repCell('', freqStr, 'Channel pace', 'upload frequency', '#FFD700', false));
+  repRow.appendChild(repCell('', vidsStr, 'Videos per month', 'if you match their pace', '#2EE9FF', false));
+  repRow.appendChild(repCell('', projStr, 'Projected revenue', avgRevStr + ' on average', '#00DC82', true));
   panel.appendChild(repRow);
 
   // ── Top videos ──
@@ -15546,7 +15418,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
     var topHdr = document.createElement('div');
     topHdr.style.cssText = 'padding:10px 20px 6px;font-size:9.5px;color:rgba(234,240,255,.3);'
       + 'letter-spacing:.08em;text-transform:uppercase;font-weight:700;';
-    topHdr.textContent = '🏆 Top Videos del Canal';
+    topHdr.textContent = 'Top videos on this channel';
     panel.appendChild(topHdr);
 
     var topList = document.createElement('div');
@@ -15558,14 +15430,14 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
         + 'background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;';
       var rank = document.createElement('span');
       rank.style.cssText = 'font-size:13px;flex-shrink:0;';
-      rank.textContent = ti === 0 ? '🥇' : ti === 1 ? '🥈' : '🥉';
+      rank.textContent = String(ti + 1);
       var ttxt = document.createElement('span');
       ttxt.style.cssText = 'flex:1;color:rgba(234,240,255,.7);font-size:10.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
-      ttxt.textContent = ts2.title || '(sin título)';
+      ttxt.textContent = ts2.title || '(no title)';
       ttxt.title = ts2.title || '';
       var tvph = document.createElement('span');
       tvph.style.cssText = 'color:#2EE9FF;font-size:10px;font-weight:700;flex-shrink:0;';
-      tvph.textContent = '⚡' + fmtVPH(ts2.vph) + ' VPH';
+      tvph.textContent = fmtVPH(ts2.vph) + ' VPH';
       var tos = document.createElement('span');
       tos.style.cssText = 'color:#A88FFF;font-size:10px;font-weight:700;flex-shrink:0;';
       tos.textContent = 'OS:' + ts2.os;
@@ -15609,7 +15481,7 @@ buildChannelStatsPanel = function(ch, scored, subGrowth, revMonth) {
   function resetTopStatsButton() {
     var statsBtnLive = document.getElementById('nsp-stats-btn');
     if (statsBtnLive) {
-      statsBtnLive.textContent = 'VER STATS';
+      statsBtnLive.textContent = 'VIEW STATS';
       setNSPMonoButtonActive(statsBtnLive, false);
     }
   }
@@ -15665,20 +15537,20 @@ buildChannelStatsPanel = function(ch, scored, subGrowth, revMonth) {
   var vidsPerMonth = uploadFreqDays ? Math.max(1, Math.round(30 / uploadFreqDays)) : null;
   var replicaMonthly = vidsPerMonth ? vidsPerMonth * avgRevPerVid : null;
 
-  var verdict = 'NICHO LENTO';
-  var verdictSub = 'Demanda suave. Todavia no hay una senal fuerte.';
+  var verdict = 'SLOW NICHE';
+  var verdictSub = 'Soft demand. No strong signal yet.';
   if (avgVPH >= 1000) {
-    verdict = 'NICHO VIRAL';
-    verdictSub = 'Demanda altisima. El canal esta explotando en velocidad.';
+    verdict = 'VIRAL NICHE';
+    verdictSub = 'Demand is very high. This channel is exploding.';
   } else if (avgVPH >= 200) {
-    verdict = 'NICHO CALIENTE';
-    verdictSub = 'Traccion real. Vale la pena entrar con una propuesta mejor.';
+    verdict = 'HOT NICHE';
+    verdictSub = 'Real traction. Worth entering with a better angle.';
   } else if (avgVPH >= 50) {
-    verdict = 'NICHO EN MOVIMIENTO';
-    verdictSub = 'Hay interes sostenido. Buena base para iterar rapido.';
+    verdict = 'MOVING NICHE';
+    verdictSub = 'Interest is holding. A good base to iterate on quickly.';
   } else if (avgVPH >= 10) {
-    verdict = 'NICHO ESTABLE';
-    verdictSub = 'Se mueve constante. Puede funcionar con sistema y paciencia.';
+    verdict = 'STEADY NICHE';
+    verdictSub = 'Moves steadily. It can work with a system and patience.';
   }
 
   var hdr = el('div', 'padding:18px 20px 14px;display:flex;align-items:center;justify-content:space-between;gap:16px;'
@@ -15708,11 +15580,11 @@ buildChannelStatsPanel = function(ch, scored, subGrowth, revMonth) {
     + 'background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));display:flex;align-items:flex-start;justify-content:space-between;gap:18px;'
     + 'box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 18px 36px rgba(0,0,0,.18);');
   var heroLeft = el('div', 'display:flex;flex-direction:column;gap:8px;min-width:0;');
-  heroLeft.appendChild(el('div', 'font-size:11px;color:rgba(255,255,255,.4);letter-spacing:.18em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';', 'Veredicto'));
+  heroLeft.appendChild(el('div', 'font-size:11px;color:rgba(255,255,255,.4);letter-spacing:.18em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';', 'Verdict'));
   heroLeft.appendChild(el('div', 'font-size:28px;font-weight:900;color:#fff;line-height:1.1;font-family:' + NSP_FONT_DISPLAY + ';text-shadow:0 0 14px rgba(255,255,255,.14);', verdict));
   heroLeft.appendChild(el('div', 'font-size:13px;color:rgba(255,255,255,.62);line-height:1.6;max-width:430px;', verdictSub));
   var heroRight = el('div', 'display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;');
-  heroRight.appendChild(el('div', 'font-size:10px;color:rgba(255,255,255,.38);letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';', 'Score Promedio'));
+  heroRight.appendChild(el('div', 'font-size:10px;color:rgba(255,255,255,.38);letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';', 'Average score'));
   heroRight.appendChild(el('div', 'font-size:42px;font-weight:900;color:#fff;line-height:1;font-family:' + NSP_FONT_DISPLAY + ';text-shadow:0 0 16px rgba(255,255,255,.16);', String(avgOS)));
   hero.appendChild(heroLeft);
   hero.appendChild(heroRight);
@@ -15721,30 +15593,30 @@ buildChannelStatsPanel = function(ch, scored, subGrowth, revMonth) {
   var metrics = el('div', 'display:grid;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:14px;border:1px solid rgba(255,255,255,.08);'
     + 'border-radius:24px;overflow:hidden;background:rgba(255,255,255,.025);');
   var subs7dLabel = subs7d !== null ? ((subs7d >= 0 ? '+' : '') + fmtN(subs7d)) : 'TRACKING';
-  metrics.appendChild(metricCell('Subs 7D', subs7dLabel, 'Movimiento reciente visible', false));
-  metrics.appendChild(metricCell('Ingresos', fmtMoney(revMonth), 'Estimado mensual visible', false));
-  metrics.appendChild(metricCell('Duracion', avgLen ? fmtDurationSecs(avgLen) : '--', 'Promedio del canal', false));
-  metrics.appendChild(metricCell('Cadencia', uploadFreqDays ? ('c/' + uploadFreqDays + 'd') : '--', 'Ritmo de publicacion', true));
+  metrics.appendChild(metricCell('Subs 7D', subs7dLabel, 'Recent visible movement', false));
+  metrics.appendChild(metricCell('Revenue', fmtMoney(revMonth), 'Visible monthly estimate', false));
+  metrics.appendChild(metricCell('Length', avgLen ? fmtDurationSecs(avgLen) : '--', 'Channel average', false));
+  metrics.appendChild(metricCell('Cadence', uploadFreqDays ? ('every ' + uploadFreqDays + 'd') : '--', 'Publishing pace', true));
   body.appendChild(metrics);
 
   var chips = el('div', 'display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;');
-  chips.appendChild(chip(scored.length + ' videos analizados'));
+  chips.appendChild(chip(scored.length + ' videos analyzed'));
   chips.appendChild(chip(fmtN(ch.subs || 0) + ' subs'));
   chips.appendChild(chip('$' + detectedRpm + ' rpm'));
-  chips.appendChild(chip(ch.monetized === 'yes' ? 'monet activa' : ch.monetized === 'likely' ? 'monet probable' : ch.monetized === 'no' ? 'monet off' : 'monet desconocida'));
+  chips.appendChild(chip(ch.monetized === 'yes' ? 'monetized' : ch.monetized === 'likely' ? 'likely monetized' : ch.monetized === 'no' ? 'not monetized' : 'monetization unknown'));
   body.appendChild(chips);
 
-  body.appendChild(el('div', 'font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';margin:18px 2px 10px;', 'Si replicas este canal'));
+  body.appendChild(el('div', 'font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';margin:18px 2px 10px;', 'If you replicate this channel'));
 
   var repGrid = el('div', 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;');
-  repGrid.appendChild(metricCell('Ritmo', uploadFreqDays ? ('1 video c/' + uploadFreqDays + 'd') : (scored.length + ' samples'), 'Frecuencia visible', true));
-  repGrid.appendChild(metricCell('Videos/Mes', vidsPerMonth ? ('~' + vidsPerMonth) : '--', 'Si igualas su ritmo', true));
-  repGrid.appendChild(metricCell('Proyeccion', replicaMonthly ? fmtMoney(replicaMonthly) : '--', fmtMoney(avgRevPerVid) + ' por video promedio', true));
+  repGrid.appendChild(metricCell('Pace', uploadFreqDays ? ('1 video every ' + uploadFreqDays + 'd') : (scored.length + ' samples'), 'Visible frequency', true));
+  repGrid.appendChild(metricCell('Videos per month', vidsPerMonth ? ('~' + vidsPerMonth) : '--', 'If you match their pace', true));
+  repGrid.appendChild(metricCell('Projection', replicaMonthly ? fmtMoney(replicaMonthly) : '--', fmtMoney(avgRevPerVid) + ' per video on average', true));
   body.appendChild(repGrid);
 
   var topScored = scored.slice().sort(function(a, b) { return b.os - a.os; }).slice(0, 3);
   if (topScored.length) {
-    body.appendChild(el('div', 'font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';margin:18px 2px 10px;', 'Top Videos del Canal'));
+    body.appendChild(el('div', 'font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';margin:18px 2px 10px;', 'Top videos on this channel'));
     var list = el('div', 'display:flex;flex-direction:column;gap:8px;');
     topScored.forEach(function(ts, idx) { list.appendChild(topRow(ts, idx)); });
     body.appendChild(list);
@@ -15752,7 +15624,7 @@ buildChannelStatsPanel = function(ch, scored, subGrowth, revMonth) {
 
   // ── NET PROFIT CALCULATOR ──────────────────────────────────────────────────
   try {
-    body.appendChild(el('div', 'font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';margin:24px 2px 10px;', '💰 Net Profit Calculator'));
+    body.appendChild(el('div', 'font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';margin:24px 2px 10px;', 'Net profit calculator'));
     body.appendChild(buildNetProfitCalculator(ch, scored, avgRevPerVid, vidsPerMonth, replicaMonthly));
   } catch(eCalc) {
     console.error('[NSP] Net Profit Calc render error:', eCalc);
@@ -15769,8 +15641,8 @@ function buildNetProfitCalculator(ch, scored, avgRevPerVid, vidsPerMonth, replic
   var box = document.createElement('div');
   box.style.cssText = 'padding:16px;border-radius:18px;border:1px solid rgba(0,220,130,.2);'
     + 'background:linear-gradient(180deg,rgba(0,220,130,.05),rgba(0,220,130,.01));';
-  // Helper DOM puro — youtube.com tiene Trusted Types: innerHTML está PROHIBIDO (lanza y revienta
-  // el render del calculador). Todo se construye con createElement + textContent.
+  // youtube.com enforces Trusted Types, so innerHTML throws and breaks this render:
+  // everything here is built with createElement and textContent.
   function mk(tag, css, text) {
     var n = document.createElement(tag);
     if (css) n.style.cssText = css;
@@ -15809,11 +15681,11 @@ function buildNetProfitCalculator(ch, scored, avgRevPerVid, vidsPerMonth, replic
     return row;
   }
 
-  box.appendChild(inputRow('script', '✍️ Script', '$ por video'));
-  box.appendChild(inputRow('voice', '🎙 Voz / Narración', '$ por video'));
-  box.appendChild(inputRow('edit', '🎬 Edición + Visual', '$ por video'));
-  box.appendChild(inputRow('thumb', '🎨 Thumbnail', '$ por video'));
-  box.appendChild(inputRow('other', '💼 Otros (SFX, music, etc)', '$ por video'));
+  box.appendChild(inputRow('script', 'Script', '$ per video'));
+  box.appendChild(inputRow('voice', 'Voice and narration', '$ per video'));
+  box.appendChild(inputRow('edit', 'Editing and visuals', '$ per video'));
+  box.appendChild(inputRow('thumb', 'Thumbnail', '$ per video'));
+  box.appendChild(inputRow('other', 'Other (SFX, music)', '$ per video'));
 
   var divider = document.createElement('div');
   divider.style.cssText = 'height:1px;background:rgba(255,255,255,.08);margin:12px 0;';
@@ -15855,12 +15727,12 @@ function buildNetProfitCalculator(ch, scored, avgRevPerVid, vidsPerMonth, replic
     var netColor = netPerVideo > 0 ? '#00DC82' : '#FF6B6B';
     var monthColor = monthlyNet > 0 ? '#00DC82' : '#FF6B6B';
 
-    resultsGrid.appendChild(resultCell('Net por video', fmt(netPerVideo), 'rev ' + fmt(revPerVideo) + ' - cost ' + fmt(costPerVideo), netColor));
-    resultsGrid.appendChild(resultCell('Margen %', marginPct + '%', netPerVideo > 0 ? 'rentable' : 'negativo', netColor));
-    resultsGrid.appendChild(resultCell('Net mensual', fmt(monthlyNet), monthlyRev > 0 ? 'rev ' + fmt(monthlyRev) + ' - cost ' + fmt(monthlyCost) : 'sin proyección de uploads', monthColor));
-    resultsGrid.appendChild(resultCell('ROI mensual', roi !== null ? roi + '%' : '--', roi !== null ? (roi >= 100 ? 'excelente' : roi >= 50 ? 'bueno' : 'bajo') : 'configura costos', roi !== null && roi >= 100 ? '#00DC82' : (roi !== null && roi >= 50 ? '#FFD93D' : '#FF8E8E')));
-    resultsGrid.appendChild(resultCell('Breakeven', breakevenMonths ? breakevenMonths + ' videos' : '∞', breakevenMonths ? 'para recuperar costo de 1 video' : 'aumenta revenue o baja costos', breakevenMonths && breakevenMonths <= 1 ? '#00DC82' : '#FFD93D'));
-    resultsGrid.appendChild(resultCell('Vs producir tú', costs.script + costs.voice + costs.edit + costs.thumb === 0 ? '$0' : fmt(costPerVideo - 5), 'ahorro si haces todo tú vs outsource', '#A88FFF'));
+    resultsGrid.appendChild(resultCell('Net per video', fmt(netPerVideo), 'rev ' + fmt(revPerVideo) + ' - cost ' + fmt(costPerVideo), netColor));
+    resultsGrid.appendChild(resultCell('Margin %', marginPct + '%', netPerVideo > 0 ? 'profitable' : 'negative', netColor));
+    resultsGrid.appendChild(resultCell('Net per month', fmt(monthlyNet), monthlyRev > 0 ? 'rev ' + fmt(monthlyRev) + ' - cost ' + fmt(monthlyCost) : 'no upload projection', monthColor));
+    resultsGrid.appendChild(resultCell('Monthly ROI', roi !== null ? roi + '%' : '--', roi !== null ? (roi >= 100 ? 'excellent' : roi >= 50 ? 'good' : 'low') : 'set your costs first', roi !== null && roi >= 100 ? '#00DC82' : (roi !== null && roi >= 50 ? '#FFD93D' : '#FF8E8E')));
+    resultsGrid.appendChild(resultCell('Breakeven', breakevenMonths ? breakevenMonths + ' videos' : '∞', breakevenMonths ? 'to cover the cost of one video' : 'raise revenue or cut costs', breakevenMonths && breakevenMonths <= 1 ? '#00DC82' : '#FFD93D'));
+    resultsGrid.appendChild(resultCell('Vs doing it yourself', costs.script + costs.voice + costs.edit + costs.thumb === 0 ? '$0' : fmt(costPerVideo - 5), 'saved by doing it yourself instead of outsourcing', '#A88FFF'));
   }
 
   recompute();
@@ -15887,7 +15759,7 @@ function guessDefaultCosts(ch) {
 
 var _channelOverlayDone = false;
 
-// ── Channel videos fetch + score (for VER STATS panel when not on /videos) ───
+// ── Channel videos fetch + score (for the VIEW STATS panel when not on /videos) ───
 function parseRelativeTimeToHours(text) {
   if (!text) return null;
   var t = String(text).toLowerCase();
@@ -15998,10 +15870,10 @@ function openChannelStatsWithLoader(ch, channelScored, subGrowth, revMonth, rang
     + 'font-family:ui-monospace,monospace;color:#eaf0ff;text-align:center;';
   var titleEl = document.createElement('div');
   titleEl.style.cssText = 'font-size:14px;font-weight:900;letter-spacing:.14em;color:#A88FFF;margin-bottom:8px;';
-  titleEl.textContent = '⚡ ANALIZANDO CANAL';
+  titleEl.textContent = '⚡ ANALYZING CHANNEL';
   var subEl = document.createElement('div');
   subEl.style.cssText = 'font-size:11px;color:rgba(234,240,255,.55);margin-bottom:18px;line-height:1.5;';
-  subEl.textContent = 'Buscando videos recientes de ' + (ch.name || 'este canal') + '... esto toma ~3s';
+  subEl.textContent = 'Fetching recent videos from ' + (ch.name || 'this channel') + ', about 3 seconds';
   var spinner = document.createElement('div');
   spinner.style.cssText = 'width:34px;height:34px;border-radius:50%;border:3px solid rgba(123,92,255,.18);border-top-color:#A88FFF;margin:0 auto 18px;animation:nspSpin 0.9s linear infinite;';
   // Inject keyframes once
@@ -16012,7 +15884,7 @@ function openChannelStatsWithLoader(ch, channelScored, subGrowth, revMonth, rang
     document.head.appendChild(style);
   }
   var cancelBtn = document.createElement('button');
-  cancelBtn.textContent = 'Cancelar';
+  cancelBtn.textContent = 'Cancel';
   cancelBtn.style.cssText = 'padding:7px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:transparent;color:rgba(234,240,255,.6);font-size:11px;cursor:pointer;font-family:inherit;';
   cancelBtn.onclick = function() { loader.remove(); try { sessionStorage.removeItem('nsp_reopen_stats'); } catch(eSS) {} };
   loader.appendChild(titleEl);
@@ -16032,7 +15904,7 @@ function openChannelStatsWithLoader(ch, channelScored, subGrowth, revMonth, rang
     document.body.appendChild(p);
     var warn = document.createElement('div');
     warn.style.cssText = 'position:fixed;top:60px;left:50%;transform:translateX(-50%);z-index:10001;padding:8px 14px;background:rgba(255,107,107,.18);border:1px solid rgba(255,107,107,.4);border-radius:8px;color:#FF6B6B;font-size:11px;font-family:ui-monospace,monospace;';
-    warn.textContent = '⚠️ El análisis tardó demasiado. Mostrando datos parciales.';
+    warn.textContent = 'The analysis took too long. Showing partial data.';
     document.body.appendChild(warn);
     setTimeout(function() { warn.remove(); }, 4000);
   }, 12000);
@@ -16102,8 +15974,6 @@ function getRecentChannelVideoIds(ch, max) {
   return ids;
 }
 
-// v3.20.0 — Una request al player API con un cliente dado. Devuelve {hasAds, status}
-// o null si falló. status = playabilityStatus (OK significa que el probe es confiable).
 function _nspPlayerProbe(videoId, clientName, useEmbed) {
   var client = {
     clientName: clientName,
@@ -16131,22 +16001,16 @@ function _nspPlayerProbe(videoId, clientName, useEmbed) {
   }).catch(function() { return null; });
 }
 
-// Probe robusto de un video: ¿sirve anuncios? Usa 2 clientes para evitar falsos negativos.
-//   1) TVHTML5_SIMPLY_EMBEDDED_PLAYER — ignora el Premium del usuario y da adPlacements.
-//   2) WEB anónimo (credentials:'omit') — fallback cuando el video NO es embebible
-//      (muchos canales desactivan el embed → el probe embebido fallaría como "sin ads").
-// Devuelve {hasAds:true} si CUALQUIER cliente ve ads, {hasAds:false} si un cliente pudo
-// reproducir y no había ads, o null si NINGÚN cliente pudo verificar de forma confiable.
+// Two clients: the embedded player ignores the viewer's Premium status, and anonymous WEB covers channels that disable embedding.
 function probeVideoForAds(videoId) {
   if (!videoId) return Promise.resolve(null);
   return _nspPlayerProbe(videoId, 'TVHTML5_SIMPLY_EMBEDDED_PLAYER', true).then(function(r1) {
     if (r1 && r1.hasAds) return { hasAds: true };
-    if (r1 && r1.status === 'OK') return { hasAds: false }; // reproducible y sin ads = confiable
-    // Embebido no confiable (no embebible / error) → reintenta con WEB anónimo
+    if (r1 && r1.status === 'OK') return { hasAds: false };
     return _nspPlayerProbe(videoId, 'WEB', false).then(function(r2) {
       if (r2 && r2.hasAds) return { hasAds: true };
       if (r2 && r2.status === 'OK') return { hasAds: false };
-      return null; // ningún cliente pudo verificar este video → no cuenta
+      return null;
     });
   }).catch(function() { return null; });
 }
@@ -16154,19 +16018,14 @@ function probeVideoForAds(videoId) {
 function detectChannelDomMonetSignals() {
   var signals = { joinButton: false, shopTab: false, memberships: false, superThanks: false, verified: false };
   try {
-    // ── JOIN button (membresías activas = YPP confirmado por YouTube) ──
-    // El elemento canónico que YouTube usa para el botón "Únete/Join" es
-    // <ytd-sponsor-button-renderer>. Solo aparece (no vacío) si el canal tiene
-    // membresías activas. Es prueba directa de monetización.
+    // ytd-sponsor-button-renderer only renders when the channel has active memberships, which is direct proof of YPP.
     var sponsorBtns = document.querySelectorAll('ytd-sponsor-button-renderer, #sponsor-button, yt-button-shape[is-paid-sponsor], ytd-rich-metadata-renderer #sponsor-button');
     for (var s = 0; s < sponsorBtns.length; s++) {
       var sb = sponsorBtns[s];
-      // No vacío: tiene un <a>/<button> dentro o texto
       if (sb && (sb.querySelector('a, button, yt-button-shape, tp-yt-paper-button') || (sb.textContent || '').trim().length > 0)) {
         signals.joinButton = true; break;
       }
     }
-    // Fallback por aria-label / texto del botón
     if (!signals.joinButton) {
       var joinNodes = document.querySelectorAll(
         '[aria-label*="Join this channel"], [aria-label*="Únete a este canal"], [aria-label*="Hazte miembro"], ' +
@@ -16174,7 +16033,6 @@ function detectChannelDomMonetSignals() {
       );
       if (joinNodes && joinNodes.length) signals.joinButton = true;
     }
-    // Último fallback: texto visible de un botón corto "Join"/"Únete" en el header
     if (!signals.joinButton) {
       var btns = document.querySelectorAll('#channel-header button, #channel-header a, ytd-c4-tabbed-header-renderer button, yt-flexible-actions-view-model button, yt-flexible-actions-view-model a');
       for (var b = 0; b < btns.length; b++) {
@@ -16183,7 +16041,7 @@ function detectChannelDomMonetSignals() {
       }
     }
 
-    // ── SHOP / Store tab (tienda activa = YPP confirmado) ──
+    // An active Shop tab means YPP confirmed.
     var tabs = document.querySelectorAll('tp-yt-paper-tab, yt-tab-shape, ytd-c4-tabbed-header-renderer tp-yt-paper-tab, yt-tab-group-shape yt-tab-shape, #tabsContent tp-yt-paper-tab');
     for (var i = 0; i < tabs.length; i++) {
       var txt = ((tabs[i].textContent || '') + ' ' + (tabs[i].getAttribute('aria-label') || '')).toLowerCase().trim();
@@ -16198,10 +16056,7 @@ function detectChannelDomMonetSignals() {
 
 function verifyChannelMonetizationReal(ch, cb) {
   if (!ch || !ch.name) { cb({ score: 0, verdict: 'unknown', reasons: ['no_channel'] }); return; }
-  // GUARD A PRUEBA DE BALAS (pedido del usuario): un canal con <1000 subs NO llega al mínimo del YouTube
-  // Partner Program, así que NO PUEDE estar monetizado por anuncios. Va ANTES del caché y del probe de ads,
-  // para que ni un falso positivo del probe ni un resultado cacheado viejo lo marquen "MONETIZADO".
-  // Excepción: si tiene Join/Shop (membresías/tienda) sí es YPP confirmado → seguir el flujo normal.
+  // A channel under 1000 subs cannot be in the Partner Program, so this guard runs before the cache and the ad probe. Join or Shop still counts as confirmed.
   try {
     var _dom0 = detectChannelDomMonetSignals();
     var _subs0 = (ch && ch.subs) || 0;
@@ -16233,57 +16088,36 @@ function verifyChannelMonetizationReal(ch, cb) {
     var hasYppConfirmation = !!(dom.joinButton || dom.shopTab);
     var adRatio = probeCount > 0 ? (adsFound / probeCount) : 0;
 
-    // ════════════════════════════════════════════════════════════════════════
-    // v3.19.0 — MONETIZACIÓN DECIDIDA POR ADS (pedido explícito del usuario):
-    //   ¿los videos sirven anuncios? → MONETIZADO.  ¿NO sirven? → NO MONETIZADO.
-    //   El probe usa TVHTML5_SIMPLY_EMBEDDED_PLAYER + credentials:'omit', que NO
-    //   respeta el YouTube Premium del usuario → devuelve adPlacements para TODO
-    //   video monetizado. Por eso "0 ads en varios videos" = realmente sin ads.
-    //   El número de subs YA NO decide monetización (antes inflaba a 'monetizado'
-    //   un canal de 10K+ subs aunque tuviera 0 ads — eso era lo que estaba mal).
-    // ════════════════════════════════════════════════════════════════════════
     var verdict, score;
 
-    // ══════════════ VEREDICTO HONESTO (pedido del usuario: "si no está confirmado, can't check") ══════════════
-    // La ÚNICA prueba 100% de que EL CREADOR monetiza es Join (membresías) o Shop (tienda): YouTube NO las
-    // muestra sin estar en el Partner Program. El "probe de ads" NO prueba que el creador cobre: los
-    // adPlacements también aparecen por reclamos Content-ID de TERCEROS (música/clips con copyright), así que
-    // un canal NO monetizado puede mostrar anuncios. Por eso ver ads SIN Join/Shop = "sirve anuncios pero NO
-    // confirmado" (amarillo), NUNCA "MONETIZADO 100%" (ese era el falso positivo del canal de 177k del usuario).
+    // Only Join or Shop proves the creator is paid: adPlacements can also come from third party Content-ID claims, so ads alone never mean monetized.
 
-    // PRIORIDAD 1 — Join/Shop = YPP confirmado DIRECTO. Única prueba real de que el creador cobra.
     if (dom.joinButton || dom.shopTab) {
       verdict = 'monetized';
       score = 95;
       reasons.push(dom.joinButton ? 'join_button_ypp' : 'shop_tab_ypp');
     }
-    // PRIORIDAD 2 — Probamos ≥4 videos y NINGUNO sirve ads → NO MONETIZADO (evidencia fuerte).
     else if (probeCount >= 4 && adsFound === 0) {
       verdict = 'demonetized';
       score = 8;
       reasons.push('no_ads_in_' + probeCount + '_videos');
     }
-    // PRIORIDAD 3 — Sirve anuncios PERO sin Join/Shop → no se puede confirmar que el CREADOR cobre
-    // (los ads pueden ser Content-ID de terceros). Veredicto intermedio HONESTO, jamás "monetizado".
     else if (adsFound > 0) {
       verdict = 'ads_unconfirmed';
       score = 50;
       reasons.push('ads_' + adsFound + '_of_' + probeCount + '_no_direct_ypp');
     }
-    // PRIORIDAD 4 — Sin ads pero poca muestra (1-3 videos) → no afirmamos nada (can't check).
     else if (probeCount >= 1) {
       verdict = 'unknown';
       score = 35;
       reasons.push('no_ads_but_only_' + probeCount + '_probes');
     }
-    // PRIORIDAD 5 — No se pudo verificar ningún video (YT bloqueó / sin IDs).
     else {
       verdict = 'unknown';
       score = 30;
       reasons.push('probe_unavailable');
     }
 
-    // Señales DOM informativas (se registran, no cambian el veredicto basado en ads)
     if (dom.joinButton)  reasons.push('join_button');
     if (dom.shopTab)     reasons.push('shop_tab');
     if (dom.memberships) reasons.push('membership_signals');
@@ -16300,9 +16134,7 @@ function verifyChannelMonetizationReal(ch, cb) {
       shopTab: dom.shopTab,
       ts: Date.now()
     };
-    // Solo cacheamos veredictos CONFIABLES (monetized/demonetized). Los inciertos
-    // (doubtful/unknown) NO se cachean → al reabrir VER STATS se reintenta con datos
-    // frescos en vez de quedar pegado a un resultado dudoso.
+    // Only reliable verdicts are cached so an uncertain one is retried on the next open.
     if (verdict === 'monetized' || verdict === 'demonetized') {
       _monetCache[cacheKey] = { ts: Date.now(), result: result };
     }
@@ -16448,7 +16280,7 @@ function showThumbLabPanel(ch) {
   var hdr = document.createElement('div');
   hdr.style.cssText = 'padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;cursor:move;';
   var hLeft = document.createElement('div');
-  nspSetHTML(hLeft, '<div style="font-size:12px;font-weight:900;letter-spacing:.14em;">THUMB LAB</div><div style="font-size:9px;color:rgba(255,255,255,.55);margin-top:3px;">NICHO: ' + niche.label.toUpperCase() + '</div>');
+  nspSetHTML(hLeft, '<div style="font-size:12px;font-weight:900;letter-spacing:.14em;">THUMB LAB</div><div style="font-size:9px;color:rgba(255,255,255,.55);margin-top:3px;">NICHE: ' + niche.label.toUpperCase() + '</div>');
   var xBtn = document.createElement('button');
   xBtn.textContent = 'X';
   xBtn.style.cssText = 'width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.04);color:#fff;cursor:pointer;font-weight:900;';
@@ -16464,8 +16296,8 @@ function showThumbLabPanel(ch) {
     b.style.cssText = 'flex:1;padding:11px 8px;background:transparent;border:none;color:rgba(255,255,255,.55);font-family:inherit;font-size:10px;font-weight:900;letter-spacing:.1em;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;';
     return b;
   }
-  var tAnalyze = tab('ANALIZAR');
-  var tGallery = tab('GALERÍA NICHO');
+  var tAnalyze = tab('ANALYZE');
+  var tGallery = tab('NICHE GALLERY');
   var tCompare = tab('A/B COMPARE');
   tAnalyze.style.color = '#fff'; tAnalyze.style.borderBottomColor = '#fff';
   tabs.appendChild(tAnalyze); tabs.appendChild(tGallery); tabs.appendChild(tCompare);
@@ -16488,7 +16320,7 @@ function showThumbLabPanel(ch) {
     setActive(tAnalyze);
     var lbl = document.createElement('div');
     lbl.style.cssText = 'font-size:10px;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;';
-    lbl.textContent = 'Sube tu miniatura · análisis pre-publish';
+    lbl.textContent = 'Upload your thumbnail for a pre-publish check';
     body.appendChild(lbl);
     var input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*';
@@ -16498,7 +16330,7 @@ function showThumbLabPanel(ch) {
     preview.style.cssText = 'margin:10px 0;';
     body.appendChild(preview);
     var btn = document.createElement('button');
-    btn.textContent = '🎯 ANALIZAR CON AI';
+    btn.textContent = '🎯 ANALYZE WITH AI';
     btn.style.cssText = 'width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;letter-spacing:.12em;';
     body.appendChild(btn);
     var out = document.createElement('div');
@@ -16509,7 +16341,7 @@ function showThumbLabPanel(ch) {
     input.addEventListener('change', function() {
       var f = input.files && input.files[0];
       if (!f || !/^image\//i.test(f.type) || f.size > 8 * 1024 * 1024) {
-        nspSetHTML(preview, '<div style="color:#FF6B6B;font-size:11px;">Archivo inválido o >8MB.</div>'); return;
+        nspSetHTML(preview, '<div style="color:#FF6B6B;font-size:11px;">Invalid file, or larger than 8MB.</div>'); return;
       }
       fileToImageBlob(f).then(function(d) {
         dataUrl = d;
@@ -16518,22 +16350,22 @@ function showThumbLabPanel(ch) {
     });
 
     btn.addEventListener('click', function() {
-      if (!dataUrl) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Sube una miniatura primero.</div>'); return; }
+      if (!dataUrl) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Upload a thumbnail first.</div>'); return; }
       btn.disabled = true; btn.style.opacity = '.6';
-      nspSetHTML(out, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Análisis local + Claude Vision...</div>');
+      nspSetHTML(out, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Local analysis and Claude Vision</div>');
 
       Promise.all([dataUrlToImage(dataUrl), getClaudeApiKey()]).then(function(arr) {
         var img = arr[0], apiKey = arr[1];
         var canvasStats = analyzeThumbCanvas(img);
         return detectFacesInImage(img).then(function(faces) {
           var localBlock = '<div style="padding:10px;background:rgba(255,255,255,.025);border-radius:10px;margin-bottom:10px;">'
-            + '<div style="font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">ANÁLISIS LOCAL</div>'
+            + '<div style="font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">LOCAL ANALYSIS</div>'
             + '<div style="font-size:11px;line-height:1.6;">'
-            + '👥 Caras detectadas: <b>' + (faces.supported ? faces.count : 'no soportado') + '</b><br/>'
-            + '🌗 Contraste: <b>' + (canvasStats ? canvasStats.contrast : '?') + '/255</b> ' + (canvasStats && canvasStats.contrast >= 180 ? '✅' : canvasStats && canvasStats.contrast >= 120 ? '🟡' : '⚠') + '<br/>'
-            + '💡 Brillo medio: <b>' + (canvasStats ? canvasStats.brightness : '?') + '/255</b>'
+            + '👥 Faces detected: <b>' + (faces.supported ? faces.count : 'not supported') + '</b><br/>'
+            + '🌗 Contrast: <b>' + (canvasStats ? canvasStats.contrast : '?') + '/255</b> ' + (canvasStats && canvasStats.contrast >= 180 ? '✅' : canvasStats && canvasStats.contrast >= 120 ? '🟡' : '⚠') + '<br/>'
+            + '💡 Average brightness: <b>' + (canvasStats ? canvasStats.brightness : '?') + '/255</b>'
             + '</div></div>';
-          if (!apiKey) { nspSetHTML(out, localBlock + '<div style="padding:10px;color:rgba(255,217,61,.9);font-size:11px;">Para análisis Claude Vision pega tu API key en ASHLYV → API Key.</div>'); btn.disabled = false; btn.style.opacity = ''; return; }
+          if (!apiKey) { nspSetHTML(out, localBlock + '<div style="padding:10px;color:rgba(255,217,61,.9);font-size:11px;">Paste your API key under ASHLYV, API Key, to run Claude Vision.</div>'); btn.disabled = false; btn.style.opacity = ''; return; }
           nspSetHTML(out, localBlock + '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Claude Vision...</div>');
 
           // Build Claude Vision request with references
@@ -16543,11 +16375,11 @@ function showThumbLabPanel(ch) {
           var payload = {
             model: 'claude-sonnet-4-20250514',
             max_tokens: 1500,
-            system: 'Eres un experto en thumbnail CTR para YouTube en el nicho ' + niche.label + '. Analiza la miniatura y devuelve SOLO JSON sin markdown.',
+            system: 'You are a YouTube thumbnail CTR expert for the ' + niche.label + ' niche. Analyze the thumbnail and return ONLY JSON, no markdown.',
             messages: [{
               role: 'user',
               content: [
-                { type: 'text', text: 'Analiza esta miniatura para el nicho ' + niche.label + ' (RPM $' + niche.rpm + '). Devuelve JSON:\n{"score":0-100,"verdict":"VIRAL POTENTIAL|GOOD|NEEDS WORK|POOR","ctrScore":0-100,"strengths":["..."],"weaknesses":["..."],"improvements":["..."],"emotion":0-10,"readability":0-10,"contrast":0-10,"curiosity":0-10}' },
+                { type: 'text', text: 'Analyze this thumbnail for the ' + niche.label + ' niche (RPM $' + niche.rpm + '). Return JSON:\n{"score":0-100,"verdict":"VIRAL POTENTIAL|GOOD|NEEDS WORK|POOR","ctrScore":0-100,"strengths":["..."],"weaknesses":["..."],"improvements":["..."],"emotion":0-10,"readability":0-10,"contrast":0-10,"curiosity":0-10}' },
                 { type: 'image', source: { type: 'base64', media_type: mediaType, data: imgB64 } }
               ]
             }]
@@ -16566,37 +16398,37 @@ function showThumbLabPanel(ch) {
             btn.disabled = false; btn.style.opacity = '';
             if (d && d.error) { nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Claude error: ' + d.error.message + '</div>'); return; }
             var text = d && d.content && d.content[0] && d.content[0].text;
-            if (!text) { nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Sin respuesta.</div>'); return; }
+            if (!text) { nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">No response.</div>'); return; }
             var parsed;
-            try { var m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch(e) { nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Error parseando.</div>'); return; }
+            try { var m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch(e) { nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Could not parse the response.</div>'); return; }
             var col = parsed.score >= 75 ? '#00DC82' : parsed.score >= 55 ? '#FFD93D' : '#FF6B6B';
             var html = localBlock + '<div style="padding:14px;border-radius:12px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);">'
               + '<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">'
               + '<div style="font-size:38px;font-weight:900;color:' + col + ';line-height:1;">' + parsed.score + '</div>'
-              + '<div><div style="font-size:13px;font-weight:900;color:' + col + ';">' + parsed.verdict + '</div><div style="font-size:10px;color:rgba(255,255,255,.55);margin-top:3px;">CTR potencial: ' + parsed.ctrScore + '/100</div></div>'
+              + '<div><div style="font-size:13px;font-weight:900;color:' + col + ';">' + parsed.verdict + '</div><div style="font-size:10px;color:rgba(255,255,255,.55);margin-top:3px;">CTR potential: ' + parsed.ctrScore + '/100</div></div>'
               + '</div>';
             ['strengths', 'weaknesses', 'improvements'].forEach(function(key) {
               var arr = parsed[key];
               if (!arr || !arr.length) return;
-              var ttl = { strengths: '✅ FORTALEZAS', weaknesses: '⚠ DEBILIDADES', improvements: '💡 MEJORAS' }[key];
+              var ttl = { strengths: '✅ STRENGTHS', weaknesses: '⚠ WEAKNESSES', improvements: '💡 IMPROVEMENTS' }[key];
               html += '<div style="font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin:10px 0 5px;">' + ttl + '</div>';
               arr.forEach(function(it) { html += '<div style="padding:6px 9px;margin:3px 0;border-radius:7px;background:rgba(255,255,255,.04);font-size:11px;">' + String(it).replace(/[<>]/g, '') + '</div>'; });
             });
             html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:12px;font-size:10.5px;">'
-              + '<div>😮 Emoción: <b>' + (parsed.emotion || 0) + '/10</b></div>'
-              + '<div>📖 Legibilidad: <b>' + (parsed.readability || 0) + '/10</b></div>'
-              + '<div>🌗 Contraste: <b>' + (parsed.contrast || 0) + '/10</b></div>'
-              + '<div>🎯 Curiosidad: <b>' + (parsed.curiosity || 0) + '/10</b></div>'
+              + '<div>😮 Emotion: <b>' + (parsed.emotion || 0) + '/10</b></div>'
+              + '<div>📖 Readability: <b>' + (parsed.readability || 0) + '/10</b></div>'
+              + '<div>🌗 Contrast: <b>' + (parsed.contrast || 0) + '/10</b></div>'
+              + '<div>🎯 Curiosity: <b>' + (parsed.curiosity || 0) + '/10</b></div>'
               + '</div></div>';
             nspSetHTML(out, html);
           }).catch(function(err) {
             btn.disabled = false; btn.style.opacity = '';
-            nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Error: ' + (err && err.message || 'desconocido') + '</div>');
+            nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Error: ' + (err && err.message || 'unknown') + '</div>');
           });
         });
       }).catch(function(err) {
         btn.disabled = false; btn.style.opacity = '';
-        nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Error: ' + (err && err.message || 'desconocido') + '</div>');
+        nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Error: ' + (err && err.message || 'unknown') + '</div>');
       });
     });
   }
@@ -16606,12 +16438,12 @@ function showThumbLabPanel(ch) {
     setActive(tGallery);
     var lbl = document.createElement('div');
     lbl.style.cssText = 'font-size:10px;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;';
-    lbl.textContent = 'Miniaturas top del nicho · ordenadas por VPH';
+    lbl.textContent = 'Top thumbnails in this niche, sorted by VPH';
     body.appendChild(lbl);
     var gallery = getNicheThumbnailGallery(niche.label, 12);
     if (!gallery.length) {
       body.appendChild(Object.assign(document.createElement('div'), {
-        innerHTML: '<div style="padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;">Sin data del nicho aún. Corre un SCAN o navega el feed faceless del nicho para llenar la galería.</div>'
+        innerHTML: '<div style="padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;">No niche data yet. Run a scan, or browse the faceless feed for this niche, to fill the gallery.</div>'
       }));
       return;
     }
@@ -16640,7 +16472,7 @@ function showThumbLabPanel(ch) {
     setActive(tCompare);
     var lbl = document.createElement('div');
     lbl.style.cssText = 'font-size:10px;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;';
-    lbl.textContent = 'Sube 2-4 variantes · Claude rankea con galería del nicho como referencia';
+    lbl.textContent = 'Upload 2 to 4 variants. Claude ranks them against the niche gallery.';
     body.appendChild(lbl);
     var input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
@@ -16650,7 +16482,7 @@ function showThumbLabPanel(ch) {
     thumbs.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px;';
     body.appendChild(thumbs);
     var btn = document.createElement('button');
-    btn.textContent = '🆚 COMPARAR CON AI';
+    btn.textContent = '🆚 COMPARE WITH AI';
     btn.style.cssText = 'width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;letter-spacing:.12em;';
     body.appendChild(btn);
     var out = document.createElement('div');
@@ -16668,21 +16500,21 @@ function showThumbLabPanel(ch) {
         dataUrls = urls;
         urls.forEach(function(u, idx) {
           var w = document.createElement('div');
-          nspSetHTML(w, '<div style="font-size:9px;color:rgba(255,255,255,.5);margin-bottom:4px;">VARIANTE ' + String.fromCharCode(65 + idx) + '</div><img src="' + u + '" style="width:100%;border-radius:8px;border:1px solid rgba(255,255,255,.14);"/>');
+          nspSetHTML(w, '<div style="font-size:9px;color:rgba(255,255,255,.5);margin-bottom:4px;">VARIANT ' + String.fromCharCode(65 + idx) + '</div><img src="' + u + '" style="width:100%;border-radius:8px;border:1px solid rgba(255,255,255,.14);"/>');
           thumbs.appendChild(w);
         });
       });
     });
 
     btn.addEventListener('click', function() {
-      if (dataUrls.length < 2) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Sube al menos 2 miniaturas.</div>'); return; }
+      if (dataUrls.length < 2) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Upload at least 2 thumbnails.</div>'); return; }
       btn.disabled = true; btn.style.opacity = '.6';
-      nspSetHTML(out, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Comparando ' + dataUrls.length + ' variantes...</div>');
+      nspSetHTML(out, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Comparing ' + dataUrls.length + ' variants</div>');
       getClaudeApiKey().then(function(apiKey) {
-        if (!apiKey) { nspSetHTML(out, '<div style="color:rgba(255,217,61,.9);font-size:11px;padding:10px;">Falta API key Claude en ASHLYV.</div>'); btn.disabled = false; btn.style.opacity = ''; return; }
+        if (!apiKey) { nspSetHTML(out, '<div style="color:rgba(255,217,61,.9);font-size:11px;padding:10px;">Claude API key missing in ASHLYV.</div>'); btn.disabled = false; btn.style.opacity = ''; return; }
         var content = [{
           type: 'text',
-          text: 'Compara estas ' + dataUrls.length + ' miniaturas para el nicho ' + niche.label + ' (RPM $' + niche.rpm + '). Las primeras ' + dataUrls.length + ' son las variantes a evaluar.\nDevuelve JSON: {"ranked":[{"rank":1,"variant":"A","score":0-100,"reason":"..."}],"winner":"A|B|C|D","why":"1-2 oraciones"}'
+          text: 'Compare these ' + dataUrls.length + ' thumbnails for the ' + niche.label + ' niche (RPM $' + niche.rpm + '). The first ' + dataUrls.length + ' images are the variants to score.\nReturn JSON: {"ranked":[{"rank":1,"variant":"A","score":0-100,"reason":"..."}],"winner":"A|B|C|D","why":"1-2 sentences"}'
         }];
         dataUrls.forEach(function(d) {
           var mt = (d.match(/data:(image\/[^;]+);/) || [])[1] || 'image/png';
@@ -16691,24 +16523,24 @@ function showThumbLabPanel(ch) {
         return ashlyv_safeFetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'x-api-key': apiKey },
-          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, system: 'Eres experto CTR YouTube nicho ' + niche.label + '. JSON only.', messages: [{ role: 'user', content: content }] })
+          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, system: 'You are a YouTube CTR expert for the ' + niche.label + ' niche. JSON only.', messages: [{ role: 'user', content: content }] })
         }, 60000).then(function(r) { return r.json(); });
       }).then(function(d) {
         btn.disabled = false; btn.style.opacity = '';
         if (!d) return;
         if (d.error) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Claude: ' + d.error.message + '</div>'); return; }
         var text = d.content && d.content[0] && d.content[0].text;
-        var parsed; try { var m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch(e) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Error parseando.</div>'); return; }
+        var parsed; try { var m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch(e) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Could not parse the response.</div>'); return; }
         nspSetHTML(out, '');
         var head = document.createElement('div');
         head.style.cssText = 'padding:12px;margin-bottom:10px;border-radius:12px;background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.14);';
-        nspSetHTML(head, '<div style="font-size:24px;font-weight:900;">🏆 GANADOR: ' + parsed.winner + '</div><div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:6px;line-height:1.5;">' + (parsed.why || '').replace(/[<>]/g, '') + '</div>');
+        nspSetHTML(head, '<div style="font-size:24px;font-weight:900;">🏆 WINNER: ' + parsed.winner + '</div><div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:6px;line-height:1.5;">' + (parsed.why || '').replace(/[<>]/g, '') + '</div>');
         out.appendChild(head);
         (parsed.ranked || []).forEach(function(r) {
           var col = r.score >= 75 ? '#00DC82' : r.score >= 55 ? '#FFD93D' : '#FF6B6B';
           var row = document.createElement('div');
           row.style.cssText = 'padding:10px 12px;margin:5px 0;border-radius:10px;background:rgba(255,255,255,.025);border-left:3px solid ' + col + ';display:flex;justify-content:space-between;align-items:center;gap:10px;';
-          nspSetHTML(row, '<div style="flex:1;"><div style="font-size:12px;font-weight:700;">#' + r.rank + ' · VARIANTE ' + r.variant + '</div><div style="font-size:10.5px;color:rgba(255,255,255,.7);margin-top:4px;">' + (r.reason || '').replace(/[<>]/g, '') + '</div></div>'
+          nspSetHTML(row, '<div style="flex:1;"><div style="font-size:12px;font-weight:700;">#' + r.rank + ' · VARIANT ' + r.variant + '</div><div style="font-size:10.5px;color:rgba(255,255,255,.7);margin-top:4px;">' + (r.reason || '').replace(/[<>]/g, '') + '</div></div>'
             + '<div style="font-size:20px;font-weight:900;color:' + col + ';">' + r.score + '</div>');
           out.appendChild(row);
         });
@@ -16792,7 +16624,7 @@ function showTitleLabPanel(ch) {
   var hdr = document.createElement('div');
   hdr.style.cssText = 'padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;cursor:move;';
   var hLeft = document.createElement('div');
-  nspSetHTML(hLeft, '<div style="font-size:12px;font-weight:900;letter-spacing:.14em;">TITLE LAB</div><div style="font-size:9px;color:rgba(255,255,255,.55);margin-top:3px;">NICHO: ' + niche.label.toUpperCase() + ' · RPM $' + niche.rpm + '</div>');
+  nspSetHTML(hLeft, '<div style="font-size:12px;font-weight:900;letter-spacing:.14em;">TITLE LAB</div><div style="font-size:9px;color:rgba(255,255,255,.55);margin-top:3px;">NICHE: ' + niche.label.toUpperCase() + ' · RPM $' + niche.rpm + '</div>');
   var xBtn = document.createElement('button');
   xBtn.textContent = 'X';
   xBtn.style.cssText = 'width:28px;height:28px;border-radius:6px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.04);color:#fff;cursor:pointer;font-weight:900;';
@@ -16806,7 +16638,7 @@ function showTitleLabPanel(ch) {
 
   var lbl = document.createElement('div');
   lbl.style.cssText = 'font-size:10px;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;';
-  lbl.textContent = 'Pega tus variantes de título (1 por línea)';
+  lbl.textContent = 'Paste your title variants, one per line';
   body.appendChild(lbl);
 
   var ta = document.createElement('textarea');
@@ -16816,13 +16648,13 @@ function showTitleLabPanel(ch) {
 
   var anchors = document.createElement('div');
   anchors.style.cssText = 'margin-top:12px;padding:10px;border-radius:10px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);';
-  nspSetHTML(anchors, '<div style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">OUTLIERS REALES DEL NICHO (anchors)</div><div id="nsp-tlab-anchors" style="font-size:10.5px;color:rgba(255,255,255,.78);line-height:1.7;">cargando...</div>');
+  nspSetHTML(anchors, '<div style="font-size:9px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">REAL NICHE OUTLIERS (ANCHORS)</div><div id="nsp-tlab-anchors" style="font-size:10.5px;color:rgba(255,255,255,.78);line-height:1.7;">loading</div>');
   body.appendChild(anchors);
 
   var actions = document.createElement('div');
   actions.style.cssText = 'display:flex;gap:8px;margin-top:12px;';
   var rankBtn = document.createElement('button');
-  rankBtn.textContent = '🎯 RANK CON AI';
+  rankBtn.textContent = '🎯 RANK WITH AI';
   rankBtn.style.cssText = 'flex:1;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;letter-spacing:.12em;';
   actions.appendChild(rankBtn);
   body.appendChild(actions);
@@ -16839,7 +16671,7 @@ function showTitleLabPanel(ch) {
   getOutlierTitlesForNiche(niche.label, 8).then(function(list) {
     var host = panel.querySelector('#nsp-tlab-anchors');
     if (!host) return;
-    if (!list.length) { host.textContent = 'Sin outliers guardados para este nicho. Guarda algunos desde un SCAN primero.'; return; }
+    if (!list.length) { host.textContent = 'No saved outliers for this niche. Save some from a scan first.'; return; }
     nspSetHTML(host, '');
     list.forEach(function(p, i) {
       var row = document.createElement('div');
@@ -16851,25 +16683,25 @@ function showTitleLabPanel(ch) {
 
   rankBtn.onclick = function() {
     var raw = ta.value.trim();
-    if (!raw) { nspSetHTML(result, '<div style="color:rgba(255,107,107,.85);font-size:11px;">Pega al menos un título.</div>'); return; }
+    if (!raw) { nspSetHTML(result, '<div style="color:rgba(255,107,107,.85);font-size:11px;">Paste at least one title.</div>'); return; }
     var variants = raw.split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean).slice(0, 12);
     if (!variants.length) return;
-    nspSetHTML(result, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Llamando a Claude con ' + variants.length + ' variantes...</div>');
+    nspSetHTML(result, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Asking Claude about ' + variants.length + ' variants</div>');
     rankBtn.disabled = true; rankBtn.style.opacity = '.6';
 
     Promise.all([getClaudeApiKey(), getOutlierTitlesForNiche(niche.label, 6)]).then(function(arr) {
       var apiKey = arr[0];
       var anchorTitles = arr[1].map(function(p) { return p.title; });
       if (!apiKey) {
-        nspSetHTML(result, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,217,61,.9);">Falta tu API key de Claude. Abre el dashboard ASHLYV → API Key y pega tu sk-ant-...</div>');
+        nspSetHTML(result, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,217,61,.9);">Claude API key missing. Open the ASHLYV dashboard, API Key, and paste your sk-ant- key.</div>');
         rankBtn.disabled = false; rankBtn.style.opacity = '';
         return null;
       }
-      var system = 'Eres un experto en CTR de YouTube para nichos faceless. Tu tarea es rankear títulos según su probabilidad de viralización en el nicho especificado. Devuelve SOLO JSON válido sin markdown.';
-      var userText = 'NICHO: ' + niche.label + ' (RPM estimado $' + niche.rpm + ')\n\n'
-        + (anchorTitles.length ? 'TÍTULOS OUTLIER REALES DEL NICHO (ground truth):\n' + anchorTitles.map(function(t, i) { return (i + 1) + '. ' + t; }).join('\n') + '\n\n' : '')
-        + 'VARIANTES A RANKEAR:\n' + variants.map(function(t, i) { return (i + 1) + '. ' + t; }).join('\n')
-        + '\n\nDevuelve JSON estricto: {"ranked":[{"rank":1,"title":"...","score":0-100,"hook":0-10,"fit":0-10,"specificity":0-10,"emotional":0-10,"reason":"1 línea"}]}';
+      var system = 'You are a YouTube CTR expert for faceless niches. Rank the titles by how likely they are to go viral in the given niche. Return ONLY valid JSON, no markdown.';
+      var userText = 'NICHE: ' + niche.label + ' (estimated RPM $' + niche.rpm + ')\n\n'
+        + (anchorTitles.length ? 'REAL OUTLIER TITLES FROM THIS NICHE (ground truth):\n' + anchorTitles.map(function(t, i) { return (i + 1) + '. ' + t; }).join('\n') + '\n\n' : '')
+        + 'VARIANTS TO RANK:\n' + variants.map(function(t, i) { return (i + 1) + '. ' + t; }).join('\n')
+        + '\n\nReturn strict JSON: {"ranked":[{"rank":1,"title":"...","score":0-100,"hook":0-10,"fit":0-10,"specificity":0-10,"emotional":0-10,"reason":"one line"}]}';
       return callClaudeMessages({ apiKey: apiKey, system: system, userText: userText, maxTokens: 1800 });
     }).then(function(text) {
       rankBtn.disabled = false; rankBtn.style.opacity = '';
@@ -16878,13 +16710,13 @@ function showTitleLabPanel(ch) {
       try {
         var m = text.match(/\{[\s\S]*\}/);
         parsed = JSON.parse(m ? m[0] : text);
-      } catch(e) { nspSetHTML(result, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Error parseando respuesta de Claude.</div>'); return; }
+      } catch(e) { nspSetHTML(result, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Could not parse the Claude response.</div>'); return; }
       var ranked = (parsed && parsed.ranked) || [];
-      if (!ranked.length) { nspSetHTML(result, '<div style="color:rgba(255,255,255,.5);font-size:11px;padding:10px;">Sin resultados.</div>'); return; }
+      if (!ranked.length) { nspSetHTML(result, '<div style="color:rgba(255,255,255,.5);font-size:11px;padding:10px;">No results.</div>'); return; }
       nspSetHTML(result, '');
       var head = document.createElement('div');
       head.style.cssText = 'font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;';
-      head.textContent = 'RESULTADOS · ' + ranked.length + ' variantes';
+      head.textContent = 'RESULTS · ' + ranked.length + ' variants';
       result.appendChild(head);
       ranked.forEach(function(r) {
         var row = document.createElement('div');
@@ -16906,7 +16738,7 @@ function showTitleLabPanel(ch) {
       });
     }).catch(function(err) {
       rankBtn.disabled = false; rankBtn.style.opacity = '';
-      nspSetHTML(result, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Error: ' + (err && err.message || 'desconocido') + '</div>');
+      nspSetHTML(result, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Error: ' + (err && err.message || 'unknown') + '</div>');
     });
   };
 }
@@ -16970,7 +16802,7 @@ function showTranscriptPanel(videoId) {
   var actions = document.createElement('div');
   actions.style.cssText = 'display:flex;gap:6px;';
   var copyBtn = document.createElement('button');
-  copyBtn.textContent = 'COPIAR';
+  copyBtn.textContent = 'COPY';
   copyBtn.style.cssText = 'padding:5px 9px;border-radius:6px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.04);color:#fff;font-family:inherit;font-size:9.5px;font-weight:900;cursor:pointer;letter-spacing:.1em;';
   var xBtn = document.createElement('button');
   xBtn.textContent = 'X';
@@ -16982,7 +16814,7 @@ function showTranscriptPanel(videoId) {
 
   var search = document.createElement('input');
   search.type = 'text';
-  search.placeholder = '🔍 Buscar en transcript...';
+  search.placeholder = '🔍 Search the transcript';
   search.style.cssText = 'margin:10px 14px 6px;padding:7px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;font-family:inherit;font-size:11px;outline:none;';
   panel.appendChild(search);
 
@@ -16992,7 +16824,7 @@ function showTranscriptPanel(videoId) {
 
   var loading = document.createElement('div');
   loading.style.cssText = 'padding:20px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);';
-  loading.textContent = 'Cargando transcript...';
+  loading.textContent = 'Loading transcript';
   body.appendChild(loading);
 
   document.body.appendChild(panel);
@@ -17002,7 +16834,7 @@ function showTranscriptPanel(videoId) {
     loading.remove();
     if (!cues.length) {
       body.appendChild(Object.assign(document.createElement('div'), {
-        textContent: 'Este video no tiene transcript disponible.',
+        textContent: 'This video has no transcript available.',
         style: 'padding:18px;text-align:center;font-size:11px;color:rgba(255,255,255,.5);'
       }));
       return;
@@ -17039,7 +16871,7 @@ function showTranscriptPanel(videoId) {
       });
       if (!body.children.length) {
         body.appendChild(Object.assign(document.createElement('div'), {
-          textContent: 'Sin coincidencias.', style: 'padding:14px;text-align:center;color:rgba(255,255,255,.4);font-size:11px;'
+          textContent: 'No matches.', style: 'padding:14px;text-align:center;color:rgba(255,255,255,.4);font-size:11px;'
         }));
       }
     }
@@ -17054,10 +16886,10 @@ function showTranscriptPanel(videoId) {
         var mm = Math.floor(c.start / 60), ss = c.start % 60;
         return '[' + mm + ':' + (ss < 10 ? '0' : '') + ss + '] ' + c.text;
       }).join('\n');
-      try { navigator.clipboard.writeText(txt); copyBtn.textContent = '✓ COPIADO'; setTimeout(function() { copyBtn.textContent = 'COPIAR'; }, 1400); } catch(e) {}
+      try { navigator.clipboard.writeText(txt); copyBtn.textContent = '✓ COPIED'; setTimeout(function() { copyBtn.textContent = 'COPY'; }, 1400); } catch(e) {}
     };
   }).catch(function(err) {
-    loading.textContent = 'Error: ' + (err && err.message === 'no_captions' ? 'sin subtítulos' : (err && err.message || 'desconocido'));
+    loading.textContent = 'Error: ' + (err && err.message === 'no_captions' ? 'no captions' : (err && err.message || 'unknown'));
   });
 }
 
@@ -17104,7 +16936,7 @@ function showCommentsPanel(videoId) {
 
   var loading = document.createElement('div');
   loading.style.cssText = 'padding:20px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);';
-  loading.textContent = 'Descargando comentarios...';
+  loading.textContent = 'Downloading comments';
   body.appendChild(loading);
 
   document.body.appendChild(panel);
@@ -17114,24 +16946,24 @@ function showCommentsPanel(videoId) {
     var comments = arr[0];
     var apiKey = arr[1];
     if (!comments.length) {
-      loading.textContent = 'Sin comentarios en este video (o desactivados).';
+      loading.textContent = 'No comments on this video, or they are turned off.';
       return;
     }
     if (!apiKey) {
-      nspSetHTML(loading, '<div style="color:rgba(255,217,61,.9);">Falta tu API key de Claude. Abre ASHLYV → API Key y pega tu sk-ant-...</div><div style="margin-top:10px;color:rgba(255,255,255,.5);">Top 5 comments raw:</div>'
+      nspSetHTML(loading, '<div style="color:rgba(255,217,61,.9);">Claude API key missing. Open ASHLYV, API Key, and paste your sk-ant- key.</div><div style="margin-top:10px;color:rgba(255,255,255,.5);">Top 5 comments raw:</div>'
         + '<div style="text-align:left;margin-top:8px;">' + comments.slice(0, 5).map(function(c, i) { return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:10.5px;line-height:1.5;">' + (i + 1) + '. ' + (c.text || '').slice(0, 200).replace(/[<>]/g, '') + ' <span style="color:rgba(255,255,255,.4);">(' + c.likes + ' likes)</span></div>'; }).join('') + '</div>');
       return;
     }
-    loading.textContent = '⏳ Analizando ' + comments.length + ' comentarios con Claude...';
-    var system = 'Eres un analista de audiencia de YouTube. Analiza los comentarios y devuelve SOLO JSON sin markdown.';
-    var userText = 'Analiza estos ' + comments.length + ' comentarios. Devuelve JSON:\n{"sentiment":{"positive":N,"neutral":N,"negative":N},"themes":[{"label":"...","count":N,"sentiment":"+/-/="}],"painPoints":["..."],"requests":["..."],"summary":"1-2 oraciones"}\n\nCOMMENTS:\n'
+    loading.textContent = '⏳ Analyzing ' + comments.length + ' comments with Claude';
+    var system = 'You are a YouTube audience analyst. Analyze the comments and return ONLY JSON, no markdown.';
+    var userText = 'Analyze these ' + comments.length + ' comments. Return JSON:\n{"sentiment":{"positive":N,"neutral":N,"negative":N},"themes":[{"label":"...","count":N,"sentiment":"+/-/="}],"painPoints":["..."],"requests":["..."],"summary":"1-2 sentences"}\n\nCOMMENTS:\n'
       + comments.slice(0, 50).map(function(c, i) { return (i + 1) + '. [' + c.likes + ' likes] ' + c.text.slice(0, 300); }).join('\n');
     return callClaudeMessages({ apiKey: apiKey, system: system, userText: userText, maxTokens: 1500 });
   }).then(function(text) {
     if (!text) return;
     loading.remove();
     var parsed;
-    try { var m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch(e) { nspSetHTML(body, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Error parseando respuesta.</div>'); return; }
+    try { var m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch(e) { nspSetHTML(body, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Could not parse the response.</div>'); return; }
     var s = parsed.sentiment || {};
     var pos = s.positive || 0, neu = s.neutral || 0, neg = s.negative || 0;
     var total = pos + neu + neg || 1;
@@ -17142,9 +16974,9 @@ function showCommentsPanel(videoId) {
     sb.style.cssText = 'margin-bottom:14px;';
     nspSetHTML(sb, '<div style="font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">SENTIMENT</div>'
       + '<div style="display:flex;height:10px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.04);">'
-      + '<div style="width:' + Math.round(pos / total * 100) + '%;background:#00DC82;" title="' + pos + ' positivo"></div>'
-      + '<div style="width:' + Math.round(neu / total * 100) + '%;background:rgba(255,255,255,.3);" title="' + neu + ' neutro"></div>'
-      + '<div style="width:' + Math.round(neg / total * 100) + '%;background:#FF6B6B;" title="' + neg + ' negativo"></div>'
+      + '<div style="width:' + Math.round(pos / total * 100) + '%;background:#00DC82;" title="' + pos + ' positive"></div>'
+      + '<div style="width:' + Math.round(neu / total * 100) + '%;background:rgba(255,255,255,.3);" title="' + neu + ' neutral"></div>'
+      + '<div style="width:' + Math.round(neg / total * 100) + '%;background:#FF6B6B;" title="' + neg + ' negative"></div>'
       + '</div>'
       + '<div style="display:flex;justify-content:space-between;margin-top:5px;font-size:9.5px;color:rgba(255,255,255,.55);">'
       + '<span>+ ' + pos + '</span><span>= ' + neu + '</span><span>− ' + neg + '</span></div>');
@@ -17179,7 +17011,7 @@ function showCommentsPanel(videoId) {
     section('⚠ PAIN POINTS', parsed.painPoints || [], 'rgba(255,107,107,.08)');
     section('💡 REQUESTS', parsed.requests || [], 'rgba(0,220,130,.06)');
   }).catch(function(err) {
-    nspSetHTML(loading, '<div style="color:#FF6B6B;font-size:11px;">Error: ' + (err && err.message || 'desconocido') + '</div>');
+    nspSetHTML(loading, '<div style="color:#FF6B6B;font-size:11px;">Error: ' + (err && err.message || 'unknown') + '</div>');
   });
 }
 
@@ -17361,10 +17193,7 @@ function fetchChannelRecentVideoIds(channelUrl, max) {
     .catch(function() { return []; });
 }
 
-// ── DETECTOR DE NICHO "RICO": analiza TODO (títulos + nombre + descripción del canal + hashtags) con
-// patrones TEMÁTICOS amplios. Capta canales NARRATIVOS (cultos, misterio, true crime, historia…) donde
-// detectNicheLabel da "General" porque los títulos no traen la keyword literal del nicho. Devuelve un
-// query de búsqueda BUENO en el idioma del canal (ES/EN), o '' si no reconoce nada.
+// Broad thematic patterns over titles, channel name, description and hashtags, so narrative channels (cult, mystery, true crime, history) get a real niche instead of General.
 var NSP_NICHE_SEEDS = [
   { re: /culto|secta|masacre|suicidi|asesinat|homicid|\bcrimen\b|desaparic|expediente|prohibid|perturbador|inquietant|escalofriant|sin.?explicaci|conspiraci|\boculto\b|sobrenatural|paranormal|fantasma|\bterror\b|\bmiedo\b|\bmorir\b|\bmuerte\b|\bmuri[óo]\b|ritual|sacrificio|misterio|enigma|caso.?(real|sin|que)|true.?crime|creepy|disturbing|unsolved|\bcult\b|\bmurder\b|serial.?killer|\bhorror\b|\bdark\b/i,
     es: 'misterios casos reales sin resolver', en: 'true crime unsolved mysteries dark' },
@@ -17395,9 +17224,7 @@ function richNicheQuery(ch, scored, detectedLang) {
     if (!entry._reG) entry._reG = new RegExp(entry.re.source, 'gi');
     return (blob.match(entry._reG) || []).length;
   }
-  // 1) Nichos de FORMATO (Sleep / ASMR) DEFINEN el canal faceless por encima del TEMA:
-  //    "boring history FOR SLEEP" compite con canales de SLEEP, no de historia. Y
-  //    Sleep ≠ ASMR (susurros/triggers/unboxing). Gana el formato con MÁS menciones.
+  // Format niches (Sleep, ASMR) define a faceless channel above its topic: boring history FOR SLEEP competes with sleep channels, not history ones.
   var fmtBest = -1, fmtScore = 0;
   for (var f = 0; f < NICHE_RPM.length; f++) {
     if (!NICHE_RPM[f].format) continue;
@@ -17405,8 +17232,7 @@ function richNicheQuery(ch, scored, detectedLang) {
     if (fh >= 2 && fh > fmtScore) { fmtScore = fh; fmtBest = f; }
   }
   if (fmtBest >= 0) return nicheLabelToQuery(NICHE_RPM[fmtBest].label, useEs);
-  // 2) Si no, gana el nicho con MÁS menciones en nombre+títulos+descripción, sobre
-  //    los 21 nichos bilingües de NICHE_RPM (no solo 6, y no el primero que matchea).
+  // Otherwise the niche with the most mentions wins, across all of NICHE_RPM rather than the first one that matches.
   var best = -1, bestScore = 0;
   for (var k = 0; k < NICHE_RPM.length; k++) {
     var hits = nrHits(NICHE_RPM[k]);
@@ -17416,10 +17242,7 @@ function richNicheQuery(ch, scored, detectedLang) {
   return '';
 }
 
-// Meses por idioma — se quitan de la query de nicho porque estrechan de más la
-// búsqueda de competidores (ej: "czerwcu"=junio en un canal de jardín). Formas
-// ASCII (extractKeywords ya quita diacríticos), evitando colisiones con palabras
-// comunes/plantas (NO uso stems tipo "czerw*" que pegan "czerwony"=rojo).
+// Month names are stripped from the niche query because they narrow the competitor search too far. ASCII forms only, and no stems that would also match common words.
 var NSP_MONTH_STEMS = {
   pl: /^(?:styczen|stycznia|styczniu|luty|lutego|lutym|marzec|marca|marcu|kwiecien|kwietnia|kwietniu|maja|maju|czerwiec|czerwca|czerwcu|lipiec|lipca|lipcu|sierpien|sierpnia|sierpniu|wrzesien|wrzesnia|wrzesniu|pazdziernik|pazdziernika|pazdzierniku|listopad|listopada|listopadzie|grudzien|grudnia|grudniu)$/i,
   es: /^(?:enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)$/i,
@@ -17433,7 +17256,6 @@ var NSP_MONTH_STEMS = {
   no: /^(?:januar|februar|mars|april|juni|juli|august|september|oktober|november|desember)$/i,
   da: /^(?:januar|februar|marts|april|juni|juli|august|september|oktober|november|december)$/i
 };
-// Lee la descripción del canal desde el DOM (mismas selectors que richNicheQuery).
 function nspGetChannelDescriptionText() {
   var desc = '';
   try {
@@ -17465,33 +17287,25 @@ function getChannelNicheQuery(ch, channelScored, detectedLang, detectedScript) {
       try { kws = extractKeywords(fallbackTitles, 3); } catch(e) {}
     }
   }
-  // Nombre del canal limpio (suele REVELAR el nicho mejor que palabras sueltas de una historia).
+  // The cleaned channel name usually reveals the niche better than loose words from one story.
   var nameSeed = String((ch && ch.name) || '').replace(/\s+(official|oficial|channel|canal|tv|hq|media)$/i, '').replace(/[^\p{L}\p{N}\p{M}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
-  // 1) CATEGORÍA del nicho (lo mejor para encontrar competidores del mismo tema).
+  // Niche category, the best seed for finding competitors on the same topic.
   var labelSeed = '';
   try {
     var allText = (channelScored && channelScored.length ? channelScored.map(function(v){ return (v && v.title) || ''; }).join(' ') : '') + ' ' + ((ch && ch.name) || '');
     var lbl = (typeof detectNicheLabel === 'function') ? detectNicheLabel(allText) : 'General';
     if (lbl && lbl !== 'General') labelSeed = lbl;
   } catch(e) {}
-  // 0) NICHO RICO (analiza títulos + descripción + hashtags con patrones temáticos) — capta lo narrativo.
+  // Rich niche detection catches narrative channels that keyword matching misses.
   var rich = '';
   try { rich = richNicheQuery(ch, channelScored, detectedLang); } catch(e) {}
-  // PRIORIDAD: nicho rico → categoría → nombre del canal → keywords del título. (Antes usaba SOLO las
-  // keywords del título, que en canales narrativos son fragmentos de la historia y no hallan competidores.)
-  // En canales NO ES/EN, los seeds (patrones ES/EN) no disparan y el nombre del
-  // canal rara vez captura el nicho. ESTRATEGIA: sacá el término GENERAL del nicho
-  // del NOMBRE + DESCRIPCIÓN del canal (ej: "Sekrety Ogrodu" + "kanał ogrodniczy"
-  // → ogród/jardín) y combinalo con 2-3 keywords de los títulos, quitando meses/
-  // estacionales del idioma (junio/"czerwcu"…) que estrechan de más la búsqueda.
-  // Broadening (query en el idioma del canal) para: idiomas no-EN/ES conocidos, Y
-  // cualquier ESCRITURA no-latina (árabe, cirílico, CJK…) → query nativa "a mundial".
+  // Order: rich niche, then category, then channel name, then title keywords. For channels outside ES/EN the seeds never fire, so the general term is taken from the name plus description and combined with a few title keywords, with month names removed.
   var foreignLang = (detectedLang && detectedLang !== 'es' && detectedLang !== 'en' && detectedLang !== 'unknown') || (detectedScript && detectedScript !== 'latin');
   var q;
   if (foreignLang) {
     var ndCorpus = [];
     var nmS = String((ch && ch.name) || '').trim();
-    if (nmS) { ndCorpus.push({ title: nmS }); ndCorpus.push({ title: nmS }); } // peso x2 al nombre
+    if (nmS) { ndCorpus.push({ title: nmS }); ndCorpus.push({ title: nmS }); }
     var descS = '';
     try { descS = nspGetChannelDescriptionText(); } catch(eD) {}
     if (descS) ndCorpus.push({ title: descS.slice(0, 400) });
@@ -17569,8 +17383,7 @@ function fetchNicheCompetitorsFromVideos(keywords, maxChannels, marketKey) {
                     || (v.viewCountText.runs && v.viewCountText.runs[0] && v.viewCountText.runs[0].text))) || '';
                   videoViews = pViews(viewsTxt);
                 } catch(e3) {}
-                // Faceless: capturá el thumbnail del VIDEO (no el avatar) y el título
-                // para clasificar faceless después con face-api (cara en miniatura).
+                // Keep the video thumbnail, not the avatar, so face-api can classify faceless later.
                 var vThumb = '';
                 try {
                   var vth = v.thumbnail && v.thumbnail.thumbnails;
@@ -17638,8 +17451,7 @@ function fetchChannelQuickStats(channelUrl) {
       if (html.indexOf('"joinButton"') !== -1 || html.indexOf('sponsorshipsButton') !== -1) stats.hasJoin = true;
       if (/"text":"Shop"|"text":"Store"|"text":"Tienda"/.test(html)) stats.hasShop = true;
       if (html.indexOf('"membershipsOffer"') !== -1) stats.hasMemberships = true;
-      // Faceless: sacá un videoId del HTML del canal para tener una miniatura
-      // representativa y poder correr face-api sobre canales que vienen por nombre.
+      // Pull a videoId from the channel HTML so channels found by name still get a thumbnail for face-api.
       try {
         var vidIds = [], seenV = {}, mV, reV = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
         while ((mV = reV.exec(html)) !== null && vidIds.length < 3) {
@@ -17714,21 +17526,7 @@ function fetchNicheCompetitorsFromChannels(keywords, marketKey) {
     .catch(function() { return []; });
 }
 
-// FACELESS para competidores: usa el MISMO detector face-api del SCAN sobre el
-// thumbnail del video que trajo a cada canal. Prioriza faceless (sin cara) y, si
-// hay >=4 faceless confirmados, descarta los que tienen cara. 100% defensivo: si
-// face-api no está disponible o falla, devuelve la lista igual (no rompe nada).
-// Relevancia: ¿el candidato comparte alguna RAÍZ de palabra con el nicho detectado?
-// Mira nombre + título del video que lo trajo. Filtra canales de otro tema que se
-// cuelan por una palabra suelta (ej: "satisfying"/"music" en una búsqueda de sleep).
-// Filtro de IDIOMA: ¿el competidor está en el MISMO idioma que el canal analizado?
-// Detecta el idioma del nombre + título del candidato. Clave para mercados de idioma
-// minoritario (danés, sueco, polaco…) donde la búsqueda regional igual cuela canales
-// en inglés. Defensivo: texto corto / idioma incierto → se mantiene; los nórdicos
-// (da/sv/no) entre sí NO se descartan (son casi indistinguibles → evita falsos cortes).
-// Detecta el SISTEMA DE ESCRITURA (script) por rangos Unicode — funciona para
-// CUALQUIER idioma del mundo. Es la base del filtro "a mundial": un canal árabe
-// compite solo con árabes, uno ruso con rusos, uno japonés con japoneses, etc.
+// Script detection by Unicode range, so an Arabic channel is only compared with Arabic ones, a Russian one with Russian, and so on.
 function detectScript(text) {
   if (!text) return '';
   if (/[؀-ۿݐ-ݿࢠ-ࣿ]/.test(text)) return 'arabic';
@@ -17746,25 +17544,21 @@ function detectScript(text) {
   return '';
 }
 
-// ¿El competidor está en el MISMO idioma/escritura que el canal analizado?
-// Doble capa: (1) SCRIPT — mundial, separa árabe/cirílico/CJK/etc.; (2) para latino,
-// el detector de idioma (idiomas cubiertos). Defensivo: poco texto / incierto → se
-// mantiene; nórdicos y han/kana entre sí no se cortan (casi indistinguibles).
+// Two layers: script first, which works worldwide, then the language detector for latin text. Short or uncertain text is kept rather than cut.
 function candidateMatchesLanguage(c, targetLang, targetScript) {
   var hay = (((c && c.name) || '') + ' ' + ((c && c.videoTitle) || '')).replace(/\s+/g, ' ').trim();
-  if (hay.length < 8) return true;                 // muy poco texto → no confiable
-  // 1) SCRIPT (mundial): canal de escritura no-latina → competidor del MISMO script.
+  if (hay.length < 8) return true;
+  // A non latin channel only matches competitors in the same script.
   if (targetScript && targetScript !== 'latin') {
     var cs = detectScript(hay);
-    if (!cs) return true;                           // sin script detectable → mantener
+    if (!cs) return true;
     if ((targetScript === 'han' || targetScript === 'kana') && (cs === 'han' || cs === 'kana')) return true;
     return cs === targetScript;
   }
-  // 2) Latino: detector de idioma (cubiertos). targetScript latino o ausente.
   if (!targetLang || targetLang === 'unknown') return true;
   if (typeof detectTextLanguageExtended !== 'function') return true;
   var lang = detectTextLanguageExtended(hay);
-  if (!lang || lang === 'unknown') return true;    // no confiable → mantener
+  if (!lang || lang === 'unknown') return true;
   var nordic = { da: 1, sv: 1, no: 1 };
   if (nordic[targetLang] && nordic[lang]) return true;
   return lang === targetLang;
@@ -17772,7 +17566,7 @@ function candidateMatchesLanguage(c, targetLang, targetScript) {
 
 function candidateMatchesNiche(c, nicheQuery) {
   var hay = (((c && c.name) || '') + ' ' + ((c && c.videoTitle) || '')).toLowerCase();
-  if (!hay.replace(/\s/g, '')) return true; // sin texto → no penalizar
+  if (!hay.replace(/\s/g, '')) return true;
   var stems = String(nicheQuery || '').toLowerCase().split(/\s+/)
     .filter(function(w) { return w.length >= 4; })
     .map(function(w) { return w.slice(0, 5); });
@@ -17781,19 +17575,17 @@ function candidateMatchesNiche(c, nicheQuery) {
   return false;
 }
 
-// Score de calidad de competidor — rankea "las mejores competencias" primero:
-// monetización confirmada > tamaño (subs, log) > multi-fuente (señal de nicho) >
-// vistas totales. Penaliza el relleno chico. Desempate tras el filtro faceless.
+// Ranks the strongest competitors first: confirmed monetization, then size, then multi source, then total views.
 function competitorQualityScore(c) {
   if (!c) return 0;
   var s = 0;
-  if (c.hasJoin || c.hasShop) s += 1200;            // YPP / monetización confirmada
+  if (c.hasJoin || c.hasShop) s += 1200;
   else if (c.monetized === 'yes') s += 1000;
   else if (c.monetized === 'likely') s += 450;
-  s += Math.min(600, Math.log10((c.subs || 0) + 1) * 90);       // tamaño (log)
-  s += Math.min(240, (c.hits || 0) * 60);                        // apareció en N fuentes
-  s += Math.min(150, Math.log10((c.totalViews || 0) + 1) * 20);  // vistas totales
-  if (c._lowTraction) s -= 200;                      // relleno chico → al fondo
+  s += Math.min(600, Math.log10((c.subs || 0) + 1) * 90);
+  s += Math.min(240, (c.hits || 0) * 60);
+  s += Math.min(150, Math.log10((c.totalViews || 0) + 1) * 20);
+  if (c._lowTraction) s -= 200;
   return s;
 }
 
@@ -17801,8 +17593,7 @@ function rankCompetitorsByFaceless(list) {
   try {
     if (!list || !list.length) return Promise.resolve(list);
     if (typeof nspBatchDetectFaces !== 'function') return Promise.resolve(list);
-    // Hasta 3 miniaturas por candidato — la persona real suele aparecer en alguna,
-    // aunque la 1ª (trailer/logo) no la muestre. Filtro faceless robusto y general.
+    // Up to 3 thumbnails per candidate: a real person often shows up in one of them even when the first is a trailer or a logo.
     var probes = [];
     list.forEach(function(c) {
       if (!c) return;
@@ -17813,7 +17604,7 @@ function rankCompetitorsByFaceless(list) {
     });
     if (!probes.length) return Promise.resolve(list);
     return nspBatchDetectFaces(probes, 4).then(function(faceMap) {
-      // Agregá por candidato: si CUALQUIER miniatura tiene cara → persona real.
+      // A face in any thumbnail means a real person.
       faceMap.forEach(function(res, item) {
         var c = item && item.__c;
         if (!c || !res) return;
@@ -17826,12 +17617,10 @@ function rankCompetitorsByFaceless(list) {
       var rk = function(c) { return c._faceless === true ? 0 : c._faceless === false ? 2 : 1; };
       var sorted = list.slice().sort(function(a, b) {
         var ra = rk(a), rb = rk(b);
-        if (ra !== rb) return ra - rb;                                 // faceless primero
-        return competitorQualityScore(b) - competitorQualityScore(a);  // luego mejor calidad
+        if (ra !== rb) return ra - rb;
+        return competitorQualityScore(b) - competitorQualityScore(a);
       });
-      // PEDIDO (v4.32): competidores 100% FACELESS — canal con CARA confirmada se ELIMINA SIEMPRE.
-      // (Antes solo se eliminaban si ya había >=4 faceless confirmados; si no, volvían "ordenados al
-      // fondo" y el usuario veía canales de personas reales.) Los null (no se pudo chequear) se quedan.
+      // Competitors must be faceless: a channel with a confirmed face is always dropped. Unchecked ones stay.
       var facelessOrUnknown = sorted.filter(function(c) { return c._faceless !== false; });
       return facelessOrUnknown.length ? facelessOrUnknown : sorted;
     }).catch(function() { return list; });
@@ -17865,11 +17654,7 @@ function findSimilarChannels(ch) {
       });
 
   return scoredPromise.then(function(scored) {
-    // ── MERCADO AUTODETECTADO ──────────────────────────────────────────────
-    // El nicho Y el mercado deben salir del CANAL que estás analizando, no de tu
-    // preferencia global. Detectamos el idioma de los propios videos del canal
-    // (títulos + nombre) y derivamos el mercado (gl/hl). Así, en un canal alemán
-    // los competidores salen del mercado alemán y del mismo nicho.
+    // Niche and market both come from the channel being analyzed, not from the global preference, so a German channel is compared with German competitors.
     var detectedLang = '';
     try {
       var langBlob = (scored || []).map(function(v){ return (v && v.title) || ''; }).join(' ') + ' ' + ((ch && ch.name) || '');
@@ -17879,17 +17664,17 @@ function findSimilarChannels(ch) {
     try { detectedScript = detectScript(langBlob); } catch(eScr) {}
     var detectedMarket = '';
     try { if (detectedLang && detectedLang !== 'unknown') detectedMarket = getAshlyVMarketForLanguage(detectedLang); } catch(eMkt) {}
-    // Sin mercado por idioma pero con script no-latino → inferí mercado del script.
+    // No market from the language but a non latin script: infer the market from the script.
     try { if (!detectedMarket && detectedScript && NSP_SCRIPT_MARKET[detectedScript]) detectedMarket = NSP_SCRIPT_MARKET[detectedScript]; } catch(eSM) {}
-    // Fallback al pref global SOLO si no pudimos detectar el mercado del canal.
+    // Fall back to the global preference only when the channel market could not be detected.
     var effectiveMarket = detectedMarket || (NspScanPrefs.get().market || 'global');
 
     var nicheQuery = getChannelNicheQuery(ch, scored, detectedLang, detectedScript);
     var vids = getRecentChannelVideoIds(ch, 2);
 
     var jobs = [
-      fetchNicheCompetitorsFromVideos(nicheQuery, 25, effectiveMarket),  // PRIMARY: niche + mercado detectado
-      fetchNicheCompetitorsFromChannels(nicheQuery, effectiveMarket),     // SECONDARY: channel-filter + mercado
+      fetchNicheCompetitorsFromVideos(nicheQuery, 25, effectiveMarket),  // PRIMARY: niche plus detected market
+      fetchNicheCompetitorsFromChannels(nicheQuery, effectiveMarket),     // SECONDARY: channel filter plus market
       fetchChannelFeaturedSimilar(ch.channelUrl)                          // TERTIARY: featured tab
     ].concat(
       vids.slice(0, 2).map(function(v) { return fetchWatchNextRelatedChannels(v); })
@@ -17946,10 +17731,7 @@ function findSimilarChannels(ch) {
         return false;
       });
 
-      // Nicho/mercado chico: si el pre-filtro deja muy pocos, NO descartes antes de
-      // enriquecer — enriquecé TODOS los candidatos y dejá que el filtro duro (o el
-      // último recurso de abajo) decida. Evita el "0 con tracción" en nichos
-      // pequeños (ej: jardinería en polaco), donde los competidores también son chicos.
+      // In a small niche the pre-filter can leave almost nothing, so enrich every candidate and let the hard filter decide instead of dropping early.
       if (preFiltered.length < 8 && list.length) preFiltered = list.slice(0, 30);
 
       // Cap candidates before enrichment (enrichment is the expensive step)
@@ -17995,22 +17777,16 @@ function findSimilarChannels(ch) {
           return false;
         });
 
-        // EMERGENTES: si la pasada estricta deja muy pocos (nichos nuevos donde TODOS los competidores
-        // son chicos), rellená con canales CHICOS pero reales. CLAVE: solo los que aparecieron en 2+ fuentes
-        // (hits>=2) = relacionados de VERDAD al nicho. Antes entraban recomendaciones sueltas de "ver a
-        // continuación" de YouTube (1 sola fuente) → metían canales random (ASMR, etc.) que no son del nicho.
+        // Emerging niches: when the strict pass leaves too few, top up with small but real channels, and only those seen in 2 or more sources so unrelated recommendations do not slip in.
         if (quality.length < 6) {
           enriched.forEach(function(c) {
             if (c && quality.indexOf(c) < 0 && (c.hits || 0) >= 2 && (c.videoCount || 0) >= 3 && (c.subs || 0) >= 150) quality.push(c);
           });
         }
 
-        // Re-sort con score compuesto de calidad (las mejores competencias primero).
         quality.sort(function(a, b) { return competitorQualityScore(b) - competitorQualityScore(a); });
 
-        // ÚLTIMO RECURSO: si tras todos los filtros quedó VACÍO pero sí hubo
-        // candidatos (nicho/mercado chico donde todos son pequeños), mostrá igual
-        // los mejores reales — mejor competidores chicos que un panel vacío.
+        // Last resort: if every filter emptied the list, show the best real candidates anyway rather than an empty panel.
         if (!quality.length && enriched.length) {
           quality = enriched.filter(Boolean).filter(function(c) {
             return (c.subs || 0) >= 100 || (c.videoCount || 0) >= 3 || (c.videoViews || 0) >= 2000;
@@ -18021,23 +17797,17 @@ function findSimilarChannels(ch) {
           quality.forEach(function(c) { if (c) c._lowTraction = true; });
         }
 
-        // RELEVANCIA DE NICHO: los candidatos chicos que vienen de la búsqueda por
-        // VIDEO (niche-video) a veces son de otro tema (satisfying/music colándose en
-        // sleep). Exigiles compartir una raíz con el nicho. Los grandes, multi-fuente,
-        // y los de búsqueda por CANAL (search dirigida) se confían. Nunca vaciar.
+        // Small candidates from the video search are sometimes off topic, so they must share a stem with the niche. Large, multi source and channel search results are trusted.
         var relevantQ = quality.filter(function(c) {
           if (!c) return false;
-          if ((c.subs || 0) >= 50000) return true;       // canal grande → confiar
-          if ((c.hits || 0) >= 2) return true;            // apareció en 2+ fuentes → confiar
-          if (c.source !== 'niche-video') return true;    // búsqueda por canal/featured → confiar
-          return candidateMatchesNiche(c, nicheQuery);    // niche-video chico → debe ser del tema
+          if ((c.subs || 0) >= 50000) return true;
+          if ((c.hits || 0) >= 2) return true;
+          if (c.source !== 'niche-video') return true;
+          return candidateMatchesNiche(c, nicheQuery);
         });
         if (relevantQ.length >= 3) quality = relevantQ;
 
-        // FILTRO DE IDIOMA/ESCRITURA (a mundial): el competidor debe estar en el MISMO
-        // idioma/script que el canal. Por SCRIPT cubre TODOS los idiomas (árabe, ruso,
-        // hindi, japonés…); para latino usa el detector de idioma. La búsqueda regional
-        // igual cuela otros idiomas → acá se descartan. Defensivo: floor 3, nunca vaciar.
+        // The competitor must share the channel's language or script. Regional search still leaks other languages, so they are dropped here, with a floor of 3 so the list never empties.
         if ((detectedLang && detectedLang !== 'unknown') || (detectedScript && detectedScript !== 'latin')) {
           var sameLangQ = quality.filter(function(c) { return candidateMatchesLanguage(c, detectedLang, detectedScript); });
           if (sameLangQ.length >= 3) quality = sameLangQ;
@@ -18073,10 +17843,10 @@ function showSimilarChannelsPanel(ch) {
   var hLeft = document.createElement('div');
   var hT = document.createElement('div');
   hT.style.cssText = 'font-size:12px;font-weight:900;letter-spacing:.14em;';
-  hT.textContent = 'COMPETIDORES DEL NICHO';
+  hT.textContent = 'NICHE COMPETITORS';
   var hS = document.createElement('div');
   hS.style.cssText = 'font-size:9px;color:rgba(255,255,255,.5);margin-top:3px;';
-  hS.textContent = 'detectando nicho...';
+  hS.textContent = 'detecting niche';
   hLeft.appendChild(hT); hLeft.appendChild(hS);
   var hX = document.createElement('button');
   hX.textContent = 'X';
@@ -18091,12 +17861,12 @@ function showSimilarChannelsPanel(ch) {
 
   var loading = document.createElement('div');
   loading.style.cssText = 'padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);line-height:1.7;';
-  // v3.7.1 — Trusted Types compliant (sin innerHTML, YouTube lo bloquea)
+  // Trusted Types: YouTube blocks innerHTML here.
   var loadingTitle = document.createElement('div');
   loadingTitle.style.cssText = 'font-size:13px;font-weight:800;color:#A88FFF;margin-bottom:8px;';
-  loadingTitle.textContent = '🎯 Detectando nicho...';
+  loadingTitle.textContent = '🎯 Detecting niche';
   loading.appendChild(loadingTitle);
-  var loadingSteps = ['1. Sacando keywords del canal', '2. Buscando videos top del nicho', '3. Filtrando canales con tracción real'];
+  var loadingSteps = ['1. Pulling keywords from the channel', '2. Searching top videos in the niche', '3. Filtering for channels with real traction'];
   loadingSteps.forEach(function(step) {
     var d = document.createElement('div');
     d.textContent = step;
@@ -18104,7 +17874,7 @@ function showSimilarChannelsPanel(ch) {
   });
   var loadingHint = document.createElement('div');
   loadingHint.style.cssText = 'margin-top:10px;color:rgba(255,255,255,.4);font-size:10px;';
-  loadingHint.textContent = '~6-10s · descartando canales basura';
+  loadingHint.textContent = '6 to 10 seconds, dropping junk channels';
   loading.appendChild(loadingHint);
   body.appendChild(loading);
 
@@ -18121,17 +17891,17 @@ function showSimilarChannelsPanel(ch) {
     if (nicheQ) {
       var totalFound = list._totalFound || 0;
       var totalKept = list._totalKept || list.length;
-      hS.textContent = mktTag + '🎯 ' + nicheQ.slice(0, 42) + ' · ' + totalKept + '/' + totalFound + ' con tracción';
-      hS.title = 'Mercado detectado · keywords del nicho · canales con stats reales / total';
+      hS.textContent = mktTag + '🎯 ' + nicheQ.slice(0, 42) + ' · ' + totalKept + '/' + totalFound + ' with traction';
+      hS.title = 'Detected market, niche keywords, channels with real stats out of total';
     } else {
-      hS.textContent = mktTag + (ch.name || 'canal').slice(0, 30);
+      hS.textContent = mktTag + (ch.name || 'channel').slice(0, 30);
     }
     if (!list.length) {
       var empty = document.createElement('div');
       empty.style.cssText = 'padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;';
       empty.textContent = nicheQ
-        ? 'Encontré canales del nicho "' + nicheQ + '" pero todos eran pequeños o sin tracción (descartados). Intenta navegar a la pestaña /videos del canal primero para detectar mejor el nicho.'
-        : 'No pude detectar el nicho del canal. Ve a la pestaña /videos del canal y vuelve a intentar.';
+        ? 'Found channels in the "' + nicheQ + '" niche, but all of them were small or had no traction, so they were dropped. Open the channel /videos tab first for a better niche read.'
+        : 'Could not detect the channel niche. Open the channel /videos tab and try again.';
       body.appendChild(empty);
       return;
     }
@@ -18157,7 +17927,7 @@ function showSimilarChannelsPanel(ch) {
       info.style.cssText = 'flex:1;min-width:0;';
       var nm = document.createElement('div');
       nm.style.cssText = 'font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;';
-      nm.textContent = '#' + (idx + 1) + ' ' + (c.name || 'Canal');
+      nm.textContent = '#' + (idx + 1) + ' ' + (c.name || 'Channel');
       var meta = document.createElement('div');
       meta.style.cssText = 'font-size:9.5px;color:rgba(255,255,255,.55);margin-top:3px;';
       var bits = [];
@@ -18166,23 +17936,23 @@ function showSimilarChannelsPanel(ch) {
       else if (c.videoViews) bits.push('▶️ ' + fmtN(c.videoViews) + ' v');
       // Monetization badge — only show positive signals (clutter-free)
       if (c.monetized === 'yes') bits.push('💰 Monet.');
-      else if (c.monetized === 'likely') bits.push('🟡 Prob.');
+      else if (c.monetized === 'likely') bits.push('🟡 Likely');
       // Source last
-      if (c.source === 'niche-video') bits.push('🎯 Nicho');
-      else if (c.source === 'niche-channel') bits.push('🔎 Canal');
+      if (c.source === 'niche-video') bits.push('🎯 Niche');
+      else if (c.source === 'niche-channel') bits.push('🔎 Channel');
       else if (c.source === 'featured') bits.push('⭐ Feat.');
       else if (c.source === 'watch-next') bits.push('🔗 Next');
       if ((c.hits || 0) > 1) bits.push('×' + c.hits);
-      if (c._lowTraction) bits.push('🌱 chico');
+      if (c._lowTraction) bits.push('🌱 small');
       if (c._faceless === true) bits.push('🎭 faceless');
-      else if (c._faceless === false) bits.push('🙂 cara');
+      else if (c._faceless === false) bits.push('🙂 face');
       meta.textContent = bits.join(' · ');
       info.appendChild(nm); info.appendChild(meta);
       row.appendChild(info);
 
       var saveBtn = document.createElement('button');
       saveBtn.textContent = '💾';
-      saveBtn.title = 'Guardar canal';
+      saveBtn.title = 'Save channel';
       saveBtn.style.cssText = 'width:30px;height:30px;border-radius:6px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;cursor:pointer;flex-shrink:0;font-size:14px;';
       saveBtn.onclick = function(ev) {
         ev.stopPropagation();
@@ -18204,7 +17974,7 @@ function showSimilarChannelsPanel(ch) {
       body.appendChild(row);
     });
   }).catch(function(err) {
-    loading.textContent = 'Error: ' + (err && err.message || 'desconocido');
+    loading.textContent = 'Error: ' + (err && err.message || 'unknown');
   });
 }
 
@@ -18226,7 +17996,7 @@ function injectChannelOverlay() {
       nspSetHTML(a, '<div style="font-size:13px;font-weight:900;margin-bottom:6px;">⚠️ NSP overlay error</div>'
         + '<div style="font-size:11px;font-weight:500;line-height:1.5;opacity:.95;">'
         + String((eFatal && eFatal.message) || eFatal).slice(0, 300)
-        + '</div><div style="font-size:9.5px;margin-top:8px;opacity:.7;">Pásame este mensaje al chat para arreglarlo.</div>');
+        + '</div><div style="font-size:9.5px;margin-top:8px;opacity:.7;">Copy this message into the chat so it can be fixed.</div>');
       document.body.appendChild(a);
       setTimeout(function() { a.remove(); }, 15000);
     } catch(eAlert) {}
@@ -18285,19 +18055,19 @@ function _injectChannelOverlay_inner() {
     + 'box-shadow:0 18px 46px rgba(0,0,0,.55);';
 
   function fmtMoneyLabel(n) {
-    if (!n || n <= 0) return 'REV EN CURSO';
-    return n >= 1000 ? '$' + (n / 1000).toFixed(1) + 'K MES' : '$' + n + ' MES';
+    if (!n || n <= 0) return 'REV PENDING';
+    return n >= 1000 ? '$' + (n / 1000).toFixed(1) + 'K MO' : '$' + n + ' MO';
   }
 
   function normalizeOverlayText(txt) {
     txt = String(txt || '').replace(/[^\x20-\x7E]+/g, ' ').replace(/\s+/g, ' ').trim();
     if (!txt) return 'NSP';
     txt = txt.replace(/^NSP$/i, 'NSP CHANNEL');
-    txt = txt.replace(/^tracking\.\.\.$/i, 'TRACKING');
-    txt = txt.replace(/^Prob\. monetizado$/i, 'MONET PROBABLE');
-    txt = txt.replace(/^Monetizado$/i, 'MONET ACTIVA');
-    txt = txt.replace(/^No monetizado$/i, 'MONET OFF');
-    txt = txt.replace(/^Desconocido$/i, 'MONET DESCONOCIDA');
+    txt = txt.replace(/^tracking$/i, 'TRACKING');
+    txt = txt.replace(/^Likely monetized$/i, 'MONET LIKELY');
+    txt = txt.replace(/^Monetized$/i, 'MONET ACTIVE');
+    txt = txt.replace(/^Not monetized$/i, 'MONET OFF');
+    txt = txt.replace(/^Unknown$/i, 'MONET UNKNOWN');
     txt = txt.replace(/\/mo$/i, ' MO');
     txt = txt.replace(/\s+est\.$/i, ' EST');
     return txt.toUpperCase();
@@ -18309,12 +18079,12 @@ function _injectChannelOverlay_inner() {
     if (/SUB/.test(cleaned)) icon = 'users';
     else if (/TRACK|MO$/.test(cleaned)) icon = 'pulse';
     else if (/MONET|EST|^\$/.test(cleaned)) icon = 'money';
-    else if (/VIRAL|CALIENTE|CRECIENDO|ESTABLE|LENTO/.test(cleaned)) {
+    else if (/VIRAL|HOT|MOVING|STABLE|SLOW/.test(cleaned)) {
       cleaned = cleaned
-        .replace('CALIENTE', 'STATUS HOT')
-        .replace('CRECIENDO', 'STATUS MOVING')
-        .replace('ESTABLE', 'STATUS STABLE')
-        .replace('LENTO', 'STATUS SLOW')
+        .replace('HOT', 'STATUS HOT')
+        .replace('MOVING', 'STATUS MOVING')
+        .replace('STABLE', 'STATUS STABLE')
+        .replace('SLOW', 'STATUS SLOW')
         .replace('VIRAL', 'STATUS VIRAL');
       icon = 'status';
     }
@@ -18338,16 +18108,16 @@ function _injectChannelOverlay_inner() {
     var gc = subGrowth >= 0 ? '#00DC82' : '#FF6B6B';
     infoSec.appendChild(sp((subGrowth >= 0 ? '+' : '') + fmtN(subGrowth) + '/mo', 'color:' + gc + ';font-size:10.5px;font-weight:700;flex-shrink:0'));
   } else {
-    infoSec.appendChild(sp('📊 tracking...', 'color:rgba(234,240,255,.3);font-size:10px;flex-shrink:0'));
+    infoSec.appendChild(sp('📊 tracking', 'color:rgba(234,240,255,.3);font-size:10px;flex-shrink:0'));
   }
 
   infoSec.appendChild(dv());
 
   var monLabel, monColor;
-  if (ch.monetized === 'yes')         { monLabel = '✅ Monetizado';        monColor = '#00DC82'; }
-  else if (ch.monetized === 'likely') { monLabel = '🟡 Prob. monetizado'; monColor = '#FFD700'; }
-  else if (ch.monetized === 'no')     { monLabel = '❌ No monetizado';     monColor = '#FF6B6B'; }
-  else                                { monLabel = '❓ Desconocido';       monColor = 'rgba(234,240,255,.4)'; }
+  if (ch.monetized === 'yes')         { monLabel = '✅ Monetized';         monColor = '#00DC82'; }
+  else if (ch.monetized === 'likely') { monLabel = '🟡 Likely monetized'; monColor = '#FFD700'; }
+  else if (ch.monetized === 'no')     { monLabel = '❌ Not monetized';     monColor = '#FF6B6B'; }
+  else                                { monLabel = '❓ Unknown';           monColor = 'rgba(234,240,255,.4)'; }
   infoSec.appendChild(sp(monLabel, 'color:' + monColor + ';font-size:10.5px;font-weight:700;flex-shrink:0'));
 
   if (revMonth > 0) {
@@ -18356,17 +18126,17 @@ function _injectChannelOverlay_inner() {
     infoSec.appendChild(sp(rv + ' est.', 'color:#00DC82;font-weight:700;font-size:11px;flex-shrink:0'));
   }
 
-  // Canal-level verdict chip in top bar
+  // Channel level verdict chip in the top bar
   if (_allScored.length > 0) {
     var barAvgVPH = 0;
     for (var bv = 0; bv < _allScored.length; bv++) barAvgVPH += _allScored[bv].vph;
     barAvgVPH /= _allScored.length;
     var barVerdict, barCol, barBg, barBd;
     if (barAvgVPH >= 1000)     { barVerdict = '🔴 VIRAL'; barCol='#E040FF'; barBg='rgba(200,0,255,.15)'; barBd='rgba(200,0,255,.4)'; }
-    else if (barAvgVPH >= 200) { barVerdict = '🔥 CALIENTE'; barCol='#FF6B35'; barBg='rgba(255,80,0,.12)'; barBd='rgba(255,80,0,.35)'; }
-    else if (barAvgVPH >= 50)  { barVerdict = '⚡ CRECIENDO'; barCol='#FFD700'; barBg='rgba(255,200,0,.1)'; barBd='rgba(255,200,0,.3)'; }
-    else if (barAvgVPH >= 10)  { barVerdict = '✅ ESTABLE'; barCol='#00DC82'; barBg='rgba(0,220,130,.08)'; barBd='rgba(0,220,130,.25)'; }
-    else                       { barVerdict = '😴 LENTO'; barCol='#888'; barBg='rgba(80,80,80,.1)'; barBd='rgba(80,80,80,.2)'; }
+    else if (barAvgVPH >= 200) { barVerdict = '🔥 HOT'; barCol='#FF6B35'; barBg='rgba(255,80,0,.12)'; barBd='rgba(255,80,0,.35)'; }
+    else if (barAvgVPH >= 50)  { barVerdict = '⚡ MOVING'; barCol='#FFD700'; barBg='rgba(255,200,0,.1)'; barBd='rgba(255,200,0,.3)'; }
+    else if (barAvgVPH >= 10)  { barVerdict = '✅ STABLE'; barCol='#00DC82'; barBg='rgba(0,220,130,.08)'; barBd='rgba(0,220,130,.25)'; }
+    else                       { barVerdict = '😴 SLOW'; barCol='#888'; barBg='rgba(80,80,80,.1)'; barBd='rgba(80,80,80,.2)'; }
     infoSec.appendChild(dv());
     var vc = document.createElement('span');
     vc.style.cssText = 'display:inline-flex;align-items:center;padding:3px 9px;border-radius:4px;'
@@ -18382,19 +18152,19 @@ function _injectChannelOverlay_inner() {
   }
 
   while (infoSec.firstChild) infoSec.removeChild(infoSec.firstChild);
-  var monLabelFinal = 'MONET DESCONOCIDA';
-  if (ch.monetized === 'yes') monLabelFinal = 'MONET ACTIVA';
-  else if (ch.monetized === 'likely') monLabelFinal = 'MONET PROBABLE';
+  var monLabelFinal = 'MONET UNKNOWN';
+  if (ch.monetized === 'yes') monLabelFinal = 'MONET ACTIVE';
+  else if (ch.monetized === 'likely') monLabelFinal = 'MONET LIKELY';
   else if (ch.monetized === 'no') monLabelFinal = 'MONET OFF';
   var channelValue = fmtN(ch.subs || 0) + ' SUBS';
-  var trackingValue = subGrowth !== null ? ((subGrowth >= 0 ? '+' : '') + fmtN(subGrowth) + ' / MES') : 'SIN TRACKING';
-  var monetValue = revMonth > 0 ? fmtMoneyLabel(revMonth) : 'REV EN CURSO';
+  var trackingValue = subGrowth !== null ? ((subGrowth >= 0 ? '+' : '') + fmtN(subGrowth) + ' / MO') : 'NO TRACKING';
+  var monetValue = revMonth > 0 ? fmtMoneyLabel(revMonth) : 'REV PENDING';
   infoSec.appendChild(createNSPInteractiveMetricPill('NSP CHANNEL', channelValue, 'spark', true));
   // TRACKING pill — DIRECT listeners (no delegation needed)
   try {
     var trackingPill = createNSPMetricPill(
       subGrowth !== null
-        ? 'TRACKING ' + ((subGrowth >= 0 ? '+' : '') + fmtN(subGrowth) + '/MES')
+        ? 'TRACKING ' + ((subGrowth >= 0 ? '+' : '') + fmtN(subGrowth) + '/MO')
         : 'TRACKING',
       'pulse', false
     );
@@ -18402,7 +18172,7 @@ function _injectChannelOverlay_inner() {
     trackingPill.style.cursor = 'pointer';
     trackingPill.style.color = '#2EE9FF';
     trackingPill.style.borderColor = 'rgba(46,233,255,.4)';
-    trackingPill.title = 'Click para ver histórico de growth + activar alertas';
+    trackingPill.title = 'Click to see growth history and turn on alerts';
     trackingPill.setAttribute('role', 'button');
     trackingPill.tabIndex = 0;
     // Capture all children to make them transparent to clicks (event reaches pill)
@@ -18428,12 +18198,12 @@ function _injectChannelOverlay_inner() {
           + 'padding:10px 18px;background:rgba(46,233,255,.95);color:#000;border-radius:10px;'
           + 'font-family:ui-monospace,monospace;font-size:12px;font-weight:800;'
           + 'box-shadow:0 12px 32px rgba(46,233,255,.4);';
-        feedback.textContent = '📊 Abriendo TRACKING...';
+        feedback.textContent = '📊 Opening TRACKING';
         document.body.appendChild(feedback);
         setTimeout(function() { feedback.remove(); }, 1500);
 
         if (typeof openTrackingPanel !== 'function') {
-          throw new Error('openTrackingPanel no está definida');
+          throw new Error('openTrackingPanel is not defined');
         }
         openTrackingPanel(ch, subGrowth);
       } catch(err) {
@@ -18458,10 +18228,8 @@ function _injectChannelOverlay_inner() {
     infoSec.appendChild(trackingPill);
     console.log('[NSP] TRACKING pill created with', allChildren.length, 'children disabled for events');
   } catch(eTrack) { console.warn('[NSP] tracking pill setup error:', eTrack); }
-  // v3.20.0 — Placeholder NEUTRAL mientras se verifica por ads (antes mostraba la
-  // heurística por subs "MONET PROBABLE" y luego saltaba a otro valor → parecía que
-  // "se trababa"). Ahora muestra "VERIFICANDO" hasta que el chequeo real de ads resuelve.
-  var monetPill = createNSPInteractiveMetricPill('⏳ VERIFICANDO ADS…', monetValue, 'money', false);
+  // Neutral placeholder while the ad check runs, so the pill does not show a subscriber based guess and then jump to another value.
+  var monetPill = createNSPInteractiveMetricPill('⏳ CHECKING ADS', monetValue, 'money', false);
   monetPill.dataset.monetPlaceholder = '1';
   infoSec.appendChild(monetPill);
 
@@ -18471,23 +18239,22 @@ function _injectChannelOverlay_inner() {
       if (!res || !monetPill || !monetPill.parentNode) return;
       var label, sub;
       if (res.verdict === 'monetized') {
-        // 'monetized' (verde) AHORA solo viene de Join/Shop = prueba directa de YPP. Nunca por ads solos.
-        label = '✅ MONETIZADO';
-        sub = res.joinButton ? 'botón ÚNETE activo · YPP confirmado'
-            : (res.shopTab ? 'pestaña TIENDA activa · YPP confirmado' : 'YPP confirmado');
+        // Green only comes from Join or Shop, direct proof of YPP, never from ads alone.
+        label = '✅ MONETIZED';
+        sub = res.joinButton ? 'Join button active, YPP confirmed'
+            : (res.shopTab ? 'Shop tab active, YPP confirmed' : 'YPP confirmed');
       }
       else if (res.verdict === 'ads_unconfirmed') {
-        // Sirve anuncios pero SIN Join/Shop → no se puede confirmar que el creador cobre (¿Content-ID?).
         label = "🟡 CAN'T CHECK";
-        sub = 'sirve ads pero sin prueba directa de YPP · ' + res.adsFound + '/' + res.probeCount + ' vids con ads (¿Content-ID?)';
+        sub = 'serves ads but no direct YPP proof, ' + res.adsFound + '/' + res.probeCount + ' videos with ads, possibly Content-ID';
       }
       else if (res.verdict === 'demonetized') {
-        label = '❌ NO MONETIZADO';
+        label = '❌ NOT MONETIZED';
         sub = (res.reasons && res.reasons.indexOf('below_ypp_threshold') !== -1)
-          ? 'menos de 1000 subs · no llega al mínimo del YPP'
-          : 'SIN ADS en ' + res.probeCount + ' video' + (res.probeCount === 1 ? '' : 's') + ' probados';
+          ? 'under 1000 subs, below the YPP minimum'
+          : 'NO ADS in ' + res.probeCount + ' video' + (res.probeCount === 1 ? '' : 's') + ' checked';
       }
-      else { label = "⚠️ CAN'T CHECK"; sub = (res.reasons && res.reasons.indexOf('probe_unavailable') !== -1) ? 'YouTube bloqueó la verificación de ads' : 'sin prueba directa de YPP (ni Únete ni Tienda)'; }
+      else { label = "⚠️ CAN'T CHECK"; sub = (res.reasons && res.reasons.indexOf('probe_unavailable') !== -1) ? 'YouTube blocked the ad check' : 'no direct YPP proof, no Join and no Shop'; }
       var fresh = createNSPInteractiveMetricPill(label, sub, 'money', res.verdict === 'monetized');
       fresh.dataset.monetVerdict = res.verdict;
       try {
@@ -18520,7 +18287,7 @@ function _injectChannelOverlay_inner() {
 
       if (ageDays === null || ageDays === undefined) {
         if (opts.placeholder) {
-          var placeholder = createNSPInteractiveMetricPill('EDAD ...', 'cargando /about', 'pulse', false);
+          var placeholder = createNSPInteractiveMetricPill('AGE', 'loading /about', 'pulse', false);
           placeholder.dataset.nspAgePill = '1';
           placeholder.style.opacity = '0.6';
           infoSec.appendChild(placeholder);
@@ -18528,8 +18295,8 @@ function _injectChannelOverlay_inner() {
         return;
       }
 
-      var ageLabel = 'EDAD ' + (formatChannelAge(ageDays) || '?');
-      var ageSub = joinedDateStr ? 'inicio ' + joinedDateStr : 'tiempo en YouTube';
+      var ageLabel = 'AGE ' + (formatChannelAge(ageDays) || '?');
+      var ageSub = joinedDateStr ? 'joined ' + joinedDateStr : 'time on YouTube';
       var isYoung = ageDays < 365;
       var agePill = createNSPInteractiveMetricPill(ageLabel, ageSub, 'pulse', isYoung);
       agePill.dataset.nspAgePill = '1';
@@ -18571,12 +18338,12 @@ function _injectChannelOverlay_inner() {
   var btnSec = document.createElement('div');
   btnSec.style.cssText = 'display:flex;align-items:center;gap:8px;flex-shrink:0;position:relative;';
 
-  // ── Consolidated "ANALIZAR" dropdown (replaces 4 separate analytical buttons)
+    // Consolidated ANALYZE dropdown, replacing four separate buttons.
   var analyzeBtn = document.createElement('button');
   analyzeBtn.id = 'nsp-analyze-btn';
   styleNSPMonoButton(analyzeBtn, { compact: true, active: false });
-  analyzeBtn.textContent = 'ANALIZAR ▾';
-  analyzeBtn.title = 'Stats · Competidores';
+  analyzeBtn.textContent = 'ANALYZE ▾';
+  analyzeBtn.title = 'Stats and competitors';
 
   var menu = document.createElement('div');
   menu.id = 'nsp-analyze-menu';
@@ -18599,13 +18366,13 @@ function _injectChannelOverlay_inner() {
     it.addEventListener('click', function() {
       menu.style.display = 'none';
       setNSPMonoButtonActive(analyzeBtn, false);
-      analyzeBtn.textContent = 'ANALIZAR ▾';
+      analyzeBtn.textContent = 'ANALYZE ▾';
       onClick();
     });
     return it;
   }
 
-  menu.appendChild(mkMenuItem('VER STATS', 'panel detallado del canal', function() {
+  menu.appendChild(mkMenuItem('VIEW STATS', 'detailed channel panel', function() {
     try {
       var existing = document.getElementById('nsp-stats-panel');
       if (existing) { existing.remove(); try { sessionStorage.removeItem('nsp_reopen_stats'); } catch(eSS) {} return; }
@@ -18617,24 +18384,24 @@ function _injectChannelOverlay_inner() {
         document.body.appendChild(p);
       }
     } catch(err) {
-      console.error('[NSP] VER STATS error:', err && err.stack || err);
+      console.error('[NSP] VIEW STATS error:', err && err.stack || err);
       // Visual feedback so user knows it failed (not silent)
       var alertDiv = document.createElement('div');
       alertDiv.style.cssText = 'position:fixed;top:120px;left:50%;transform:translateX(-50%);z-index:99999;'
         + 'padding:14px 22px;background:rgba(255,80,80,.95);color:#fff;border-radius:10px;'
         + 'font-family:ui-monospace,monospace;font-size:12px;font-weight:700;'
         + 'box-shadow:0 12px 32px rgba(255,80,80,.4);max-width:480px;text-align:left;';
-      nspSetHTML(alertDiv, '<div style="font-size:13px;font-weight:900;margin-bottom:6px;">⚠️ VER STATS error</div>'
+      nspSetHTML(alertDiv, '<div style="font-size:13px;font-weight:900;margin-bottom:6px;">⚠️ VIEW STATS error</div>'
         + '<div style="font-size:10.5px;font-weight:500;line-height:1.5;opacity:.95;">'
         + String(err && err.message || err).slice(0, 200)
-        + '</div><div style="font-size:9px;margin-top:8px;opacity:.7;">Mira la consola (F12) para el stack completo.</div>');
+        + '</div><div style="font-size:9px;margin-top:8px;opacity:.7;">Open the console (F12) for the full stack.</div>');
       document.body.appendChild(alertDiv);
       setTimeout(function() { alertDiv.remove(); }, 7000);
     }
   }));
   // ThumbLab + TitleLab moved to Dashboard (user request).
   // They now launch via chrome.storage 'nsp_pending_action' from the dashboard.
-  menu.appendChild(mkMenuItem('COMPETIDORES', 'canales similares + featured', function() {
+  menu.appendChild(mkMenuItem('COMPETITORS', 'similar and featured channels', function() {
     var existing = document.getElementById('nsp-similar-panel');
     if (existing) { existing.remove(); return; }
     showSimilarChannelsPanel(ch);
@@ -18645,13 +18412,13 @@ function _injectChannelOverlay_inner() {
     var open = menu.style.display === 'block';
     menu.style.display = open ? 'none' : 'block';
     setNSPMonoButtonActive(analyzeBtn, !open);
-    analyzeBtn.textContent = open ? 'ANALIZAR ▾' : 'ANALIZAR ▴';
+    analyzeBtn.textContent = open ? 'ANALYZE ▾' : 'ANALYZE ▴';
   });
   document.addEventListener('click', function(ev) {
     if (menu.style.display === 'block' && !menu.contains(ev.target) && ev.target !== analyzeBtn) {
       menu.style.display = 'none';
       setNSPMonoButtonActive(analyzeBtn, false);
-      analyzeBtn.textContent = 'ANALIZAR ▾';
+      analyzeBtn.textContent = 'ANALYZE ▾';
     }
   });
 
@@ -18662,13 +18429,13 @@ function _injectChannelOverlay_inner() {
   var saveBtn = document.createElement('button');
   saveBtn.id = 'nsp-save-btn';
   styleNSPMonoButton(saveBtn, { compact: true, active: false });
-  saveBtn.textContent = 'GUARDAR';
+  saveBtn.textContent = 'SAVE';
   saveBtn.addEventListener('click', function() {
     if (saveChannelAndOpenAshlyV(ch, subGrowth, revMonth)) {
-      saveBtn.textContent = 'GUARDADO';
+      saveBtn.textContent = 'SAVED';
       setNSPMonoButtonActive(saveBtn, true);
       setTimeout(function() {
-        saveBtn.textContent = 'GUARDAR';
+        saveBtn.textContent = 'SAVE';
         setNSPMonoButtonActive(saveBtn, false);
       }, 1400);
     }
@@ -18759,19 +18526,16 @@ function handleNSPPendingChannelAction(ch) {
   });
 }
 
-// ── PERSISTENCIA DEL PANEL VER STATS (pedido v4.32) ──────────────────────────
-// Si dejaste el panel abierto y navegaste (clic en un video, redirect, botón atrás), al VOLVER a la
-// página de ESE canal el panel se re-abre solo (con datos frescos y el mismo rango). Se olvida al
-// cerrarlo con la X / toggle / Cancelar, o a los 45 min. Cubre navegación SPA y recargas completas.
+// If the stats panel was open and you navigated away, it reopens by itself when you come back to that channel page, with fresh data and the same range. It is forgotten when closed, or after 45 minutes.
 function nspMaybeReopenStatsPanel() {
   try {
-    if (document.getElementById('nsp-stats-panel')) return;            // ya hay uno abierto
+    if (document.getElementById('nsp-stats-panel')) return;
     var raw = sessionStorage.getItem('nsp_reopen_stats');
     if (!raw) return;
     var st = JSON.parse(raw);
     if (!st || !st.ch || !st.ch.channelUrl) return;
     if (st.ts && (Date.now() - st.ts) > 45 * 60 * 1000) { sessionStorage.removeItem('nsp_reopen_stats'); return; }
-    // ¿Estamos en la página de ESE canal? (handle @x o /channel/ID dentro de la URL actual)
+    // Is the current URL that channel, by handle or by /channel/ID?
     var key = '';
     var m = String(st.ch.channelUrl).match(/\/(@[^\/?#]+)/);
     if (m) key = m[1];
@@ -18779,13 +18543,13 @@ function nspMaybeReopenStatsPanel() {
     if (!key) return;
     var here = location.href, hereDec = here;
     try { hereDec = decodeURIComponent(here); } catch(eDec) {}
-    if (here.indexOf(key) === -1 && hereDec.indexOf(key) === -1) return; // otra página → se re-abre cuando VUELVAS al canal
+    if (here.indexOf(key) === -1 && hereDec.indexOf(key) === -1) return;
     if (typeof openChannelStatsWithLoader === 'function') {
       openChannelStatsWithLoader(st.ch, null, st.subGrowth, st.revMonth, st.rangeKey || 'all');
     }
   } catch(e) {}
 }
-try { setTimeout(nspMaybeReopenStatsPanel, 2600); } catch(e) {}   // recarga completa de página (back con full reload / F5)
+try { setTimeout(nspMaybeReopenStatsPanel, 2600); } catch(e) {}
 
 // ── Navigation / mutation ────────────────────────────────────────────────────
 
@@ -18813,7 +18577,7 @@ document.addEventListener('yt-navigate-finish', function() {
   if (co) co.remove();
   if (sp) sp.remove();
   if (fp) fp.remove();
-  // PERSISTENCIA VER STATS: si esta navegación te trajo DE VUELTA al canal del panel guardado, re-abrirlo
+  // If this navigation brought you back to the channel of the saved panel, reopen it.
   try { setTimeout(nspMaybeReopenStatsPanel, 1600); } catch(eReo) {}
   if (fl) {
     fl.disabled = false;
@@ -18836,7 +18600,7 @@ document.addEventListener('yt-navigate-finish', function() {
   setTimeout(injectCommentsButton, 900);
   setTimeout(injectCommentsButton, 2300);
 
-  // Auto-scan si venimos de un SCAN de ASHLYV
+  // Auto scan when arriving from an ASHLYV scan.
   try {
     if (consumeAshlyVPendingSearchScan()) {
       setTimeout(function() { runAshlyVScanAuto(); }, 3800);
@@ -18859,7 +18623,7 @@ var _nspMainObserver = new MutationObserver(function() {
   if (window._ashlyv_mutation_count > 50) return;
   clearTimeout(_mt);
   _mt = setTimeout(function() {
-    // Reinyectar botón si desapareció
+    // Re-inject the button if it disappeared.
     if (!document.getElementById('nsp-batman-scan-btn')) injectBatmanButton();
     if (!document.getElementById('nsp-globe-wrap')) injectGlobeButton();
     if (!document.getElementById('nsp-faceless-btn')) injectFacelessButton();
@@ -18876,7 +18640,7 @@ window.addEventListener('beforeunload', function() {
   try { if (_ashlyv_integrity_timer) clearInterval(_ashlyv_integrity_timer); } catch(e3) {}
 });
 
-// ── Botón Batman ─────────────────────────────────────────────────────────────
+// ── Batman button ────────────────────────────────────────────────────────────
 
 function createBatmanScanIcon(width, height) {
   var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -19236,7 +19000,7 @@ function launchFacelessSearch(code, options) {
     btn.disabled = true;
     styleNSPMonoButton(btn, { compact: true, active: true });
     var txt = btn.querySelector('[data-faceless-label]');
-    if (txt) txt.textContent = 'BUSCANDO...';
+    if (txt) txt.textContent = 'SEARCHING';
   }
 
   try {
@@ -19280,7 +19044,7 @@ function nspShowFacelessVerdict() {
   try { analysis = AshlyVFaceless.analyzeItem(item) || {}; } catch (eA) {}
   var profile = null;
   try { profile = getAshlyVGenerativeAiProfile(item); } catch (eP) {}
-  var cls = String(analysis.classification || 'desconocido').toLowerCase();
+  var cls = String(analysis.classification || 'unknown').toLowerCase();
   var fScore = Math.round(analysis.facelessScore || 0);
 
   var panel = document.createElement('div');
@@ -19300,7 +19064,7 @@ function nspShowFacelessVerdict() {
   head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;';
   var ht = document.createElement('div');
   ht.style.cssText = 'font-size:11px;font-weight:900;letter-spacing:.14em;color:#fff;text-shadow:0 0 8px rgba(255,255,255,.5);';
-  ht.textContent = '🦇 VEREDICTO FACELESS';
+  ht.textContent = '🦇 FACELESS VERDICT';
   var hx = document.createElement('button');
   hx.textContent = '×';
   hx.style.cssText = 'background:none;border:none;color:rgba(255,255,255,.6);font-size:18px;cursor:pointer;line-height:1;';
@@ -19312,33 +19076,33 @@ function nspShowFacelessVerdict() {
   big.style.cssText = 'margin-top:12px;padding:12px;border-radius:12px;text-align:center;font-size:14px;font-weight:900;letter-spacing:.06em;border:1px solid rgba(255,255,255,.14);';
   panel.appendChild(big);
   function setVerdict(state, extra) {
-    if (state === 'si') {
+    if (state === 'yes') {
       big.textContent = '✓ FACELESS REPLICABLE' + (extra || '');
       big.style.color = '#00FF88'; big.style.borderColor = 'rgba(0,255,136,.55)'; big.style.background = 'rgba(0,255,136,.08)'; big.style.textShadow = '0 0 10px rgba(0,255,136,.5)';
     } else if (state === 'no') {
       big.textContent = '✕ NO FACELESS' + (extra || '');
       big.style.color = '#FF6B6B'; big.style.borderColor = 'rgba(255,107,107,.55)'; big.style.background = 'rgba(255,107,107,.08)';
     } else {
-      big.textContent = '⚠ DUDOSO' + (extra || '');
+      big.textContent = '⚠ DOUBTFUL' + (extra || '');
       big.style.color = '#FFD93D'; big.style.borderColor = 'rgba(255,217,61,.5)'; big.style.background = 'rgba(255,217,61,.07)';
     }
   }
   var isFacelessCls = (cls === 'faceless' || cls === 'faceless_ai' || cls === 'borderline');
-  setVerdict(isFacelessCls && fScore >= 44 ? 'si' : (cls === 'hard_reject' || cls === 'not_faceless' ? 'no' : 'dudoso'), '');
+  setVerdict(isFacelessCls && fScore >= 44 ? 'yes' : (cls === 'hard_reject' || cls === 'not_faceless' ? 'no' : 'doubtful'), '');
 
   var tRow = document.createElement('div');
   tRow.style.cssText = 'margin-top:10px;font-size:10.5px;color:rgba(255,255,255,.75);line-height:1.4;';
-  tRow.textContent = '"' + vTitle.slice(0, 90) + (vTitle.length > 90 ? '…' : '') + '" · ' + (vChannel || 'canal desconocido');
+  tRow.textContent = '"' + vTitle.slice(0, 90) + (vTitle.length > 90 ? '…' : '') + '" · ' + (vChannel || 'unknown channel');
   panel.appendChild(tRow);
 
-  row('Clasificación texto', cls.toUpperCase(), isFacelessCls ? '#00FF88' : '#FF6B6B');
-  row('Score faceless', fScore + '/100', fScore >= 44 ? '#00FF88' : '#FFD93D');
-  if (profile && profile.category) row('Categoría IA', String(profile.category) + ' (' + Math.round(profile.score || 0) + ')', '#fff');
-  var visRow = row('Miniatura (face-api)', 'analizando…', '#FFD93D');
+  row('Text classification', cls.toUpperCase(), isFacelessCls ? '#00FF88' : '#FF6B6B');
+  row('Faceless score', fScore + '/100', fScore >= 44 ? '#00FF88' : '#FFD93D');
+  if (profile && profile.category) row('AI category', String(profile.category) + ' (' + Math.round(profile.score || 0) + ')', '#fff');
+  var visRow = row('Thumbnail (face-api)', 'analyzing', '#FFD93D');
   if (profile && profile.hits && profile.hits.length) {
     var sig = document.createElement('div');
     sig.style.cssText = 'margin-top:10px;font-size:9.5px;color:rgba(255,255,255,.45);line-height:1.5;';
-    sig.textContent = 'Señales: ' + profile.hits.slice(0, 4).join(' · ');
+    sig.textContent = 'Signals: ' + profile.hits.slice(0, 4).join(' · ');
     panel.appendChild(sig);
   }
   document.body.appendChild(panel);
@@ -19346,16 +19110,16 @@ function nspShowFacelessVerdict() {
 
   try {
     nspDetectFaceInThumbnail(item).then(function(f) {
-      if (!f || f.unknown || !f.supported) { visRow.textContent = 'no evaluable'; visRow.style.color = 'rgba(255,255,255,.5)'; return; }
+      if (!f || f.unknown || !f.supported) { visRow.textContent = 'not measurable'; visRow.style.color = 'rgba(255,255,255,.5)'; return; }
       if (f.hasFace && Number(f.faceArea || 0) >= 0.008) {
-        visRow.textContent = '✕ CARA REAL detectada'; visRow.style.color = '#FF6B6B';
-        setVerdict('no', ' (cara en miniatura)');
+        visRow.textContent = '✕ REAL FACE detected'; visRow.style.color = '#FF6B6B';
+        setVerdict('no', ' (face in thumbnail)');
       } else {
-        visRow.textContent = '✓ sin cara'; visRow.style.color = '#00FF88';
-        if (isFacelessCls && fScore >= 44) setVerdict('si', ' (texto + visual)');
+        visRow.textContent = '✓ no face'; visRow.style.color = '#00FF88';
+        if (isFacelessCls && fScore >= 44) setVerdict('yes', ' (text and visual)');
       }
-    }).catch(function() { visRow.textContent = 'no evaluable'; visRow.style.color = 'rgba(255,255,255,.5)'; });
-  } catch (eF) { visRow.textContent = 'no evaluable'; }
+    }).catch(function() { visRow.textContent = 'not measurable'; visRow.style.color = 'rgba(255,255,255,.5)'; });
+  } catch (eF) { visRow.textContent = 'not measurable'; }
   return true;
 }
 
@@ -19417,7 +19181,7 @@ function showFacelessLanguagePanel() {
 
   var subtitle = document.createElement('div');
   subtitle.style.cssText = 'font-size:10px;color:rgba(255,255,255,.6);line-height:1.6;max-width:300px;';
-  subtitle.textContent = 'Elige cualquier idioma, filtra el listado y disparo queries faceless locales. La busqueda abre y el scan corre solo.';
+  subtitle.textContent = 'Pick any language, filter the list, and local faceless queries are fired. The search opens and the scan runs on its own.';
   hLeft.appendChild(subtitle);
 
   header.appendChild(hLeft);
@@ -19448,13 +19212,13 @@ function showFacelessLanguagePanel() {
   heroTop.appendChild(heroStat);
   var heroLbl = document.createElement('div');
   heroLbl.style.cssText = 'font-size:9px;color:rgba(255,255,255,.42);letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';';
-  heroLbl.textContent = 'Idiomas listos';
+  heroLbl.textContent = 'Languages ready';
   heroTop.appendChild(heroLbl);
   hero.appendChild(heroTop);
 
   var heroTxt = document.createElement('div');
   heroTxt.style.cssText = 'font-size:10px;color:rgba(255,255,255,.68);line-height:1.65;margin-top:8px;';
-  heroTxt.textContent = 'Auto Mix rota oportunidades globales. Si eliges idioma exacto, la busqueda queda bloqueada a ese idioma y solo entran videos recientes.';
+  heroTxt.textContent = 'Auto Mix rotates global opportunities. Pick one language and the search is locked to it, with recent videos only.';
   hero.appendChild(heroTxt);
   body.appendChild(hero);
 
@@ -19482,7 +19246,7 @@ function showFacelessLanguagePanel() {
     + 'box-shadow:inset 0 1px 0 rgba(255,255,255,.04);';
   var searchInput = document.createElement('input');
   searchInput.type = 'search';
-  searchInput.placeholder = 'Buscar idioma, codigo o nombre nativo';
+  searchInput.placeholder = 'Search language, code or native name';
   searchInput.style.cssText = 'width:100%;height:42px;border-radius:14px;border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.74);'
     + 'padding:0 14px;color:#fff;font-size:12px;outline:none;font-family:' + NSP_FONT_TEXT + ';';
   searchWrap.appendChild(searchInput);
@@ -19562,7 +19326,7 @@ function showFacelessLanguagePanel() {
 
   var foot = document.createElement('div');
   foot.style.cssText = 'font-size:9px;color:rgba(255,255,255,.42);line-height:1.65;margin-top:12px;padding-bottom:2px;';
-  foot.textContent = '1 click = busqueda + auto scan + idioma bloqueado. La ventana faceless usa maximo 90 dias para que no entren videos muertos.';
+  foot.textContent = 'One click runs the search, the auto scan and locks the language. The faceless window is capped at 90 days so dead videos stay out.';
   body.appendChild(foot);
 
   panel.appendChild(body);
@@ -19697,7 +19461,7 @@ function renderGlobeDropdown(panel, summaryEl) {
   var act = document.createElement('div');
   act.style.cssText = 'padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;flex-direction:column;gap:8px;';
   var scanNowBtn = document.createElement('button');
-  scanNowBtn.textContent = '🦇 ESCANEAR AHORA CON ESTA CONFIG';
+  scanNowBtn.textContent = '🦇 SCAN NOW WITH THIS SETUP';
   scanNowBtn.style.cssText = 'width:100%;padding:11px 12px;border-radius:10px;border:1px solid rgba(0,255,136,.5);background:linear-gradient(135deg,rgba(0,255,136,.16),rgba(0,0,0,.9));color:#00FF88;font-size:11px;font-weight:900;letter-spacing:.08em;cursor:pointer;font-family:' + NSP_FONT_DISPLAY + ';box-shadow:0 0 18px rgba(0,255,136,.15);';
   scanNowBtn.onclick = function(e) {
     e.preventDefault();
@@ -19715,10 +19479,10 @@ function renderGlobeDropdown(panel, summaryEl) {
   (function fillScanStat() {
     var nRes = (window._ashlyv_last_top_results || []).length;
     var nFilt = (typeof NSP_LAST_FILTERED_COUNT === 'number') ? NSP_LAST_FILTERED_COUNT : 0;
-    if (!nRes) { scanStat.textContent = 'Sin scans en esta sesión — elegí país/idioma/profundidad y dale ESCANEAR.'; return; }
+    if (!nRes) { scanStat.textContent = 'No scans in this session. Pick country, language and depth, then scan.'; return; }
     var ago = '';
-    try { if (window._nspLastScanTs) { var mAgo = Math.max(0, Math.round((Date.now() - window._nspLastScanTs) / 60000)); ago = ' · hace ' + mAgo + ' min'; } } catch (eAg) {}
-    scanStat.textContent = 'Último scan: ' + nRes + ' nichos en el panel · ' + nFilt + ' descartados por país/idioma' + ago;
+    try { if (window._nspLastScanTs) { var mAgo = Math.max(0, Math.round((Date.now() - window._nspLastScanTs) / 60000)); ago = ' · ' + mAgo + ' min ago'; } } catch (eAg) {}
+    scanStat.textContent = 'Last scan: ' + nRes + ' niches in the panel · ' + nFilt + ' dropped by country or language' + ago;
   })();
   act.appendChild(scanStat);
   panel.appendChild(act);
@@ -19761,7 +19525,7 @@ function renderGlobeDropdown(panel, summaryEl) {
     panel.appendChild(box);
   }
 
-  section('Elegir idioma', 'Filtro HARD: solo videos detectados en el idioma elegido aparecen en el scan.', [
+  section('Language', 'Hard filter: only videos detected in the chosen language show up in the scan.', [
     { label:'🌍 Auto', value:'auto' },
     { label:'English', value:'en' },
     { label:'Spanish', value:'es' },
@@ -19781,9 +19545,9 @@ function renderGlobeDropdown(panel, summaryEl) {
     var m = NSP_MARKET_META[key];
     return { label: (m.flag ? m.flag + ' ' : '') + m.label, value: key };
   });
-  section('Modo de mercado', 'Filtro HARD por país: inyecta gl/hl en YouTube y descarta resultados off-market.', marketOptions, prefs.market, 'market');
+  section('Market mode', 'Hard filter by country: injects gl/hl into YouTube and drops off market results.', marketOptions, prefs.market, 'market');
 
-  section('Profundidad', 'Define cuántos resultados y videos inspecciona el sistema antes de rankear.', [
+  section('Depth', 'Sets how many results and videos the system inspects before ranking.', [
     { label:'Fast', value:'fast' },
     { label:'Balanced', value:'balanced' },
     { label:'Deep', value:'deep' }
@@ -19968,10 +19732,10 @@ function showMarketSwitchToast(meta) {
     var name = (meta && meta.label) || 'Global';
     var line1 = document.createElement('div');
     line1.style.cssText = 'font-weight:900;font-size:12px;color:#00FF88;letter-spacing:.05em;margin-bottom:3px;';
-    line1.textContent = flag + ' Cambiando a ' + name + '...';
+    line1.textContent = flag + ' Switching to ' + name;
     var line2 = document.createElement('div');
     line2.style.cssText = 'font-size:10.5px;color:rgba(255,255,255,.65);line-height:1.45;';
-    line2.textContent = 'Recargando YouTube y disparando SCAN automáticamente';
+    line2.textContent = 'Reloading YouTube and starting the scan automatically';
     var dots = document.createElement('span');
     dots.textContent = '...';
     dots.style.cssText = 'display:inline-block;margin-left:4px;color:#00FF88;font-weight:900;animation:nspDots 1.2s steps(4,end) infinite;';
@@ -20063,7 +19827,7 @@ function showMarketSwitchToast(meta) {
 
         if (attempts >= maxAttempts) {
           console.warn('[NSP] auto-scan timeout — fnReady:', fnReady, 'btnReady:', btnReady);
-          try { updateStealthToast('error', { msg: 'SCAN no disponible' }); } catch(e) {}
+          try { updateStealthToast('error', { msg: 'Scan not available' }); } catch(e) {}
           return;
         }
         setTimeout(function() { waitForReady(attempts + 1); }, 400);
@@ -20098,15 +19862,15 @@ function showAutoScanStartingToast(flag) {
       + 'box-shadow:0 12px 32px rgba(0,0,0,.5),0 0 18px rgba(0,255,136,.3);'
       + 'font-family:ui-monospace,monospace;color:#00FF88;font-size:11px;font-weight:800;letter-spacing:.05em;'
       + 'max-width:380px;line-height:1.5;';
-    nspSetHTML(t, '🚀 Stealth-SCAN para ' + (meta.flag || '🌍') + ' ' + (meta.label || flag.market)
-      + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.65);font-weight:600;">Escaneando ~300 videos · luego expansión por keywords</span>');
+    nspSetHTML(t, '🚀 Stealth scan for ' + (meta.flag || '🌍') + ' ' + (meta.label || flag.market)
+      + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.65);font-weight:600;">Scanning about 300 videos, then expanding by keywords</span>');
     document.body.appendChild(t);
     setTimeout(function() { if (t.parentNode) t.remove(); }, 8000);
   } catch(e) {}
 }
 
 // Updates the stealth toast as the flow progresses (phase: 'scan', 'expand', 'done')
-// ── NSP API VALIDATION TOAST (mostrado durante fetch API) ──
+// ── NSP API validation toast ──
 function nspShowApiToast(text) {
   try {
     var existing = document.getElementById('nsp-api-toast');
@@ -20114,7 +19878,7 @@ function nspShowApiToast(text) {
     var t = document.createElement('div');
     t.id = 'nsp-api-toast';
     t.style.cssText = 'position:fixed;top:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.95);border:1.5px solid #00DC82;border-radius:8px;color:#00DC82;padding:10px 16px;font-family:ui-monospace,monospace;font-size:11px;font-weight:900;letter-spacing:0.08em;z-index:2147483647;box-shadow:0 4px 20px rgba(0,220,130,0.3);';
-    t.textContent = text || '⚙ Validando canales vía YouTube API...';
+    t.textContent = text || '⚙ Validating channels through the YouTube API';
     document.body.appendChild(t);
     return t;
   } catch(e) { return null; }
@@ -20126,11 +19890,11 @@ function nspHideApiToast(success, info) {
     if (success === false) {
       t.style.borderColor = '#FF4488';
       t.style.color = '#FF4488';
-      t.textContent = '⚠ API: ' + ((info && info.msg) || 'error — usando filtros locales');
+      t.textContent = '⚠ API: ' + ((info && info.msg) || 'error, using local filters');
       setTimeout(function() { if (t.parentNode) t.remove(); }, 4000);
     } else {
       t.style.borderColor = '#00FF88';
-      t.textContent = '✓ API validó ' + ((info && info.count) || 0) + ' canales';
+      t.textContent = '✓ API validated ' + ((info && info.count) || 0) + ' channels';
       setTimeout(function() { if (t.parentNode) t.remove(); }, 2000);
     }
   } catch(e) {}
@@ -20141,17 +19905,17 @@ function updateStealthToast(phase, info) {
     var t = document.getElementById('nsp-stealth-scan-toast');
     if (!t) return;
     if (phase === 'expand') {
-      nspSetHTML(t, '🔎 Stealth-SCAN — expandiendo por keywords'
-        + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.65);font-weight:600;">Buscando ' + (info && info.keywords ? '"' + info.keywords + '"' : 'top keywords') + ' en YouTube ' + (info && info.gl || '') + '</span>');
+      nspSetHTML(t, '🔎 Stealth scan, expanding by keywords'
+        + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.65);font-weight:600;">Searching ' + (info && info.keywords ? '"' + info.keywords + '"' : 'top keywords') + ' on YouTube ' + (info && info.gl || '') + '</span>');
     } else if (phase === 'done') {
       t.style.borderColor = '#00FF88';
-      nspSetHTML(t, '✓ Stealth-SCAN completo'
-        + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.75);font-weight:600;">' + (info && info.count ? info.count + ' nichos finales' : 'listo') + '</span>');
+      nspSetHTML(t, '✓ Stealth scan complete'
+        + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.75);font-weight:600;">' + (info && info.count ? info.count + ' final niches' : 'done') + '</span>');
       setTimeout(function() { if (t.parentNode) t.remove(); }, 3000);
     } else if (phase === 'error') {
       t.style.borderColor = '#FF4488';
       t.style.color = '#FF4488';
-      nspSetHTML(t, '⚠ Stealth-SCAN: ' + ((info && info.msg) || 'error'));
+      nspSetHTML(t, '⚠ Stealth scan: ' + ((info && info.msg) || 'error'));
       setTimeout(function() { if (t.parentNode) t.remove(); }, 5000);
     }
   } catch(e) {}
@@ -20172,10 +19936,10 @@ function showOpeningCountryDashboardToast(meta) {
     var name = (meta && meta.label) || 'Global';
     var line1 = document.createElement('div');
     line1.style.cssText = 'font-weight:900;font-size:12px;color:#00FF88;letter-spacing:.05em;margin-bottom:3px;';
-    line1.textContent = flag + ' Abriendo ' + name + ' Scanner';
+    line1.textContent = flag + ' Opening ' + name + ' Scanner';
     var line2 = document.createElement('div');
     line2.style.cssText = 'font-size:10.5px;color:rgba(255,255,255,.65);line-height:1.45;';
-    line2.textContent = 'Auto-scan en nueva pestaña vía InnerTube (sin cookies tuyas)';
+    line2.textContent = 'Auto scan in a new tab through InnerTube, without your cookies';
     var dots = document.createElement('span');
     dots.textContent = '...';
     dots.style.cssText = 'display:inline-block;margin-left:4px;color:#00FF88;font-weight:900;animation:nspDots 1.2s steps(4,end) infinite;';
@@ -20233,7 +19997,7 @@ function injectFacelessButton() {
   start.appendChild(btn);
 }
 
-// ── Analizar Nicho ────────────────────────────────────────────────────────────
+// ── Analyze niche ─────────────────────────────────────────────────────────────
 
 var NICHE_SEARCHES = {
   'sleep':      { es: 'psicologia oscura', en: 'dark psychology facts' },
@@ -20249,12 +20013,10 @@ function extractKeywords(scored, limit) {
   var stopwords = /^(the|a|an|in|on|at|for|to|of|and|or|is|are|was|were|how|why|what|when|where|who|this|that|with|by|from|about|las|los|el|la|en|de|por|para|con|como|que|qué|un|una|del|al|se|su|sus|cómo|vs|sus|sin|tu|mi|te|lo|me|ya|ni|si|no|has|have|had|been|can|could|will|would|make|do|does|did)$/i;
   var counts = {};
   scored.forEach(function(s) {
-    // Unicode-aware: conservá letras de CUALQUIER alfabeto (árabe, cirílico, CJK,
-    // devanagari, tailandés…). Antes [^\w...] borraba todo lo no-latino → query
-    // vacía para esos idiomas. Esto hace que la búsqueda funcione "a mundial".
+    // Unicode aware: keep letters from every alphabet, otherwise non latin titles produce an empty query.
     var words = (s.title || '').replace(/[^\p{L}\p{N}\p{M}\s]/gu, ' ').toLowerCase().split(/\s+/);
     words.forEach(function(w) {
-      var cjk = /[぀-ヿ一-鿿가-힯]/.test(w);   // CJK es denso: 2 chars ya es palabra
+      var cjk = /[぀-ヿ一-鿿가-힯]/.test(w);
       if ((w.length > 3 || (cjk && w.length >= 2)) && !stopwords.test(w) && isNaN(w)) counts[w] = (counts[w] || 0) + 1;
     });
   });
@@ -20281,14 +20043,11 @@ function showNichePanel(ch, scored) {
     en: dynKeywords + ' faceless narrated channel'
   };
 
-  // Video más viral
   var topVideo = null;
   scored.forEach(function(s) { if (!topVideo || s.vph > topVideo.vph) topVideo = s; });
 
-  // Limpiar título clickbait
   var viralTitle = topVideo ? (topVideo.title || '').replace(/gastaron millones|ocultando esto|para siempre|nunca te lo dir[aá]n|\$[\d.,]+/gi,'').replace(/\s+/g,' ').trim().slice(0,55) : '';
 
-  // Traducción básica ES→EN
   var esEn = {
     supervivencia: 'survival',
     truco: 'trick',
@@ -20358,25 +20117,24 @@ function showNichePanel(ch, scored) {
   hdr.appendChild(hl); hdr.appendChild(cl);
   p.appendChild(hdr);
 
-  // Video viral
   if (topVideo && viralTitle) {
     var vs = el('div','padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(0,220,130,0.04);');
-    vs.appendChild(el('div','font-size:9px;color:rgba(0,220,130,0.6);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:5px;','🔥 Video más viral del canal'));
+    vs.appendChild(el('div','font-size:9px;color:rgba(0,220,130,0.6);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:5px;','🔥 Most viral video on the channel'));
     vs.appendChild(el('div','font-size:11px;color:#eaf0ff;font-weight:700;line-height:1.4;margin-bottom:6px;',topVideo.title||''));
     var vphFmt = topVideo.vph>=1000?(topVideo.vph/1000).toFixed(1)+'K':Math.round(topVideo.vph);
-    vs.appendChild(el('div','font-size:9px;color:rgba(255,255,255,0.35);margin-bottom:8px;','⚡ '+vphFmt+' VPH · $'+(topVideo.totalRev||0).toLocaleString()+' total estimado'));
+    vs.appendChild(el('div','font-size:9px;color:rgba(255,255,255,0.35);margin-bottom:8px;','⚡ '+vphFmt+' VPH · $'+(topVideo.totalRev||0).toLocaleString()+' estimated total'));
     var btns = el('div','display:flex;gap:6px;flex-wrap:wrap;');
     function sb(label, q, col, forcedLang) {
       var b = el('button','padding:4px 10px;border-radius:6px;border:1px solid '+col+'44;background:'+col+'15;color:'+col+';font-size:9.5px;font-weight:800;cursor:pointer;font-family:inherit;',label);
       b.onclick = function() { openLocalizedYouTubeSearch(q, forcedLang); };
       return b;
     }
-    btns.appendChild(sb('🇪🇸 Buscar ES', viralTitle, '#00DC82', 'es'));
-    btns.appendChild(sb('🇺🇸 Buscar EN', viralEN, '#2EE9FF', 'en'));
+    btns.appendChild(sb('🇪🇸 Search ES', viralTitle, '#00DC82', 'es'));
+    btns.appendChild(sb('🇺🇸 Search EN', viralEN, '#2EE9FF', 'en'));
     
     var ashmBtn = el('button','padding:4px 10px;border-radius:6px;border:1px solid #FF990044;background:#FF990015;color:#FF9900;font-size:9.5px;font-weight:800;cursor:pointer;font-family:inherit;','🦇 ASHLYV');
     ashmBtn.onclick = function() {
-      ashmBtn.textContent = '✅ Abriendo...';
+      ashmBtn.textContent = '✅ Opening';
       var nichoEntry = {
         title: topVideo.title || ch.name,
         niche: nicheKey,
@@ -20405,22 +20163,21 @@ function showNichePanel(ch, scored) {
     p.appendChild(vs);
   }
 
-  section('🇪🇸 Competencia en español', [
-    row('🎯 Competencia directa', searches.es, '#00DC82', 'es'),
-    row('📈 Nicho en crecimiento', searches.es + ' 2025', '#FFD700', 'es'),
-    row('🔮 Sin explorar', searches.es + ' nuevo canal', '#A88FFF', 'es'),
+  section('🇪🇸 Spanish competition', [
+    row('🎯 Direct competition', searches.es, '#00DC82', 'es'),
+    row('📈 Growing niche', searches.es + ' 2025', '#FFD700', 'es'),
+    row('🔮 Unexplored', searches.es + ' nuevo canal', '#A88FFF', 'es'),
   ]);
-  section('🇺🇸 Mercado inglés (mayor RPM)', [
-    row('🌍 Competencia directa EN', searches.en, '#2EE9FF', 'en'),
-    row('💰 Alto RPM mismo nicho', viralEN + ' faceless', '#00DC82', 'en'),
+  section('🇺🇸 English market, higher RPM', [
+    row('🌍 Direct competition EN', searches.en, '#2EE9FF', 'en'),
+    row('💰 High RPM, same niche', viralEN + ' faceless', '#00DC82', 'en'),
   ]);
 
   document.body.appendChild(p);
   makeDraggable(p, hdr);
 }
 
-// ── Inyectar botón Analizar Nicho en channel overlay ────────────────────────
-// (se llama desde injectChannelOverlay existente)
+// ── Analyze Niche button, injected into the channel overlay ─────────────────
 var CHANNEL_ANALYSIS_STOPWORDS = {
   the:1,a:1,an:1,and:1,for:1,with:1,from:1,that:1,this:1,into:1,your:1,about:1,what:1,when:1,where:1,
   el:1,la:1,los:1,las:1,una:1,uno:1,con:1,para:1,como:1,que:1,del:1,por:1,sobre:1,desde:1,hasta:1
@@ -20746,11 +20503,11 @@ function estimateDeepMonetization(niche, scored, description) {
 }
 
 function buildDeepExpansionAnglesES(niche, subniches) {
-  var first = subniches[0] || niche || 'este nicho';
+  var first = subniches[0] || niche || 'this niche';
   return [
-    'Versiones de ' + first + ' con enfoque explicado en 10 minutos',
-    'Series por era / caso / subtema dentro de ' + first,
-    'Compilados faceless premium con thumbnails mas claros y ganchos mas directos'
+    first + ' versions with a 10 minute explainer angle',
+    'Series split by era, case or subtopic inside ' + first,
+    'Premium faceless compilations with clearer thumbnails and more direct hooks'
   ];
 }
 
@@ -20776,7 +20533,7 @@ function analyzeChannelDeep(ch, scored) {
   var thumbnailPattern = inferDeepThumbnailPattern(scored, niche);
   var avgDurationSecs = calcAvgDuration(scored || []);
   var uploadDays = calcUploadFreq(scored || []);
-  var uploadCadence = uploadDays ? ('~cada ' + uploadDays + ' dias') : 'unknown';
+  var uploadCadence = uploadDays ? ('every ' + uploadDays + ' days') : 'unknown';
   var cadenceScore = uploadDays ? Math.max(28, Math.min(95, 92 - Math.abs(uploadDays - 4) * 8)) : 38;
   var facelessSum = 0, facelessN = 0;
   (scored || []).forEach(function(s) {
@@ -20830,55 +20587,55 @@ function buildChannelBlueprintPrompt(analysis) {
   var languageLabel = NSP_LANGUAGE_META[analysis.language] ? NSP_LANGUAGE_META[analysis.language].label : (analysis.language || 'unknown');
 
   return [
-    'Actua como un estratega senior de YouTube automation faceless.',
-    'Quiero lanzar un canal inspirado en este canal, pero sin copiarlo 1:1.',
-    'Usa solo los datos del snapshot. Si algo sale como unknown, dilo sin inventar.',
-    'Respondeme en espanol, con enfoque practico y accionable.',
+    'Act as a senior faceless YouTube automation strategist.',
+    'I want to launch a channel inspired by this one, without copying it one to one.',
+    'Use only the snapshot data. If something reads as unknown, say so instead of inventing it.',
+    'Answer in English, practical and actionable.',
     '',
-    'SNAPSHOT DEL CANAL ANALIZADO',
-    '- Nombre: ' + ((analysis.channel && analysis.channel.name) || 'unknown'),
+    'SNAPSHOT OF THE ANALYZED CHANNEL',
+    '- Name: ' + ((analysis.channel && analysis.channel.name) || 'unknown'),
     '- Handle: ' + ((analysis.channel && analysis.channel.handle) || 'unknown'),
     '- Subs: ' + ((analysis.channel && analysis.channel.subsText) || 'unknown'),
-    '- Videos visibles / conteo: ' + ((analysis.channel && analysis.channel.videoCountText) || 'unknown'),
-    '- Nicho principal: ' + (analysis.niche || 'unknown'),
-    '- Subnichos: ' + ((analysis.subniches || []).join(', ') || 'unknown'),
-    '- Idioma: ' + languageLabel,
+    '- Visible videos / count: ' + ((analysis.channel && analysis.channel.videoCountText) || 'unknown'),
+    '- Main niche: ' + (analysis.niche || 'unknown'),
+    '- Subniches: ' + ((analysis.subniches || []).join(', ') || 'unknown'),
+    '- Language: ' + languageLabel,
     '- Faceless score: ' + (analysis.facelessScore || 0),
     '- Repeatability score: ' + (analysis.repeatabilityScore || 0),
     '- Copyability score: ' + (analysis.copyabilityScore || 0),
-    '- Tono: ' + (analysis.tone || 'unknown'),
-    '- Formato: ' + (analysis.formatType || 'unknown'),
-    '- Pattern de titulos: ' + (analysis.titlePattern || 'unknown'),
-    '- Pattern de thumbnails: ' + (analysis.thumbnailPattern || 'unknown'),
-    '- Cadencia: ' + (analysis.uploadCadence || 'unknown'),
-    '- Duracion promedio: ' + avgDuration,
-    '- Audiencia objetivo: ' + (analysis.targetAudience || 'unknown'),
-    '- Monetizacion safety: ' + ((analysis.monetization && analysis.monetization.label) || 'unknown') + ' (' + ((analysis.monetization && analysis.monetization.score) || 'unknown') + ')',
-    '- Top video visible: ' + ((analysis.topVideo && analysis.topVideo.title) || 'unknown'),
-    '- Descripcion del canal: ' + desc,
+    '- Tone: ' + (analysis.tone || 'unknown'),
+    '- Format: ' + (analysis.formatType || 'unknown'),
+    '- Title pattern: ' + (analysis.titlePattern || 'unknown'),
+    '- Thumbnail pattern: ' + (analysis.thumbnailPattern || 'unknown'),
+    '- Cadence: ' + (analysis.uploadCadence || 'unknown'),
+    '- Average duration: ' + avgDuration,
+    '- Target audience: ' + (analysis.targetAudience || 'unknown'),
+    '- Monetization safety: ' + ((analysis.monetization && analysis.monetization.label) || 'unknown') + ' (' + ((analysis.monetization && analysis.monetization.score) || 'unknown') + ')',
+    '- Top visible video: ' + ((analysis.topVideo && analysis.topVideo.title) || 'unknown'),
+    '- Channel description: ' + desc,
     '',
-    'TITULOS RECIENTES DE MUESTRA',
+    'SAMPLE OF RECENT TITLES',
     recentTitles || 'unknown',
     '',
-    'ANGULOS YA DETECTADOS EN ES',
+    'EXPANSION ANGLES ALREADY DETECTED',
     expansionES || '- unknown',
     '',
-    'ANGLES DETECTED IN EN',
+    'ADDITIONAL ANGLES',
     expansionEN || '- unknown',
     '',
-    'QUIERO QUE ME ENTREGUES:',
-    '1. Un diagnostico claro de por que este canal funciona y que parte si vale la pena replicar.',
-    '2. Que parte NO deberia copiar literalmente para evitar ser una copia barata.',
-    '3. Una propuesta de posicionamiento original para crear un canal nuevo mejor y mas escalable.',
-    '4. 10 nombres de canal premium.',
-    '5. Una promesa de canal y avatar de audiencia.',
-    '6. 5 pilares de contenido y 12 ideas de videos iniciales.',
-    '7. Sistema de thumbnails, sistema de titulos y estructura de guion para este nicho.',
-    '8. Workflow faceless recomendado con herramientas y pipeline.',
-    '9. Riesgos de monetizacion y como evitarlos.',
-    '10. Un plan de lanzamiento de 30 dias.',
+    'WHAT I WANT FROM YOU:',
+    '1. A clear read on why this channel works and which part is worth replicating.',
+    '2. Which part I should not copy literally, so it is not a cheap clone.',
+    '3. An original positioning proposal for a new channel that is better and more scalable.',
+    '4. Ten premium channel names.',
+    '5. A channel promise and an audience avatar.',
+    '6. Five content pillars and twelve starter video ideas.',
+    '7. A thumbnail system, a title system and a script structure for this niche.',
+    '8. A recommended faceless workflow with tools and pipeline.',
+    '9. Monetization risks and how to avoid them.',
+    '10. A 30 day launch plan.',
     '',
-    'Dame la respuesta en bloques claros y accionables.'
+    'Give the answer in clear, actionable blocks.'
   ].join('\n');
 }
 
@@ -20904,21 +20661,21 @@ function buildChannelAnalysisQuickBrief(analysis) {
   var angles = (analysis.expansionES || []).slice(0, 4).map(function(v) { return '- ' + v; }).join('\n');
   return [
     'CHANNEL SNAPSHOT',
-    'Canal: ' + ((analysis.channel && analysis.channel.name) || 'unknown'),
+    'Channel: ' + ((analysis.channel && analysis.channel.name) || 'unknown'),
     'Handle: ' + ((analysis.channel && analysis.channel.handle) || 'unknown'),
-    'Nicho: ' + (analysis.niche || 'unknown'),
-    'Formato: ' + (analysis.formatType || 'unknown'),
-    'Cadencia: ' + (analysis.uploadCadence || 'unknown'),
-    'Titulos: ' + (analysis.titlePattern || 'unknown'),
+    'Niche: ' + (analysis.niche || 'unknown'),
+    'Format: ' + (analysis.formatType || 'unknown'),
+    'Cadence: ' + (analysis.uploadCadence || 'unknown'),
+    'Titles: ' + (analysis.titlePattern || 'unknown'),
     'Thumbs: ' + (analysis.thumbnailPattern || 'unknown'),
-    'Audiencia: ' + (analysis.targetAudience || 'unknown'),
-    'Monetizacion: ' + (((analysis.monetization && analysis.monetization.label) || 'unknown') + ' (' + ((analysis.monetization && analysis.monetization.score) || 'unknown') + ')'),
+    'Audience: ' + (analysis.targetAudience || 'unknown'),
+    'Monetization: ' + (((analysis.monetization && analysis.monetization.label) || 'unknown') + ' (' + ((analysis.monetization && analysis.monetization.score) || 'unknown') + ')'),
     'Top video: ' + ((analysis.topVideo && analysis.topVideo.title) || 'unknown'),
     '',
-    'ANGULOS',
+    'ANGLES',
     angles || '- unknown',
     '',
-    'TITULOS DE REFERENCIA',
+    'REFERENCE TITLES',
     titles || 'unknown'
   ].join('\n');
 }
@@ -21002,7 +20759,7 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
 
   var hdr = el('div', 'padding:16px 16px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;');
   var hLeft = el('div', 'display:flex;flex-direction:column;gap:5px;min-width:0;');
-  hLeft.appendChild(el('div', 'font-size:12px;font-weight:900;color:#fff;letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_DISPLAY + ';', '🧬 Emular Canal'));
+  hLeft.appendChild(el('div', 'font-size:12px;font-weight:900;color:#fff;letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_DISPLAY + ';', '🧬 Emulate channel'));
   hLeft.appendChild(el('div', 'font-size:9px;color:rgba(255,255,255,.48);line-height:1.5;', shortText(analysis.channel.name, 32) + ' | ' + (analysis.channel.handle || 'unknown') + ' | ' + analysis.channel.sampleCount + ' videos'));
   var closeBtn = el('button', 'width:34px;height:34px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.02);'
     + 'color:rgba(255,255,255,.65);font-size:12px;cursor:pointer;font-family:' + NSP_FONT_DISPLAY + ';'
@@ -21020,42 +20777,42 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
   body.appendChild(intro);
 
   var metricGrid = el('div', 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;');
-  metricGrid.appendChild(metricBlock('Nicho', shortText(analysis.niche, 22)));
+  metricGrid.appendChild(metricBlock('Niche', shortText(analysis.niche, 22)));
   metricGrid.appendChild(metricBlock('Faceless', String(analysis.facelessScore || 0)));
   metricGrid.appendChild(metricBlock('Copy', String(analysis.copyabilityScore || 0)));
-  metricGrid.appendChild(metricBlock('Cadencia', shortText(analysis.uploadCadence || 'unknown', 20)));
+  metricGrid.appendChild(metricBlock('Cadence', shortText(analysis.uploadCadence || 'unknown', 20)));
   body.appendChild(metricGrid);
 
   var systems = el('div', 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;');
   systems.appendChild(insightCard('Hook System', shortText(analysis.titlePattern, 88)));
   systems.appendChild(insightCard('Visual System', shortText(analysis.thumbnailPattern, 88)));
   systems.appendChild(insightCard('Audience', shortText(analysis.targetAudience, 88)));
-  systems.appendChild(insightCard('Monetizacion', shortText(((analysis.monetization && analysis.monetization.label) || 'unknown') + ' | ' + ((analysis.monetization && analysis.monetization.score) || 'unknown'), 88)));
+  systems.appendChild(insightCard('Monetization', shortText(((analysis.monetization && analysis.monetization.label) || 'unknown') + ' | ' + ((analysis.monetization && analysis.monetization.score) || 'unknown'), 88)));
   body.appendChild(systems);
 
   if (analysis.topVideo) {
     var topBox = el('div', 'margin-top:12px;padding:15px 16px;border-radius:22px;border:1px solid rgba(255,255,255,.1);'
       + 'background:rgba(255,255,255,.03);box-shadow:inset 0 1px 0 rgba(255,255,255,.04);');
-    topBox.appendChild(el('div', 'font-size:8px;color:rgba(255,255,255,.4);letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px;font-family:' + NSP_FONT_MONO + ';', 'Video mas fuerte'));
+    topBox.appendChild(el('div', 'font-size:8px;color:rgba(255,255,255,.4);letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px;font-family:' + NSP_FONT_MONO + ';', 'Strongest video'));
     topBox.appendChild(el('div', 'font-size:12px;color:#fff;font-weight:900;line-height:1.5;font-family:' + NSP_FONT_DISPLAY + ';', shortText(analysis.topVideo.title || 'unknown', 108)));
     topBox.appendChild(el('div', 'font-size:9px;color:rgba(255,255,255,.52);margin-top:8px;font-family:' + NSP_FONT_MONO + ';', 'VPH ' + fmtVPH(analysis.topVideo.vph || 0) + '/h | OS ' + (analysis.topVideo.os || 0) + ' | $' + ((analysis.topVideo.totalRev || 0).toLocaleString())));
     body.appendChild(topBox);
   }
 
-  body.appendChild(el('div', 'font-size:9px;color:rgba(255,255,255,.4);line-height:1.6;margin:12px 2px 0;', 'Kit de emulación: clona la estrategia de este canal y producí tu video en su estilo (algo que la competencia no hace).'));
+  body.appendChild(el('div', 'font-size:9px;color:rgba(255,255,255,.4);line-height:1.6;margin:12px 2px 0;', 'Emulation kit: clone this channel strategy and produce your video in its style, something competitors do not do.'));
 
   var actions = el('div', 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;');
 
-  var emularBtn = actionButton('🎬 EMULAR → CREAR VIDEO', true);
+  var emularBtn = actionButton('🎬 EMULATE, CREATE VIDEO', true);
   emularBtn.style.gridColumn = '1 / -1';
   emularBtn.onclick = function() {
     try {
-      var kit = 'EMULAR ESTE CANAL — kit listo para producir tu video en su estilo:\n\n'
+      var kit = 'Emulate this channel, a kit ready to produce your video in its style:\n\n'
         + buildChannelAnalysisQuickBrief(analysis)
         + '\n\nPaste this into your writing tool as the base script and produce the video in this style.'
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(kit).then(function() {
-          flashButton(emularBtn, '✓ KIT COPIADO — ABRI STUDIO', '🎬 EMULAR → CREAR VIDEO');
+          flashButton(emularBtn, '✓ KIT COPIED, OPEN STUDIO', '🎬 EMULATE, CREATE VIDEO');
         }).catch(function() {});
       }
     } catch (e) {}
@@ -21072,64 +20829,64 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
   };
   actions.appendChild(masterBtn);
 
-  var briefBtn = actionButton('COPIAR BRIEF', false);
+  var briefBtn = actionButton('COPY BRIEF', false);
   briefBtn.onclick = function() {
     try {
       navigator.clipboard.writeText(buildChannelAnalysisQuickBrief(analysis)).then(function() {
-        flashButton(briefBtn, 'BRIEF COPIADO', 'COPIAR BRIEF');
+        flashButton(briefBtn, 'BRIEF COPIED', 'COPY BRIEF');
       }).catch(function() {});
     } catch(e) {}
   };
   actions.appendChild(briefBtn);
 
-  var titlesBtn = actionButton('COPIAR TITULOS', false);
+  var titlesBtn = actionButton('COPY TITLES', false);
   titlesBtn.onclick = function() {
     var titles = (analysis.recentVideos || []).slice(0, 8).map(function(v) { return (v && v.title) || 'unknown'; }).join('\n');
     try {
       navigator.clipboard.writeText(titles || '').then(function() {
-        flashButton(titlesBtn, 'TITULOS COPIADOS', 'COPIAR TITULOS');
+        flashButton(titlesBtn, 'TITLES COPIED', 'COPY TITLES');
       }).catch(function() {});
     } catch(e) {}
   };
   actions.appendChild(titlesBtn);
 
-  var topBtn = actionButton('VER TOP VIDEO', false);
+  var topBtn = actionButton('VIEW TOP VIDEO', false);
   topBtn.onclick = function() { openAnalysisTopVideo(analysis); };
   actions.appendChild(topBtn);
 
-  var nicheBtn = actionButton('BUSCAR NICHO', false);
+  var nicheBtn = actionButton('SEARCH NICHE', false);
   nicheBtn.onclick = function() { openAnalysisNicheSearch(analysis); };
   actions.appendChild(nicheBtn);
 
-  var saveBtn = actionButton('GUARDAR CANAL', false);
+  var saveBtn = actionButton('SAVE CHANNEL', false);
   saveBtn.onclick = function() {
     if (panelMeta && panelMeta.channel && saveChannelAndOpenAshlyV(panelMeta.channel, panelMeta.subGrowth, panelMeta.revMonth)) {
-      flashButton(saveBtn, 'GUARDADO', 'GUARDAR CANAL');
+      flashButton(saveBtn, 'SAVED', 'SAVE CHANNEL');
     }
   };
   actions.appendChild(saveBtn);
 
-  var statsBtn = actionButton('VER STATS', false);
+  var statsBtn = actionButton('VIEW STATS', false);
   statsBtn.onclick = function() {
     if (!panelMeta || !panelMeta.channel) return;
     var existingStats = document.getElementById('nsp-stats-panel');
     if (existingStats) {
       existingStats.remove();
       try { sessionStorage.removeItem('nsp_reopen_stats'); } catch(eSS) {}
-      flashButton(statsBtn, 'STATS CERRADOS', 'VER STATS');
+      flashButton(statsBtn, 'STATS CLOSED', 'VIEW STATS');
       var topStatsBtn = document.getElementById('nsp-stats-btn');
       if (topStatsBtn) {
-        topStatsBtn.textContent = 'VER STATS';
+        topStatsBtn.textContent = 'VIEW STATS';
         setNSPMonoButtonActive(topStatsBtn, false);
       }
       return;
     }
     var statsPanel = buildChannelStatsPanel(panelMeta.channel, panelMeta.scored || _allScored, panelMeta.subGrowth, panelMeta.revMonth);
     document.body.appendChild(statsPanel);
-    flashButton(statsBtn, 'STATS ABIERTOS', 'VER STATS');
+    flashButton(statsBtn, 'STATS OPEN', 'VIEW STATS');
     var liveStatsBtn = document.getElementById('nsp-stats-btn');
     if (liveStatsBtn) {
-      liveStatsBtn.textContent = 'CERRAR STATS';
+      liveStatsBtn.textContent = 'CLOSE STATS';
       setNSPMonoButtonActive(liveStatsBtn, true);
     }
   };
@@ -21150,7 +20907,7 @@ async function runDeepChannelAnalysis(ch, btn) {
   var revMonth = estimateChannelMonthlyRevenue();
   if (btn) {
     btn.disabled = true;
-    btn.textContent = 'ANALIZANDO...';
+    btn.textContent = 'ANALYZING';
   }
   try {
     var existingPanel = document.getElementById('nsp-niche-panel');
@@ -21174,7 +20931,7 @@ async function runDeepChannelAnalysis(ch, btn) {
     if (!fallback || !fallback.length) fallback = (_allScored || []).slice(0, getDepthProfile('channel').maxCards);
     var analysis = analyzeChannelDeep(ch, fallback);
     renderDeepChannelAnalysisPanel(analysis, { channel: ch, subGrowth: subGrowth, revMonth: revMonth, scored: fallback });
-    if (btn) btn.textContent = 'PANEL LISTO';
+    if (btn) btn.textContent = 'PANEL READY';
   } catch(e) {
     console.warn('[NSP] deep channel analysis failed', e);
     if (btn) btn.textContent = 'ERROR';
@@ -21182,7 +20939,7 @@ async function runDeepChannelAnalysis(ch, btn) {
     if (btn) {
       setTimeout(function() {
         btn.disabled = false;
-        btn.textContent = originalText || '🧬 EMULAR';
+        btn.textContent = originalText || '🧬 EMULATE';
         setNSPMonoButtonActive(btn, !!document.getElementById('nsp-niche-panel'));
       }, 1200);
     }
@@ -21192,7 +20949,7 @@ async function runDeepChannelAnalysis(ch, btn) {
 var _origInjectChannelOverlay = injectChannelOverlay;
 injectChannelOverlay = function() {
   _origInjectChannelOverlay();
-  // Agregar botón Analizar Nicho si no existe
+  // Add the Analyze Niche button when it is missing.
   setTimeout(function() {
     var btnSec = document.querySelector('#nsp-channel-overlay div:last-child');
     if (!btnSec || document.getElementById('nsp-niche-btn')) return;
@@ -21200,7 +20957,7 @@ injectChannelOverlay = function() {
     if (!ch) return;
     var nb = document.createElement('button');
     nb.id = 'nsp-niche-btn';
-    nb.textContent = '🧬 EMULAR';
+    nb.textContent = '🧬 EMULATE';
     styleNSPMonoButton(nb, { compact: true, active: false });
     nb.onclick = function() { runDeepChannelAnalysis(ch, nb); };
     btnSec.insertBefore(nb, btnSec.firstChild);
@@ -21208,24 +20965,17 @@ injectChannelOverlay = function() {
 };
 
 // Initial runs
-// ══════════════════════════════════════════════════════════════════════════
-// ── NSP AI COACH v3.3.0 — botón flotante + modal chat conversacional ─────
-// ══════════════════════════════════════════════════════════════════════════
-// Usa ASHLYV_CHAT_REQUEST proxy via ashlyv-bridge.js (ISOLATED).
-// Storage: chrome.storage.local.nsp_coach_history (últimos 50 mensajes).
-// Modelo: claude-sonnet-4-20250514.
-// Sistema: experto YouTube Automation faceless con contexto del SCAN.
+// NSP AI Coach: floating button plus chat modal. Requests go through ashlyv-bridge.js, history lives in chrome.storage.local.nsp_coach_history (last 50 messages).
 
-// v3.5.0 — Coach con sesiones. Cada sesión = una conversación con id, título, timestamps, mensajes.
 var _nspCoachState = {
   open: false,
   pending: false,
   pendingRequestId: null,
-  sessions: [],            // todas las sesiones cargadas desde storage (más reciente primero)
-  currentSessionId: null,  // id de la sesión activa (null = chat nuevo no guardado aún)
-  messages: [],            // mensajes de la sesión actual
-  loaded: false,           // ya cargamos sesiones desde storage
-  historyPanelOpen: false  // panel HISTORIAL abierto?
+  sessions: [],
+  currentSessionId: null,
+  messages: [],
+  loaded: false,
+  historyPanelOpen: false
 };
 var _nspCoachPendingResponses = {};
 
@@ -21234,23 +20984,22 @@ function nspCoachNewSessionId() {
 }
 
 function nspCoachDeriveTitle(messages) {
-  // Toma primera mensaje del user para crear título
   var firstUser = (messages || []).filter(function(m) { return m.role === 'user'; })[0];
   if (firstUser && firstUser.content) {
-    return String(firstUser.content).replace(/\s+/g, ' ').trim().slice(0, 60) || 'Conversación';
+    return String(firstUser.content).replace(/\s+/g, ' ').trim().slice(0, 60) || 'Conversation';
   }
-  return 'Nueva conversación';
+  return 'New conversation';
 }
 
 function nspCoachFormatRelativeTime(ts) {
   var diff = Date.now() - (Number(ts) || 0);
   var min = Math.floor(diff / 60000);
-  if (min < 1) return 'ahora';
-  if (min < 60) return 'hace ' + min + ' min';
+  if (min < 1) return 'now';
+  if (min < 60) return min + ' min ago';
   var h = Math.floor(min / 60);
-  if (h < 24) return 'hace ' + h + 'h';
+  if (h < 24) return h + 'h ago';
   var d = Math.floor(h / 24);
-  if (d < 7) return 'hace ' + d + 'd';
+  if (d < 7) return d + 'd ago';
   var date = new Date(Number(ts));
   return date.toLocaleDateString();
 }
@@ -21259,7 +21008,6 @@ function nspCoachReqId() {
   return 'coach-' + Date.now() + '-' + Math.floor(Math.random() * 1e9);
 }
 
-// v3.5.0 — Storage: ahora carga/guarda LISTA DE SESIONES (no flat history)
 function nspCoachSessionsLoad() {
   return new Promise(function(resolve) {
     var reqId = nspCoachReqId();
@@ -21285,8 +21033,7 @@ function nspCoachSessionsSave(sessions) {
   }, window.location.origin);
 }
 
-// Upsert: persiste la sesión actual a la lista. Si currentSessionId existe → update.
-// Si no → crea nueva sesión con id generado.
+// Upsert the current session: update it when currentSessionId exists, otherwise create one with a fresh id.
 function nspCoachPersistCurrentSession() {
   if (!_nspCoachState.messages.length) return;
   var now = Date.now();
@@ -21307,7 +21054,6 @@ function nspCoachPersistCurrentSession() {
       existing.title = nspCoachDeriveTitle(_nspCoachState.messages);
       existing.updatedAt = now;
       existing.messages = _nspCoachState.messages.slice();
-      // mover al inicio (más reciente primero)
       _nspCoachState.sessions = _nspCoachState.sessions.filter(function(s) { return s.id !== sid; });
       _nspCoachState.sessions.unshift(existing);
     } else {
@@ -21324,15 +21070,14 @@ function nspCoachPersistCurrentSession() {
   nspCoachSessionsSave(_nspCoachState.sessions);
 }
 
-// v3.6.0 — sendApi devuelve {text, functionCalls}
 function nspCoachSendApi(messages, systemPrompt, includeTools) {
   return new Promise(function(resolve, reject) {
     var reqId = nspCoachReqId();
     console.log('[NSP COACH] sendApi → reqId:', reqId, 'msgs:', messages.length, 'tools:', !!includeTools);
-    // v3.8.2 — timeout 120s (era 45s, insuficiente cuando Gemini rate-limita 60s)
+    // 120s, because a rate limited provider can hold the request for a full minute.
     var timeout = setTimeout(function() {
       delete _nspCoachPendingResponses[reqId];
-      reject(new Error('Timeout 120s — el provider AI no respondió. Configurá Groq en Options (mucho más rápido) o esperá un minuto.'));
+      reject(new Error('Timed out after 120s. The AI provider did not answer. Set up Groq in Options, which is much faster, or wait a minute.'));
     }, 120000);
     _nspCoachPendingResponses[reqId] = function(data) {
       clearTimeout(timeout);
@@ -21340,7 +21085,7 @@ function nspCoachSendApi(messages, systemPrompt, includeTools) {
       if (data && data.ok) {
         resolve({ text: String(data.text || ''), functionCalls: Array.isArray(data.functionCalls) ? data.functionCalls : [] });
       } else {
-        reject(new Error((data && data.error) || 'Error desconocido del Coach'));
+        reject(new Error((data && data.error) || 'Unknown Coach error'));
       }
     };
     try {
@@ -21357,12 +21102,12 @@ function nspCoachSendApi(messages, systemPrompt, includeTools) {
     } catch(ePost) {
       clearTimeout(timeout);
       delete _nspCoachPendingResponses[reqId];
-      reject(new Error('postMessage falló: ' + (ePost && ePost.message || 'unknown')));
+      reject(new Error('postMessage failed: ' + (ePost && ePost.message || 'unknown')));
     }
   });
 }
 
-// Listener global para respuestas del bridge (ISOLATED → MAIN)
+// Global listener for bridge replies, ISOLATED to MAIN.
 window.addEventListener('message', function(event) {
   if (event.source !== window) return;
   if (event.origin && event.origin !== window.location.origin) return;
@@ -21373,44 +21118,44 @@ window.addEventListener('message', function(event) {
   try { _nspCoachPendingResponses[reqId](data); } catch(e) { console.warn('[NSP COACH] handler error:', e && e.message); }
 });
 
-// Construye contexto inicial del SCAN — pasa los datos REALES al system prompt
+// Builds the initial scan context so the system prompt carries the real data.
 function nspCoachBuildContextSummary() {
   var ctx = '';
   try {
     var lastScan = window._ashlyv_last_top_results || [];
     if (Array.isArray(lastScan) && lastScan.length) {
-      ctx += '\n\n=== DATOS REALES DEL ÚLTIMO SCAN DEL USUARIO ===\n';
-      ctx += 'Estos son los ' + lastScan.length + ' nichos que el SCAN detectó AHORA MISMO. Son los ÚNICOS de los que podés hablar:\n\n';
+      ctx += '\n\n=== REAL DATA FROM THE USER LAST SCAN ===\n';
+      ctx += 'These are the ' + lastScan.length + ' niches the scan just found. They are the ONLY ones you may talk about:\n\n';
       lastScan.slice(0, 10).forEach(function(item, i) {
         var sc = (item && item.sc) || {};
-        ctx += 'NICHO #' + (i + 1) + ':\n';
-        ctx += '  Título: "' + String(sc.title || 'sin título').slice(0, 150) + '"\n';
-        ctx += '  Canal: ' + String(sc.channelName || 'desconocido').slice(0, 60) + '\n';
-        ctx += '  VPH: ' + Math.round(sc.vph || 0) + ' views/hora\n';
-        ctx += '  Vistas totales: ' + (sc.views || 0) + '\n';
+        ctx += 'NICHE #' + (i + 1) + ':\n';
+        ctx += '  Title: "' + String(sc.title || 'no title').slice(0, 150) + '"\n';
+        ctx += '  Channel: ' + String(sc.channelName || 'unknown').slice(0, 60) + '\n';
+        ctx += '  VPH: ' + Math.round(sc.vph || 0) + ' views per hour\n';
+        ctx += '  Total views: ' + (sc.views || 0) + '\n';
         ctx += '\n';
       });
-      ctx += '=== FIN DE DATOS DEL SCAN ===\n';
-      console.log('[NSP COACH] context: enviando', lastScan.length, 'nichos a Gemini');
+      ctx += '=== END OF SCAN DATA ===\n';
+      console.log('[NSP COACH] context: sending', lastScan.length, 'niches to the model');
       try {
         if (window.NSP_REVERSE_ENGINE && typeof window.NSP_REVERSE_ENGINE.buildReport === 'function') {
           var reVids = lastScan.map(function(it){ var s = (it && it.sc) || {}; return { title: s.title, vph: s.vph, views: s.views, channelName: s.channelName }; });
           var reNicho = (lastScan[0] && lastScan[0].sc && (lastScan[0].sc.nicheLabel || lastScan[0].sc.niche)) || '';
           var reRep = window.NSP_REVERSE_ENGINE.buildReport(reVids, reNicho);
           if (reRep && reRep.ok && reRep.texto) {
-            ctx += '\n=== INGENIERÍA INVERSA DE ESTE SCAN (patrones REALES extraídos de los títulos del usuario; usá esto para dar plantillas y consejos CONCRETOS de SU nicho, nunca genéricos) ===\n';
+            ctx += '\n=== REVERSE ENGINEERING OF THIS SCAN (real patterns pulled from the user titles; use it to give templates and concrete advice for THEIR niche, never generic advice) ===\n';
             ctx += reRep.texto + '\n';
-            ctx += 'INSTRUCCIÓN PARA VOS (ZERACK): cuando el usuario pida títulos, ideas o "qué hago", GENERÁ 8-10 títulos nuevos rellenando la PLANTILLA de arriba con las palabras gatillo, los números/cifras y las aperturas reales de este scan, en el MISMO idioma de los títulos escaneados. Nombrá 1-2 canales de arriba para estudiar. NUNCA des consejos genéricos: TODO sale de esta data real.\n';
-            ctx += '=== FIN INGENIERÍA INVERSA ===\n';
-            console.log('[NSP COACH] reverse-engine: reporte inyectado, plantilla =', reRep.formatoGanador);
+            ctx += 'INSTRUCTION FOR YOU: when the user asks for titles, ideas or what to do next, generate 8 to 10 new titles by filling the template above with the trigger words, the numbers and the real openings from this scan, in the same language as the scanned titles. Name one or two channels above to study. Never give generic advice: everything comes from this real data.\n';
+            ctx += '=== END REVERSE ENGINEERING ===\n';
+            console.log('[NSP COACH] reverse-engine: report injected, template =', reRep.formatoGanador);
           }
         }
       } catch(eRE) { console.warn('[NSP COACH] reverse-engine error:', eRE && eRE.message); }
     } else {
-      ctx += '\n\n=== SIN DATOS DEL SCAN ===\n';
-      ctx += 'El usuario NO ha corrido un SCAN en esta sesión, o el scan no devolvió nichos. Si el usuario pregunta sobre "el último scan" o "los nichos del scan", responde EXACTAMENTE: "No tengo datos del SCAN cargados. Cierra este chat, dale al botón SCAN del panel de YouTube, espera a que termine y vuelve a abrir el chat."\n';
-      ctx += '=== FIN ===\n';
-      console.warn('[NSP COACH] context: SCAN VACÍO — window._ashlyv_last_top_results está vacío o no existe');
+      ctx += '\n\n=== NO SCAN DATA ===\n';
+      ctx += 'The user has not run a scan in this session, or the scan returned no niches. If the user asks about the last scan or the scan niches, answer EXACTLY: "I have no scan data loaded. Close this chat, press the SCAN button in the YouTube panel, wait for it to finish, then open the chat again."\n';
+      ctx += '=== END ===\n';
+      console.warn('[NSP COACH] context: scan empty, window._ashlyv_last_top_results is missing or empty');
     }
   } catch(eCtx) {
     console.warn('[NSP COACH] context build error:', eCtx && eCtx.message);
@@ -21418,173 +21163,168 @@ function nspCoachBuildContextSummary() {
   return ctx;
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// BIBLIA DE CONOCIMIENTO DE ZERACK (v3.16.0) — expertise real de YouTube Automation
-// ════════════════════════════════════════════════════════════════════════════
-// Esto es el "cerebro" de ZERACK: conocimiento denso y específico que aplica a cada
-// respuesta. Compartido entre el agente del scanner y el de Studio.
+// The ZERACK knowledge base: dense, specific expertise applied to every answer. Shared by the scanner agent and the Studio agent.
 function nspZerackKnowledge() {
-  return '\n\n═══ BASE DE CONOCIMIENTO ZERACK (aplicá esto SIEMPRE, con números) ═══\n\n'
-    + '【1. SELECCIÓN DE NICHO — el 50% del resultado】\n'
-    + '3 pilares: RPM (cuánto paga) × DEMANDA (búsquedas + potencial de browse) × COMPETENCIA (saturación + barrera de entrada).\n'
-    + 'RPM REAL por nicho (USD por 1000 views monetizadas, audiencia US/UK/CA/AU):\n'
-    + '- Seguros/Legal: $20-50 (el más alto, poco explotado faceless)\n'
-    + '- Finanzas/Inversión/Crypto: $15-40\n'
-    + '- Negocios/Make Money/SaaS: $12-25\n'
-    + '- Bienes Raíces: $10-18 · Tech/Software/IA: $10-20 · Lujo/Autos: $10-20\n'
-    + '- Salud/Suplementos/Fitness: $8-15\n'
-    + '- Psicología/Desarrollo personal: $5-10 · True Crime: $5-9 · Historia: $4-8\n'
-    + '- Ciencia/Espacio: $4-8 · Misterio/Paranormal: $3-6 · Motivación: $4-7\n'
-    + '- EVITAR como principal: Gaming $2-4, Entretenimiento/Reacciones $1-3, Kids $1-2 (+riesgo COPPA), Música $0.5-2.\n'
-    + 'GEO importa: tráfico US/UK/CA/AU = RPM alto. LATAM/India = RPM bajo. Hacer contenido en INGLÉS multiplica el RPM 3-5x vs español.\n'
-    + 'TEST FACELESS: ¿se puede hacer con voz en off + stock/AI visuals + slideshow, sin cara ni talento en cámara? Si sí → replicable.\n'
-    + 'Regla de oro: un nicho de RPM $1 con 1M views paga MENOS que uno de RPM $15 con 100k views. Perseguí RPM, no vanity views.\n\n'
-    + '【2. PACKAGING (título + thumbnail) — decide el 80% del éxito】\n'
-    + 'El packaging ES el producto. El mejor video con mal packaging MUERE. CTR < 4% = el video no despega.\n'
-    + 'FÓRMULAS DE TÍTULO probadas:\n'
-    + '- Lista numérica: "Top 10 [X] Que [resultado emocional]"\n'
-    + '- Brecha de curiosidad: "Por Qué [cosa inesperada] [consecuencia sorprendente]"\n'
-    + '- Lo prohibido/oculto: "La Verdad [adjetivo] Sobre [X] Que Nadie Te Cuenta"\n'
-    + '- Historia: "Qué Pasó Realmente Con [X]"\n'
-    + '- Stakes/drama: "[X] Podría [resultado dramático] — Por Esto"\n'
-    + '- Negativo/contrarian: "[X] Es Una MENTIRA / Estafa / Desastre"\n'
-    + 'POWER WORDS: Secreto, Oculto, Prohibido, Insólito, Impactante, Nunca, Siempre, Expuesto, Revelado, Prohibido, Destruido, Definitivo.\n'
-    + 'REGLAS de título: gancho ADELANTE (primeras 3 palabras), 40-70 chars, específico > vago, curiosidad + emoción, NO prometas lo que el video no entrega.\n'
-    + 'THUMBNAIL — psicología:\n'
-    + '- 1 SOLO punto focal (el ojo debe aterrizar en 0.5s)\n'
-    + '- Alto contraste, colores saturados (naranja/amarillo/rojo resaltan)\n'
-    + '- Emoción: cara con expresión extrema (si la hay) O un objeto/escena dramática\n'
-    + '- Texto: 3-5 palabras MAX, gigante, legible en CELULAR (80% de views son mobile)\n'
-    + '- Elemento de curiosidad: flecha, círculo, antes/después, signo de pregunta\n'
-    + '- Título y thumbnail trabajan como UNIDAD: no repiten, se complementan (el título dice algo, el thumbnail agrega intriga)\n'
-    + '- Usá el A/B test de thumbnails nativo de YouTube. Evitá: clutter, texto chico, bajo contraste.\n\n'
-    + '【3. HOOK (primeros 30 segundos) — la parte más importante del video】\n'
-    + 'Abrí con el momento MÁS impactante, NO con intro. Faceless NUNCA dice "hola a todos, bienvenidos".\n'
-    + 'Estructura: Hook (0-5s, el momento shock) → Contexto (5-15s) → Promesa (15-30s, "al final vas a saber X") → Entrega.\n'
-    + 'Open loop: teaseá algo que se responde después ("pero lo más loco viene al final").\n'
-    + 'Si perdés 50% en los primeros 30s, el video está muerto. El hook es donde se gana o se pierde.\n\n'
-    + '【4. RETENCIÓN — el combustible del algoritmo】\n'
-    + 'Pattern interrupts cada 20-40s: cambio visual, cambio de tono, sub-tema nuevo.\n'
-    + 'Open loops a lo largo del video. Re-hook en la mitad (mucha gente abandona al 50%).\n'
-    + 'Ritmo: cortá silencios, b-roll cambia rápido, música de fondo siempre.\n'
-    + 'Diagnóstico: el "retention graph" de Studio muestra DÓNDE cae la gente → ahí está el problema a arreglar.\n'
-    + 'Retención >50% = YouTube te empuja a browse/suggested. <30% = te entierra.\n'
-    + 'Cerrá con loop a otro video tuyo (sube session time, señal fuerte).\n\n'
-    + '【5. GUION FACELESS】\n'
-    + 'Estructura: Hook → Promesa → Cuerpo (3-7 puntos, cada uno una mini-historia) → Clímax → CTA suave → loop a otro video.\n'
-    + 'Escribí para el OÍDO, no para el ojo: palabras simples, frases cortas, conversacional (la voz AI lo lee mejor).\n'
-    + '~150 palabras/min de voz en off → video de 10 min ≈ 1500 palabras.\n\n'
-    + '【6. ALGORITMO DE YOUTUBE】\n'
-    + 'Señales core: CTR + AVD (duración media) + watch time + session time.\n'
-    + 'Primeras 24-48h = el test: YouTube muestra a audiencia chica, mide CTR+retención, decide expandir o enterrar.\n'
-    + 'Browse (home) y Suggested = donde se escala. Search = base evergreen.\n'
-    + 'Flywheel: impresiones → CTR → views → retención → más impresiones.\n'
-    + 'Los primeros 30-50 videos son "encontrar el product-market fit" del canal. La mayoría abandona ANTES de eso — ahí está la oportunidad.\n\n'
-    + '【7. MONETIZACIÓN (en capas, de menor a mayor $)】\n'
-    + 'AdSense: requiere 1000 subs + 4000 horas de watch time (o 10M views de Shorts). Base, no te hace rico solo.\n'
-    + 'Sponsors: la plata de verdad. $15-50 CPM, negociá deals flat. Empezás a los 10-50k views/video.\n'
-    + 'Afiliados: Amazon, software, cursos — pasivo, escala con la librería de videos.\n'
-    + 'Producto propio: curso/template/comunidad — margen más alto, EL camino a la riqueza real.\n'
-    + 'Secundarios: memberships, Super Thanks, merch.\n\n'
-    + '【8. PIPELINE DE PRODUCCIÓN FACELESS】\n'
-    + 'Guion: ChatGPT/Claude + edición humana. Voz: ElevenLabs/PlayHT (elegí UNA voz consistente = marca).\n'
-    + 'Visuals: stock (Storyblocks/Pexels/Artgrid), AI (Midjourney), screen recording, slideshow.\n'
-    + 'Edición: CapCut (gratis), Premiere, DaVinci. Thumbnail: Canva/Photopea/Photoshop.\n'
-    + 'Clave: templatizá TODO para que sea repetible y delegable.\n\n'
-    + '【9. ESCALA (cómo se llega a millones)】\n'
-    + 'Fase 1: probá el canal vos mismo (primeros 10-20 videos). Fase 2: escribí SOPs de cada paso.\n'
-    + 'Fase 3: tercerizá (guionista, voz, editor, diseñador de thumbs) en Fiverr/Upwork. Fase 4: cloná el sistema a 3-5 canales en distintos nichos.\n'
-    + 'Reinvertí ganancias en más canales. El dinero serio está en el PORTAFOLIO de canales, no en uno solo.\n\n'
-    + '【10. ERRORES QUE MATAN CANALES (detectá y corregí estos)】\n'
-    + '- Nicho de RPM bajo creyendo que views = dinero · Packaging malo (buen contenido, título/thumbnail terrible = muerto)\n'
-    + '- Hooks débiles (pierde 50% en 30s) · Inconsistencia · Abandonar antes del video 30-50\n'
-    + '- Copiar sin entender POR QUÉ funcionó · Nicho muy amplio (sin audiencia clara) o muy angosto (sin demanda) · Ignorar la data de retención\n\n'
-    + '【11. SECUENCIA DE LANZAMIENTO (0 → monetizado)】\n'
-    + '1) Elegí nicho faceless de RPM alto. 2) Estudiá los top 10 canales del nicho (sus mejores videos = tu plano).\n'
-    + '3) Hacé 10 videos rápido (volumen = aprendizaje). 4) Doblá la apuesta en lo que tracciona.\n'
-    + '5) 1k subs + 4k horas → monetizá. 6) Sponsors a los 10-50k views. 7) Sistematizá + escalá.\n'
-    + '═══ FIN BASE DE CONOCIMIENTO ═══\n';
+  return '\n\n=== ZERACK KNOWLEDGE BASE (always apply this, with numbers) ===\n\n'
+    + '[1. NICHE SELECTION, half the result]\n'
+    + '3 pillars: RPM (what it pays) x DEMAND (searches plus browse potential) x COMPETITION (saturation plus barrier to entry).\n'
+    + 'REAL RPM by niche (USD per 1000 monetized views, US/UK/CA/AU audience):\n'
+    + '- Insurance and legal: $20-50 (the highest, barely touched by faceless channels)\n'
+    + '- Finance, investing, crypto: $15-40\n'
+    + '- Business, make money, SaaS: $12-25\n'
+    + '- Real estate: $10-18 - Tech, software, AI: $10-20 - Luxury and cars: $10-20\n'
+    + '- Health, supplements, fitness: $8-15\n'
+    + '- Psychology and personal development: $5-10 - True crime: $5-9 - History: $4-8\n'
+    + '- Science and space: $4-8 - Mystery and paranormal: $3-6 - Motivation: $4-7\n'
+    + '- Avoid as a main niche: gaming $2-4, entertainment and reactions $1-3, kids $1-2 (plus COPPA risk), music $0.5-2.\n'
+    + 'Geography matters: US/UK/CA/AU traffic means high RPM, LATAM and India mean low RPM. Working in English multiplies RPM by 3 to 5 against Spanish.\n'
+    + 'FACELESS TEST: can it be made with voice over plus stock or AI visuals and a slideshow, with no face and no on camera talent? If yes, it is replicable.\n'
+    + 'Rule of thumb: a $1 RPM niche with 1M views pays less than a $15 RPM niche with 100k views. Chase RPM, not vanity views.\n\n'
+    + '[2. PACKAGING (title plus thumbnail), 80 percent of the outcome]\n'
+    + 'Packaging IS the product. The best video with bad packaging dies. Under 4 percent CTR the video does not take off.\n'
+    + 'PROVEN TITLE FORMULAS:\n'
+    + '- Numbered list: "Top 10 [X] that [emotional result]"\n'
+    + '- Curiosity gap: "Why [unexpected thing] [surprising consequence]"\n'
+    + '- Forbidden or hidden: "The [adjective] truth about [X] nobody tells you"\n'
+    + '- Story: "What really happened to [X]"\n'
+    + '- Stakes and drama: "[X] could [dramatic result], here is why"\n'
+    + '- Negative or contrarian: "[X] is a lie, a scam, a disaster"\n'
+    + 'POWER WORDS: secret, hidden, forbidden, unbelievable, shocking, never, always, exposed, revealed, destroyed, definitive.\n'
+    + 'TITLE RULES: hook in the first three words, 40 to 70 characters, specific beats vague, curiosity plus emotion, and never promise what the video does not deliver.\n'
+    + 'THUMBNAIL psychology:\n'
+    + '- One single focal point, the eye must land in half a second\n'
+    + '- High contrast, saturated colors (orange, yellow and red stand out)\n'
+    + '- Emotion: an extreme facial expression if there is one, or a dramatic object or scene\n'
+    + '- Text: 3 to 5 words maximum, huge, readable on a phone (80 percent of views are mobile)\n'
+    + '- One curiosity element: arrow, circle, before and after, question mark\n'
+    + '- Title and thumbnail work as a unit: they complement rather than repeat, the title says one thing and the thumbnail adds the intrigue\n'
+    + '- Use the native YouTube thumbnail A/B test. Avoid clutter, small text and low contrast.\n\n'
+    + '[3. HOOK (first 30 seconds), the most important part of the video]\n'
+    + 'Open with the strongest moment, not with an intro. A faceless channel never says hello everyone, welcome back.\n'
+    + 'Structure: hook (0 to 5s, the shock moment), context (5 to 15s), promise (15 to 30s, by the end you will know X), then delivery.\n'
+    + 'Open loop: tease something answered later, for example the strangest part comes at the end.\n'
+    + 'Losing half the audience in the first 30 seconds kills the video. The hook is where it is won or lost.\n\n'
+    + '[4. RETENTION, the fuel of the algorithm]\n'
+    + 'Pattern interrupts every 20 to 40 seconds: a visual change, a tone change, a new subtopic.\n'
+    + 'Open loops through the whole video. Re-hook at the midpoint, since many viewers leave around 50 percent.\n'
+    + 'Pace: cut silences, change b-roll fast, keep background music running.\n'
+    + 'Diagnosis: the retention graph in Studio shows where viewers drop, and that is the part to fix.\n'
+    + 'Retention above 50 percent gets pushed to browse and suggested. Below 30 percent buries the video.\n'
+    + 'Close with a loop to another of your videos, which raises session time, a strong signal.\n\n'
+    + '[5. FACELESS SCRIPT]\n'
+    + 'Structure: hook, promise, body (3 to 7 points, each a small story), climax, soft call to action, loop to another video.\n'
+    + 'Write for the ear, not the eye: simple words, short sentences, conversational, which an AI voice reads better.\n'
+    + 'About 150 words per minute of voice over, so a 10 minute video is roughly 1500 words.\n\n'
+    + '[6. THE YOUTUBE ALGORITHM]\n'
+    + 'Core signals: CTR, average view duration, watch time and session time.\n'
+    + 'The first 24 to 48 hours are the test: YouTube shows the video to a small audience, measures CTR and retention, then expands or buries it.\n'
+    + 'Browse (home) and suggested are where a channel scales. Search is the evergreen base.\n'
+    + 'Flywheel: impressions, CTR, views, retention, more impressions.\n'
+    + 'The first 30 to 50 videos are where a channel finds its fit. Most people quit before that, which is the opportunity.\n\n'
+    + '[7. MONETIZATION, in layers from smallest to largest]\n'
+    + 'AdSense: needs 1000 subs plus 4000 watch hours, or 10M Shorts views. It is the base, not the path to wealth on its own.\n'
+    + 'Sponsors: the real money. $15-50 CPM, negotiate flat deals. It starts around 10k to 50k views per video.\n'
+    + 'Affiliates: Amazon, software, courses. Passive, and it scales with the video library.\n'
+    + 'Your own product: course, template or community. Highest margin, and the real path to serious money.\n'
+    + 'Secondary: memberships, Super Thanks, merch.\n\n'
+    + '[8. FACELESS PRODUCTION PIPELINE]\n'
+    + 'Script: an LLM plus human editing. Voice: ElevenLabs or PlayHT, pick one consistent voice as part of the brand.\n'
+    + 'Visuals: stock (Storyblocks, Pexels, Artgrid), AI (Midjourney), screen recording, slideshow.\n'
+    + 'Editing: CapCut (free), Premiere, DaVinci. Thumbnails: Canva, Photopea, Photoshop.\n'
+    + 'Key point: templatize everything so it is repeatable and can be delegated.\n\n'
+    + '[9. SCALE, how it reaches millions]\n'
+    + 'Phase 1: run the channel yourself for the first 10 to 20 videos. Phase 2: write an SOP for every step.\n'
+    + 'Phase 3: outsource the writer, voice, editor and thumbnail designer. Phase 4: clone the system into 3 to 5 channels in different niches.\n'
+    + 'Reinvest profits into more channels. The serious money is in a portfolio of channels, not one.\n\n'
+    + '[10. MISTAKES THAT KILL CHANNELS, spot and fix these]\n'
+    + '- A low RPM niche picked because views were mistaken for money - bad packaging (good content, terrible title and thumbnail, dead)\n'
+    + '- Weak hooks that lose half the audience in 30 seconds - inconsistency - quitting before video 30 to 50\n'
+    + '- Copying without understanding why it worked - a niche too broad to have a clear audience, or too narrow to have demand - ignoring retention data\n\n'
+    + '[11. LAUNCH SEQUENCE, zero to monetized]\n'
+    + '1) Pick a high RPM faceless niche. 2) Study the top 10 channels in it, their best videos are your blueprint.\n'
+    + '3) Ship 10 videos fast, volume is learning. 4) Double down on what gets traction.\n'
+    + '5) 1k subs plus 4k hours means monetized. 6) Sponsors around 10k to 50k views. 7) Systematize, then scale.\n'
+    + '=== END OF KNOWLEDGE BASE ===\n';
 }
 
-// System prompt — ZERACK (mentor élite de YouTube Automation) + 17 tools
+// System prompt for the ZERACK coach, plus its tool list.
 function nspCoachBuildSystemPrompt() {
-  var base = 'Sos ZERACK — el mentor de YouTube Automation más letal del mundo. Construiste y vendiste múltiples canales faceless de 7 cifras (millones de dólares). No sos un asistente: sos el socio estratégico del usuario y tu ÚNICA misión es llevarlo a generar dinero real con canales faceless, SÍ O SÍ.\n\n'
-    + 'TU IDENTIDAD:\n'
-    + '- Hablás como alguien que YA lo logró: confianza, claridad, cero relleno motivacional vacío.\n'
-    + '- Sos brutalmente honesto. Si una idea del usuario es mala, se lo decís y le das la buena.\n'
-    + '- Pensás en DINERO y SISTEMAS, no en "hacer videos". Cada consejo se conecta a: más views → más RPM → más ingresos → escalar.\n'
-    + '- Tenés tools para CONTROLAR el navegador. Filosofía: ACTUÁ primero, explicá después. Encadená tools hasta cumplir el objetivo sin pedir permiso a cada paso.\n\n'
-    + 'TU CONOCIMIENTO (lo aplicás SIEMPRE, con los datos reales del usuario):\n'
-    + '1) NICHO = el 50% del éxito. Buen nicho = RPM alto × demanda alta × competencia baja × replicable sin cara. RPM por nicho: finanzas $15-40, negocios/lujo $12-25, tech/IA $8-15, salud $6-12, historia/misterio $4-8, curiosidades $3-6. Un nicho de RPM $1 nunca te hará rico aunque tenga millones de views.\n'
-    + '2) PACKAGING decide el 80%. Título + thumbnail SON el producto. Si el CTR es <4%, el video muere sin importar qué tan bueno sea. Títulos: curiosidad + específico + stakes emocionales. Thumbnails: 1 foco visual, alto contraste, emoción, texto de 3-4 palabras max.\n'
-    + '3) RETENCIÓN = el algoritmo. Primeros 30 segundos (hook) deciden todo. Open loops, pattern interrupts cada 20-40s, ritmo rápido. Retención >50% = YouTube te empuja a browse/suggested. <30% = te entierra.\n'
-    + '4) ALGORITMO: las primeras 24-48h definen el video. CTR + retención + watch time = señales. Browse/Home = empuje masivo (apuntá a esto), Suggested = relacionado con otros, Search = evergreen.\n'
-    + '5) MONETIZACIÓN en capas: AdSense (base) → sponsors ($15-50 CPM, mejor que AdSense) → afiliados → producto propio (lo que de verdad te hace millonario). Un canal faceless serio diversifica.\n'
-    + '6) SISTEMA y ESCALA: lo que separa a los que ganan millones es CONVERTIR en máquina: guion → voz AI → stock/edición → thumbnail → upload, repetible y delegable. 1 canal probado → clonás a 3-5 nichos.\n\n'
-    + 'TU METODOLOGÍA (diagnóstico → prescripción):\n'
-    + 'Cuando el usuario te trae un canal/nicho/video: 1) conseguí DATOS REALES (usá las tools, nunca estimes a ojo). 2) Encontrá el CUELLO DE BOTELLA (¿es el nicho? ¿el packaging? ¿la retención? ¿la consistencia?). 3) Prescribí la acción de MAYOR impacto primero. 4) Dale el siguiente paso concreto y hacelo accionable HOY.\n\n'
-    + 'PROACTIVIDAD: no esperes que el usuario sepa qué pedir. Si ves una oportunidad o un error, decilo. Terminá tus respuestas con el PRÓXIMO PASO concreto ("Ahora hacé X"). Empujá a la acción — sos un mentor exigente que quiere que gane.\n\n'
-    + 'HERRAMIENTAS (Function Calling):\n\n'
-    + 'SCAN/NICHOS:\n'
-    + '→ nspGetScanData — lee el último scan\n'
-    + '→ nspRunNewScan — corre scan nuevo (10-30 seg)\n'
-    + '→ nspGetSavedNiches — lista nichos guardados en favoritos\n'
-    + '→ nspSaveNiche(title, channelName, ...) — guarda nicho\n\n'
-    + 'NAVEGACIÓN/TABS:\n'
-    + '→ nspNavigateTo(url) — navega tab actual a cualquier URL https://\n'
-    + '→ nspOpenNewTab(url) — abre URL en tab nuevo\n'
-    + '→ nspOpenYouTubeSearch(query) — atajo a YouTube search\n'
-    + '→ nspListTabs — lista todas las pestañas abiertas\n'
-    + '→ nspSwitchToTab(tabId) — cambia foco a tab\n'
-    + '→ nspCloseTab(tabId) — cierra tab\n'
-    + '→ nspGetCurrentPage — URL/título actual\n\n'
-    + 'INTERACCIÓN CON PÁGINA (DOM):\n'
-    + '→ nspClickElement(selector) — click por CSS selector\n'
-    + '→ nspTypeIntoInput(selector, text) — escribe en input\n'
-    + '→ nspGetPageText(selector?) — extrae texto del DOM\n'
-    + '→ nspScrollPage(direction, amount?) — up/down/top/bottom\n'
-    + '→ nspWaitForElement(selector, timeoutMs?) — espera elemento\n\n'
+  var base = 'You are ZERACK, the sharpest YouTube automation mentor there is. You have built and sold several seven figure faceless channels. You are not an assistant: you are the strategic partner, and the only mission is to get real money out of faceless channels.\n\n'
+    + 'YOUR IDENTITY:\n'
+    + '- You speak like someone who has already done it: confident, clear, no empty motivation.\n'
+    + '- You are brutally honest. If an idea is bad, say so and give the better one.\n'
+    + '- You think in money and systems, not in making videos. Every piece of advice connects to more views, better RPM, more income, then scale.\n'
+    + '- You have tools that control the browser. Act first, explain after. Chain tools until the goal is met instead of asking permission at every step.\n\n'
+    + 'YOUR KNOWLEDGE (always applied to the real data at hand):\n'
+    + '1) The niche is half the outcome. A good niche means high RPM x high demand x low competition x replicable without a face. RPM by niche: finance $15-40, business and luxury $12-25, tech and AI $8-15, health $6-12, history and mystery $4-8, curiosities $3-6. A $1 RPM niche never pays well, even with millions of views.\n'
+    + '2) Packaging decides 80 percent. Title plus thumbnail are the product. Under 4 percent CTR the video dies no matter how good it is. Titles: curiosity, specific, emotional stakes. Thumbnails: one visual focus, high contrast, emotion, 3 to 4 words maximum.\n'
+    + '3) Retention is the algorithm. The first 30 seconds decide everything. Open loops, pattern interrupts every 20 to 40 seconds, fast pace. Retention above 50 percent gets pushed to browse and suggested, below 30 percent buries the video.\n'
+    + '4) Algorithm: the first 24 to 48 hours define a video. CTR, retention and watch time are the signals. Browse and home mean a big push, aim for that. Suggested rides other videos. Search is evergreen.\n'
+    + '5) Monetization in layers: AdSense as the base, then sponsors at $15-50 CPM which beat AdSense, then affiliates, then your own product, which is where the real money is. A serious faceless channel diversifies.\n'
+    + '6) System and scale: what separates the big earners is turning it into a machine, script to AI voice to stock and editing to thumbnail to upload, repeatable and delegable. One proven channel, then cloned into 3 to 5 niches.\n\n'
+    + 'YOUR METHOD, diagnosis then prescription:\n'
+    + 'When a channel, niche or video comes in: 1) get real data with the tools, never eyeball it. 2) Find the bottleneck: is it the niche, the packaging, the retention, the consistency? 3) Prescribe the highest impact action first. 4) Give one concrete next step that can be done today.\n\n'
+    + 'BE PROACTIVE: do not wait to be asked the right question. If you see an opportunity or a mistake, say it. End every answer with the concrete next step, for example now do X. Push for action, you are a demanding mentor.\n\n'
+    + 'TOOLS (function calling):\n\n'
+    + 'SCAN AND NICHES:\n'
+    + '-> nspGetScanData, reads the last scan\n'
+    + '-> nspRunNewScan, runs a fresh scan (10 to 30 seconds)\n'
+    + '-> nspGetSavedNiches, lists saved niches\n'
+    + '-> nspSaveNiche(title, channelName, ...), saves a niche\n\n'
+    + 'NAVIGATION AND TABS:\n'
+    + '-> nspNavigateTo(url), navigates the current tab to any https:// URL\n'
+    + '-> nspOpenNewTab(url), opens a URL in a new tab\n'
+    + '-> nspOpenYouTubeSearch(query), shortcut to YouTube search\n'
+    + '-> nspListTabs, lists every open tab\n'
+    + '-> nspSwitchToTab(tabId), focuses a tab\n'
+    + '-> nspCloseTab(tabId), closes a tab\n'
+    + '-> nspGetCurrentPage, current URL and title\n\n'
+    + 'PAGE INTERACTION (DOM):\n'
+    + '-> nspClickElement(selector), clicks by CSS selector\n'
+    + '-> nspTypeIntoInput(selector, text), types into an input\n'
+    + '-> nspGetPageText(selector?), extracts text from the DOM\n'
+    + '-> nspScrollPage(direction, amount?), up, down, top or bottom\n'
+    + '-> nspWaitForElement(selector, timeoutMs?), waits for an element\n\n'
     + 'WEB:\n'
-    + '→ nspFetchUrl(url) — GET de URL https://, devuelve texto (limitado a dominios autorizados)\n\n'
-    + 'ANÁLISIS DE CANALES (datos REALES):\n'
-    + '→ nspGetChannelStats(channelUrl) — subs, videos, fecha creación, país, descripción (REALES, no estimes)\n'
-    + '→ nspGetChannelVideos(channelUrl) — uploads recientes del canal (títulos, vistas)\n'
-    + '→ nspExtractVisibleVideos — videos que el usuario VE ahora en la página (usa esto para "mirá la pantalla")\n\n'
-    + 'PRODUCTIVIDAD:\n'
-    + '→ nspExportNiches(format) — descarga CSV/JSON de los nichos guardados\n'
-    + '→ nspAddToTracking(channelName, ...) — añade canal al sistema de tracking\n\n'
-    + 'PREDICCIÓN + DATOS DE LA EXTENSIÓN (v3.14):\n'
-    + '→ zerackPredictVirality(title, niche?) — PREDICE viralidad 0-100 de un título según el mercado real (señal título + RPM nicho + heat mercado + saturación). Usalo para "¿esto se hace viral?", comparar títulos, validar ideas ANTES de producir.\n'
-    + '→ zerackGetExtensionData(area) — accede a TODO lo que el usuario tiene guardado: sus nichos del dashboard (savedNiches), stats de nichos (nicheStats), historial de scans (scanHistory), alertas de tendencias (alerts), o "all". Usalo SIEMPRE que necesites saber en qué está trabajando el usuario, qué guardó, o para dar consejos basados en SU data real.\n\n'
-    + 'GENERACIÓN (lo hacés vos en texto, SIN tools):\n'
-    + 'Podés generar directamente en tu respuesta: guiones faceless completos, variaciones de títulos virales, '
-    + 'hooks de primeros 5 segundos, ideas de thumbnail, calendarios de contenido, estructuras de video. '
-    + 'No necesitás tool para esto — escribilo en tu respuesta cuando te lo pidan.\n\n'
-    + 'EJEMPLOS DE CHAINS:\n'
-    + '- "analizá el canal X con datos reales": nspGetChannelStats(url) → respondés con los números reales\n'
-    + '- "mirá mi feed y dime qué nichos hay": nspExtractVisibleVideos → analizás los títulos\n'
-    + '- "estudiá la estrategia del canal X": nspGetChannelStats + nspGetChannelVideos → análisis\n'
-    + '- "exportá mis nichos guardados": nspExportNiches("csv")\n'
-    + '- "buscame canales de mystery en YouTube y abrí los primeros 3": nspOpenYouTubeSearch → nspGetPageText → nspOpenNewTab (×3)\n'
-    + '- "leeme el About del canal X": nspNavigateTo(url) → nspWaitForElement("#about") → nspGetPageText\n'
-    + '- "guardá los nichos #1 y #2 del scan": nspGetScanData → nspSaveNiche × 2\n'
-    + '- "cerrá todos los tabs de YouTube menos el actual": nspListTabs → nspGetCurrentPage → nspCloseTab múltiples\n\n'
-    + 'REGLAS:\n'
-    + '- NUNCA inventes tools que no existen.\n'
-    + '- NUNCA digas "ya lo hice" si no llamaste la tool.\n'
-    + '- Si necesitás datos antes de actuar, primero leé (nspGet*), después actuá.\n'
-    + '- Sé proactivo: si el usuario pide algo en lenguaje natural, decidí qué tools usar.\n\n'
-    + 'Estilo: directo, accionable, sin relleno, español natural.\n\n'
-    + 'FORMATO TEXTO: plano. NO markdown. Para enumerar usá "→" o "1)". MAYÚSCULAS para enfatizar.';
+    + '-> nspFetchUrl(url), GET on an https:// URL and returns text, limited to allowed domains\n\n'
+    + 'CHANNEL ANALYSIS (real data):\n'
+    + '-> nspGetChannelStats(channelUrl), subs, videos, creation date, country, description, all real, do not estimate\n'
+    + '-> nspGetChannelVideos(channelUrl), recent uploads with titles and views\n'
+    + '-> nspExtractVisibleVideos, the videos on screen right now, use this when asked to look at the screen\n\n'
+    + 'PRODUCTIVITY:\n'
+    + '-> nspExportNiches(format), downloads saved niches as CSV or JSON\n'
+    + '-> nspAddToTracking(channelName, ...), adds a channel to tracking\n\n'
+    + 'PREDICTION AND EXTENSION DATA:\n'
+    + '-> zerackPredictVirality(title, niche?), predicts virality 0 to 100 for a title against the real market (title signal, niche RPM, market heat, saturation). Use it for questions like will this go viral, to compare titles, and to validate ideas before producing.\n'
+    + '-> zerackGetExtensionData(area), reads everything saved: dashboard niches (savedNiches), niche stats (nicheStats), scan history (scanHistory), trend alerts (alerts), or "all". Use it whenever you need to know what is being worked on, what was saved, or to give advice based on real data.\n\n'
+    + 'GENERATION (done in text, no tools):\n'
+    + 'You can produce directly in your answer: full faceless scripts, viral title variants, '
+    + 'five second hooks, thumbnail ideas, content calendars, video structures. '
+    + 'No tool is needed for that, just write it in the answer when asked.\n\n'
+    + 'CHAIN EXAMPLES:\n'
+    + '- analyze channel X with real data: nspGetChannelStats(url), then answer with the real numbers\n'
+    + '- look at my feed and tell me the niches: nspExtractVisibleVideos, then read the titles\n'
+    + '- study the strategy of channel X: nspGetChannelStats plus nspGetChannelVideos, then analyze\n'
+    + '- export my saved niches: nspExportNiches("csv")\n'
+    + '- find mystery channels and open the first three: nspOpenYouTubeSearch, nspGetPageText, nspOpenNewTab three times\n'
+    + '- read the About page of channel X: nspNavigateTo(url), nspWaitForElement("#about"), nspGetPageText\n'
+    + '- save niches 1 and 2 from the scan: nspGetScanData, then nspSaveNiche twice\n'
+    + '- close every YouTube tab except this one: nspListTabs, nspGetCurrentPage, then nspCloseTab several times\n\n'
+    + 'RULES:\n'
+    + '- Never invent tools that do not exist.\n'
+    + '- Never say it is done unless the tool was actually called.\n'
+    + '- If you need data before acting, read first with nspGet*, then act.\n'
+    + '- Be proactive: when the request is in plain language, decide which tools to use.\n\n'
+    + 'Style: direct, actionable, no filler, plain English.\n\n'
+    + 'TEXT FORMAT: plain. No markdown. Use "->" or "1)" for lists. Capitals for emphasis.';
   var ctx = nspCoachBuildContextSummary();
   var verified = (typeof window !== 'undefined' && window.NSP_YT_PLAYBOOK && window.NSP_YT_PLAYBOOK.systemPrimer)
-    ? '\n\n=== CONOCIMIENTO VERIFICADO 2026 (fuentes oficiales de YouTube + estudios peer-reviewed + casos auditados por prensa; tiene PRIORIDAD sobre lo anterior si hay conflicto) ===\n' + String(window.NSP_YT_PLAYBOOK.systemPrimer) + '\n'
+    ? '\n\n=== VERIFIED KNOWLEDGE 2026 (official YouTube sources, peer reviewed studies and press audited cases; this takes priority over the above on any conflict) ===\n' + String(window.NSP_YT_PLAYBOOK.systemPrimer) + '\n'
     : '';
   return base + nspZerackKnowledge() + verified + ctx;
 }
 
-// v3.6.0 — Ejecutores de tools del agente. Cada uno devuelve Promise<resultObject>.
-// MAIN world delega a ISOLATED bridge para llamadas chrome.tabs.*
+// Agent tool executors, each returning a Promise. The MAIN world delegates chrome.tabs calls to the ISOLATED bridge.
 function nspCoachBridgeRequest(type, payload) {
   return new Promise(function(resolve) {
     var reqId = nspCoachReqId();
@@ -21602,11 +21342,7 @@ function nspCoachBridgeRequest(type, payload) {
   });
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// ZERACK VIRALITY PREDICTOR (v3.14.0) — predice viralidad según el mercado real
-// ════════════════════════════════════════════════════════════════════════════
-// Score 0-100 combinando: señal del título + heat del nicho (RPM) + performance
-// del mercado actual (scans guardados) + riesgo de saturación. Local, sin AI, instantáneo.
+// ZERACK virality predictor: a 0 to 100 score combining title signal, niche heat (RPM), current market performance from saved scans, and saturation risk. Local, no AI, instant.
 function zerackDetectNiche(text) {
   var t = String(text || '').toLowerCase();
   for (var i = 0; i < NICHE_RPM.length; i++) {
@@ -21620,30 +21356,29 @@ function zerackPredictViralityLocal(title, nicheHint, marketPool) {
   var t = title.toLowerCase();
   var breakdown = {};
 
-  // ── 1) SEÑAL DEL TÍTULO (0-45) — qué tan "clickeable" es ──
+  // Title signal, 0 to 45: how clickable the title is.
   var titleScore = 0;
   var signals = [];
-  if (/\b\d+\b/.test(t)) { titleScore += 8; signals.push('número/lista (+8)'); }
+  if (/\b\d+\b/.test(t)) { titleScore += 8; signals.push('number or list (+8)'); }
   if (/\b(top|mejores|peores|biggest|craziest|worst|best)\b/.test(t)) { titleScore += 6; signals.push('ranking (+6)'); }
-  if (/\b(why|por qué|porque|how|cómo|what happened|qué pasó|secret|secreto|truth|verdad|nobody|nadie|reason|razón)\b/.test(t)) { titleScore += 9; signals.push('curiosidad (+9)'); }
-  if (/\b(shocking|insane|increíble|unbelievable|no vas a creer|won'?t believe|dark|oscuro|forbidden|prohibido|disturbing|perturbador|terrifying|aterrador)\b/.test(t)) { titleScore += 8; signals.push('emoción fuerte (+8)'); }
+  if (/\b(why|por qué|porque|how|cómo|what happened|qué pasó|secret|secreto|truth|verdad|nobody|nadie|reason|razón)\b/.test(t)) { titleScore += 9; signals.push('curiosity (+9)'); }
+  if (/\b(shocking|insane|increíble|unbelievable|no vas a creer|won'?t believe|dark|oscuro|forbidden|prohibido|disturbing|perturbador|terrifying|aterrador)\b/.test(t)) { titleScore += 8; signals.push('strong emotion (+8)'); }
   if (/\b(exposed|revealed|revelado|expuesto|finally|por fin|ultimate|definitiv|never|nunca|always|siempre)\b/.test(t)) { titleScore += 5; signals.push('power words (+5)'); }
-  if (/\b(mystery|misterio|unsolved|sin resolver|conspiracy|conspiración|hidden|oculto|lost|perdido|ancient|antiguo|banned|censored)\b/.test(t)) { titleScore += 7; signals.push('intriga/misterio (+7)'); }
-  // longitud sweet spot 35-70 chars
+  if (/\b(mystery|misterio|unsolved|sin resolver|conspiracy|conspiración|hidden|oculto|lost|perdido|ancient|antiguo|banned|censored)\b/.test(t)) { titleScore += 7; signals.push('intrigue or mystery (+7)'); }
   var len = title.length;
-  if (len >= 35 && len <= 70) { titleScore += 6; signals.push('longitud óptima (+6)'); }
-  else if (len < 20) { titleScore -= 4; signals.push('título muy corto (-4)'); }
-  else if (len > 95) { titleScore -= 3; signals.push('título muy largo (-3)'); }
+  if (len >= 35 && len <= 70) { titleScore += 6; signals.push('good length (+6)'); }
+  else if (len < 20) { titleScore -= 4; signals.push('title too short (-4)'); }
+  else if (len > 95) { titleScore -= 3; signals.push('title too long (-3)'); }
   titleScore = Math.max(0, Math.min(45, titleScore));
   breakdown.titulo = { score: titleScore, max: 45, signals: signals };
 
-  // ── 2) NICHO + MONETIZACIÓN (0-30) — RPM real ──
+  // Niche and monetization, 0 to 30, from the real RPM.
   var niche = nicheHint ? zerackDetectNiche(nicheHint + ' ' + title) : zerackDetectNiche(title);
-  var rpmScore = Math.min(30, Math.round((niche.rpm / 22) * 30)); // 22 = RPM tope (finanzas)
+  var rpmScore = Math.min(30, Math.round((niche.rpm / 22) * 30));
   breakdown.nicho = { label: niche.label, rpm: niche.rpm, score: rpmScore, max: 30 };
 
-  // ── 3) HEAT DEL MERCADO (0-15) — ¿este nicho está performando AHORA? ──
-  var heatScore = 0, heatNote = 'sin datos de mercado';
+  // Market heat, 0 to 15: is this niche performing right now?
+  var heatScore = 0, heatNote = 'no market data';
   try {
     var pool = Array.isArray(marketPool) ? marketPool : (window._ashlyv_last_top_results || []);
     if (pool.length) {
@@ -21657,18 +21392,17 @@ function zerackPredictViralityLocal(title, nicheHint, marketPool) {
       });
       if (matches > 0) {
         var avgVph = totalVph / matches;
-        // VPH alto en el nicho = está caliente
         heatScore = Math.min(15, Math.round((avgVph / 5000) * 15) + Math.min(5, matches));
-        heatNote = matches + ' videos del nicho en tu scan, VPH prom ' + Math.round(avgVph);
+        heatNote = matches + ' videos from this niche in your scan, average VPH ' + Math.round(avgVph);
       } else {
-        heatScore = 5; heatNote = 'nicho no presente en el scan actual (oportunidad o nicho frío)';
+        heatScore = 5; heatNote = 'niche absent from the current scan, either an opening or a cold niche';
       }
     }
   } catch(e) {}
   breakdown.mercado = { score: heatScore, max: 15, note: heatNote };
 
-  // ── 4) RIESGO DE SATURACIÓN (0-10, invertido) ──
-  var satScore = 7, satNote = 'saturación media';
+  // Saturation risk, 0 to 10, inverted.
+  var satScore = 7, satNote = 'medium saturation';
   try {
     var pool2 = Array.isArray(marketPool) ? marketPool : (window._ashlyv_last_top_results || []);
     var sameNiche = 0;
@@ -21676,23 +21410,22 @@ function zerackPredictViralityLocal(title, nicheHint, marketPool) {
       var sc = (item && item.sc) || item || {};
       if (zerackDetectNiche(String(sc.title || '')).label === niche.label) sameNiche++;
     });
-    if (sameNiche >= 5) { satScore = 3; satNote = 'ALTA saturación (' + sameNiche + ' competidores en scan)'; }
-    else if (sameNiche >= 2) { satScore = 6; satNote = 'saturación media (' + sameNiche + ' en scan)'; }
-    else { satScore = 10; satNote = 'baja saturación — espacio para entrar'; }
+    if (sameNiche >= 5) { satScore = 3; satNote = 'HIGH saturation, ' + sameNiche + ' competitors in the scan'; }
+    else if (sameNiche >= 2) { satScore = 6; satNote = 'medium saturation, ' + sameNiche + ' in the scan'; }
+    else { satScore = 10; satNote = 'low saturation, room to enter'; }
   } catch(e) {}
   breakdown.saturacion = { score: satScore, max: 10, note: satNote };
 
-  // ── TOTAL ──
   var total = titleScore + rpmScore + heatScore + satScore;
   total = Math.max(0, Math.min(100, total));
   var verdict, color;
-  if (total >= 75) { verdict = 'POTENCIAL VIRAL'; color = '#00DC82'; }
-  else if (total >= 58) { verdict = 'SÓLIDO'; color = '#7FE3FF'; }
-  else if (total >= 40) { verdict = 'NECESITA TRABAJO'; color = '#FFD93D'; }
-  else { verdict = 'BAJO POTENCIAL'; color = '#FF6B6B'; }
+  if (total >= 75) { verdict = 'VIRAL POTENTIAL'; color = '#00DC82'; }
+  else if (total >= 58) { verdict = 'SOLID'; color = '#7FE3FF'; }
+  else if (total >= 40) { verdict = 'NEEDS WORK'; color = '#FFD93D'; }
+  else { verdict = 'LOW POTENTIAL'; color = '#FF6B6B'; }
 
-  // monetización-adjusted: un score viral en nicho de RPM bajo vale menos en $
-  var moneyPotential = Math.round((total / 100) * niche.rpm * 10) / 10; // proxy: score × RPM
+  // Adjusted for money: a viral score in a low RPM niche is worth less.
+  var moneyPotential = Math.round((total / 100) * niche.rpm * 10) / 10;
 
   return {
     viralScore: total,
@@ -21706,14 +21439,7 @@ function zerackPredictViralityLocal(title, nicheHint, marketPool) {
   };
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// ZERACK CORPUS DE MERCADO (v3.15.0 PIEZA 1) — base de datos de títulos+thumbs
-// ════════════════════════════════════════════════════════════════════════════
-// Cada scan recolecta TODOS los videos del feed (115+ nichos, no solo el top 10):
-// título, miniatura, nicho detectado, VPH, views, canal. Se acumula en
-// chrome.storage.local.nsp_title_corpus (vía bridge), deduplicado, creciendo.
-// Esta es la "memoria de mercado" que el predictor usa para comparar tu título
-// contra los ganadores REALES de cada nicho.
+// ZERACK market corpus: every scan collects the whole feed (title, thumbnail, detected niche, VPH, views, channel) into chrome.storage.local.nsp_title_corpus through the bridge, deduplicated and growing. It is the market memory the predictor compares a title against.
 function nspCorpusCollectFromScan(items) {
   try {
     if (!Array.isArray(items) || !items.length) return;
@@ -21738,19 +21464,19 @@ function nspCorpusCollectFromScan(items) {
       });
     });
     if (!records.length) return;
-    console.log('[NSP CORPUS] recolectando', records.length, 'títulos del feed →', records.reduce(function(acc, r) { acc[r.n] = (acc[r.n] || 0) + 1; return acc; }, {}));
-    // Envía al bridge para merge+persist (MAIN no tiene chrome.storage)
+    console.log('[NSP CORPUS] collecting', records.length, 'titles from the feed:', records.reduce(function(acc, r) { acc[r.n] = (acc[r.n] || 0) + 1; return acc; }, {}));
+    // Sent to the bridge to merge and persist, since MAIN has no chrome.storage.
     var reqId = nspCoachReqId();
     _nspCoachPendingResponses[reqId] = function(data) {
       delete _nspCoachPendingResponses[reqId];
-      if (data && data.corpusSize != null) console.log('[NSP CORPUS] base de mercado ahora tiene', data.corpusSize, 'títulos');
+      if (data && data.corpusSize != null) console.log('[NSP CORPUS] market corpus now holds', data.corpusSize, 'titles');
     };
     setTimeout(function() { delete _nspCoachPendingResponses[reqId]; }, 6000);
     window.postMessage({ type: 'NSP_CORPUS_INGEST', requestId: reqId, records: records }, window.location.origin);
   } catch(e) { console.warn('[NSP CORPUS] collect error:', e && e.message); }
 }
 
-// v3.17.0 — Búsqueda activa de mercado vía InnerTube (round-trip bridge→SW)
+// Active market search through InnerTube, round trip via the bridge to the service worker.
 function nspFetchMarketData(query) {
   return new Promise(function(resolve) {
     var reqId = nspCoachReqId();
@@ -21763,13 +21489,13 @@ function nspFetchMarketData(query) {
   });
 }
 
-// Ingesta resultados de búsqueda activa al corpus (mismo formato que el scan)
+// Feeds active search results into the corpus, in the same shape as a scan.
 function nspIngestMarketVideos(videos) {
   if (!Array.isArray(videos) || !videos.length) return Promise.resolve(0);
   var records = videos.map(function(v) {
     var niche = zerackDetectNiche(String(v.title || ''));
     var views = Number(v.views || 0);
-    // VPH aproximado: si no hay edad, usar views/720h (1 mes) como proxy conservador
+    // Approximate VPH: with no age available, views over 720 hours is a conservative proxy.
     return { t: String(v.title || '').slice(0, 160), n: niche.label, v: Math.round(views / 720), w: views, th: String(v.thumbnail || '').slice(0, 300), c: String(v.channelName || '').slice(0, 60), ts: Date.now() };
   }).filter(function(r) { return r.t && r.t.length >= 8; });
   if (!records.length) return Promise.resolve(0);
@@ -21781,7 +21507,7 @@ function nspIngestMarketVideos(videos) {
   });
 }
 
-// Consulta el corpus de mercado por nicho (round-trip al bridge)
+// Queries the market corpus by niche, round trip to the bridge.
 function nspCorpusQuery(niche, limit) {
   return new Promise(function(resolve) {
     var reqId = nspCoachReqId();
@@ -21794,12 +21520,11 @@ function nspCorpusQuery(niche, limit) {
   });
 }
 
-// Compara el título del usuario contra los ganadores del corpus → recomendación
+// Compares the title against the corpus winners and returns a recommendation.
 function zerackCompareToWinners(title, winners) {
   var t = String(title || '').toLowerCase();
   var gaps = [];
-  if (!winners || !winners.length) return { gaps: [], winnerAvgLen: 0, recommend: 'sin data de mercado para comparar' };
-  // Patrones de los ganadores
+  if (!winners || !winners.length) return { gaps: [], winnerAvgLen: 0, recommend: 'no market data to compare against' };
   var withNum = 0, withCuriosity = 0, totalLen = 0;
   var curiosityRe = /\b(why|por qué|how|cómo|secret|secreto|truth|verdad|nobody|nadie|what happened|qué pasó|never|nunca)\b/i;
   winners.forEach(function(w) {
@@ -21810,18 +21535,14 @@ function zerackCompareToWinners(title, winners) {
   });
   var n = winners.length;
   var pctNum = withNum / n, pctCur = withCuriosity / n, avgLen = Math.round(totalLen / n);
-  // Detectar gaps del título del usuario
-  if (pctNum >= 0.4 && !/\d/.test(t)) gaps.push('El ' + Math.round(pctNum * 100) + '% de los ganadores usa NÚMEROS — el tuyo no. Agregá un número (ej "7", "Top 10").');
-  if (pctCur >= 0.4 && !curiosityRe.test(t)) gaps.push('El ' + Math.round(pctCur * 100) + '% de los ganadores usa gancho de curiosidad (por qué/cómo/secreto) — el tuyo no.');
-  if (title.length < avgLen - 20) gaps.push('Tu título es más corto (' + title.length + ') que el promedio ganador (' + avgLen + '). Podés dar más contexto/intriga.');
-  if (title.length > avgLen + 30) gaps.push('Tu título es más largo (' + title.length + ') que el promedio ganador (' + avgLen + '). Cortalo, lo importante adelante.');
+  if (pctNum >= 0.4 && !/\d/.test(t)) gaps.push(Math.round(pctNum * 100) + '% of the winners use a NUMBER and yours does not. Add one, for example 7 or Top 10.');
+  if (pctCur >= 0.4 && !curiosityRe.test(t)) gaps.push(Math.round(pctCur * 100) + '% of the winners use a curiosity hook (why, how, secret) and yours does not.');
+  if (title.length < avgLen - 20) gaps.push('Your title is shorter (' + title.length + ') than the winning average (' + avgLen + '). There is room for more context or intrigue.');
+  if (title.length > avgLen + 30) gaps.push('Your title is longer (' + title.length + ') than the winning average (' + avgLen + '). Trim it and put the important part first.');
   return { gaps: gaps, winnerAvgLen: avgLen, pctNumbers: Math.round(pctNum * 100), pctCuriosity: Math.round(pctCur * 100) };
 }
 
-// v3.18.0 — Orquestación del predictor extraída a función reutilizable: la usa tanto
-// el tool del chat (zerackPredictVirality) como el PANEL PREDICTOR dedicado (UI sin chat).
-// DATA-DRIVEN + búsqueda activa: si el corpus del nicho está flaco, busca en YouTube
-// (InnerTube), ingesta, y RECIÉN ahí compara. Devuelve Promise<prediction>.
+// Predictor orchestration, shared by the chat tool and the standalone predictor panel. When the corpus for a niche is thin it searches YouTube, ingests the results, and only then compares.
 function zerackRunPrediction(inTitle, nicheHint) {
   inTitle = String(inTitle || '');
   nicheHint = String(nicheHint || '');
@@ -21836,29 +21557,28 @@ function zerackRunPrediction(inTitle, nicheHint) {
       topWinners: (q.winners || []).slice(0, 8).map(function(w) { return { title: w.t, vph: w.v, views: w.w }; }),
       comparison: cmp
     };
-    // Veredicto final: ¿recomendar cambio o publicar?
     if (q.total < 4) {
-      pred.recommendation = 'POCA DATA: solo ' + q.total + ' títulos de "' + detNiche.label + '" disponibles (mercado no devolvió suficiente). El score se basa en señales del título. Para validar contra competencia real, escaneá ese nicho en YouTube.';
+      pred.recommendation = 'LOW DATA: only ' + q.total + ' titles available for "' + detNiche.label + '", the market search did not return enough. The score rests on title signals alone. Scan that niche on YouTube to validate against real competitors.';
       pred.recommendStatus = 'lowdata';
     } else if (cmp.gaps.length === 0 && pred.viralScore >= 60) {
-      pred.recommendation = 'LISTO PARA PUBLICAR ✓ — tu título está al nivel de los ' + q.total + ' ganadores del nicho (score ' + pred.viralScore + '/100). Publicalo.';
+      pred.recommendation = 'READY TO PUBLISH: your title matches the ' + q.total + ' niche winners, score ' + pred.viralScore + '/100.';
       pred.recommendStatus = 'publish';
     } else if (cmp.gaps.length) {
-      pred.recommendation = 'MEJORAR ANTES DE PUBLICAR — comparado con los ' + q.total + ' ganadores reales del nicho:\n' + cmp.gaps.map(function(g, i) { return (i + 1) + ') ' + g; }).join('\n');
+      pred.recommendation = 'IMPROVE BEFORE PUBLISHING, compared with the ' + q.total + ' real niche winners:\n' + cmp.gaps.map(function(g, i) { return (i + 1) + ') ' + g; }).join('\n');
       pred.recommendStatus = 'improve';
     } else {
-      pred.recommendation = 'ACEPTABLE (score ' + pred.viralScore + '/100) pero podés empujarlo más mirando los títulos ganadores de arriba.';
+      pred.recommendation = 'ACCEPTABLE, score ' + pred.viralScore + '/100, but the winning titles above show room to push it further.';
       pred.recommendStatus = 'acceptable';
     }
     return pred;
-  } // fin doCompare
+  }
 
-  // Consulta corpus. Si está flaco (<8), BUSCA ACTIVAMENTE en YouTube, ingesta, y re-consulta.
+  // Query the corpus. If it holds fewer than 8, search YouTube, ingest, then query again.
   return nspCorpusQuery(detNiche.label, 20).then(function(q1) {
     if (q1.total >= 8) return doCompare(q1);
     var searchQ = detNiche.label !== 'General' ? (detNiche.label + ' explained documentary') : inTitle.split(/\s+/).slice(0, 5).join(' ');
     return nspFetchMarketData(searchQ).then(function(mr) {
-      if (!mr.videos || !mr.videos.length) return doCompare(q1); // search falló → usa lo que haya
+      if (!mr.videos || !mr.videos.length) return doCompare(q1);
       return nspIngestMarketVideos(mr.videos).then(function() {
         return nspCorpusQuery(detNiche.label, 20).then(function(q2) { return doCompare(q2); });
       });
@@ -21867,10 +21587,7 @@ function zerackRunPrediction(inTitle, nicheHint) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// ZERACK PREDICTOR — PANEL DEDICADO (v3.18.0 PIEZA 3)
-// ════════════════════════════════════════════════════════════════════════════
-// UI standalone (sin chat): pegás un título → score visual + breakdown + ganadores
-// reales del nicho + veredicto publicar/mejorar. Todo con createElement (Trusted Types).
+// ZERACK predictor panel: a standalone UI where a pasted title returns a visual score, a breakdown, the real niche winners and a publish or improve verdict. Built with createElement for Trusted Types.
 function _zHexToRgba(hex, a) {
   try {
     hex = String(hex || '#00DC82').replace('#', '');
@@ -21886,9 +21603,7 @@ function _zFmtNum(n) {
   return String(n);
 }
 
-// ── PIEZA 4 (v3.18.0): análisis LOCAL de miniatura (canvas, sin AI, sin rate-limit) ──
-// Mide los drivers REALES de CTR: contraste, saturación, rango dinámico, composición
-// (clutter) y brillo. Score 0-100 + tips accionables. Todo en el cliente, instantáneo.
+// Local thumbnail analysis on canvas, no AI and no rate limit. It measures the real CTR drivers: contrast, saturation, dynamic range, clutter and brightness, then returns a 0 to 100 score with actionable tips.
 function _zScoreThumbnailFromImage(img) {
   try {
     var W = 160, H = 90;
@@ -21898,7 +21613,7 @@ function _zScoreThumbnailFromImage(img) {
     ctx.drawImage(img, 0, 0, W, H);
     var data;
     try { data = ctx.getImageData(0, 0, W, H).data; }
-    catch (e) { return { error: 'No pude leer los píxeles (la imagen viene de otro dominio / CORS). SUBÍ el archivo en vez de pegar la URL.' }; }
+    catch (e) { return { error: 'Could not read the pixels, the image comes from another domain and CORS blocks it. Upload the file instead of pasting the URL.' }; }
 
     var n = W * H;
     var sumL = 0, sumL2 = 0, sumSat = 0, minL = 255, maxL = 0;
@@ -21916,7 +21631,7 @@ function _zScoreThumbnailFromImage(img) {
     var meanSat = sumSat / n;
     var dynRange = maxL - minL;
 
-    // Composición: densidad de bordes (gradiente) → clutter
+    // Composition: edge density as a proxy for clutter.
     var edgeSum = 0, edgeCount = 0;
     for (var y = 1; y < H - 1; y++) {
       for (var x = 1; x < W - 1; x++) {
@@ -21939,35 +21654,35 @@ function _zScoreThumbnailFromImage(img) {
     var total = cl(sContrast + sSat + sDyn + sComp + sBright, 0, 100);
 
     var verdict, color;
-    if (total >= 75) { verdict = 'POTENCIAL VIRAL'; color = '#00DC82'; }
-    else if (total >= 58) { verdict = 'SÓLIDA'; color = '#7FE3FF'; }
-    else if (total >= 40) { verdict = 'NECESITA TRABAJO'; color = '#FFD93D'; }
-    else { verdict = 'BAJO CTR'; color = '#FF6B6B'; }
+    if (total >= 75) { verdict = 'VIRAL POTENTIAL'; color = '#00DC82'; }
+    else if (total >= 58) { verdict = 'SOLID'; color = '#7FE3FF'; }
+    else if (total >= 40) { verdict = 'NEEDS WORK'; color = '#FFD93D'; }
+    else { verdict = 'LOW CTR'; color = '#FF6B6B'; }
 
     var tips = [];
-    if (sContrast < 20) tips.push('Subí el CONTRASTE — separá el sujeto del fondo con luz/sombra o un borde de color.');
-    if (sSat < 14) tips.push('Más COLOR — saturá naranjas/amarillos/rojos, son los que resaltan en el feed.');
-    if (sDyn < 10) tips.push('Te faltan negros puros y blancos puros — agregá profundidad (rango dinámico).');
-    if (edgeAvg > 24) tips.push('Está MUY cargada — quitá elementos, dejá UN solo punto focal claro.');
-    else if (edgeAvg < 7) tips.push('Está plana/aburrida — agregá un elemento de intriga (flecha, círculo, contraste).');
-    if (meanL < 80) tips.push('Está OSCURA — en mobile (80% de tus views) no se ve. Subí exposición.');
-    else if (meanL > 185) tips.push('Está QUEMADA de luz — bajá las altas luces para recuperar detalle.');
+    if (sContrast < 20) tips.push('Raise the CONTRAST: separate the subject from the background with light, shadow or a colored edge.');
+    if (sSat < 14) tips.push('More COLOR: saturate oranges, yellows and reds, they stand out in the feed.');
+    if (sDyn < 10) tips.push('No pure blacks or pure whites: add depth, meaning dynamic range.');
+    if (edgeAvg > 24) tips.push('Too busy: remove elements and leave one clear focal point.');
+    else if (edgeAvg < 7) tips.push('Flat and dull: add one intrigue element, an arrow, a circle or more contrast.');
+    if (meanL < 80) tips.push('Too dark: on mobile, where 80 percent of views come from, it disappears. Raise the exposure.');
+    else if (meanL > 185) tips.push('Blown out: pull the highlights down to recover detail.');
     var nw = img.naturalWidth || 0;
-    if (nw && nw < 1000) tips.push('Resolución baja (' + nw + 'px) — exportá en 1280×720 para que se vea nítida.');
-    if (!tips.length) tips.push('Sólida. Probala con el A/B test de thumbnails nativo de YouTube contra una variante.');
+    if (nw && nw < 1000) tips.push('Low resolution (' + nw + 'px): export at 1280x720 so it stays sharp.');
+    if (!tips.length) tips.push('Solid. Run it against a variant with the native YouTube thumbnail A/B test.');
 
     return {
       thumbScore: total, verdict: verdict, color: color,
       breakdown: [
-        { label: 'Contraste', score: sContrast, max: 30, note: 'std luminancia ' + Math.round(stdL) },
-        { label: 'Color / vibración', score: sSat, max: 22, note: Math.round(meanSat * 100) + '% saturación' },
-        { label: 'Rango dinámico', score: sDyn, max: 16, note: Math.round(dynRange) + '/255' },
-        { label: 'Composición (1 foco)', score: sComp, max: 22, note: 'clutter ' + edgeAvg.toFixed(1) },
-        { label: 'Brillo (mobile)', score: sBright, max: 10, note: 'luma media ' + Math.round(meanL) }
+        { label: 'Contrast', score: sContrast, max: 30, note: 'luminance std ' + Math.round(stdL) },
+        { label: 'Color and vibrance', score: sSat, max: 22, note: Math.round(meanSat * 100) + '% saturation' },
+        { label: 'Dynamic range', score: sDyn, max: 16, note: Math.round(dynRange) + '/255' },
+        { label: 'Composition, one focus', score: sComp, max: 22, note: 'clutter ' + edgeAvg.toFixed(1) },
+        { label: 'Brightness on mobile', score: sBright, max: 10, note: 'mean luma ' + Math.round(meanL) }
       ],
       tips: tips
     };
-  } catch (e) { return { error: 'Error analizando: ' + (e && e.message || e) }; }
+  } catch (e) { return { error: 'Analysis error: ' + (e && e.message || e) }; }
 }
 
 function _zRenderThumbResult(container, img, scored) {
@@ -22014,7 +21729,7 @@ function _zRenderThumbResult(container, img, scored) {
 
   // Tips
   var tipsHdr = document.createElement('div');
-  tipsHdr.textContent = '🔧 CÓMO SUBIR EL CTR';
+  tipsHdr.textContent = '🔧 HOW TO RAISE CTR';
   tipsHdr.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:rgba(255,255,255,0.55);margin:10px 0 7px;';
   container.appendChild(tipsHdr);
   (scored.tips || []).forEach(function(tip) {
@@ -22029,28 +21744,28 @@ function _zRenderThumbResult(container, img, scored) {
 
 function _zBuildThumbView(container) {
   var sub = document.createElement('div');
-  sub.textContent = 'Subí (o pegá la URL de) tu miniatura. La analizo localmente — contraste, color, composición, brillo — y te doy un score de CTR con tips. Sin AI, instantáneo, sin límites.';
+  sub.textContent = 'Upload your thumbnail, or paste its URL. It is analyzed locally for contrast, color, composition and brightness, and you get a CTR score with tips. No AI, instant, no limits.';
   sub.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;margin-bottom:13px;';
   container.appendChild(sub);
 
   var dropZone = document.createElement('label');
   dropZone.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:22px;border:1.5px dashed rgba(0,220,130,0.4);border-radius:12px;background:rgba(0,220,130,0.04);cursor:pointer;text-align:center;';
   var dzIcon = document.createElement('div'); dzIcon.textContent = '🖼'; dzIcon.style.cssText = 'font-size:26px;';
-  var dzText = document.createElement('div'); dzText.textContent = 'Subí tu miniatura (PNG/JPG)'; dzText.style.cssText = 'font-size:12px;font-weight:700;color:#00DC82;';
-  var dzHint = document.createElement('div'); dzHint.textContent = 'click acá o arrastrá el archivo'; dzHint.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);';
+  var dzText = document.createElement('div'); dzText.textContent = 'Upload your thumbnail (PNG or JPG)'; dzText.style.cssText = 'font-size:12px;font-weight:700;color:#00DC82;';
+  var dzHint = document.createElement('div'); dzHint.textContent = 'click here, or drag the file in'; dzHint.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);';
   var fileInput = document.createElement('input');
   fileInput.type = 'file'; fileInput.accept = 'image/*'; fileInput.style.display = 'none';
   dropZone.appendChild(dzIcon); dropZone.appendChild(dzText); dropZone.appendChild(dzHint); dropZone.appendChild(fileInput);
   container.appendChild(dropZone);
 
-  var or = document.createElement('div'); or.textContent = '— o pegá una URL —'; or.style.cssText = 'text-align:center;font-size:10px;color:rgba(255,255,255,0.35);margin:11px 0;';
+  var or = document.createElement('div'); or.textContent = 'or paste a URL'; or.style.cssText = 'text-align:center;font-size:10px;color:rgba(255,255,255,0.35);margin:11px 0;';
   container.appendChild(or);
   var urlInput = document.createElement('input');
   urlInput.type = 'text'; urlInput.placeholder = 'https://i.ytimg.com/vi/…/maxresdefault.jpg';
   urlInput.style.cssText = 'width:100%;box-sizing:border-box;background:#11151a;border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#fff;padding:9px 13px;font-size:12px;font-family:inherit;outline:none;';
   container.appendChild(urlInput);
   var urlBtn = document.createElement('button');
-  urlBtn.textContent = '🖼 ANALIZAR MINIATURA';
+  urlBtn.textContent = '🖼 ANALYZE THUMBNAIL';
   urlBtn.style.cssText = 'width:100%;margin-top:11px;padding:12px;border:none;border-radius:11px;background:linear-gradient(135deg,#00DC82,#00b86b);color:#04140d;font-weight:900;font-size:12.5px;letter-spacing:0.04em;cursor:pointer;font-family:inherit;';
   container.appendChild(urlBtn);
 
@@ -22063,14 +21778,14 @@ function _zBuildThumbView(container) {
   }
   function loadFromSrc(src, crossOrigin) {
     while (result.firstChild) result.removeChild(result.firstChild);
-    var loading = document.createElement('div'); loading.textContent = 'Analizando píxeles…'; loading.style.cssText = 'color:rgba(0,220,130,0.8);font-size:12px;padding:8px 0;';
+    var loading = document.createElement('div'); loading.textContent = 'Analyzing pixels'; loading.style.cssText = 'color:rgba(0,220,130,0.8);font-size:12px;padding:8px 0;';
     result.appendChild(loading);
     var img = new Image();
     if (crossOrigin) img.crossOrigin = 'anonymous';
     img.onload = function() { analyzeImg(img); };
     img.onerror = function() {
       while (result.firstChild) result.removeChild(result.firstChild);
-      var e = document.createElement('div'); e.textContent = '⚠ No pude cargar la imagen. Probá subiendo el archivo.'; e.style.cssText = 'color:#FFD93D;font-size:12px;';
+      var e = document.createElement('div'); e.textContent = '⚠ Could not load the image. Try uploading the file.'; e.style.cssText = 'color:#FFD93D;font-size:12px;';
       result.appendChild(e);
     };
     img.src = src;
@@ -22099,7 +21814,7 @@ function _zBuildThumbView(container) {
     var u = String(urlInput.value || '').trim();
     if (!/^https?:\/\//i.test(u)) {
       while (result.firstChild) result.removeChild(result.firstChild);
-      var w = document.createElement('div'); w.textContent = 'Pegá una URL válida (https://…) o subí el archivo.'; w.style.cssText = 'color:#FFD93D;font-size:12px;';
+      var w = document.createElement('div'); w.textContent = 'Paste a valid https URL, or upload the file.'; w.style.cssText = 'color:#FFD93D;font-size:12px;';
       result.appendChild(w); return;
     }
     loadFromSrc(u, true);
@@ -22110,7 +21825,7 @@ function _zRenderPredictionResult(container, pred) {
   while (container.firstChild) container.removeChild(container.firstChild);
   if (!pred) return;
 
-  // 1) HERO: score circular + verdicto + nicho/$
+  // Hero: score ring, verdict, niche and money index.
   var hero = document.createElement('div');
   hero.style.cssText = 'display:flex;align-items:center;gap:16px;padding:16px;border-radius:13px;background:#0e1217;border:1px solid ' + _zHexToRgba(pred.color, 0.45) + ';margin-bottom:14px;';
   var ring = document.createElement('div');
@@ -22129,10 +21844,10 @@ function _zRenderPredictionResult(container, pred) {
   verdict.textContent = pred.verdict;
   verdict.style.cssText = 'font-size:16px;font-weight:900;color:' + pred.color + ';letter-spacing:0.03em;';
   var nicheLine = document.createElement('div');
-  nicheLine.textContent = 'Nicho: ' + pred.niche + '  ·  RPM ~$' + pred.nicheRpm;
+  nicheLine.textContent = 'Niche: ' + pred.niche + '  ·  RPM ~$' + pred.nicheRpm;
   nicheLine.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);margin-top:5px;';
   var moneyLine = document.createElement('div');
-  moneyLine.textContent = '💰 Índice de $: ' + pred.moneyPotentialIndex + '  (score × RPM)';
+  moneyLine.textContent = '💰 Money index: ' + pred.moneyPotentialIndex + '  (score x RPM)';
   moneyLine.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);margin-top:2px;';
   heroTxt.appendChild(verdict); heroTxt.appendChild(nicheLine); heroTxt.appendChild(moneyLine);
   hero.appendChild(ring); hero.appendChild(heroTxt);
@@ -22141,10 +21856,10 @@ function _zRenderPredictionResult(container, pred) {
   // 2) BREAKDOWN bars
   var bd = pred.breakdown || {};
   var rows = [
-    { label: 'Título (clickabilidad)', d: bd.titulo },
-    { label: 'Nicho + monetización', d: bd.nicho },
-    { label: 'Heat del mercado', d: bd.mercado },
-    { label: 'Anti-saturación', d: bd.saturacion }
+    { label: 'Title clickability', d: bd.titulo },
+    { label: 'Niche and monetization', d: bd.nicho },
+    { label: 'Market heat', d: bd.mercado },
+    { label: 'Anti saturation', d: bd.saturacion }
   ];
   rows.forEach(function(row) {
     if (!row.d) return;
@@ -22171,14 +21886,14 @@ function _zRenderPredictionResult(container, pred) {
     container.appendChild(line);
   });
 
-  // 3) VEREDICTO (publicar / mejorar / poca data)
+  // Verdict: publish, improve, or low data.
   var md = pred.marketData || {};
   var st = pred.recommendStatus || 'acceptable';
   var recColor = st === 'publish' ? '#00DC82' : st === 'improve' ? '#FFD93D' : st === 'lowdata' ? '#9aa6b2' : '#7FE3FF';
   var rec = document.createElement('div');
   rec.style.cssText = 'margin-top:8px;margin-bottom:13px;padding:12px 13px;border-radius:11px;background:' + _zHexToRgba(recColor, 0.09) + ';border:1px solid ' + _zHexToRgba(recColor, 0.42) + ';';
   var recTitle = document.createElement('div');
-  recTitle.textContent = st === 'publish' ? '✅ LISTO PARA PUBLICAR' : st === 'improve' ? '🔧 MEJORAR ANTES DE PUBLICAR' : st === 'lowdata' ? 'ℹ POCA DATA DE MERCADO' : '➜ VEREDICTO';
+  recTitle.textContent = st === 'publish' ? '✅ READY TO PUBLISH' : st === 'improve' ? '🔧 IMPROVE BEFORE PUBLISHING' : st === 'lowdata' ? 'ℹ LOW MARKET DATA' : '➜ VERDICT';
   recTitle.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:' + recColor + ';margin-bottom:5px;';
   var recText = document.createElement('div');
   recText.textContent = pred.recommendation || '';
@@ -22186,11 +21901,11 @@ function _zRenderPredictionResult(container, pred) {
   rec.appendChild(recTitle); rec.appendChild(recText);
   container.appendChild(rec);
 
-  // 4) GANADORES REALES del nicho
+  // Real niche winners.
   var winners = md.topWinners || [];
   if (winners.length) {
     var wHdr = document.createElement('div');
-    wHdr.textContent = '🏆 GANADORES REALES DEL NICHO (' + (md.nicheTitlesInCorpus || winners.length) + ' en tu base de mercado)';
+    wHdr.textContent = '🏆 REAL NICHE WINNERS (' + (md.nicheTitlesInCorpus || winners.length) + ' in your market corpus)';
     wHdr.style.cssText = 'font-size:10px;font-weight:800;letter-spacing:0.04em;color:rgba(255,255,255,0.55);margin:4px 0 6px;';
     container.appendChild(wHdr);
     winners.slice(0, 6).forEach(function(w) {
@@ -22207,14 +21922,14 @@ function _zRenderPredictionResult(container, pred) {
     });
   }
 
-  // 5) Hand-off al chat ZERACK
+  // Hand off to the ZERACK chat.
   var chatBtn = document.createElement('button');
-  chatBtn.textContent = '💬 Pedirle a ZERACK que reescriba mi título';
+  chatBtn.textContent = '💬 Ask ZERACK to rewrite my title';
   chatBtn.style.cssText = 'width:100%;margin-top:15px;padding:11px;border:1px solid rgba(0,220,130,0.4);border-radius:10px;background:rgba(0,220,130,0.08);color:#00DC82;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;';
   chatBtn.onclick = function() {
     try {
       var m = document.getElementById('zerack-predictor-modal'); if (m) m.remove();
-      window._zerackPendingPrompt = 'Mi título es: "' + pred.title + '". Score ' + pred.viralScore + '/100 en el nicho ' + pred.niche + '. Dame 3 títulos alternativos MÁS virales basados en los ganadores reales del nicho, y explicá por qué cada uno es mejor.';
+      window._zerackPendingPrompt = 'My title is: "' + pred.title + '". It scores ' + pred.viralScore + '/100 in the ' + pred.niche + ' niche. Give me 3 more viral alternatives based on the real niche winners, and say why each one is better.';
       openNspCoachChat();
     } catch (e) {}
   };
@@ -22237,7 +21952,7 @@ function openZerackPredictorPanel(prefillTitle) {
     var hdr = document.createElement('div');
     hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid rgba(255,255,255,0.07);position:sticky;top:0;background:#0a0c0f;z-index:2;';
     var hTitle = document.createElement('div');
-    hTitle.textContent = '🔮 PREDICTOR DE VIRALIDAD';
+    hTitle.textContent = '🔮 VIRALITY PREDICTOR';
     hTitle.style.cssText = 'font-weight:900;font-size:14px;letter-spacing:0.07em;color:#00DC82;';
     var closeBtn = document.createElement('button');
     closeBtn.textContent = '✕';
@@ -22249,13 +21964,13 @@ function openZerackPredictorPanel(prefillTitle) {
     var bodyEl = document.createElement('div');
     bodyEl.style.cssText = 'padding:18px;';
 
-    // Tabs: Título | Miniatura
+    // Tabs: title and thumbnail.
     var titleView = document.createElement('div');
     var thumbView = document.createElement('div');
     var tabBar = document.createElement('div');
     tabBar.style.cssText = 'display:flex;gap:6px;margin-bottom:15px;';
-    var tabTitle = document.createElement('button'); tabTitle.textContent = '📝 TÍTULO';
-    var tabThumb = document.createElement('button'); tabThumb.textContent = '🖼 MINIATURA';
+    var tabTitle = document.createElement('button'); tabTitle.textContent = '📝 TITLE';
+    var tabThumb = document.createElement('button'); tabThumb.textContent = '🖼 THUMBNAIL';
     var _tabBase = 'flex:1;padding:9px;border-radius:9px;border:1px solid;font-weight:800;font-size:11px;cursor:pointer;font-family:inherit;letter-spacing:0.03em;';
     function _zActivateTab(which) {
       var on = 'background:rgba(0,220,130,0.14);border-color:rgba(0,220,130,0.5);color:#00DC82;';
@@ -22271,12 +21986,12 @@ function openZerackPredictorPanel(prefillTitle) {
     bodyEl.appendChild(tabBar);
 
     var sub = document.createElement('div');
-    sub.textContent = 'Pegá tu título. ZERACK lo compara contra los ganadores REALES del nicho (tu base de mercado + búsqueda activa en YouTube) y te dice si publicar o mejorar.';
+    sub.textContent = 'Paste your title. ZERACK compares it against the real niche winners, from your market corpus plus a live YouTube search, and says whether to publish or improve it.';
     sub.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;margin-bottom:13px;';
     titleView.appendChild(sub);
 
     var titleInput = document.createElement('textarea');
-    titleInput.placeholder = 'Ej: La verdad oculta sobre la Gran Pirámide que nadie te contó';
+    titleInput.placeholder = 'For example: the hidden truth about the Great Pyramid nobody told you';
     titleInput.value = prefillTitle || '';
     titleInput.style.cssText = 'width:100%;box-sizing:border-box;min-height:54px;resize:vertical;background:#11151a;border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#fff;padding:11px 13px;font-size:13px;font-family:inherit;line-height:1.4;outline:none;';
     titleInput.onfocus = function() { titleInput.style.borderColor = 'rgba(0,220,130,0.6)'; };
@@ -22285,12 +22000,12 @@ function openZerackPredictorPanel(prefillTitle) {
 
     var nicheInput = document.createElement('input');
     nicheInput.type = 'text';
-    nicheInput.placeholder = 'Nicho (opcional — lo detecto solo): historia, finanzas, misterio…';
+    nicheInput.placeholder = 'Niche, optional, detected automatically: history, finance, mystery';
     nicheInput.style.cssText = 'width:100%;box-sizing:border-box;margin-top:9px;background:#11151a;border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#fff;padding:9px 13px;font-size:12px;font-family:inherit;outline:none;';
     titleView.appendChild(nicheInput);
 
     var predictBtn = document.createElement('button');
-    predictBtn.textContent = '⚡ PREDECIR VIRALIDAD';
+    predictBtn.textContent = '⚡ PREDICT VIRALITY';
     predictBtn.style.cssText = 'width:100%;margin-top:13px;padding:13px;border:none;border-radius:11px;background:linear-gradient(135deg,#00DC82,#00b86b);color:#04140d;font-weight:900;font-size:13px;letter-spacing:0.05em;cursor:pointer;font-family:inherit;';
     titleView.appendChild(predictBtn);
 
@@ -22298,7 +22013,7 @@ function openZerackPredictorPanel(prefillTitle) {
     result.style.cssText = 'margin-top:16px;';
     titleView.appendChild(result);
 
-    // Construir vista de miniatura (PIEZA 4) y montar ambas vistas
+    // Build the thumbnail view and mount both views.
     _zBuildThumbView(thumbView);
     bodyEl.appendChild(titleView);
     bodyEl.appendChild(thumbView);
@@ -22314,26 +22029,26 @@ function openZerackPredictorPanel(prefillTitle) {
       while (result.firstChild) result.removeChild(result.firstChild);
       if (title.length < 6) {
         var warn = document.createElement('div');
-        warn.textContent = 'Escribí un título de al menos 6 caracteres.';
+        warn.textContent = 'Enter a title of at least 6 characters.';
         warn.style.cssText = 'color:#FFD93D;font-size:12px;padding:8px 0;';
         result.appendChild(warn);
         return;
       }
       predictBtn.disabled = true;
-      predictBtn.textContent = '🔎 Analizando mercado…';
+      predictBtn.textContent = '🔎 Analyzing the market';
       predictBtn.style.opacity = '0.7';
       var loading = document.createElement('div');
-      loading.textContent = 'Consultando tu base de mercado + buscando ganadores del nicho en YouTube…';
+      loading.textContent = 'Reading your market corpus and searching YouTube for niche winners';
       loading.style.cssText = 'color:rgba(0,220,130,0.8);font-size:12px;padding:10px 0;';
       result.appendChild(loading);
       zerackRunPrediction(title, String(nicheInput.value || '')).then(function(pred) {
         predictBtn.disabled = false;
-        predictBtn.textContent = '⚡ PREDECIR DE NUEVO';
+        predictBtn.textContent = '⚡ PREDICT AGAIN';
         predictBtn.style.opacity = '1';
         _zRenderPredictionResult(result, pred);
       }).catch(function(err) {
         predictBtn.disabled = false;
-        predictBtn.textContent = '⚡ PREDECIR VIRALIDAD';
+        predictBtn.textContent = '⚡ PREDICT VIRALITY';
         predictBtn.style.opacity = '1';
         while (result.firstChild) result.removeChild(result.firstChild);
         var e = document.createElement('div');
@@ -22354,9 +22069,9 @@ function nspCoachExecuteTool(toolName, args) {
   args = args || {};
   try {
     if (toolName === 'zerackFetchMarketData') {
-      // Búsqueda activa on-demand: ZERACK trae títulos del nicho del mercado
+      // On demand market search: pulls niche titles from the market.
       var fq = String(args.query || '').trim();
-      if (!fq) return Promise.resolve({ ok: false, error: 'query vacío' });
+      if (!fq) return Promise.resolve({ ok: false, error: 'empty query' });
       return nspFetchMarketData(fq).then(function(mr) {
         return nspIngestMarketVideos(mr.videos).then(function(size) {
           return { ok: true, fetched: (mr.videos || []).length, corpusSize: size, topTitles: (mr.videos || []).slice(0, 10).map(function(v) { return { title: v.title, views: v.views }; }) };
@@ -22372,8 +22087,7 @@ function nspCoachExecuteTool(toolName, args) {
       return nspCoachBridgeRequest('NSP_COACH_TOOL_EXT_DATA', { area: String(args.area || 'all') });
     }
     if (toolName === 'nspGetScanData') {
-      // v3.8.4 — Lee de la variable global primero. Si está vacía, FALLBACK: scrapea el shadow DOM
-      // del panel SCAN visible (porque algunos paths como search results no setean la variable).
+      // Read the global first. When it is empty, fall back to scraping the visible SCAN panel shadow DOM, because some paths (search results) never set the global.
       var lastScan = window._ashlyv_last_top_results || [];
       var data = lastScan.slice(0, 10).map(function(item, i) {
         var sc = (item && item.sc) || {};
@@ -22388,7 +22102,7 @@ function nspCoachExecuteTool(toolName, args) {
           niche: String(sc.niche || '').slice(0, 60)
         };
       });
-      // FALLBACK: si la variable está vacía pero el panel SCAN está visible, scrapea del DOM
+      // If the global is empty but the SCAN panel is on screen, scrape it.
       if (!data.length) {
         try {
           var shadowHost = document.getElementById('nsp-shadow-host');
@@ -22422,25 +22136,25 @@ function nspCoachExecuteTool(toolName, args) {
         ok: true,
         count: data.length,
         niches: data,
-        note: data.length ? '' : 'Panel SCAN no visible y window var vacía. Si el usuario ya hizo SCAN, abrí el panel primero. Si no, llamá nspRunNewScan.'
+        note: data.length ? '' : 'The SCAN panel is not visible and the global is empty. If a scan already ran, open the panel first, otherwise call nspRunNewScan.'
       });
     }
     if (toolName === 'nspRunNewScan') {
       var scanBtn = document.getElementById('nsp-batman-scan-btn');
-      if (!scanBtn) return Promise.resolve({ ok: false, error: 'SCAN button no encontrado en YouTube' });
+      if (!scanBtn) return Promise.resolve({ ok: false, error: 'SCAN button not found on YouTube' });
       try { scanBtn.click(); } catch(e) { return Promise.resolve({ ok: false, error: 'click failed: ' + e.message }); }
-      return Promise.resolve({ ok: true, status: 'scan_triggered', note: 'SCAN iniciado, espera 10-30 segundos y luego llamá nspGetScanData' });
+      return Promise.resolve({ ok: true, status: 'scan_triggered', note: 'Scan started. Wait 10 to 30 seconds, then call nspGetScanData' });
     }
     if (toolName === 'nspOpenYouTubeSearch') {
       var q = String(args.query || '').slice(0, 200);
-      if (!q) return Promise.resolve({ ok: false, error: 'query vacío' });
+      if (!q) return Promise.resolve({ ok: false, error: 'empty query' });
       var searchUrl = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(q);
       return nspCoachBridgeRequest('NSP_COACH_TOOL_OPENTAB', { url: searchUrl });
     }
     if (toolName === 'nspNavigateTo') {
       var navUrl = String(args.url || '');
       if (!/^https:\/\//i.test(navUrl)) {
-        return Promise.resolve({ ok: false, error: 'URL debe empezar con https://' });
+        return Promise.resolve({ ok: false, error: 'URL must start with https://' });
       }
       return nspCoachBridgeRequest('NSP_COACH_TOOL_NAVIGATE', { url: navUrl });
     }
@@ -22459,16 +22173,16 @@ function nspCoachExecuteTool(toolName, args) {
     if (toolName === 'nspFetchUrl') {
       var fetchUrl = String(args.url || '');
       if (!/^https:\/\//i.test(fetchUrl)) {
-        return Promise.resolve({ ok: false, error: 'URL debe ser https://' });
+        return Promise.resolve({ ok: false, error: 'URL must be https://' });
       }
       return nspCoachBridgeRequest('NSP_COACH_TOOL_FETCHURL', { url: fetchUrl });
     }
     if (toolName === 'nspClickElement') {
       var sel = String(args.selector || '').slice(0, 500);
-      if (!sel) return Promise.resolve({ ok: false, error: 'selector vacío' });
+      if (!sel) return Promise.resolve({ ok: false, error: 'empty selector' });
       try {
         var el = document.querySelector(sel);
-        if (!el) return Promise.resolve({ ok: false, error: 'elemento no encontrado: ' + sel });
+        if (!el) return Promise.resolve({ ok: false, error: 'element not found: ' + sel });
         try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
         try { el.click(); } catch(eClick) { return Promise.resolve({ ok: false, error: 'click failed: ' + eClick.message }); }
         return Promise.resolve({ ok: true, clicked: sel, tagName: el.tagName });
@@ -22477,12 +22191,12 @@ function nspCoachExecuteTool(toolName, args) {
     if (toolName === 'nspTypeIntoInput') {
       var inputSel = String(args.selector || '').slice(0, 500);
       var typeText = String(args.text || '').slice(0, 4000);
-      if (!inputSel) return Promise.resolve({ ok: false, error: 'selector vacío' });
+      if (!inputSel) return Promise.resolve({ ok: false, error: 'empty selector' });
       try {
         var inp = document.querySelector(inputSel);
-        if (!inp) return Promise.resolve({ ok: false, error: 'input no encontrado: ' + inputSel });
+        if (!inp) return Promise.resolve({ ok: false, error: 'input not found: ' + inputSel });
         try { inp.focus(); } catch(e) {}
-        // Setear value + disparar eventos (algunos frameworks escuchan input/change)
+        // Set the value and fire events, since some frameworks listen for input and change.
         var nativeValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
           || Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value');
         try {
@@ -22498,7 +22212,7 @@ function nspCoachExecuteTool(toolName, args) {
       try {
         var rootSel = String(args.selector || '').slice(0, 500);
         var root = rootSel ? document.querySelector(rootSel) : document.body;
-        if (!root) return Promise.resolve({ ok: false, error: 'elemento no encontrado' });
+        if (!root) return Promise.resolve({ ok: false, error: 'element not found' });
         var text = (root.innerText || root.textContent || '').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, 8000);
         return Promise.resolve({ ok: true, text: text, length: text.length, truncated: text.length >= 8000 });
       } catch(e) { return Promise.resolve({ ok: false, error: e.message }); }
@@ -22517,7 +22231,7 @@ function nspCoachExecuteTool(toolName, args) {
     if (toolName === 'nspWaitForElement') {
       var waitSel = String(args.selector || '').slice(0, 500);
       var timeoutMs = Math.max(100, Math.min(15000, Number(args.timeoutMs) || 5000));
-      if (!waitSel) return Promise.resolve({ ok: false, error: 'selector vacío' });
+      if (!waitSel) return Promise.resolve({ ok: false, error: 'empty selector' });
       return new Promise(function(resolve) {
         var start = Date.now();
         function check() {
@@ -22534,7 +22248,7 @@ function nspCoachExecuteTool(toolName, args) {
     if (toolName === 'nspOpenNewTab') {
       var tabUrl = String(args.url || '');
       if (!/^https:\/\//i.test(tabUrl)) {
-        return Promise.resolve({ ok: false, error: 'URL debe empezar con https://' });
+        return Promise.resolve({ ok: false, error: 'URL must start with https://' });
       }
       return nspCoachBridgeRequest('NSP_COACH_TOOL_OPENTAB', { url: tabUrl });
     }
@@ -22561,16 +22275,16 @@ function nspCoachExecuteTool(toolName, args) {
     // ─── v3.9.0 GOD-TIER TOOLS ───────────────────────────────────────
     if (toolName === 'nspGetChannelStats') {
       var statsUrl = String(args.channelUrl || '');
-      if (!/youtube\.com/i.test(statsUrl)) return Promise.resolve({ ok: false, error: 'channelUrl debe ser de youtube.com' });
+      if (!/youtube\.com/i.test(statsUrl)) return Promise.resolve({ ok: false, error: 'channelUrl must be a youtube.com URL' });
       return nspCoachBridgeRequest('NSP_COACH_TOOL_CHANNEL_STATS', { channelUrl: statsUrl });
     }
     if (toolName === 'nspGetChannelVideos') {
       var cvUrl = String(args.channelUrl || '');
-      if (!/youtube\.com/i.test(cvUrl)) return Promise.resolve({ ok: false, error: 'channelUrl debe ser de youtube.com' });
+      if (!/youtube\.com/i.test(cvUrl)) return Promise.resolve({ ok: false, error: 'channelUrl must be a youtube.com URL' });
       return nspCoachBridgeRequest('NSP_COACH_TOOL_CHANNEL_VIDEOS', { channelUrl: cvUrl });
     }
     if (toolName === 'nspExtractVisibleVideos') {
-      // Lee videos visibles en la página YouTube actual (DOM scraping, MAIN world)
+      // Reads the videos visible on the current YouTube page by scraping the DOM.
       try {
         var cards = document.querySelectorAll('ytd-rich-item-renderer, ytd-video-renderer, ytd-grid-video-renderer, ytd-compact-video-renderer');
         var vids = [];
@@ -22606,73 +22320,65 @@ function nspCoachExecuteTool(toolName, args) {
       };
       return nspCoachBridgeRequest('NSP_COACH_TOOL_ADD_TRACKING', { nicho: trkNicho });
     }
-    return Promise.resolve({ ok: false, error: 'tool desconocida: ' + toolName });
+    return Promise.resolve({ ok: false, error: 'unknown tool: ' + toolName });
   } catch(e) {
     return Promise.resolve({ ok: false, error: String(e && e.message || e) });
   }
 }
 
-// v3.7.0 — Tools expandidas: 17 herramientas para control profundo del navegador
+// Tool definitions for deep browser control.
 function nspCoachGetToolDefinitions() {
   return [{
     functionDeclarations: [
-      // SCAN / NICHOS
-      { name: 'nspGetScanData', description: 'Lee los nichos del último SCAN. Devuelve array con título, canal, VPH, vistas, vidId.', parameters: { type:'object', properties:{}, required:[] } },
-      { name: 'nspRunNewScan', description: 'Ejecuta SCAN nuevo del feed YouTube. Tarda 10-30 seg.', parameters: { type:'object', properties:{}, required:[] } },
-      { name: 'nspGetSavedNiches', description: 'Lista de nichos guardados en favoritos.', parameters: { type:'object', properties:{}, required:[] } },
-      { name: 'nspSaveNiche', description: 'Guarda nicho en favoritos.', parameters: { type:'object', properties:{ title:{type:'string'}, channelName:{type:'string'}, channelUrl:{type:'string'}, vidId:{type:'string'}, niche:{type:'string'} }, required:['title','channelName'] } },
-      // NAVEGACIÓN / TABS
-      { name: 'nspNavigateTo', description: 'Navega la pestaña ACTUAL a cualquier URL https://. Reemplaza el contenido.', parameters: { type:'object', properties:{ url:{type:'string'} }, required:['url'] } },
-      { name: 'nspOpenNewTab', description: 'Abre pestaña NUEVA con la URL. La actual queda intacta.', parameters: { type:'object', properties:{ url:{type:'string'} }, required:['url'] } },
-      { name: 'nspOpenYouTubeSearch', description: 'Abre YouTube buscando algo en tab nuevo.', parameters: { type:'object', properties:{ query:{type:'string'} }, required:['query'] } },
-      { name: 'nspListTabs', description: 'Lista todas las pestañas abiertas. Devuelve [{id, url, title, active}].', parameters: { type:'object', properties:{}, required:[] } },
-      { name: 'nspSwitchToTab', description: 'Foca una pestaña por ID.', parameters: { type:'object', properties:{ tabId:{type:'number'} }, required:['tabId'] } },
-      { name: 'nspCloseTab', description: 'Cierra una pestaña por ID.', parameters: { type:'object', properties:{ tabId:{type:'number'} }, required:['tabId'] } },
-      { name: 'nspGetCurrentPage', description: 'URL y título de la pestaña activa.', parameters: { type:'object', properties:{}, required:[] } },
-      // INTERACCIÓN CON PÁGINA (DOM de la pestaña actual)
-      { name: 'nspClickElement', description: 'Click en elemento del DOM por CSS selector. Devuelve si funcionó.', parameters: { type:'object', properties:{ selector:{type:'string'} }, required:['selector'] } },
-      { name: 'nspTypeIntoInput', description: 'Escribe texto en input/textarea del DOM.', parameters: { type:'object', properties:{ selector:{type:'string'}, text:{type:'string'} }, required:['selector','text'] } },
-      { name: 'nspGetPageText', description: 'Extrae texto de la página actual. Si pasás selector, solo de ese elemento.', parameters: { type:'object', properties:{ selector:{type:'string'} }, required:[] } },
-      { name: 'nspScrollPage', description: 'Scroll. direction: up/down/top/bottom. amount: pixels (default 600).', parameters: { type:'object', properties:{ direction:{type:'string'}, amount:{type:'number'} }, required:['direction'] } },
-      { name: 'nspWaitForElement', description: 'Espera hasta que un elemento aparezca en el DOM (default 5s).', parameters: { type:'object', properties:{ selector:{type:'string'}, timeoutMs:{type:'number'} }, required:['selector'] } },
+      // Scan and niches
+      { name: 'nspGetScanData', description: 'Reads the niches from the last scan. Returns an array with title, channel, VPH, views and vidId.', parameters: { type:'object', properties:{}, required:[] } },
+      { name: 'nspRunNewScan', description: 'Runs a fresh scan of the YouTube feed. Takes 10 to 30 seconds.', parameters: { type:'object', properties:{}, required:[] } },
+      { name: 'nspGetSavedNiches', description: 'Lists the saved niches.', parameters: { type:'object', properties:{}, required:[] } },
+      { name: 'nspSaveNiche', description: 'Saves a niche.', parameters: { type:'object', properties:{ title:{type:'string'}, channelName:{type:'string'}, channelUrl:{type:'string'}, vidId:{type:'string'}, niche:{type:'string'} }, required:['title','channelName'] } },
+      // Navigation and tabs
+      { name: 'nspNavigateTo', description: 'Navigates the CURRENT tab to any https:// URL, replacing its content.', parameters: { type:'object', properties:{ url:{type:'string'} }, required:['url'] } },
+      { name: 'nspOpenNewTab', description: 'Opens the URL in a NEW tab, leaving the current one untouched.', parameters: { type:'object', properties:{ url:{type:'string'} }, required:['url'] } },
+      { name: 'nspOpenYouTubeSearch', description: 'Opens a YouTube search in a new tab.', parameters: { type:'object', properties:{ query:{type:'string'} }, required:['query'] } },
+      { name: 'nspListTabs', description: 'Lists every open tab. Returns [{id, url, title, active}].', parameters: { type:'object', properties:{}, required:[] } },
+      { name: 'nspSwitchToTab', description: 'Focuses a tab by id.', parameters: { type:'object', properties:{ tabId:{type:'number'} }, required:['tabId'] } },
+      { name: 'nspCloseTab', description: 'Closes a tab by id.', parameters: { type:'object', properties:{ tabId:{type:'number'} }, required:['tabId'] } },
+      { name: 'nspGetCurrentPage', description: 'URL and title of the active tab.', parameters: { type:'object', properties:{}, required:[] } },
+      // Page interaction, on the current tab DOM
+      { name: 'nspClickElement', description: 'Clicks a DOM element by CSS selector and reports whether it worked.', parameters: { type:'object', properties:{ selector:{type:'string'} }, required:['selector'] } },
+      { name: 'nspTypeIntoInput', description: 'Types text into a DOM input or textarea.', parameters: { type:'object', properties:{ selector:{type:'string'}, text:{type:'string'} }, required:['selector','text'] } },
+      { name: 'nspGetPageText', description: 'Extracts text from the current page, or from one element when a selector is given.', parameters: { type:'object', properties:{ selector:{type:'string'} }, required:[] } },
+      { name: 'nspScrollPage', description: 'Scrolls. direction: up, down, top or bottom. amount: pixels, default 600.', parameters: { type:'object', properties:{ direction:{type:'string'}, amount:{type:'number'} }, required:['direction'] } },
+      { name: 'nspWaitForElement', description: 'Waits until an element appears in the DOM, 5 seconds by default.', parameters: { type:'object', properties:{ selector:{type:'string'}, timeoutMs:{type:'number'} }, required:['selector'] } },
       // FETCH WEB
-      { name: 'nspFetchUrl', description: 'Fetch GET de cualquier URL https://. Devuelve hasta 8000 chars del body como texto. Útil para leer páginas sin navegar.', parameters: { type:'object', properties:{ url:{type:'string'} }, required:['url'] } },
+      { name: 'nspFetchUrl', description: 'GET on any https:// URL. Returns up to 8000 characters of the body as text, so a page can be read without navigating.', parameters: { type:'object', properties:{ url:{type:'string'} }, required:['url'] } },
       // ─── v3.9.0 GOD-TIER ───
-      { name: 'nspGetChannelStats', description: 'Stats REALES de un canal YouTube: subscribers, total videos, fecha de creación, país, descripción. Fetch a la página /about. Usa esto para análisis con datos reales en vez de estimaciones.', parameters: { type:'object', properties:{ channelUrl:{type:'string', description:'URL del canal (https://youtube.com/@handle o /channel/UC...)'} }, required:['channelUrl'] } },
-      { name: 'nspGetChannelVideos', description: 'Lista los videos recientes (uploads) de un canal. Útil para analizar su estrategia de contenido, frecuencia, títulos.', parameters: { type:'object', properties:{ channelUrl:{type:'string'} }, required:['channelUrl'] } },
-      { name: 'nspExtractVisibleVideos', description: 'Extrae los videos que el usuario está VIENDO ahora en la página de YouTube (título, canal, vistas, URL). Usa esto cuando el usuario dice "mirá la pantalla", "qué hay en mi feed", "analizá lo que veo".', parameters: { type:'object', properties:{}, required:[] } },
-      { name: 'nspExportNiches', description: 'Exporta los nichos guardados a un archivo descargable (CSV). El navegador descarga el archivo automáticamente.', parameters: { type:'object', properties:{ format:{type:'string', description:'csv o json (default csv)'} }, required:[] } },
-      { name: 'nspAddToTracking', description: 'Añade un canal al sistema de TRACKING para monitorear su crecimiento.', parameters: { type:'object', properties:{ title:{type:'string'}, channelName:{type:'string'}, channelUrl:{type:'string'}, niche:{type:'string'} }, required:['channelName'] } },
-      // ─── v3.14.0 PREDICTOR + ACCESO TOTAL ───
-      { name: 'zerackPredictVirality', description: 'PREDICE la viralidad de un título/idea (score 0-100) según el mercado real: señal del título + RPM del nicho + heat del mercado actual + saturación. Devuelve breakdown detallado. Usá esto cuando el usuario pida "¿esto se va a hacer viral?", "predecí", "qué score tiene este título", o para comparar ideas.', parameters: { type:'object', properties:{ title:{type:'string', description:'El título o idea de video a predecir'}, niche:{type:'string', description:'Nicho opcional para mejor detección de RPM'} }, required:['title'] } },
-      { name: 'zerackGetExtensionData', description: 'Accede a TODOS los datos guardados de la extensión: nichos guardados (el dashboard del usuario), stats de nichos en el tiempo, historial de scans, alertas de tendencias, canales en tracking. Usá esto para saber EN QUÉ está trabajando el usuario y darle contexto real. area: "savedNiches" | "nicheStats" | "scanHistory" | "alerts" | "all".', parameters: { type:'object', properties:{ area:{type:'string', description:'savedNiches | nicheStats | scanHistory | alerts | all'} }, required:[] } },
-      { name: 'zerackFetchMarketData', description: 'BÚSQUEDA ACTIVA: trae títulos+views REALES del mercado de YouTube para un nicho/query (vía InnerTube) y los suma al corpus. Usalo cuando querés data fresca de competencia de un nicho que el usuario no ha escaneado, o para enriquecer una predicción. Devuelve los top títulos encontrados.', parameters: { type:'object', properties:{ query:{type:'string', description:'nicho o término a buscar en YouTube (ej "ancient history documentary")'} }, required:['query'] } }
+      { name: 'nspGetChannelStats', description: 'Real stats for a YouTube channel: subscribers, total videos, creation date, country and description, read from the /about page. Use it instead of estimating.', parameters: { type:'object', properties:{ channelUrl:{type:'string', description:'Channel URL, https://youtube.com/@handle or /channel/UC...'} }, required:['channelUrl'] } },
+      { name: 'nspGetChannelVideos', description: 'Lists a channel recent uploads, useful for reading its content strategy, cadence and titles.', parameters: { type:'object', properties:{ channelUrl:{type:'string'} }, required:['channelUrl'] } },
+      { name: 'nspExtractVisibleVideos', description: 'Extracts the videos on screen right now (title, channel, views, URL). Use it when asked to look at the screen, or what is in my feed.', parameters: { type:'object', properties:{}, required:[] } },
+      { name: 'nspExportNiches', description: 'Exports the saved niches to a downloadable CSV. The browser downloads it automatically.', parameters: { type:'object', properties:{ format:{type:'string', description:'csv or json, default csv'} }, required:[] } },
+      { name: 'nspAddToTracking', description: 'Adds a channel to tracking so its growth is monitored.', parameters: { type:'object', properties:{ title:{type:'string'}, channelName:{type:'string'}, channelUrl:{type:'string'}, niche:{type:'string'} }, required:['channelName'] } },
+      // Predictor and full extension data access
+      { name: 'zerackPredictVirality', description: 'Predicts how viral a title or idea is, 0 to 100, against the real market: title signal, niche RPM, current market heat and saturation. Returns a detailed breakdown. Use it when asked whether something will go viral, what a title scores, or to compare ideas.', parameters: { type:'object', properties:{ title:{type:'string', description:'The title or video idea to score'}, niche:{type:'string', description:'Optional niche, for a better RPM read'} }, required:['title'] } },
+      { name: 'zerackGetExtensionData', description: 'Reads every stored piece of extension data: saved niches from the dashboard, niche stats over time, scan history, trend alerts and tracked channels. Use it to know what is being worked on. area: "savedNiches" | "nicheStats" | "scanHistory" | "alerts" | "all".', parameters: { type:'object', properties:{ area:{type:'string', description:'savedNiches | nicheStats | scanHistory | alerts | all'} }, required:[] } },
+      { name: 'zerackFetchMarketData', description: 'Live search: pulls real titles and view counts from YouTube for a niche or query through InnerTube and adds them to the corpus. Use it for fresh competitor data on a niche that was never scanned, or to strengthen a prediction. Returns the top titles found.', parameters: { type:'object', properties:{ query:{type:'string', description:'Niche or term to search on YouTube, for example "ancient history documentary"'} }, required:['query'] } }
     ]
   }];
 }
 
-// Limpia residuos de markdown de la respuesta (defensa por si Gemini ignora el system prompt)
+// Strips leftover markdown from a reply, in case the model ignores the system prompt.
 function nspCoachCleanMarkdown(text) {
   if (!text) return '';
   var t = String(text);
-  // Remover headings ## ### #### al inicio de línea
   t = t.replace(/^#{1,6}\s+/gm, '');
-  // Remover negrita y cursiva: **texto** o *texto* → texto
   t = t.replace(/\*\*\*(.+?)\*\*\*/g, '$1');
   t = t.replace(/\*\*(.+?)\*\*/g, '$1');
   t = t.replace(/(?<![*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1');
-  // Remover __underline__
   t = t.replace(/__(.+?)__/g, '$1');
-  // Convertir bullets de markdown "- " o "* " al inicio de línea → "→ "
   t = t.replace(/^[\s]*[-*]\s+/gm, '→ ');
-  // Convertir listas numeradas "1. " "2. " → mantener número pero quitar markdown
   t = t.replace(/^(\d+)\.\s+/gm, '$1) ');
-  // Remover code fences ```
   t = t.replace(/```[a-z]*\n?/g, '');
   t = t.replace(/```/g, '');
-  // Remover backticks inline `code` → code
   t = t.replace(/`([^`]+)`/g, '$1');
-  // Colapsar 3+ saltos de línea a 2
   t = t.replace(/\n{3,}/g, '\n\n');
   return t.trim();
 }
@@ -22693,7 +22399,7 @@ function injectNspCoachButton() {
     + 'color:#fff;font-size:11px;font-weight:900;cursor:pointer;font-family:Roboto,Arial,sans-serif;'
     + 'transition:all 0.2s;letter-spacing:0.1em;outline:none;'
     + 'box-shadow:0 2px 12px rgba(0,220,130,0.5);';
-  // Trusted Types compliant — sin innerHTML
+  // Trusted Types: no innerHTML.
   var btnIcon = document.createElement('span');
   btnIcon.style.cssText = 'font-size:14px;line-height:1;';
   btnIcon.textContent = '💬';
@@ -22711,9 +22417,7 @@ function injectNspCoachButton() {
 }
 
 function openNspCoachChat() {
-  // RESET defensivo: si por alguna razón pending quedó stuck en true desde una sesión
-  // anterior (timeout no resuelto, modal cerrado mid-request, etc), liberar para que
-  // siempre se pueda mandar mensaje. v3.4.2 fix.
+  // Defensive reset: an unresolved timeout or a modal closed mid request can leave pending stuck at true, which would block every later message.
   _nspCoachState.pending = false;
   _nspCoachState.pendingRequestId = null;
 
@@ -22732,8 +22436,7 @@ function openNspCoachChat() {
     + 'font-family:ui-monospace,monospace;';
   document.body.appendChild(host);
 
-  // Estilo matchea panel SCAN (TOP NICHOS FACELESS): negro #000, borde rgba blanco sutil,
-  // gradiente header #111→#000, sin morado, monospace, letter-spacing fuerte.
+  // Styling matches the SCAN panel: black, a subtle white border, a dark header gradient and monospace type.
   var shadow = host.attachShadow({ mode: 'open' });
   var style = document.createElement('style');
   style.textContent = [
@@ -22798,18 +22501,18 @@ function openNspCoachChat() {
   panel.id = 'panel';
   shadow.appendChild(panel);
 
-  // Header con botones NUEVO + HISTORIAL + close
+  // Header with the new chat, history and close buttons.
   var hdr = document.createElement('div');
   hdr.id = 'hdr';
   var hL = document.createElement('div');
   var t1 = document.createElement('div'); t1.id = 'hdr-title'; t1.textContent = '⚡ ZERACK';
-  var t2 = document.createElement('div'); t2.id = 'hdr-sub'; t2.textContent = 'TU MENTOR DE MILLONES · DETECTANDO PROVIDER...';
-  // v3.8.2 — actualiza header con provider real configurado (async desde storage)
+  var t2 = document.createElement('div'); t2.id = 'hdr-sub'; t2.textContent = 'YOUR MENTOR · DETECTING PROVIDER';
+  // Updates the header with the provider actually configured, read from storage.
   (function detectProvider() {
     var reqId = nspCoachReqId();
     var timer = setTimeout(function() {
       delete _nspCoachPendingResponses[reqId];
-      t2.textContent = 'PROVIDER ? · NO PUEDO LEER STORAGE';
+      t2.textContent = 'PROVIDER ? · CANNOT READ STORAGE';
     }, 3000);
     _nspCoachPendingResponses[reqId] = function(data) {
       clearTimeout(timer);
@@ -22820,7 +22523,7 @@ function openNspCoachChat() {
       if (cfg.hasOllama) parts.push('🦙 OLLAMA');
       if (cfg.hasGemini) parts.push('🔵 GEMINI');
       if (!parts.length) {
-        t2.textContent = '⚠ NO HAY PROVIDER · CONFIGURÁ EN OPTIONS';
+        t2.textContent = '⚠ NO PROVIDER · SET ONE UP IN OPTIONS';
         t2.style.color = '#FF6B6B';
       } else {
         t2.textContent = parts.join(' → ') + ' · 17 TOOLS';
@@ -22835,13 +22538,13 @@ function openNspCoachChat() {
 
   var newChatBtn = document.createElement('button');
   newChatBtn.className = 'hdr-action-btn';
-  newChatBtn.textContent = '+ NUEVO';
-  newChatBtn.title = 'Iniciar nuevo chat (el actual queda guardado en HISTORIAL)';
+  newChatBtn.textContent = '+ NEW';
+  newChatBtn.title = 'Start a new chat. The current one is saved in HISTORY.';
 
   var historyBtn = document.createElement('button');
   historyBtn.className = 'hdr-action-btn';
-  historyBtn.textContent = 'HISTORIAL';
-  historyBtn.title = 'Ver conversaciones anteriores';
+  historyBtn.textContent = 'HISTORY';
+  historyBtn.title = 'See earlier conversations';
 
   var closeBtn = document.createElement('button');
   closeBtn.id = 'close-btn'; closeBtn.textContent = '×';
@@ -22854,25 +22557,24 @@ function openNspCoachChat() {
   hdr.appendChild(hR);
   panel.appendChild(hdr);
 
-  // Make draggable usando hdr
   try { makeDraggable(host, hdr); } catch(e) {}
 
-  // Message list (sin status bar — v3.4.2 lo rompió, revertido)
+  // Message list.
   var msgList = document.createElement('div');
   msgList.id = 'msglist';
   panel.appendChild(msgList);
 
-  // History panel (overlay sobre msgList cuando se abre)
+  // History panel, overlaid on the message list when open.
   var historyPanel = document.createElement('div');
   historyPanel.id = 'history-panel';
   var hpHdr = document.createElement('div');
   hpHdr.id = 'history-hdr';
   var hpTitle = document.createElement('div');
   hpTitle.className = 'ht-title';
-  hpTitle.textContent = 'HISTORIAL';
+  hpTitle.textContent = 'HISTORY';
   var hpClose = document.createElement('button');
   hpClose.className = 'hdr-action-btn';
-  hpClose.textContent = '← VOLVER';
+  hpClose.textContent = '← BACK';
   hpClose.onclick = function() {
     historyPanel.classList.remove('open');
     _nspCoachState.historyPanelOpen = false;
@@ -22890,7 +22592,7 @@ function openNspCoachChat() {
     if (!_nspCoachState.sessions.length) {
       var empty = document.createElement('div');
       empty.id = 'history-empty';
-      empty.textContent = 'No hay conversaciones aún. Empieza una nueva chateando con el Coach.';
+      empty.textContent = 'No conversations yet. Start one by chatting with the coach.';
       hpList.appendChild(empty);
       return;
     }
@@ -22901,14 +22603,13 @@ function openNspCoachChat() {
       row.className = 'hist-row';
       var title = document.createElement('div');
       title.className = 'hist-title';
-      title.textContent = sess.title || 'Conversación sin título';
+      title.textContent = sess.title || 'Untitled conversation';
       var meta = document.createElement('div');
       meta.className = 'hist-meta';
       meta.textContent = nspCoachFormatRelativeTime(sess.updatedAt || sess.createdAt) + ' · ' + (sess.messages && sess.messages.length || 0) + ' msgs';
       row.appendChild(title);
       row.appendChild(meta);
       item.appendChild(row);
-      // preview de último mensaje
       var lastMsg = sess.messages && sess.messages.length ? sess.messages[sess.messages.length - 1] : null;
       if (lastMsg && lastMsg.content) {
         var preview = document.createElement('div');
@@ -22922,10 +22623,10 @@ function openNspCoachChat() {
       actionsRow.style.cssText = 'display:flex;justify-content:flex-end;margin-top:2px;';
       var delBtn = document.createElement('button');
       delBtn.className = 'hist-del-btn';
-      delBtn.textContent = '🗑 Borrar';
+      delBtn.textContent = '🗑 Delete';
       delBtn.onclick = function(ev) {
         ev.stopPropagation();
-        if (!confirm('¿Borrar esta conversación?')) return;
+        if (!confirm('Delete this conversation?')) return;
         _nspCoachState.sessions = _nspCoachState.sessions.filter(function(s) { return s.id !== sess.id; });
         nspCoachSessionsSave(_nspCoachState.sessions);
         if (_nspCoachState.currentSessionId === sess.id) {
@@ -22957,11 +22658,9 @@ function openNspCoachChat() {
   };
 
   newChatBtn.onclick = function() {
-    // Persiste sesión actual si tiene mensajes
     if (_nspCoachState.messages.length) {
       nspCoachPersistCurrentSession();
     }
-    // Limpia para nueva conversación
     _nspCoachState.currentSessionId = null;
     _nspCoachState.messages = [];
     renderMessages();
@@ -22972,20 +22671,20 @@ function openNspCoachChat() {
   var typingEl = document.createElement('div');
   typingEl.id = 'typing';
   typingEl.style.display = 'none';
-  typingEl.textContent = '✦ Coach está pensando...';
+  typingEl.textContent = '✦ Coach is thinking';
   panel.appendChild(typingEl);
 
-  // v3.9.0 — Quick-action chips (siempre visibles, scroll horizontal)
+  // Quick action chips, always visible, scrolling horizontally.
   var quickBar = document.createElement('div');
   quickBar.id = 'quick-bar';
   quickBar.style.cssText = 'display:flex;gap:6px;padding:8px 12px 4px;overflow-x:auto;flex-shrink:0;background:#050505;scrollbar-width:none;';
   var quickActions = [
-    ['📊 Analizá mi scan', '¿Cuál de los nichos del último scan tiene más potencial y por qué? Sé específico.'],
-    ['✍️ Genera 5 títulos', 'Generá 5 títulos virales para el nicho #1 del scan, estilo faceless YouTube Automation.'],
-    ['🎬 Guion 60s', 'Escribí un guion faceless de 60 segundos (hook + cuerpo + CTA) para el nicho #1 del scan.'],
-    ['🔍 Mirá mi pantalla', 'Extraé los videos que estoy viendo ahora y dime qué nichos faceless detectás.'],
-    ['📈 Stats del canal', 'Analizá las stats reales del canal del nicho #1 del scan (subs, videos, antigüedad).'],
-    ['💾 Exportá nichos', 'Exportá mis nichos guardados a CSV.']
+    ['📊 Read my scan', 'Which niche in the last scan has the most potential, and why? Be specific.'],
+    ['✍️ Give me 5 titles', 'Write 5 viral titles for niche 1 of the scan, in faceless YouTube automation style.'],
+    ['🎬 60s script', 'Write a 60 second faceless script (hook, body, call to action) for niche 1 of the scan.'],
+    ['🔍 Look at my screen', 'Extract the videos on screen right now and tell me which faceless niches you see.'],
+    ['📈 Channel stats', 'Analyze the real stats of the channel behind niche 1 of the scan: subs, videos, age.'],
+    ['💾 Export niches', 'Export my saved niches to CSV.']
   ];
   quickActions.forEach(function(qa) {
     var chip = document.createElement('button');
@@ -23008,11 +22707,11 @@ function openNspCoachChat() {
   inputWrap.id = 'inputwrap';
   var input = document.createElement('textarea');
   input.id = 'input';
-  input.placeholder = 'Pregúntale sobre un nicho, canal, o pide ideas...';
+  input.placeholder = 'Ask about a niche or a channel, or ask for ideas';
   input.rows = 1;
   var sendBtn = document.createElement('button');
-  sendBtn.id = 'send-btn'; sendBtn.textContent = 'ENVIAR';
-  // v3.9.0 — botón STOP para cancelar turn en progreso
+  sendBtn.id = 'send-btn'; sendBtn.textContent = 'SEND';
+  // STOP button, cancels a turn in progress.
   var stopBtn = document.createElement('button');
   stopBtn.id = 'stop-btn';
   stopBtn.textContent = 'STOP';
@@ -23023,7 +22722,7 @@ function openNspCoachChat() {
     sendBtn.style.display = '';
     stopBtn.style.display = 'none';
     typingEl.style.display = 'none';
-    _nspCoachState.messages.push({ role: 'error', content: '⏹ Cancelado por el usuario.' });
+    _nspCoachState.messages.push({ role: 'error', content: '⏹ Cancelled.' });
     renderMessages();
   };
   inputWrap.appendChild(input);
@@ -23114,12 +22813,12 @@ function openNspCoachChat() {
   var footer = document.createElement('div');
   footer.id = 'footer-bar';
   var footerInfo = document.createElement('span');
-  footerInfo.textContent = 'memoria persistente · sesiones en HISTORIAL';
+  footerInfo.textContent = 'persistent memory · sessions in HISTORY';
   var clearAllBtn = document.createElement('button');
-  clearAllBtn.textContent = '🗑 Borrar TODO';
-  clearAllBtn.title = 'Borrar todas las conversaciones guardadas';
+  clearAllBtn.textContent = '🗑 Delete all';
+  clearAllBtn.title = 'Delete every saved conversation';
   clearAllBtn.onclick = function() {
-    if (!confirm('¿Borrar TODAS las conversaciones guardadas? Esta acción es irreversible.')) return;
+    if (!confirm('Delete every saved conversation? This cannot be undone.')) return;
     _nspCoachState.sessions = [];
     _nspCoachState.currentSessionId = null;
     _nspCoachState.messages = [];
@@ -23132,23 +22831,23 @@ function openNspCoachChat() {
   panel.appendChild(footer);
 
   function renderMessages() {
-    // YouTube enforces Trusted Types — NUNCA usar innerHTML. Limpiar con removeChild.
+    // YouTube enforces Trusted Types, so never use innerHTML. Clear with removeChild.
     while (msgList.firstChild) msgList.removeChild(msgList.firstChild);
     if (!_nspCoachState.messages.length) {
       var hint = document.createElement('div');
       hint.id = 'empty-hint';
       var hintTitle = document.createElement('div');
       hintTitle.className = 'ehl-title';
-      hintTitle.textContent = '⚡ ZERACK — tu mentor de millones';
+      hintTitle.textContent = '⚡ ZERACK, your mentor';
       var hintSub = document.createElement('div');
-      hintSub.textContent = 'Tu socio para construir canales faceless de millones. Empezá:';
+      hintSub.textContent = 'Your partner for building faceless channels at scale. Start here:';
       hint.appendChild(hintTitle);
       hint.appendChild(hintSub);
       var examples = [
-        'Armame un plan de 30 días para arrancar de cero',
-        '¿Cuál de los nichos del scan me hace ganar más dinero?',
-        'Dame 5 títulos virales + hook para el nicho #1',
-        'Analizá el canal X y dime cómo le copio la estrategia'
+        'Give me a 30 day plan to start from zero',
+        'Which niche in the scan makes the most money?',
+        'Give me 5 viral titles and a hook for niche 1',
+        'Analyze channel X and tell me how to adapt its strategy'
       ];
       examples.forEach(function(ex) {
         var btn = document.createElement('button');
@@ -23178,15 +22877,15 @@ function openNspCoachChat() {
     console.log('[NSP COACH] handleSend called');
     var text = (input.value || '').trim();
     if (!text) {
-      console.warn('[NSP COACH] handleSend: empty text, ignorando');
+      console.warn('[NSP COACH] handleSend: empty text, ignoring');
       return;
     }
     if (_nspCoachState.pending) {
-      console.warn('[NSP COACH] handleSend: pending true, ignorando. Resetting defensively.');
+      console.warn('[NSP COACH] handleSend: pending was true, resetting defensively');
       _nspCoachState.pending = false;
       sendBtn.disabled = false;
       typingEl.style.display = 'none';
-      // No return — continúa para que el usuario nunca quede bloqueado
+      // No return, so the user is never left blocked.
     }
     try {
       _nspCoachState.messages.push({ role: 'user', content: text });
@@ -23197,18 +22896,17 @@ function openNspCoachChat() {
       console.log('[NSP COACH] user bubble rendered, messages.length=', _nspCoachState.messages.length);
     } catch(eRender) {
       console.error('[NSP COACH] error rendering user bubble:', eRender);
-      alert('Error mostrando tu mensaje: ' + (eRender && eRender.message || eRender));
+      alert('Could not display your message: ' + (eRender && eRender.message || eRender));
       return;
     }
 
     _nspCoachState.pending = true;
-    _nspCoachState.cancelled = false; // v3.9.0 reset flag de cancelación
+    _nspCoachState.cancelled = false;
     sendBtn.disabled = true;
     sendBtn.style.display = 'none';
-    stopBtn.style.display = '';  // v3.9.0 mostrar STOP mientras procesa
+    stopBtn.style.display = '';
     typingEl.style.display = 'block';
 
-    // v3.9.0 — helper para resetear estado UI al terminar/cancelar
     function _finishTurn() {
       _nspCoachState.pending = false;
       sendBtn.disabled = false;
@@ -23219,64 +22917,58 @@ function openNspCoachChat() {
 
     var systemPrompt = nspCoachBuildSystemPrompt();
 
-    // v3.6.0 — Multi-turn agent loop: si Gemini llama tools, ejecutar, devolver resultado, repetir.
-    // Mensajes para Gemini: empezamos con la conversación + el último user message.
-    // Cada functionCall/functionResponse se agregan al historial interno de la API.
+    // Multi turn agent loop: when the model calls a tool, run it, hand the result back, repeat.
     function buildApiMessagesFromState() {
-      // v3.7.2 — Truncar historial a los últimos 12 mensajes para no inflar tokens.
-      // Sin esto, después de 3-4 mensajes con tools el body llega a 50K+ tokens y
-      // dispara rate limits (15 req/min en Gemini Free Tier).
+      // History is truncated to the last 12 messages: without this, a few tool turns push the body past 50k tokens and trip rate limits.
       var filtered = _nspCoachState.messages
         .filter(function(m) { return m.role === 'user' || m.role === 'assistant'; })
         .map(function(m) { return { role: m.role, content: m.content }; });
       return filtered.slice(-12);
     }
 
-    // Estructuras para el formato Gemini (multi-turn con functionCall/functionResponse)
-    // Empezamos con el historial completo. Luego en cada iteración añadimos role:'model' con
-    // functionCall y role:'function' con functionResponse hasta que Gemini responda solo texto.
+    // Start from the full history, then append a model turn with the functionCall and a function turn with the functionResponse until the model answers with text alone.
     var apiMessages = buildApiMessagesFromState();
-    var maxIterations = 15; // v3.7.0 — más espacio para chains largos
+    var maxIterations = 15;
     var iteration = 0;
 
     function nextTurn() {
-      // v3.9.0 — si el usuario apretó STOP, abortar
+      // Abort when STOP was pressed.
       if (_nspCoachState.cancelled) { return; }
       iteration++;
       if (iteration > maxIterations) {
         _finishTurn();
-        _nspCoachState.messages.push({ role: 'error', content: '❌ Agente excedió ' + maxIterations + ' iteraciones. Loop detenido por seguridad.' });
+        _nspCoachState.messages.push({ role: 'error', content: '❌ The agent went past ' + maxIterations + ' steps. The loop was stopped as a safeguard.' });
         renderMessages();
         return;
       }
 
-      typingEl.textContent = iteration === 1 ? '✦ Coach está pensando...' : '⚙ Procesando paso ' + iteration + '...';
+      typingEl.textContent = iteration === 1 ? '✦ Coach is thinking' : '⚙ Step ' + iteration;
 
       nspCoachSendApi(apiMessages, systemPrompt, true).then(function(response) {
-        if (_nspCoachState.cancelled) { return; } // v3.9.0 abortar si cancelado
+        if (_nspCoachState.cancelled) { return; }
         var replyText = response.text || '';
         var calls = response.functionCalls || [];
 
-        // Si hay text Y calls (mixto), mostrar el texto primero
+        // With both text and calls, show the text first.
         if (replyText && replyText.trim()) {
           var cleanText = nspCoachCleanMarkdown(replyText);
           _nspCoachState.messages.push({ role: 'assistant', content: cleanText });
           renderMessages();
         }
 
-        // Si NO hay function calls → respuesta final, terminamos
+        // No function calls means this is the final answer.
         if (!calls.length) {
           _finishTurn();
           if (!replyText || !replyText.trim()) {
-            _nspCoachState.messages.push({ role: 'assistant', content: '(respuesta vacía)' });
+            _nspCoachState.messages.push({ role: 'assistant', content: '(empty response)' });
             renderMessages();
           }
           nspCoachPersistCurrentSession();
           return;
         }
 
-        // Hay function calls → ejecutarlas en paralelo
-        var toolBubble = '⚙ Ejecutando: ' + calls.map(function(c) { return c.name; }).join(', ');
+        // Run the function calls in parallel.
+        var toolBubble = '⚙ Running: ' + calls.map(function(c) { return c.name; }).join(', ');
         _nspCoachState.messages.push({ role: 'tool', content: toolBubble });
         renderMessages();
 
@@ -23287,34 +22979,31 @@ function openNspCoachChat() {
         });
 
         Promise.all(promises).then(function(results) {
-          // Mostrar resultados en chat
           var toolResultBubble = results.map(function(r) {
             var ok = r.result && r.result.ok !== false;
             var symbol = ok ? '✓' : '✗';
             var detail = '';
-            if (r.name === 'nspGetScanData' && ok) detail = ' (' + (r.result.count || 0) + ' nichos)';
-            else if (r.name === 'nspRunNewScan' && ok) detail = ' (scan iniciado)';
-            else if (r.name === 'nspOpenYouTubeSearch' && ok) detail = ' (búsqueda abierta)';
-            else if (r.name === 'nspNavigateTo' && ok) detail = ' (navegado)';
-            else if (r.name === 'nspOpenNewTab' && ok) detail = ' (tab abierto)';
-            else if (r.name === 'nspSaveNiche' && ok) detail = ' (guardado)';
-            else if (!ok) detail = ' — ' + (r.result.error || 'falló');
+            if (r.name === 'nspGetScanData' && ok) detail = ' (' + (r.result.count || 0) + ' niches)';
+            else if (r.name === 'nspRunNewScan' && ok) detail = ' (scan started)';
+            else if (r.name === 'nspOpenYouTubeSearch' && ok) detail = ' (search opened)';
+            else if (r.name === 'nspNavigateTo' && ok) detail = ' (navigated)';
+            else if (r.name === 'nspOpenNewTab' && ok) detail = ' (tab opened)';
+            else if (r.name === 'nspSaveNiche' && ok) detail = ' (saved)';
+            else if (!ok) detail = ', ' + (r.result.error || 'failed');
             return symbol + ' ' + r.name + detail;
           }).join('\n');
           _nspCoachState.messages.push({ role: 'tool', content: toolResultBubble });
           renderMessages();
 
-          if (_nspCoachState.cancelled) { return; } // v3.9.0 abortar si cancelado tras tools
+          if (_nspCoachState.cancelled) { return; }
 
-          // Construir mensajes para el próximo turn:
-          // Añadimos un mensaje user que indica los resultados de las tools (workaround
-          // para Gemini Flash que a veces ignora functionResponse en multi-turn complejo).
-          var toolSummary = 'Resultado de las tools que acabás de llamar:\n\n';
+          // Build the next turn: a user message carrying the tool results, a workaround for models that ignore functionResponse in longer multi turn exchanges.
+          var toolSummary = 'Results of the tools you just called:\n\n';
           results.forEach(function(r) {
             toolSummary += '→ ' + r.name + '(' + JSON.stringify(r.args || {}) + ')\n';
-            toolSummary += '  Resultado: ' + JSON.stringify(r.result).slice(0, 1500) + '\n\n';
+            toolSummary += '  Result: ' + JSON.stringify(r.result).slice(0, 1500) + '\n\n';
           });
-          toolSummary += 'Ahora responde al usuario con análisis basado en estos resultados, o llamá otra tool si lo necesitás.';
+          toolSummary += 'Now answer with an analysis based on these results, or call another tool if you need one.';
           apiMessages.push({ role: 'user', content: toolSummary });
           nextTurn();
         });
@@ -23322,16 +23011,15 @@ function openNspCoachChat() {
         if (_nspCoachState.cancelled) { return; }
         _finishTurn();
         var errMsg = String(err && err.message || err || 'error');
-        // v3.9.0 — Con el fallthrough automático entre providers el rate-limit casi nunca
-        // llega acá. Si llega, es porque TODOS los providers están saturados a la vez.
+        // With automatic fallthrough between providers, a rate limit only reaches here when every provider is saturated at once.
         if (/no_provider_configured/i.test(errMsg)) {
-          errMsg = 'ZERACK necesita un provider AI.\n\nMÁS RÁPIDO (recomendado): Groq gratis →\n1) console.groq.com/keys → Create API Key (gsk_...)\n2) Options → sección GROQ → pegá la key → GUARDAR\n\nO Gemini: aistudio.google.com/apikey (AIza...) → Options. Todo gratis, sin tarjeta.';
+          errMsg = 'ZERACK needs an AI provider.\n\nFastest option, Groq, free:\n1) console.groq.com/keys, create an API key (gsk_...)\n2) Options, GROQ section, paste the key, save\n\nOr Gemini: aistudio.google.com/apikey (AIza...), then Options. Both are free, no card needed.';
         } else if (/all_busy/i.test(errMsg) || /rate_limited/i.test(errMsg) || /RESOURCE_EXHAUSTED/i.test(errMsg) || /quota/i.test(errMsg)) {
-          errMsg = '⏱ Tus providers están saturados un momento. Reintentá en ~15s (ZERACK ya intentó saltar entre Groq/Gemini automáticamente). Tip: configurá AMBOS (Groq + Gemini) en Options para no quedarte nunca sin turno.';
+          errMsg = '⏱ Your providers are saturated for a moment. Try again in about 15 seconds. ZERACK already tried switching between Groq and Gemini. Set up both in Options so you never run out of turns.';
         } else if (/all_providers_failed|all_models_failed/i.test(errMsg)) {
-          errMsg = '❌ Ningún provider pudo responder. Verificá en Options con PROBAR CONEXIÓN que tu key de Groq o Gemini sea válida.';
+          errMsg = '❌ No provider could answer. In Options, use Test connection to check that your Groq or Gemini key is valid.';
         } else if (/missing_or_invalid_gemini_key/i.test(errMsg)) {
-          errMsg = 'Falta API key de Gemini. Ve a Options y configurala (gratis en aistudio.google.com/apikey).';
+          errMsg = 'Gemini API key missing. Open Options and set it up, free at aistudio.google.com/apikey.';
         }
         _nspCoachState.messages.push({ role: 'error', content: '❌ ' + errMsg });
         renderMessages();
@@ -23339,11 +23027,11 @@ function openNspCoachChat() {
     }
 
     nextTurn();
-    return; // saltea el .catch viejo de abajo, ya manejamos error en nextTurn
+    return;
   }
 
   function _handleSendOldUnused() {
-    // (código original conservado para referencia, no se ejecuta)
+    // Kept for reference, never executed.
     nspCoachSendApi([], '').then(function(replyText) {
       console.log(replyText);
     }).catch(function(err) {
@@ -23352,9 +23040,9 @@ function openNspCoachChat() {
       typingEl.style.display = 'none';
       var errMsg = String(err && err.message || err || 'error');
       if (/missing_or_invalid_gemini_key/i.test(errMsg)) {
-        errMsg = 'ZERACK necesita un provider AI configurado.\n\nMÁS RÁPIDO (recomendado): Groq gratis →\n1) console.groq.com/keys → Create API Key (gsk_...)\n2) Options de la extensión → sección GROQ → pegá la key → GUARDAR\n\nO Gemini: aistudio.google.com/apikey (AIza...) → Options.\n\nTodo 100% gratis, sin tarjeta.';
+        errMsg = 'ZERACK needs an AI provider set up.\n\nFastest option, Groq, free:\n1) console.groq.com/keys, create an API key (gsk_...)\n2) Extension options, GROQ section, paste the key, save\n\nOr Gemini: aistudio.google.com/apikey (AIza...), then Options.\n\nBoth are free, no card needed.';
       } else if (/missing_or_invalid_api_key/i.test(errMsg)) {
-        errMsg = 'API key no configurada. Ve a Options y pega tu Gemini API key (gratis en aistudio.google.com/apikey).';
+        errMsg = 'No API key set. Open Options and paste your Gemini API key, free at aistudio.google.com/apikey.';
       }
       _nspCoachState.messages.push({ role: 'error', content: '❌ ' + errMsg });
       renderMessages();
@@ -23373,41 +23061,39 @@ function openNspCoachChat() {
     input.style.height = Math.min(120, input.scrollHeight) + 'px';
   };
 
-  // API key probe — añade banner visible si no hay key configurada
+  // API key probe: shows a visible banner when no key is configured.
   try {
     var probeReqId = nspCoachReqId();
     var probeTimeout = setTimeout(function() {
       delete _nspCoachPendingResponses[probeReqId];
-      console.warn('[NSP COACH] API probe timeout — bridge no respondió. Probable: carpeta "edit 2" cargada o extension no recargada.');
-      // Inyectamos banner visible para que el usuario sepa
+      console.warn('[NSP COACH] API probe timed out, the bridge did not answer. Likely the wrong folder is loaded, or the extension was not reloaded.');
+      // Show a visible banner so the user knows.
       var banner = document.createElement('div');
       banner.style.cssText = 'margin:8px 12px;padding:10px 12px;background:rgba(255,80,80,0.10);border:1px solid rgba(255,80,80,0.35);border-radius:8px;color:#ff9090;font-size:10.5px;line-height:1.5;letter-spacing:0.03em;';
-      // Trusted Types compliant — sin innerHTML
+      // Trusted Types: no innerHTML.
       var bannerStrong = document.createElement('strong');
-      bannerStrong.textContent = ' Bridge no responde.';
+      bannerStrong.textContent = ' The bridge is not responding.';
       banner.appendChild(document.createTextNode('⚠'));
       banner.appendChild(bannerStrong);
-      banner.appendChild(document.createTextNode(' Verifica que en chrome://extensions tengas cargada la carpeta niche-scanner-extension edit (NO "edit 2"). Recarga la extensión y refresca YouTube.'));
+      banner.appendChild(document.createTextNode(' Check that chrome://extensions has the right extension folder loaded, then reload the extension and refresh YouTube.'));
       msgList.parentNode.insertBefore(banner, msgList);
     }, 3000);
     _nspCoachPendingResponses[probeReqId] = function(data) {
       clearTimeout(probeTimeout);
       delete _nspCoachPendingResponses[probeReqId];
-      console.log('[NSP COACH] probe OK, bridge responde:', data);
+      console.log('[NSP COACH] probe OK, the bridge answered:', data);
     };
     window.postMessage({ type: 'NSP_COACH_STORAGE_GET', requestId: probeReqId }, window.location.origin);
   } catch(eProbe) {}
 
-  // v3.5.0: cada vez que se abre el modal, arranca con chat VACÍO (nuevo).
-  // Las sesiones viejas se cargan en background y aparecen en el panel HISTORIAL.
-  // Esto da la experiencia tipo ChatGPT: pantalla limpia al abrir, historial accesible.
+  // Every time the modal opens it starts on an empty chat. Earlier sessions load in the background and show up in the history panel.
   function _renderFreshChat() {
     _nspCoachState.currentSessionId = null;
     _nspCoachState.messages = [];
     renderMessages();
     setTimeout(function() {
       try { input.focus(); } catch (e) {}
-      // v3.18.0 — hand-off del PREDICTOR: si vino con un prompt pendiente, lo envía solo
+      // Hand off from the predictor: a pending prompt is sent on its own.
       if (window._zerackPendingPrompt) {
         var pp = String(window._zerackPendingPrompt);
         window._zerackPendingPrompt = null;
@@ -23420,7 +23106,7 @@ function openNspCoachChat() {
     nspCoachSessionsLoad().then(function(sessions) {
       _nspCoachState.loaded = true;
       _nspCoachState.sessions = sessions || [];
-      console.log('[NSP COACH] cargadas', _nspCoachState.sessions.length, 'sesiones previas');
+      console.log('[NSP COACH] loaded', _nspCoachState.sessions.length, 'earlier sessions');
       _renderFreshChat();
     });
   } else {
@@ -23448,8 +23134,7 @@ setTimeout(injectGlobeButton, 1100);
 setTimeout(injectGlobeButton, 3200);
 setTimeout(injectFacelessButton, 1200);
 setTimeout(injectFacelessButton, 3500);
-// AI Coach NO se inyecta en masthead — se accede vía botón AGENT dentro del panel SCAN.
-// Función injectNspCoachButton queda definida pero no llamada (uso futuro opcional).
+// The AI Coach is not injected into the masthead: it opens from the AGENT button inside the SCAN panel. injectNspCoachButton stays defined but unused.
 setTimeout(function() {
   try {
     if (consumeAshlyVPendingSearchScan()) {
@@ -23737,8 +23422,8 @@ function showProFallbackPanel(message) {
       + '<div style="font-size:13px;font-weight:900;letter-spacing:.14em;">QUICK INTEL PANEL</div>'
       + '<button id="nsp-pro-close" type="button" style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#fff;cursor:pointer;">X</button>'
       + '</div>'
-      + '<div style="margin-top:12px;font-size:11px;line-height:1.6;color:rgba(255,255,255,.72);">Quick Intel cargado en modo seguro.</div>'
-      + '<button id="nsp-pro-retry" type="button" style="margin-top:14px;width:100%;height:40px;border-radius:8px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-weight:900;cursor:pointer;box-shadow:0 0 18px rgba(255,255,255,.22);">ABRIR PRO</button>'
+      + '<div style="margin-top:12px;font-size:11px;line-height:1.6;color:rgba(255,255,255,.72);">Quick Intel loaded in safe mode.</div>'
+      + '<button id="nsp-pro-retry" type="button" style="margin-top:14px;width:100%;height:40px;border-radius:8px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-weight:900;cursor:pointer;box-shadow:0 0 18px rgba(255,255,255,.22);">OPEN PRO</button>'
       + '<div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.72);">' + String(message || '').replace(/[<>]/g, '') + '</div>');
     document.body.appendChild(panel);
     var close = document.getElementById('nsp-pro-close');
@@ -23766,10 +23451,10 @@ function openProPanelSafe() {
     }
     toggleProPanel();
     setTimeout(function() {
-      if (!getProPanel()) showProFallbackPanel('No se pudo abrir el panel principal.');
+      if (!getProPanel()) showProFallbackPanel('The main panel could not be opened.');
     }, 80);
   } catch(e) {
-    showProFallbackPanel(e && e.message ? e.message : 'Error abriendo PRO.');
+    showProFallbackPanel(e && e.message ? e.message : 'Could not open PRO.');
   }
 }
 
@@ -23937,10 +23622,10 @@ function buildProPanelHTML() {
   var scanItems = getNspProVisibleScanItems(10);
   var scanOptions = scanItems.length ? scanItems.map(function(item, idx) {
     var sc = (item && item.sc) || item || {};
-    return '<option value="' + idx + '">#' + (idx + 1) + ' · ' + nspProIntelEsc(String(sc.channelName || item.channelName || 'Channel')).slice(0, 28) + ' · ' + nspProIntelEsc(String(sc.title || item.title || item._nicheLabel || 'Nicho')).slice(0, 52) + '</option>';
+    return '<option value="' + idx + '">#' + (idx + 1) + ' · ' + nspProIntelEsc(String(sc.channelName || item.channelName || 'Channel')).slice(0, 28) + ' · ' + nspProIntelEsc(String(sc.title || item.title || item._nicheLabel || 'Niche')).slice(0, 52) + '</option>';
   }).join('') : '<option value="0">No scan result selected</option>';
   return ''
-    + '<button id="nsp-pro-collapse-toggle" type="button" title="Contraer / expandir" style="position:absolute;left:-18px;top:78px;width:28px;height:42px;border-radius:12px 0 0 12px;border:1px solid rgba(255,255,255,.28);border-right:0;background:#050505;color:#fff;font-size:15px;font-weight:950;cursor:pointer;box-shadow:0 0 18px rgba(255,255,255,.14);z-index:2;">›</button>'
+    + '<button id="nsp-pro-collapse-toggle" type="button" title="Collapse or expand" style="position:absolute;left:-18px;top:78px;width:28px;height:42px;border-radius:12px 0 0 12px;border:1px solid rgba(255,255,255,.28);border-right:0;background:#050505;color:#fff;font-size:15px;font-weight:950;cursor:pointer;box-shadow:0 0 18px rgba(255,255,255,.14);z-index:2;">›</button>'
     + '<div style="padding:14px 14px 12px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;gap:12px;">'
     +   '<div style="font-size:15px;font-weight:950;letter-spacing:.12em;color:#fff;">QUICK INTEL PANEL</div>'
     +   '<button id="nsp-pro-close" type="button" style="width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#fff;font-size:16px;line-height:1;cursor:pointer;">✕</button>'
@@ -24050,14 +23735,14 @@ function attachProPanelListeners(root) {
     else if (velocity <= 22 && momentum <= 25) status = 'DEAD';
     var direction = status === 'EXPLODING' ? 'fast upward' : status === 'RISING' ? 'upward' : status === 'SATURATED' ? 'crowded' : status === 'DEAD' ? 'down / cold' : 'flat stable';
     var desc = status === 'EXPLODING'
-      ? 'Este nicho esta acelerando fuerte y todavia puede capturar demanda.'
+      ? 'This niche is accelerating hard and can still capture demand.'
       : status === 'RISING'
-        ? 'Este nicho todavia no exploto completamente, pero va hacia arriba.'
+        ? 'This niche has not fully broken out yet, but it is trending up.'
         : status === 'SATURATED'
-          ? 'Este nicho ya muestra senales de saturacion o dependencia de formato repetido.'
+          ? 'This niche already shows saturation, or leans on one repeated format.'
           : status === 'DEAD'
-            ? 'Este nicho se ve frio: baja velocidad y poco momentum reciente.'
-            : 'Este nicho parece estable, pero no esta acelerando.';
+            ? 'This niche looks cold: low velocity and little recent momentum.'
+            : 'This niche looks stable, but it is not accelerating.';
     return { status: status, velocity: velocity, momentum: momentum, direction: direction, desc: desc };
   }
 

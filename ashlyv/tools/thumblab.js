@@ -1,21 +1,21 @@
 (function () {
   'use strict';
-  TK.mountHead('ThumbLab', 'DISCOVER · MINIATURAS IA');
+  TK.mountHead('ThumbLab', 'DISCOVER · AI THUMBNAILS');
   var $ = function (id) { return document.getElementById(id); };
   var topicEl = $('topic'), marketEl = $('market'), statusEl = $('status'), resultEl = $('result'), go = $('go');
   var FAV_KEY = 'zerack_thumblab_favs';
   var _gkey = '', _vids = [], _view = 'discover', _sort = 'views', _label = '';
 
   var NICHES = [
-    { n: 'Misterio', q: 'unsolved mystery documentary', i: '🔍' },
-    { n: 'Historia', q: 'ancient history documentary', i: '🏛️' },
+    { n: 'Mystery', q: 'unsolved mystery documentary', i: '🔍' },
+    { n: 'History', q: 'ancient history documentary', i: '🏛️' },
     { n: 'True Crime', q: 'true crime story', i: '🔪' },
-    { n: 'Terror', q: 'scary horror story narration', i: '👻' },
-    { n: 'Documental', q: 'full documentary', i: '🎬' },
-    { n: 'Finanzas', q: 'how to make money online', i: '💰' },
-    { n: 'Motivación', q: 'stoicism discipline motivation', i: '🔥' },
+    { n: 'Horror', q: 'scary horror story narration', i: '👻' },
+    { n: 'Documentary', q: 'full documentary', i: '🎬' },
+    { n: 'Finance', q: 'how to make money online', i: '💰' },
+    { n: 'Motivation', q: 'stoicism discipline motivation', i: '🔥' },
     { n: 'Sleep / Relax', q: 'relaxing sleep music rain', i: '😴' },
-    { n: 'Espacio / Ciencia', q: 'space universe explained', i: '🚀' },
+    { n: 'Space and science', q: 'space universe explained', i: '🚀' },
     { n: 'Gaming', q: 'gaming gameplay edit', i: '🎮' },
     { n: 'Real Life', q: 'i spent 24 hours challenge', i: '📸' },
     { n: 'Anime / Cartoon', q: 'animated story explained', i: '🎨' }
@@ -62,10 +62,10 @@
   function ittSearch(query, gl, hl) {
     return new Promise(function (resolve, reject) {
       try {
-        if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) { reject(new Error('sin runtime de extensión')); return; }
+        if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) { reject(new Error('No extension runtime available')); return; }
         chrome.runtime.sendMessage({ type: 'NSP_AGENT_SEARCH_MARKET', query: query, gl: gl || 'US', hl: hl || 'en' }, function (resp) {
           if (chrome.runtime.lastError) { reject(new Error(chrome.runtime.lastError.message)); return; }
-          if (!resp || !resp.ok) { reject(new Error((resp && resp.error) || 'el scanner no respondió — recargá la extensión')); return; }
+          if (!resp || !resp.ok) { reject(new Error((resp && resp.error) || 'The scanner did not answer. Reload the extension.')); return; }
           var out = [], seen = {};
           (resp.videos || []).forEach(function (v) {
             if (!v.videoId || seen[v.videoId]) return; seen[v.videoId] = 1;
@@ -122,7 +122,7 @@
     var models = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest'], i = 0;
     return new Promise(function (resolve, reject) {
       (function tryM() {
-        if (i >= models.length) return reject(new Error('vision no disponible'));
+        if (i >= models.length) return reject(new Error('No vision model available'));
         var m = models[i++];
         fetch('https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent?key=' + encodeURIComponent(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
           .then(function (r) { if (!r.ok) throw new Error('g' + r.status); return r.json(); })
@@ -136,7 +136,7 @@
     var models = ['gemini-2.0-flash-preview-image-generation', 'gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image'], i = 0;
     return new Promise(function (resolve, reject) {
       (function tryM() {
-        if (i >= models.length) return reject(new Error('Gemini no devolvió imagen.'));
+        if (i >= models.length) return reject(new Error('Gemini returned no image.'));
         var m = models[i++];
         fetch('https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent?key=' + encodeURIComponent(key), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
           .then(function (r) { if (!r.ok) throw new Error('g' + r.status); return r.json(); })
@@ -152,7 +152,7 @@
   function toggleFav(v) { var a = favs(), idx = a.map(function (f) { return f.id; }).indexOf(v.id); if (idx >= 0) a.splice(idx, 1); else a.unshift({ id: v.id, title: v.title, vn: v.vn, channel: v.channel, niche: _label }); setFavs(a); }
 
   function card(title) { var c = document.createElement('div'); c.className = 'tk-card'; if (title) { var h = document.createElement('h3'); h.textContent = title; c.appendChild(h); } return c; }
-  function copyBtn(text, label) { var b = document.createElement('button'); b.className = 'tk-btn sm'; b.textContent = label || 'Copiar'; b.addEventListener('click', function () { TK.copy(text, b); }); return b; }
+  function copyBtn(text, label) { var b = document.createElement('button'); b.className = 'tk-btn sm'; b.textContent = label || 'Copy'; b.addEventListener('click', function () { TK.copy(text, b); }); return b; }
 
   function cell(v, badge) {
     var d = document.createElement('div'); d.className = 'tl-cell';
@@ -160,7 +160,7 @@
     var im = document.createElement('img'); im.className = 'tl-thumb'; im.loading = 'lazy'; im.src = thumbUrl(v.id); im.alt = v.title;
     tw.appendChild(im);
     if (badge) { var bd = document.createElement('span'); bd.className = 'tl-badge'; bd.textContent = badge; tw.appendChild(bd); }
-    var fv = document.createElement('button'); fv.className = 'tl-fav' + (isFav(v.id) ? ' on' : ''); fv.textContent = isFav(v.id) ? '♥' : '♡'; fv.title = 'Favorito';
+    var fv = document.createElement('button'); fv.className = 'tl-fav' + (isFav(v.id) ? ' on' : ''); fv.textContent = isFav(v.id) ? '♥' : '♡'; fv.title = 'Favorite';
     fv.addEventListener('click', function (e) { e.stopPropagation(); toggleFav(v); fv.className = 'tl-fav' + (isFav(v.id) ? ' on' : ''); fv.textContent = isFav(v.id) ? '♥' : '♡'; });
     tw.appendChild(fv);
     tw.addEventListener('click', function () { window.open('https://www.youtube.com/watch?v=' + v.id, '_blank'); });
@@ -186,8 +186,8 @@
   function renderGrid() {
     resultEl.innerHTML = '';
     var head = document.createElement('div'); head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;';
-    var h = document.createElement('div'); h.style.cssText = 'font-size:17px;font-weight:900;color:#fff;'; h.textContent = (_label || 'Resultados') + ' · ' + _vids.length + ' miniaturas reales'; head.appendChild(h);
-    var ex = document.createElement('button'); ex.className = 'tk-btn'; ex.style.cssText = 'background:#0a0a0a;border:1px solid var(--neon);color:#fff;font-weight:900;'; ex.textContent = '🔬 Extraer patrón + generar';
+    var h = document.createElement('div'); h.style.cssText = 'font-size:17px;font-weight:900;color:#fff;'; h.textContent = (_label || 'Results') + ' · ' + _vids.length + ' real thumbnails'; head.appendChild(h);
+    var ex = document.createElement('button'); ex.className = 'tk-btn'; ex.style.cssText = 'background:#0a0a0a;border:1px solid var(--neon);color:#fff;font-weight:900;'; ex.textContent = 'Extract the pattern and generate';
     ex.addEventListener('click', function () { extractAndGenerate(); }); head.appendChild(ex);
     resultEl.appendChild(head);
     var anchor = document.createElement('div'); anchor.id = 'tl-analysis'; resultEl.appendChild(anchor);
@@ -199,8 +199,8 @@
   function renderFavorites() {
     resultEl.innerHTML = '';
     var a = favs();
-    var h = document.createElement('div'); h.style.cssText = 'font-size:17px;font-weight:900;color:#fff;margin-bottom:14px;'; h.textContent = '⭐ Tus favoritos · ' + a.length; resultEl.appendChild(h);
-    if (!a.length) { var e = document.createElement('div'); e.className = 'tk-scene-meta'; e.textContent = 'Todavía no guardaste ninguna. Tocá el ♡ en cualquier miniatura del Descubrir.'; resultEl.appendChild(e); return; }
+    var h = document.createElement('div'); h.style.cssText = 'font-size:17px;font-weight:900;color:#fff;margin-bottom:14px;'; h.textContent = 'Your favorites · ' + a.length; resultEl.appendChild(h);
+    if (!a.length) { var e = document.createElement('div'); e.className = 'tk-scene-meta'; e.textContent = 'Nothing saved yet. Tap the heart on any thumbnail in Discover.'; resultEl.appendChild(e); return; }
     var grid = document.createElement('div'); grid.className = 'tl-grid';
     a.forEach(function (v) { grid.appendChild(cell(v, v.niche || '')); });
     resultEl.appendChild(grid);
@@ -214,29 +214,29 @@
     var fill = document.createElement('div'); fill.style.cssText = 'height:100%;width:' + Math.round(Math.max(0, Math.min(1, val)) * 100) + '%;background:' + color + ';'; track.appendChild(fill); wrap.appendChild(track);
     return wrap;
   }
-  function lvl(v) { return v >= 0.66 ? 'ALTO' : v >= 0.4 ? 'MEDIO' : 'BAJO'; }
+  function lvl(v) { return v >= 0.66 ? 'HIGH' : v >= 0.4 ? 'MEDIUM' : 'LOW'; }
 
   function renderExtraction(px, d, topic) {
-    var c = card('🔬 Extracción del nicho — ' + topic);
-    var sub = document.createElement('div'); sub.className = 'tk-scene-meta'; sub.textContent = 'Todo lo que comparten las miniaturas que ganan: medido de verdad (píxeles) + leído por IA.'; c.appendChild(sub);
+    var c = card('Niche extraction: ' + topic);
+    var sub = document.createElement('div'); sub.className = 'tk-scene-meta'; sub.textContent = 'Everything the winning thumbnails have in common: measured from the pixels and read by AI.'; c.appendChild(sub);
     if (px) {
-      var mh = document.createElement('div'); mh.style.cssText = 'font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#46d39a;margin-top:14px;'; mh.textContent = 'Medido en ' + px.n + ' miniaturas (píxeles reales)'; c.appendChild(mh);
-      c.appendChild(bar('Contraste', px.contrast, '#FFD93D', lvl(px.contrast)));
-      c.appendChild(bar('Brillo', px.brightness, '#46d39a', lvl(px.brightness)));
-      c.appendChild(bar('Saturación / color', px.saturation, '#A88FFF', lvl(px.saturation)));
+      var mh = document.createElement('div'); mh.style.cssText = 'font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:#46d39a;margin-top:14px;'; mh.textContent = 'Measured on ' + px.n + ' thumbnails, real pixels'; c.appendChild(mh);
+      c.appendChild(bar('Contrast', px.contrast, '#FFD93D', lvl(px.contrast)));
+      c.appendChild(bar('Brightness', px.brightness, '#46d39a', lvl(px.brightness)));
+      c.appendChild(bar('Saturation', px.saturation, '#A88FFF', lvl(px.saturation)));
       if (px.palette && px.palette.length) {
-        var pl = document.createElement('div'); pl.style.cssText = 'font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-top:14px;'; pl.textContent = 'Paleta dominante real (clic = copiar)'; c.appendChild(pl);
+        var pl = document.createElement('div'); pl.style.cssText = 'font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-top:14px;'; pl.textContent = 'Dominant palette, click to copy'; c.appendChild(pl);
         var sw = document.createElement('div'); sw.style.cssText = 'display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;';
-        px.palette.forEach(function (hex) { var chip = document.createElement('button'); chip.title = 'Copiar ' + hex; chip.style.cssText = 'width:56px;height:56px;border-radius:10px;border:1px solid rgba(255,255,255,.18);cursor:pointer;position:relative;background:' + hex + ';'; var lab = document.createElement('span'); lab.style.cssText = 'position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:800;background:rgba(0,0,0,.6);color:#fff;padding:2px 0;'; lab.textContent = hex; chip.appendChild(lab); chip.addEventListener('click', function () { TK.copy(hex, null); lab.textContent = '✓'; setTimeout(function () { lab.textContent = hex; }, 800); }); sw.appendChild(chip); });
+        px.palette.forEach(function (hex) { var chip = document.createElement('button'); chip.title = 'Copy ' + hex; chip.style.cssText = 'width:56px;height:56px;border-radius:10px;border:1px solid rgba(255,255,255,.18);cursor:pointer;position:relative;background:' + hex + ';'; var lab = document.createElement('span'); lab.style.cssText = 'position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:800;background:rgba(0,0,0,.6);color:#fff;padding:2px 0;'; lab.textContent = hex; chip.appendChild(lab); chip.addEventListener('click', function () { TK.copy(hex, null); lab.textContent = '✓'; setTimeout(function () { lab.textContent = hex; }, 800); }); sw.appendChild(chip); });
         c.appendChild(sw);
       }
     }
     function row(label, val) { if (!val) return; var t = document.createElement('div'); t.style.cssText = 'font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#46d39a;margin-top:14px;'; t.textContent = label; c.appendChild(t); var x = document.createElement('div'); x.style.cssText = 'font-size:12.5px;color:rgba(255,255,255,.88);line-height:1.55;margin-top:3px;'; x.textContent = val; c.appendChild(x); }
     function list(label, arr, color) { if (!arr || !arr.length) return; var t = document.createElement('div'); t.style.cssText = 'font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:' + color + ';margin-top:14px;'; t.textContent = label; c.appendChild(t); arr.forEach(function (v) { var r = document.createElement('div'); r.style.cssText = 'font-size:12.5px;color:rgba(255,255,255,.85);margin-top:4px;'; r.textContent = '• ' + v; c.appendChild(r); }); }
     if (d) {
-      row('Fórmula de CTR', d.formula); row('Caras', d.faces); row('Texto en miniatura', d.text);
-      row('Composición', d.composition); row('Emoción / gancho', d.emotion); row('Contraste y color (IA)', d.colors);
-      list('Elementos recurrentes', d.objects, '#A88FFF'); list('Lo que SÍ funciona', d.do, '#46d39a'); list('Evitá', d.avoid, '#ff6b6b');
+      row('CTR formula', d.formula); row('Faces', d.faces); row('Text on the thumbnail', d.text);
+      row('Composition', d.composition); row('Emotion and hook', d.emotion); row('Contrast and color, read by AI', d.colors);
+      list('Recurring elements', d.objects, '#A88FFF'); list('What works', d.do, '#46d39a'); list('What to avoid', d.avoid, '#ff6b6b');
     }
     return c;
   }
@@ -249,18 +249,18 @@
     function paint(dataUrl) {
       holder.innerHTML = ''; holder.style.padding = '0';
       var im = document.createElement('img'); im.src = dataUrl; im.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;'; holder.appendChild(im); b.innerHTML = '';
-      var dl = document.createElement('button'); dl.className = 'tk-btn sm'; dl.textContent = '⬇ Descargar'; dl.addEventListener('click', function () { var a = document.createElement('a'); a.href = dataUrl; a.download = 'thumblab-' + (i + 1) + '.png'; document.body.appendChild(a); a.click(); setTimeout(function () { try { document.body.removeChild(a); } catch (e) {} }, 2000); });
-      var re = document.createElement('button'); re.className = 'tk-btn sm'; re.textContent = '🔁'; re.title = 'Otra variante'; re.addEventListener('click', gen);
+      var dl = document.createElement('button'); dl.className = 'tk-btn sm'; dl.textContent = 'Download'; dl.addEventListener('click', function () { var a = document.createElement('a'); a.href = dataUrl; a.download = 'thumblab-' + (i + 1) + '.png'; document.body.appendChild(a); a.click(); setTimeout(function () { try { document.body.removeChild(a); } catch (e) {} }, 2000); });
+      var re = document.createElement('button'); re.className = 'tk-btn sm'; re.textContent = '🔁'; re.title = 'Another variant'; re.addEventListener('click', gen);
       b.appendChild(dl); b.appendChild(re); b.appendChild(copyBtn(prompt, 'Prompt'));
     }
-    function gen() { if (!_gkey) { holder.innerHTML = ''; holder.textContent = '🔑 Falta key Gemini'; b.innerHTML = ''; b.appendChild(copyBtn(prompt, 'Copiar prompt')); return; } holder.innerHTML = '<span class="tk-spin"></span>'; b.innerHTML = ''; genImage(_gkey, prompt).then(paint).catch(function () { holder.innerHTML = ''; holder.textContent = '⚠ no se pudo'; b.innerHTML = ''; b.appendChild(copyBtn(prompt, 'Copiar prompt')); }); }
+    function gen() { if (!_gkey) { holder.innerHTML = ''; holder.textContent = 'Gemini key missing'; b.innerHTML = ''; b.appendChild(copyBtn(prompt, 'Copy prompt')); return; } holder.innerHTML = '<span class="tk-spin"></span>'; b.innerHTML = ''; genImage(_gkey, prompt).then(paint).catch(function () { holder.innerHTML = ''; holder.textContent = 'Could not generate'; b.innerHTML = ''; b.appendChild(copyBtn(prompt, 'Copy prompt')); }); }
     gen();
   }
 
   function extractAndGenerate() {
     if (!_vids.length) return;
     var box = $('tl-analysis'); if (!box) return; box.innerHTML = '';
-    TK.status(statusEl, 'Extrayendo TODO del nicho (colores, contraste + lectura IA)…', '');
+    TK.status(statusEl, 'Extracting the niche pattern: colors, contrast and an AI read', '');
     var top = _vids.slice(0, 8), dataUrls = [];
     Promise.all(top.map(function (v) { return urlToB64(thumbUrl(v.id)).then(function (b) { return b ? ('data:image/jpeg;base64,' + b) : null; }).catch(function () { return null; }); }))
       .then(function (urls) { dataUrls = urls.filter(Boolean); return Promise.all(dataUrls.map(analyzePixels)); })
@@ -268,42 +268,42 @@
         var px = aggregatePixels(pxList);
         if (!_gkey) return { px: px, d: {} };
         var imgs = dataUrls.map(function (u) { return u.split(',')[1]; });
-        var vp = 'Sos director de arte de YouTube experto en CTR. Te paso las miniaturas REALES de los videos más vistos del nicho "' + _label + '". Extraé TODO lo que comparten y devolvé EXCLUSIVAMENTE un JSON válido:\n' +
-          '{\n  "formula": "2-3 frases: el patrón ganador común",\n  "faces": "uso de caras: cuántas y expresión dominante (o si son sin cara)",\n  "text": "uso de texto: tamaño relativo, cuántas palabras y 2 ejemplos reales",\n  "composition": "composición dominante",\n  "emotion": "emoción / gancho psicológico",\n  "colors": "esquema de color y nivel de contraste",\n  "objects": ["3-5 elementos visuales recurrentes"],\n  "do": ["5 cosas que SÍ hacen las ganadoras"],\n  "avoid": ["3 errores a evitar"],\n  "masterPrompt": "ONE detailed ENGLISH thumbnail image-gen prompt recreating the winning style (subject, composition, lighting, mood, palette, contrast); cinematic, ultra high CTR, sharp, 16:9"\n}';
+        var vp = 'You are a YouTube art director who specializes in CTR. Here are the REAL thumbnails of the most watched videos in the "' + _label + '" niche. Extract everything they have in common and return ONLY valid JSON, all text in English:\n' +
+          '{\n  "formula": "2-3 sentences: the shared winning pattern",\n  "faces": "use of faces: how many and the dominant expression, or whether they are faceless",\n  "text": "use of text: relative size, how many words, and 2 real examples",\n  "composition": "dominant composition",\n  "emotion": "emotion or psychological hook",\n  "colors": "color scheme and contrast level",\n  "objects": ["3-5 recurring visual elements"],\n  "do": ["5 things the winners do"],\n  "avoid": ["3 mistakes to avoid"],\n  "masterPrompt": "ONE detailed ENGLISH thumbnail image-gen prompt recreating the winning style (subject, composition, lighting, mood, palette, contrast); cinematic, ultra high CTR, sharp, 16:9"\n}';
         return genVision(_gkey, vp, imgs).then(function (txt) { return { px: px, d: TK.json(txt) || {} }; }, function () { return { px: px, d: {} }; });
       })
       .then(function (res) {
         var px = res.px, d = res.d || {};
         box.appendChild(renderExtraction(px, d, _label));
-        var gc = card('🎨 Tus miniaturas — clonando el estilo ganador');
+        var gc = card('Your thumbnails, cloning the winning style');
         if (_gkey) {
-          var note = document.createElement('div'); note.className = 'tk-scene-meta'; note.textContent = 'Generadas con IA copiando la fórmula + paleta + contraste del nicho. El texto grande agregalo vos.'; gc.appendChild(note);
+          var note = document.createElement('div'); note.className = 'tk-scene-meta'; note.textContent = 'Generated by AI from the niche formula, palette and contrast. Add the overlay text yourself.'; gc.appendChild(note);
           var ggrid = document.createElement('div'); ggrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:10px;'; gc.appendChild(ggrid);
           var mp = d.masterPrompt || ('Cinematic ultra high-CTR YouTube thumbnail for "' + _label + '", dramatic lighting, bold subject, rich colors, sharp, 16:9');
           if (px && px.palette && px.palette.length) mp += ' Dominant palette: ' + px.palette.slice(0, 4).join(', ') + '. ' + (px.contrast >= 0.6 ? 'Very high contrast.' : 'High contrast.');
           for (var i = 0; i < 3; i++) thumbCell(ggrid, mp, i);
         } else {
-          var n2 = document.createElement('div'); n2.className = 'tk-scene-meta'; n2.textContent = '🔑 Agregá tu key de Gemini en Opciones (gratis) para la lectura IA + generar miniaturas clonando este estilo.'; gc.appendChild(n2);
+          var n2 = document.createElement('div'); n2.className = 'tk-scene-meta'; n2.textContent = 'Add your free Gemini key in Options for the AI read and to generate thumbnails in this style.'; gc.appendChild(n2);
         }
         box.appendChild(gc);
-        TK.status(statusEl, '✓ Extracción completa.', 'ok');
+        TK.status(statusEl, 'Extraction complete.', 'ok');
         box.scrollIntoView({ behavior: 'smooth', block: 'start' });
       })
-      .catch(function (e) { TK.status(statusEl, '⚠ ' + (e && e.message || e), 'error'); });
+      .catch(function (e) { TK.status(statusEl, String(e && e.message || e), 'error'); });
   }
 
   function setActive(container, attr, val) { var bs = container.querySelectorAll('button'); for (var i = 0; i < bs.length; i++) bs[i].classList.toggle('active', bs[i].getAttribute(attr) === val); }
 
   function loadQuery(query, label) {
     _label = label; _view = 'discover'; setActive($('tl-views'), 'data-view', 'discover');
-    resultEl.innerHTML = ''; TK.status(statusEl, '', ''); statusEl.innerHTML = '<span class="tk-spin"></span>Trayendo las miniaturas que ganan en ' + label + '…'; statusEl.style.color = '#FFD93D';
+    resultEl.innerHTML = ''; TK.status(statusEl, '', ''); statusEl.innerHTML = '<span class="tk-spin"></span>Loading the winning thumbnails in ' + label; statusEl.style.color = '#FFD93D';
     var mk = (marketEl.value || 'US|en').split('|');
     ittSearch(query, mk[0], mk[1]).then(function (list) {
       _vids = (list || []).filter(function (v) { return v.vn > 0; });
       if (!_vids.length) _vids = list || [];
-      if (!_vids.length) { TK.status(statusEl, 'No encontré nada para "' + label + '". Probá otro término o mercado.', 'error'); return; }
-      renderGrid(); TK.status(statusEl, '✓ ' + _vids.length + ' miniaturas reales — clic en una abre el video, ♡ la guarda, 🔬 extrae el patrón.', 'ok');
-    }).catch(function (e) { TK.status(statusEl, '⚠ ' + (e && e.message || e), 'error'); });
+      if (!_vids.length) { TK.status(statusEl, 'Nothing found for "' + label + '". Try another term or market.', 'error'); return; }
+      renderGrid(); TK.status(statusEl, _vids.length + ' real thumbnails. Click one to open the video, the heart saves it, and Extract reads the pattern.', 'ok');
+    }).catch(function (e) { TK.status(statusEl, String(e && e.message || e), 'error'); });
   }
 
   function renderSidebar() {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -1590,7 +1590,7 @@ body::before{
     </div>
   </div>
   <div class="header-right">
-    <div class="live-wrap" id="btn-live-alerts" role="button" tabindex="0" title="Ir a alertas en vivo">
+    <div class="live-wrap" id="btn-live-alerts" role="button" tabindex="0" title="Go to live alerts">
       <div class="live-dot"></div>
       <div class="live-txt">LIVE</div>
     </div>
@@ -1598,45 +1598,45 @@ body::before{
       SCAN
     </button>
     
-    <button class="btn-clear" id="btn-clear-all">LIMPIAR TODO</button>
+    <button class="btn-clear" id="btn-clear-all">CLEAR ALL</button>
   </div>
 </div>
 
 <div class="stats-bar" id="stats-bar">
-  <div class="stat-box"><div class="stat-n" id="s-total">0</div><div class="stat-l">Guardados</div></div>
+  <div class="stat-box"><div class="stat-n" id="s-total">0</div><div class="stat-l">Saved</div></div>
   <div class="stat-box"><div class="stat-n" id="s-viral">0</div><div class="stat-l">Viral</div></div>
-  <div class="stat-box"><div class="stat-n" id="s-rpm">$0</div><div class="stat-l">RPM promedio</div></div>
-  <div class="stat-box"><div class="stat-n" id="s-rev">$0</div><div class="stat-l">Ingreso mensual visible</div></div>
+  <div class="stat-box"><div class="stat-n" id="s-rpm">$0</div><div class="stat-l">Average RPM</div></div>
+  <div class="stat-box"><div class="stat-n" id="s-rev">$0</div><div class="stat-l">Visible monthly revenue</div></div>
 </div>
 
 <div class="insights-hero" id="insights-hero">
   <div class="insight-main">
-    <div class="insight-tag">Radar de monetizacion</div>
-    <h1 class="insight-title" id="hero-title">Archivo premium de nichos y canales</h1>
-    <p class="insight-desc" id="hero-desc">Todo queda en negro y blanco neón: lectura rapida de RPM, VPH, score e ingreso mensual estimado sin ruido de otros colores.</p>
+    <div class="insight-tag">Monetization radar</div>
+    <h1 class="insight-title" id="hero-title">Premium niche and channel archive</h1>
+    <p class="insight-desc" id="hero-desc">Everything stays in black and neon white: fast reading of RPM, VPH, score and estimated monthly revenue with no color noise.</p>
   </div>
   <div class="insight-stats">
     <div class="insight-mini-stat">
       <div class="im-val" id="hero-top-niche">-</div>
-      <div class="im-lbl">Nicho top</div>
+      <div class="im-lbl">Top niche</div>
     </div>
     <div class="insight-mini-stat">
       <div class="im-val" id="hero-potential">$0</div>
-      <div class="im-lbl">Pool mensual</div>
+      <div class="im-lbl">Monthly pool</div>
     </div>
   </div>
 </div>
 
 <div id="ashlyv-sw-banner" style="display:none;margin:0 18px 14px;padding:14px 16px;border:1px solid rgba(255,214,10,.35);border-radius:18px;background:rgba(255,214,10,.12);color:#fff;font-size:12px;line-height:1.6;position:relative;">
   <button id="ashlyv-sw-banner-close" type="button" style="position:absolute;top:10px;right:12px;background:none;border:none;color:#fff;font-size:16px;cursor:pointer;">X</button>
-   Service worker no responde — recarga la extensión (Ctrl+Shift+R)
+   Service worker is not responding. Reload the extension with Ctrl+Shift+R.
 </div>
 
 <div class="engine-root" id="engine-root"></div>
 
 <div class="section-hdr">
-  <div class="section-title">Archivo de nichos y canales</div>
-  <div class="section-count" id="section-count">0 guardados</div>
+  <div class="section-title">Niche and channel archive</div>
+  <div class="section-count" id="section-count">0 saved</div>
 </div>
 
 <div id="main-content"></div>
@@ -1645,7 +1645,7 @@ body::before{
   <div class="footer-txt">ZERACK niche intelligence, live data</div>
   <div style="display:flex;gap:10px;align-items:center;margin-left:auto">
     
-    <button class="footer-yt" id="btn-footer-yt">IR A YOUTUBE -></button>
+    <button class="footer-yt" id="btn-footer-yt">GO TO YOUTUBE -></button>
   </div>
 </div>
 
@@ -1663,24 +1663,24 @@ body::before{
     </div>
     <div class="scan-input-section">
       <div class="scan-mode-switch">
-        <button class="scan-mode-btn active" id="scan-mode-channel" type="button">Analizar canal</button>
-        <button class="scan-mode-btn" id="scan-mode-thumbnail" type="button">Analizar miniatura</button>
+        <button class="scan-mode-btn active" id="scan-mode-channel" type="button">Analyze channel</button>
+        <button class="scan-mode-btn" id="scan-mode-thumbnail" type="button">Analyze thumbnail</button>
       </div>
       <div class="scan-mode-pane" id="scan-mode-pane-channel">
       <div class="scan-input-row">
         <div class="scan-input-wrap">
           <span class="scan-at">@</span>
-          <input class="scan-input" id="scan-handle-input" type="text" placeholder="nombre del canal..." autocomplete="off" spellcheck="false"/>
+          <input class="scan-input" id="scan-handle-input" type="text" placeholder="channel name" autocomplete="off" spellcheck="false"/>
         </div>
         <select class="scan-sel" id="scan-lang-sel">
-          <option value="es">Español</option>
+          <option value="es">Spanish</option>
           <option value="en">English</option>
-          <option value="pt">Português</option>
+          <option value="pt">Portuguese</option>
         </select>
-        <button class="scan-go-btn" id="scan-go-btn">ANALIZAR</button>
+        <button class="scan-go-btn" id="scan-go-btn">ANALYZE</button>
       </div>
       <div class="scan-examples">
-        <span class="scan-ex-lbl">Ejemplos:</span>
+        <span class="scan-ex-lbl">Examples:</span>
         <button class="scan-ex-btn" data-h="MrBeast">@MrBeast</button>
         <button class="scan-ex-btn" data-h="MrPrehistoria">@MrPrehistoria</button>
         <button class="scan-ex-btn" data-h="LuisitoComunica">@LuisitoComunica</button>
@@ -1690,35 +1690,35 @@ body::before{
       </div>
       <div class="scan-mode-pane" id="scan-mode-pane-thumbnail" style="display:none;">
         <div class="thumb-tabs">
-          <button class="thumb-tab active" id="thumb-tab-analyze" type="button">ANALIZAR</button>
-          <button class="thumb-tab" id="thumb-tab-history" type="button">HISTORIAL</button>
+          <button class="thumb-tab active" id="thumb-tab-analyze" type="button">ANALYZE</button>
+          <button class="thumb-tab" id="thumb-tab-history" type="button">HISTORY</button>
           <button class="thumb-tab" id="thumb-tab-ideas" type="button"> IDEAS</button>
         </div>
         <div id="thumb-analyze-panel">
           <div class="thumb-grid">
             <div class="thumb-panel">
-              <label class="thumb-label" for="thumb-channel-input">NOMBRE DEL CANAL A ANALIZAR</label>
-              <input class="thumb-input" id="thumb-channel-input" type="text" placeholder="@canal o nombre del canal" autocomplete="off" spellcheck="false"/>
+              <label class="thumb-label" for="thumb-channel-input">CHANNEL TO ANALYZE</label>
+              <input class="thumb-input" id="thumb-channel-input" type="text" placeholder="@channel or channel name" autocomplete="off" spellcheck="false"/>
               <label class="thumb-label" for="thumb-api-key-input">ANTHROPIC API KEY</label>
               <div id="ashlyv-api-status" style="display:flex;align-items:center;gap:8px;margin:-4px 0 10px;font-size:11px;color:rgba(255,255,255,.78);">
                 <span id="ashlyv-api-status-dot" style="width:9px;height:9px;border-radius:50%;background:#FF3D71;box-shadow:0 0 12px rgba(255,61,113,.35);"></span>
-                <span id="ashlyv-api-status-text">API Key requerida para análisis AI</span>
+                <span id="ashlyv-api-status-text">API key required for AI analysis</span>
               </div>
               <div class="thumb-api-row">
                 <input class="thumb-input" id="ashlyv-api-key-input" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" style="margin-bottom:0"/>
-                <button class="thumb-btn secondary" id="ashlyv-validate-api" type="button" style="margin-top:0">VALIDAR API</button>
+                <button class="thumb-btn secondary" id="ashlyv-validate-api" type="button" style="margin-top:0">VALIDATE API</button>
               </div>
               <div id="ashlyv-api-error" style="display:none;margin:10px 0 0;padding:10px 12px;border-radius:14px;border:1px solid rgba(255,61,113,.25);background:rgba(255,61,113,.08);color:#fff;font-size:11px;line-height:1.5;"></div>
-              <label class="thumb-label" for="thumb-file-input">SUBE TU MINIATURA</label>
+              <label class="thumb-label" for="thumb-file-input">UPLOAD YOUR THUMBNAIL</label>
               <input class="thumb-input" id="thumb-file-input" type="file" accept="image/*"/>
-              <button class="thumb-btn" id="thumb-analyze-btn" type="button">ANALIZAR CON AI</button>
-              <button class="thumb-btn secondary" id="thumb-configure-api-btn" type="button">CONFIGURAR API</button>
-              <div class="thumb-status" id="thumb-status" data-tone="muted">Pega tu key, valida y analiza.</div>
-              <img class="thumb-preview" id="thumb-preview" alt="Preview de miniatura"/>
+              <button class="thumb-btn" id="thumb-analyze-btn" type="button">ANALYZE WITH AI</button>
+              <button class="thumb-btn secondary" id="thumb-configure-api-btn" type="button">CONFIGURE API</button>
+              <div class="thumb-status" id="thumb-status" data-tone="muted">Paste your key, validate it, then analyze.</div>
+              <img class="thumb-preview" id="thumb-preview" alt="Thumbnail preview"/>
             </div>
             <div class="thumb-panel" id="thumb-result-panel">
-              <div class="scan-empty-ttl" style="font-size:16px;margin-bottom:8px">Resultado del analisis</div>
-              <div class="scan-empty-sub" style="text-align:left;max-width:none">Canal, key y miniatura. Luego analizas.</div>
+              <div class="scan-empty-ttl" style="font-size:16px;margin-bottom:8px">Analysis result</div>
+              <div class="scan-empty-sub" style="text-align:left;max-width:none">Add the channel, the key and the thumbnail, then analyze.</div>
             </div>
           </div>
         </div>
@@ -1728,22 +1728,22 @@ body::before{
         <div id="thumb-ideas-panel" style="display:none;">
           <div class="thumb-grid">
             <div class="thumb-panel">
-              <label class="thumb-label" for="ideas-niche-input">NICHO</label>
-              <input class="thumb-input" id="ideas-niche-input" type="text" placeholder="historia antigua" autocomplete="off" spellcheck="false"/>
-              <label class="thumb-label" for="ideas-language-select">IDIOMA</label>
+              <label class="thumb-label" for="ideas-niche-input">NICHE</label>
+              <input class="thumb-input" id="ideas-niche-input" type="text" placeholder="ancient history" autocomplete="off" spellcheck="false"/>
+              <label class="thumb-label" for="ideas-language-select">LANGUAGE</label>
               <select class="scan-sel" id="ideas-language-select">
-                <option value="Español">Español</option>
+                <option value="Español">Spanish</option>
                 <option value="English">English</option>
-                <option value="Português">Português</option>
-                <option value="Français">Français</option>
+                <option value="Português">Portuguese</option>
+                <option value="Français">French</option>
               </select>
-              <label class="thumb-label" for="ideas-rpm-input" style="margin-top:14px;">RPM OBJETIVO ($)</label>
+              <label class="thumb-label" for="ideas-rpm-input" style="margin-top:14px;">TARGET RPM ($)</label>
               <input class="thumb-input" id="ideas-rpm-input" type="number" min="1" step="1" value="8" autocomplete="off" spellcheck="false"/>
-              <button class="thumb-btn" id="ideas-generate-btn" type="button">GENERAR IDEAS CON AI</button>
+              <button class="thumb-btn" id="ideas-generate-btn" type="button">GENERATE IDEAS WITH AI</button>
             </div>
             <div class="thumb-panel" id="ideas-result-panel">
-              <div class="scan-empty-ttl" style="font-size:16px;margin-bottom:8px">Ideas de contenido</div>
-              <div class="scan-empty-sub" style="text-align:left;max-width:none">Escribe un nicho, elige idioma y genera títulos, hooks, miniaturas y tips de monetización.</div>
+              <div class="scan-empty-ttl" style="font-size:16px;margin-bottom:8px">Content ideas</div>
+              <div class="scan-empty-sub" style="text-align:left;max-width:none">Enter a niche, pick a language and generate titles, hooks, thumbnails and monetization tips.</div>
             </div>
           </div>
         </div>
@@ -1762,68 +1762,68 @@ body::before{
     </div>
     <div class="scan-tabs-bar" id="scan-tabs-bar" style="display:none;">
       <button class="scan-tab-btn active" data-tab="snapshot">SNAPSHOT</button>
-      <button class="scan-tab-btn" data-tab="competitors">COMPETENCIA</button>
-      <button class="scan-tab-btn" data-tab="patterns">PATRONES</button>
+      <button class="scan-tab-btn" data-tab="competitors">COMPETITORS</button>
+      <button class="scan-tab-btn" data-tab="patterns">PATTERNS</button>
       <button class="scan-tab-btn" data-tab="gaps">GAPS</button>
-      <button class="scan-tab-btn" data-tab="subniches">SUBNICHOS</button>
-      <button class="scan-tab-btn" data-tab="strategy">ESTRATEGIA</button>
+      <button class="scan-tab-btn" data-tab="subniches">SUBNICHES</button>
+      <button class="scan-tab-btn" data-tab="strategy">STRATEGY</button>
       <button class="scan-tab-btn" data-tab="scores">SCORES</button>
       <button class="scan-tab-btn" id="tab-advanced"> Advanced</button>
     </div>
     <div class="scan-content-area" id="scan-content-area">
       <div class="scan-empty-state" id="scan-empty-state">
         <div class="scan-empty-icon">SC</div>
-        <div class="scan-empty-ttl">Motor de inteligencia de canales</div>
-        <div class="scan-empty-sub">Ingresa el handle de cualquier canal de YouTube para obtener análisis completo: competidores, patrones de contenido, gaps, subnichos y estrategia personalizada con IA.</div>
+        <div class="scan-empty-ttl">Channel intelligence engine</div>
+        <div class="scan-empty-sub">Enter the handle of any YouTube channel for a full analysis: competitors, content patterns, gaps, subniches and a strategy written for you by AI.</div>
       </div>
       <div class="scan-loading-state" id="scan-loading-state" style="display:none;">
         <div class="scan-spin"></div>
         <div class="scan-load-ttl">INTELLIGENCE ENGINE</div>
         <div class="scan-stages">
-          <div class="scan-stage" id="scan-stage-0"><span class="stage-dot"></span> Escaneando canal en YouTube</div>
-          <div class="scan-stage" id="scan-stage-1"><span class="stage-dot"></span> Mapeando competidores reales</div>
-          <div class="scan-stage" id="scan-stage-2"><span class="stage-dot"></span> Extrayendo patrones de contenido</div>
-          <div class="scan-stage" id="scan-stage-3"><span class="stage-dot"></span> Generando inteligencia con IA</div>
+          <div class="scan-stage" id="scan-stage-0"><span class="stage-dot"></span> Scanning the channel on YouTube</div>
+          <div class="scan-stage" id="scan-stage-1"><span class="stage-dot"></span> Mapping real competitors</div>
+          <div class="scan-stage" id="scan-stage-2"><span class="stage-dot"></span> Extracting content patterns</div>
+          <div class="scan-stage" id="scan-stage-3"><span class="stage-dot"></span> Generating intelligence with AI</div>
         </div>
-        <div class="scan-load-sub" id="scan-load-sub-txt">Iniciando motor...</div>
+        <div class="scan-load-sub" id="scan-load-sub-txt">Starting the engine</div>
       </div>
       <div id="scan-results-wrap" style="display:none;">
         <div id="scan-panel-snapshot" class="scan-panel active">
-          <div class="scan-sec-ttl">SNAPSHOT GENERAL DEL CANAL</div>
+          <div class="scan-sec-ttl">CHANNEL SNAPSHOT</div>
           <div id="quick-filters-container"></div>
           <div id="sc-snapshot" class="scan-md"></div>
         </div>
         <div id="scan-panel-competitors" class="scan-panel" style="display:none;">
-          <div class="scan-sec-ttl">ANÁLISIS DE COMPETIDORES</div>
+          <div class="scan-sec-ttl">COMPETITOR ANALYSIS</div>
           <div id="sc-competitors" class="scan-md"></div>
         </div>
         <div id="scan-panel-patterns" class="scan-panel" style="display:none;">
-          <div class="scan-sec-ttl">PATRONES DE CONTENIDO</div>
+          <div class="scan-sec-ttl">CONTENT PATTERNS</div>
           <div id="sc-patterns" class="scan-md"></div>
         </div>
         <div id="scan-panel-gaps" class="scan-panel" style="display:none;">
-          <div class="scan-sec-ttl">GAPS Y OPORTUNIDADES</div>
+          <div class="scan-sec-ttl">GAPS AND OPPORTUNITIES</div>
           <div id="sc-gaps" class="scan-md"></div>
         </div>
         <div id="scan-panel-subniches" class="scan-panel" style="display:none;">
-          <div class="scan-sec-ttl">SUBNICHOS DETECTADOS</div>
+          <div class="scan-sec-ttl">SUBNICHES DETECTED</div>
           <div id="sc-subniches" class="scan-md"></div>
         </div>
         <div id="scan-panel-strategy" class="scan-panel" style="display:none;">
-          <div class="scan-sec-ttl">ESTRATEGIA RECOMENDADA</div>
+          <div class="scan-sec-ttl">RECOMMENDED STRATEGY</div>
           <div id="sc-strategy" class="scan-md"></div>
         </div>
         <div id="scan-panel-scores" class="scan-panel" style="display:none;">
-          <div class="scan-sec-ttl">EVALUACIÓN Y SCORES</div>
+          <div class="scan-sec-ttl">EVALUATION AND SCORES</div>
           <div id="sc-scores"></div>
         </div>
 
         <div id="panel-advanced" style="display:none; padding: 18px;">
           <div style="margin-bottom:24px;padding:16px;background:rgba(0,220,130,0.08);border-radius:14px;border:1px solid rgba(0,220,130,0.24);">
-            <div style="font-size:12px;font-weight:900;color:#00DC82;margin-bottom:10px;letter-spacing:.12em;text-transform:uppercase;">PRO usa solo nichos escaneados</div>
+            <div style="font-size:12px;font-weight:900;color:#00DC82;margin-bottom:10px;letter-spacing:.12em;text-transform:uppercase;">PRO only uses niches you scanned</div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
               <select id="adv-scan-nicho-select" style="flex:1;min-width:240px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,0.18);background:rgba(0,0,0,0.45);color:#fff;font-size:13px;"></select>
-              <button id="adv-refresh-nichos-btn" style="padding:10px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;font-weight:800;font-size:12px;cursor:pointer;">Actualizar lista</button>
+              <button id="adv-refresh-nichos-btn" style="padding:10px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#fff;font-weight:800;font-size:12px;cursor:pointer;">Refresh list</button>
             </div>
             <div id="adv-scan-nicho-summary" style="margin-top:9px;font-size:12px;color:rgba(255,255,255,0.65);line-height:1.6;">Run a scan or pick a niche you already saved.</div>
           </div>
@@ -2053,19 +2053,19 @@ body::before{
 <div class="trans-modal" id="trans-modal" style="display:none;">
   <div class="trans-box">
     <div class="trans-hdr">
-      <div class="trans-title">Traducir nicho</div>
+      <div class="trans-title">Translate niche</div>
       <button class="trans-cls" id="btn-trans-cls">X</button>
     </div>
     <div class="trans-body">
       <div class="trans-original" id="trans-original">-</div>
       <div style="display:flex;gap:10px;align-items:center;">
         <select id="lang-select"></select>
-        <button class="trans-btn" id="btn-trans-translate">Traducir</button>
+        <button class="trans-btn" id="btn-trans-translate">Translate</button>
       </div>
-      <div class="trans-result" id="trans-result">Selecciona idioma y traduce.</div>
+      <div class="trans-result" id="trans-result">Pick a language and translate.</div>
       <div class="trans-btns">
-        <button class="trans-btn" id="btn-trans-search">Buscar en YT</button>
-        <button class="trans-btn white" id="btn-trans-copy">Copiar</button>
+        <button class="trans-btn" id="btn-trans-search">Search on YouTube</button>
+        <button class="trans-btn white" id="btn-trans-copy">Copy</button>
       </div>
     </div>
   </div>
@@ -2080,29 +2080,29 @@ body::before{
     <div class="bp-body">
       <div class="bp-left">
         <div>
-          <div class="bp-sect-label">Nicho y potencial</div>
+          <div class="bp-sect-label">Niche and potential</div>
           <div class="bp-grade-pill" id="bp-grade">A</div>
-          <div style="font-size:12px;color:var(--muted);margin-top:10px;" id="bp-potential-txt">Snapshot listo para estrategia</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:10px;" id="bp-potential-txt">Snapshot ready for strategy</div>
         </div>
         <div>
-          <div class="bp-sect-label">Monetizacion sugerida</div>
+          <div class="bp-sect-label">Suggested monetization</div>
           <ul class="bp-monetization-list" id="bp-monetization-list">
             <li class="bp-monetization-item">Google AdSense</li>
           </ul>
         </div>
         <div>
-          <div class="bp-sect-label">Hook sugerido</div>
-          <div class="bp-hook-box" id="bp-hook">La promesa principal del nicho vive aqui.</div>
+          <div class="bp-sect-label">Suggested hook</div>
+          <div class="bp-hook-box" id="bp-hook">The main promise of the niche goes here.</div>
         </div>
       </div>
       <div class="bp-right">
         <div>
-          <div class="bp-sect-label">Estrategia base</div>
-          <div class="bp-strategy-text" id="bp-strategy">Usa MASTERPLAN para abrir el prompt extendido en ChatGPT con la oportunidad seleccionada.</div>
+          <div class="bp-sect-label">Base strategy</div>
+          <div class="bp-strategy-text" id="bp-strategy">Use MASTERPLAN to open the extended prompt in ChatGPT with the selected opportunity.</div>
         </div>
         <div class="bp-actions">
-          <button class="bp-btn white" id="bp-btn-copy">Copiar estrategia</button>
-          <button class="bp-btn" id="bp-btn-ai">Refinar en ChatGPT</button>
+          <button class="bp-btn white" id="bp-btn-copy">Copy strategy</button>
+          <button class="bp-btn" id="bp-btn-ai">Refine in ChatGPT</button>
         </div>
       </div>
     </div>
@@ -2112,58 +2112,58 @@ body::before{
 <div class="rn-modal" id="rn-modal" style="display:none;">
   <div class="rn-box">
     <div class="rn-hdr">
-      <div class="rn-title">Roba Nicho</div>
+      <div class="rn-title">Steal Niche</div>
       <button class="rn-close" id="rn-close">X</button>
     </div>
     <div class="rn-body">
       <div class="rn-left">
         <div>
-          <div class="bp-sect-label">Snapshot del nicho</div>
-          <div class="rn-query-box" id="rn-summary">Selecciona un nicho y extrae la inteligencia competitiva.</div>
+          <div class="bp-sect-label">Niche snapshot</div>
+          <div class="rn-query-box" id="rn-summary">Pick a niche and pull its competitive intelligence.</div>
         </div>
         <div>
-          <div class="bp-sect-label">Query de ataque</div>
+          <div class="bp-sect-label">Attack query</div>
           <div class="rn-query-box" id="rn-query">-</div>
         </div>
         <div>
           <div class="bp-sect-label">KPIs</div>
           <div class="rn-kpi-grid">
             <div class="rn-kpi"><div class="lbl">Score</div><div class="val" id="rn-score">0/10</div></div>
-            <div class="rn-kpi"><div class="lbl">Competidores</div><div class="val" id="rn-competitors">0</div></div>
+            <div class="rn-kpi"><div class="lbl">Competitors</div><div class="val" id="rn-competitors">0</div></div>
             <div class="rn-kpi"><div class="lbl">RPM</div><div class="val" id="rn-rpm">$0</div></div>
-            <div class="rn-kpi"><div class="lbl">Velocidad</div><div class="val" id="rn-vph">0/h</div></div>
+            <div class="rn-kpi"><div class="lbl">Speed</div><div class="val" id="rn-vph">0/h</div></div>
           </div>
         </div>
         <div>
-          <div class="bp-sect-label">Top competidores</div>
+          <div class="bp-sect-label">Top competitors</div>
           <div class="rn-competitor-grid" id="rn-competitor-grid"></div>
         </div>
       </div>
       <div class="rn-right">
         <div>
-          <div class="bp-sect-label">Que funciona mas</div>
+          <div class="bp-sect-label">What works best</div>
           <div class="rn-list" id="rn-works"></div>
         </div>
         <div>
-          <div class="bp-sect-label">Que hacen diferente</div>
+          <div class="bp-sect-label">What they do differently</div>
           <div class="rn-list" id="rn-diff"></div>
         </div>
         <div>
-          <div class="bp-sect-label">Huecos para entrar</div>
+          <div class="bp-sect-label">Gaps to enter</div>
           <div class="rn-list" id="rn-gap"></div>
         </div>
         <div>
-          <div class="bp-sect-label">Titulos / hooks a estudiar</div>
+          <div class="bp-sect-label">Titles and hooks to study</div>
           <div class="rn-list" id="rn-titles"></div>
         </div>
         <div>
-          <div class="bp-sect-label">Patrones dominantes</div>
+          <div class="bp-sect-label">Dominant patterns</div>
           <div class="rn-chip-row" id="rn-patterns"></div>
         </div>
         <div class="rn-actions">
-          <button class="rn-btn white" id="rn-btn-search">Buscar nicho en YT</button>
-          <button class="rn-btn white" id="rn-btn-copy">Copiar intel</button>
-          <button class="rn-btn" id="rn-btn-ai">Abrir en ChatGPT</button>
+          <button class="rn-btn white" id="rn-btn-search">Search niche on YouTube</button>
+          <button class="rn-btn white" id="rn-btn-copy">Copy intel</button>
+          <button class="rn-btn" id="rn-btn-ai">Open in ChatGPT</button>
         </div>
       </div>
     </div>

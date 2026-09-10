@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -42,7 +42,7 @@
 <body>
 <div class="wrap">
   <div class="logo"><svg viewBox="0 0 100 60" width="24" height="15" fill="#fff" style="vertical-align:middle;margin-right:4px;filter:drop-shadow(0 0 4px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg> ZERACK</div>
-  <div class="subtitle">Settings — Configuración de métricas y display</div>
+  <div class="subtitle">Metrics and display settings</div>
 
   <div class="section">
     <div class="section-title"> Tier Thresholds (Multiplier)</div>
@@ -55,20 +55,20 @@
   </div>
 
   <div class="section" style="border-color:rgba(255, 255, 255,0.35);background:linear-gradient(135deg,rgba(255, 255, 255,0.04),rgba(255, 255, 255,0.04));">
-    <div class="section-title" style="color:var(--accentC);"> ZERACK — Gemini API Key</div>
+    <div class="section-title" style="color:var(--accentC);">ZERACK, Gemini API key</div>
     <div class="field">
-      <label style="color:var(--text);">API Key (Google Gemini, gratis)</label>
+      <label style="color:var(--text);">API key (Google Gemini, free)</label>
       <input type="text" id="nsp-gemini-key" placeholder="AIzaSy..." autocomplete="off" spellcheck="false" style="font-family:var(--mono);"/>
       <div style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.55;">
-        El Coach AI usa Google Gemini 1.5 Flash <strong>completamente gratis</strong> (15 req/min, 1500 req/día — disponible en todas las regiones).<br/>
-        Consigue tu API key en <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--accentC);text-decoration:underline;">aistudio.google.com/apikey</a> (30 segundos, sin tarjeta).
+        The AI coach runs on Google Gemini 1.5 Flash, <strong>free of charge</strong>: 15 requests a minute, 1500 a day, available in every region.<br/>
+        Get your API key at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--accentC);text-decoration:underline;">aistudio.google.com/apikey</a>. Takes 30 seconds, no card needed.
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button id="nsp-gemini-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255, 255, 255,0.55);background:linear-gradient(135deg,rgba(255, 255, 255,0.22),rgba(255, 255, 255,0.12));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-           GUARDAR KEY
+           SAVE KEY
         </button>
         <button id="nsp-gemini-test-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-           PROBAR CONEXIÓN
+           TEST CONNECTION
         </button>
       </div>
       <div id="nsp-gemini-status" style="margin-top:10px;font-size:11px;font-weight:700;letter-spacing:.03em;line-height:1.5;min-height:18px;"></div>
@@ -86,19 +86,19 @@
       </div>
     </div>
 
-    <div class="section-title" style="color:#FF2D2D;"> GROQ — Provider rápido (750-1000 tok/s)</div>
+    <div class="section-title" style="color:#FF2D2D;">Groq, the fast provider at 750 to 1000 tokens a second</div>
     <div class="field">
-      <label style="color:var(--text);">Groq API Key (gratis, prioridad alta)</label>
+      <label style="color:var(--text);">Groq API key (free, tried first)</label>
       <input type="text" id="nsp-groq-key" placeholder="gsk_..." autocomplete="off" spellcheck="false" style="font-family:var(--mono);"/>
       <div style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.55;">
-        Inferencia ultra-rápida en cloud. <strong>30 req/min, 14,400 req/día — DOBLE de Gemini.</strong><br/>
-        Crea tu key en <a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color:#FF2D2D;text-decoration:underline;">console.groq.com/keys</a> (sign-up con Google, sin tarjeta).
+        Very fast cloud inference. <strong>30 requests a minute, 14,400 a day, double what Gemini allows.</strong><br/>
+        Create your key at <a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color:#FF2D2D;text-decoration:underline;">console.groq.com/keys</a>. Sign up with Google, no card needed.
       </div>
       <div style="margin-top:8px;">
-        <label style="color:var(--muted);font-size:10.5px;">Modelo Groq:</label>
+        <label style="color:var(--muted);font-size:10.5px;">Groq model:</label>
         <select id="nsp-groq-model" style="margin-left:6px;background:rgba(255,255,255,.06);border:1px solid var(--line);border-radius:6px;padding:4px 8px;color:var(--text);font-family:var(--mono);font-size:11px;">
-          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant  RECOMENDADO (1500-2000 tok/s)</option>
-          <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (más inteligente, 250-400 tok/s)</option>
+          <option value="llama-3.1-8b-instant">llama-3.1-8b-instant, recommended (1500-2000 tok/s)</option>
+          <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (smarter, 250-400 tok/s)</option>
           <option value="llama-3.1-70b-versatile">llama-3.1-70b-versatile (~250 tok/s)</option>
           <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
           <option value="gemma2-9b-it">gemma2-9b-it (~500 tok/s)</option>
@@ -106,10 +106,10 @@
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button id="nsp-groq-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255, 45, 45,0.55);background:linear-gradient(135deg,rgba(255, 45, 45,0.22),rgba(255, 255, 255,0.10));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-           GUARDAR
+           SAVE
         </button>
         <button id="nsp-groq-test-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-           PROBAR GROQ
+           TEST GROQ
         </button>
       </div>
       <div id="nsp-groq-status" style="margin-top:10px;font-size:11px;font-weight:700;letter-spacing:.03em;line-height:1.5;min-height:18px;"></div>
@@ -118,15 +118,15 @@
 
   <!-- v3.8.0 — OLLAMA local provider -->
   <div class="section" style="border-color:rgba(255, 255, 255,0.45);background:linear-gradient(135deg,rgba(255, 255, 255,0.06),rgba(255, 255, 255,0.04));">
-    <div class="section-title" style="color:#A88FFF;"> OLLAMA — Provider local (sin límites, offline)</div>
+    <div class="section-title" style="color:#A88FFF;">Ollama, the local provider: no limits, works offline</div>
     <div class="field">
       <label style="color:var(--text);display:flex;align-items:center;gap:8px;">
         <input type="checkbox" id="nsp-ollama-enabled" style="width:auto;"/>
-        <span>Habilitar Ollama (corre en tu Mac)</span>
+        <span>Enable Ollama, running on your own machine</span>
       </label>
       <div style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.55;">
-        Modelos AI corriendo localmente. <strong>Cero límites, cero internet necesario.</strong> Más lento que Groq pero privado 100%.<br/>
-        Descarga Ollama en <a href="https://ollama.com/download" target="_blank" rel="noopener" style="color:#A88FFF;text-decoration:underline;">ollama.com/download</a>. Luego en Terminal: <code style="background:rgba(0,0,0,.4);padding:1px 5px;border-radius:3px;">ollama pull llama3.2:3b</code>
+        AI models running on your machine. <strong>No limits, no internet needed.</strong> Slower than Groq, but nothing leaves the machine.<br/>
+        Download Ollama at <a href="https://ollama.com/download" target="_blank" rel="noopener" style="color:#A88FFF;text-decoration:underline;">ollama.com/download</a>, then in a terminal run <code style="background:rgba(0,0,0,.4);padding:1px 5px;border-radius:3px;">ollama pull llama3.2:3b</code>
       </div>
       <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">
         <div>
@@ -134,80 +134,75 @@
           <input type="text" id="nsp-ollama-url" placeholder="http://localhost:11434" value="http://localhost:11434" style="font-family:var(--mono);font-size:11px;"/>
         </div>
         <div>
-          <label style="color:var(--muted);font-size:10px;">Modelo:</label>
+          <label style="color:var(--muted);font-size:10px;">Model:</label>
           <input type="text" id="nsp-ollama-model" placeholder="llama3.2:3b" value="llama3.2:3b" style="font-family:var(--mono);font-size:11px;"/>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button id="nsp-ollama-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255, 255, 255,0.55);background:linear-gradient(135deg,rgba(255, 255, 255,0.22),rgba(255, 255, 255,0.10));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-           GUARDAR
+           SAVE
         </button>
         <button id="nsp-ollama-test-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
-           PROBAR OLLAMA
+           TEST OLLAMA
         </button>
       </div>
       <div id="nsp-ollama-status" style="margin-top:10px;font-size:11px;font-weight:700;letter-spacing:.03em;line-height:1.5;min-height:18px;"></div>
     </div>
   </div>
 
-  <!-- Revenue Estimate section eliminada en v3.4.1 — esos valores NO se usaban en ningún lado.
-       El RPM real se calcula automáticamente por nicho detectado en el título de cada video:
-       finanzas=$22, negocios=$16, IA=$13, tech=$10, sleep/relax=$10.92, history=$5.50, gaming=$3.5,
-       default=$3.0. Ver calcScore() en nsp-bundle.js L1975 y ASHLYV_NICHE_RPM en L1869. -->
   <div class="section" style="border-color:rgba(255, 255, 255,0.25);background:rgba(255, 255, 255,0.04);">
-    <div class="section-title" style="color:#FFFFFF;">ℹ RPM Automático por Nicho</div>
+    <div class="section-title" style="color:#FFFFFF;">Automatic RPM by niche</div>
     <div style="font-size:11px;color:var(--muted);line-height:1.6;">
-      El RPM se calcula <strong>automáticamente</strong> según el nicho detectado en cada título.
-      No hay que configurar nada. Ejemplos de los valores aplicados:
+      RPM is worked out <strong>automatically</strong> from the niche detected in each title.
+      There is nothing to configure. These are the values applied:
       <br/><br/>
       <table style="width:100%;font-size:10.5px;border-collapse:collapse;">
-        <tr><td style="padding:3px 0;color:var(--text);">Finanzas / Inversiones</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$22 / mil views</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Negocios / Emprendimiento</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$16</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">IA y Automatización</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$13</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Sleep / Relax / Meditación</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$10.92</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Tecnología / Programación</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$10</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Legal / Seguros / Hipotecas</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$9</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Salud / Fitness</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$7</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Historia / True Crime</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$5.50 - $6</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Ciencia / Naturaleza / Psicología</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$5</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Supervivencia / Religion</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$4.50 - $6</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Gaming / Sin clasificar</td><td style="text-align:right;color:var(--muted);">$3.00 - $3.50</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Finance and investing</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$22 per 1000 views</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Business and startups</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$16</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">AI and automation</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$13</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Sleep, relaxation and meditation</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$10.92</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Tech and programming</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$10</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Legal, insurance and mortgages</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$9</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Health and fitness</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$7</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">History and true crime</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$5.50 - $6</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Science, nature and psychology</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$5</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Survival and religion</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$4.50 - $6</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Gaming and unclassified</td><td style="text-align:right;color:var(--muted);">$3.00 - $3.50</td></tr>
       </table>
       <br/>
-      <em style="color:var(--muted2);">Estos valores son benchmarks de YouTube según nicho. Detección automática vía regex sobre el título — no requiere intervención.</em>
+      <em style="color:var(--muted2);">These are YouTube benchmarks by niche. The niche is detected from the title by regex, so there is nothing to set.</em>
     </div>
   </div>
 
   <div class="section">
     <div class="section-title"> Display Options</div>
     <div class="toggle-row">
-      <span class="toggle-label">Mostrar VPH (Views Per Hour)</span>
+      <span class="toggle-label">Show VPH (views per hour)</span>
       <label class="toggle"><input type="checkbox" id="show-vph" checked/><span class="slider"></span></label>
     </div>
     <div class="toggle-row">
-      <span class="toggle-label">Mostrar Multiplier</span>
+      <span class="toggle-label">Show multiplier</span>
       <label class="toggle"><input type="checkbox" id="show-mult" checked/><span class="slider"></span></label>
     </div>
     <div class="toggle-row">
-      <span class="toggle-label">Mostrar Revenue Estimate</span>
+      <span class="toggle-label">Show revenue estimate</span>
       <label class="toggle"><input type="checkbox" id="show-rev" checked/><span class="slider"></span></label>
     </div>
     <div class="toggle-row">
-      <span class="toggle-label">Mostrar Opportunity Score</span>
+      <span class="toggle-label">Show opportunity score</span>
       <label class="toggle"><input type="checkbox" id="show-score" checked/><span class="slider"></span></label>
     </div>
     <div class="toggle-row">
-      <span class="toggle-label">Mostrar Tier Badge</span>
+      <span class="toggle-label">Show tier badge</span>
       <label class="toggle"><input type="checkbox" id="show-tier" checked/><span class="slider"></span></label>
     </div>
   </div>
 
-  <button class="save-btn" id="save-btn"> GUARDAR CONFIGURACIÓN</button>
-  <div class="saved-msg" id="saved-msg"> Configuración guardada</div>
+  <button class="save-btn" id="save-btn">SAVE SETTINGS</button>
+  <div class="saved-msg" id="saved-msg">Settings saved</div>
 </div>
 
 <script src="../lib/nsp-models.js"></script>
 <script src="options.js"></script>
-<!-- INLINE SCRIPT REEMPLAZADO en v3.5.4 — MV3 CSP bloquea inline JS. Todo está en options.js -->
 </body>
 </html>

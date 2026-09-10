@@ -1,17 +1,9 @@
-// service-worker.js — NicheScanner Pro v2.6 (handlers completos)
-
-// ── NSP POLICY ENGINE (Fase 1) ───────────────────────────────────────────────
-// SW CLASSIC (el manifest NO declara "type":"module") → importScripts en la
-// evaluación inicial es la vía correcta (un module-SW usaría import estático).
-// Orden: primero la lib de texto, luego el motor (NSPPolicy depende de NSPText).
+// Classic service worker, so importScripts runs at initial evaluation. Order matters: NSPPolicy needs NSPText.
 try { importScripts('../lib/nsp-text.js', '../nsp-policy.js'); } catch (eNspText) { console.warn('[NSP SW] importScripts policy engine:', eNspText && eNspText.message); }
 
-// ── v3.7.3 RATE LIMITER (Gemini free tier 15 RPM) ─────────────────────────────
-// Sliding window: array de timestamps de las últimas N requests a Gemini.
-// Antes de cada fetch, si las últimas 14 caben dentro de 60s, esperamos hasta
-// que la más vieja salga del window. Nunca pegamos 429 del lado del cliente.
-var _nspGeminiCallTimes = []; // ms timestamps
-var NSP_GEMINI_LIMIT_PER_MIN = 14; // 1 menos que el oficial 15 (buffer de seguridad)
+// Sliding window under the Gemini free tier of 15 requests per minute, so a 429 never happens client side.
+var _nspGeminiCallTimes = [];
+var NSP_GEMINI_LIMIT_PER_MIN = 14;
 
 function nspGeminiWaitForRateLimit() {
   return new Promise(function(resolve) {
@@ -25,7 +17,7 @@ function nspGeminiWaitForRateLimit() {
     var oldest = _nspGeminiCallTimes[0];
     var waitMs = (oldest + 60000) - now + 100;
     if (waitMs < 0) waitMs = 0;
-    console.log('[NSP rate-limiter Gemini] ' + _nspGeminiCallTimes.length + '/' + NSP_GEMINI_LIMIT_PER_MIN + ' usadas — esperando ' + Math.ceil(waitMs / 1000) + 's');
+    console.log('[NSP rate-limiter Gemini] ' + _nspGeminiCallTimes.length + '/' + NSP_GEMINI_LIMIT_PER_MIN + ' used, waiting ' + Math.ceil(waitMs / 1000) + 's');
     setTimeout(function() {
       var now2 = Date.now();
       _nspGeminiCallTimes = _nspGeminiCallTimes.filter(function(t) { return (now2 - t) < 60000; });
@@ -35,8 +27,7 @@ function nspGeminiWaitForRateLimit() {
   });
 }
 
-// v3.8.1 — Rate limiter SEPARADO para Groq (límite oficial: 30 RPM, buffer 28).
-// Antes Groq compartía el limiter de Gemini (14/min) y eso era absurdo.
+// Groq gets its own limiter: its official cap is 30 requests per minute, buffered to 28.
 var _nspGroqCallTimes = [];
 var NSP_GROQ_LIMIT_PER_MIN = 28;
 
@@ -52,7 +43,7 @@ function nspGroqWaitForRateLimit() {
     var oldest = _nspGroqCallTimes[0];
     var waitMs = (oldest + 60000) - now + 100;
     if (waitMs < 0) waitMs = 0;
-    console.log('[NSP rate-limiter Groq] ' + _nspGroqCallTimes.length + '/' + NSP_GROQ_LIMIT_PER_MIN + ' usadas — esperando ' + Math.ceil(waitMs / 1000) + 's');
+    console.log('[NSP rate-limiter Groq] ' + _nspGroqCallTimes.length + '/' + NSP_GROQ_LIMIT_PER_MIN + ' used, waiting ' + Math.ceil(waitMs / 1000) + 's');
     setTimeout(function() {
       var now2 = Date.now();
       _nspGroqCallTimes = _nspGroqCallTimes.filter(function(t) { return (now2 - t) < 60000; });
@@ -62,17 +53,12 @@ function nspGroqWaitForRateLimit() {
   });
 }
 
-// ── v3.8.0 — MULTI-PROVIDER AI HELPERS ───────────────────────────────────────
-// Groq (OpenAI-compatible) y Ollama (OpenAI-compatible) usan formato unificado.
-// Gemini tiene su propio formato. Estos helpers normalizan a {ok, text, functionCalls}.
-
-// Convierte mensajes Gemini-style → OpenAI-style (Groq + Ollama lo entienden)
+// Groq and Ollama speak the OpenAI format, Gemini does not; these helpers normalize both to {ok, text, functionCalls}.
 function nspMessagesToOpenAI(messages) {
   return (messages || []).map(function(m) {
     var role = m.role === 'assistant' || m.role === 'model' ? 'assistant' :
                m.role === 'function' || m.role === 'tool' ? 'tool' : 'user';
     var content = String(m.content || '');
-    // Si hay functionCall/functionResponse en Gemini format, convertir
     if (role === 'tool' && m.functionResponse) {
       return { role: 'tool', tool_call_id: m.toolCallId || m.functionResponse.name || 'call', name: m.functionResponse.name, content: JSON.stringify(m.functionResponse.response || {}) };
     }
@@ -83,7 +69,6 @@ function nspMessagesToOpenAI(messages) {
   });
 }
 
-// Convierte tools Gemini format → OpenAI format
 function nspToolsToOpenAI(tools) {
   if (!Array.isArray(tools) || !tools.length) return [];
   var openAITools = [];
@@ -103,7 +88,6 @@ function nspToolsToOpenAI(tools) {
   return openAITools;
 }
 
-// Parsea response OpenAI-style → {ok, text, functionCalls}
 function nspParseOpenAIResponse(data) {
   if (!data || data.error) {
     return { ok: false, error: (data && data.error && (data.error.message || data.error)) || 'unknown' };
@@ -125,10 +109,7 @@ function nspParseOpenAIResponse(data) {
   return { ok: true, text: text, functionCalls: functionCalls, raw: data };
 }
 
-// fetch con TIMEOUT (AbortController). CAUSA RAÍZ de "el chat se cuelga para siempre":
-// un fetch de IA sin timeout que acepta la conexión pero nunca responde (TCP colgado,
-// proxy, región) deja el handler con `return true` esperando eternamente → sendResponse
-// nunca corre. Con timeout, el fetch RECHAZA y el catch hace fallthrough/responde error.
+// Without a timeout, an AI fetch that connects but never answers leaves the handler on `return true` forever and sendResponse never runs.
 function nspFetchTimeout(url, opts, ms) {
   opts = opts || {};
   var ctrl = new AbortController();
@@ -137,13 +118,9 @@ function nspFetchTimeout(url, opts, ms) {
   return fetch(url, opts).finally(function () { clearTimeout(to); });
 }
 
-// Llamada a Groq (OpenAI-compatible) — v3.9.0 con detección de rate-limit + TPM-safe
-// NOTA TPM: el free tier de Groq tiene un límite de tokens-por-minuto bajo (~6000 en
-// llama-3.1-8b-instant). Un system prompt gigante (la biblia ZERACK ~6000 tokens) revienta
-// el TPM en UNA sola request → 429 instantáneo. Por eso acá recortamos el system a ~9000
-// chars (~2200 tokens) y limitamos la respuesta, para que un turno entero quepa bajo el TPM.
+// The Groq free tier has a low tokens-per-minute cap, so the system prompt is cut to about 9000 characters to keep one turn under it.
 async function nspCallGroq(apiKey, model, payload, messages) {
-  await nspGroqWaitForRateLimit(); // limiter propio de Groq (28/min) no el de Gemini
+  await nspGroqWaitForRateLimit();
   var openAIMessages = nspMessagesToOpenAI(messages);
   if (payload.system) openAIMessages.unshift({ role: 'system', content: String(payload.system).slice(0, 9000) });
   var body = {
@@ -164,9 +141,7 @@ async function nspCallGroq(apiKey, model, payload, messages) {
     }, 45000);
     data = await resp.json();
   } catch (eNet) {
-    // v4.41.0: timeout/red caída NO debe LANZAR — lanzaba y rompía el cascade de proveedores (en vez de
-    // caer a Ollama/Gemini, daba error). Devuelve un fallo NORMAL {ok:false} (misma forma que los errores
-    // de API de abajo) → el wrapper de retry y el cascade caen limpio al siguiente provider.
+    // A network failure returns {ok:false} instead of throwing, or the provider cascade breaks instead of falling through.
     console.warn('[NSP SW] Groq network/timeout:', eNet && eNet.message);
     return { ok: false, error: 'Groq network: ' + String((eNet && eNet.message) || eNet), rateLimited: false };
   }
@@ -176,7 +151,7 @@ async function nspCallGroq(apiKey, model, payload, messages) {
     var isRate = resp.status === 429;
     var retryAfter = 0;
     if (isRate) {
-      // Groq manda el delay en el header retry-after, o en el message "try again in 4.5s"
+      // Groq sends the delay in the retry-after header, or inside the error message text.
       retryAfter = parseFloat(resp.headers.get('retry-after')) || 0;
       var rmsg = (data && data.error && data.error.message) ? String(data.error.message) : '';
       if (!retryAfter && rmsg) {
@@ -197,16 +172,13 @@ async function nspCallGroq(apiKey, model, payload, messages) {
   return parsed;
 }
 
-// Wrapper de Groq con wait-and-retry en rate-limit corto (≤10s). Si el delay es largo
-// o se agotan los reintentos, devuelve {ok:false, rateLimited:true} para que el handler
-// haga fallthrough al siguiente provider.
 async function nspCallGroqWithRetry(apiKey, model, payload, messages) {
   var attempts = 0;
   while (true) {
     var res = await nspCallGroq(apiKey, model, payload, messages);
     if (res.ok) return res;
     if (res.rateLimited && res.retryAfter > 0 && res.retryAfter <= 10 && attempts < 1) {
-      console.log('[NSP SW] Groq rate limit, esperando ' + res.retryAfter + 's y reintentando...');
+      console.log('[NSP SW] Groq rate limit, waiting ' + res.retryAfter + 's before retrying');
       await new Promise(function(r) { setTimeout(r, (res.retryAfter + 0.5) * 1000); });
       attempts++;
       continue;
@@ -215,7 +187,6 @@ async function nspCallGroqWithRetry(apiKey, model, payload, messages) {
   }
 }
 
-// Ping Ollama para detectar si está corriendo
 async function nspPingOllama(url) {
   try {
     var ctrl = new AbortController();
@@ -228,7 +199,6 @@ async function nspPingOllama(url) {
   }
 }
 
-// Llamada a Ollama (formato OpenAI-compatible via /v1/chat/completions)
 async function nspCallOllama(url, model, payload, messages) {
   var openAIMessages = nspMessagesToOpenAI(messages);
   if (payload.system) openAIMessages.unshift({ role: 'system', content: String(payload.system).slice(0, 24000) });
@@ -253,8 +223,7 @@ async function nspCallOllama(url, model, payload, messages) {
     }, 45000);
     data = await resp.json();
   } catch (eNet) {
-    // v4.42.0: timeout/red de Ollama (local) NO debe LANZAR — devuelve fallo NORMAL {ok:false} para que
-    // el cascade de proveedores caiga limpio al siguiente (Gemini). Mismo patrón que el fix de Groq (v4.41).
+    // Same as Groq: return {ok:false} instead of throwing so the cascade falls through to the next provider.
     console.warn('[NSP SW] Ollama network/timeout:', eNet && eNet.message);
     return { ok: false, error: 'Ollama network: ' + String((eNet && eNet.message) || eNet) };
   }
@@ -264,13 +233,10 @@ async function nspCallOllama(url, model, payload, messages) {
   return nspParseOpenAIResponse(data);
 }
 
-// Llamada a Gemini con fallback de modelos + retry-on-rate-limit. v3.9.0: extraído a
-// función para poder usarlo en la cola de providers con fallthrough. Devuelve
-// {ok, text, functionCalls, modelUsed, rateLimited, retryAfter, error, detail, triedModels}.
 async function nspCallGemini(geminiKey, cachedModel, payload, messages) {
   var modelChain = [];
   if (cachedModel) modelChain.push(cachedModel);
-  // Modelos en orden de probabilidad de funcionar en 2025 (Latam incluido)
+  // Ordered by how likely each model is to be reachable.
   var fallbacks = [
     'gemini-2.5-flash',
     'gemini-2.0-flash',
@@ -353,14 +319,12 @@ async function nspCallGemini(geminiKey, cachedModel, payload, messages) {
               }
             } catch(eRd) {}
 
-            // Delay corto y aún hay retries → esperar y reintentar MISMO modelo
             if (retryDelaySec > 0 && retryDelaySec <= 30 && retryCount < maxRetries) {
-              console.log('[NSP SW] Rate limit en ' + modelName + ', esperando ' + retryDelaySec + 's...');
+              console.log('[NSP SW] Rate limit on ' + modelName + ', waiting ' + retryDelaySec + 's');
               await new Promise(function(res) { setTimeout(res, (retryDelaySec + 1) * 1000); });
               retryCount++;
               continue;
             }
-            // Delay largo o sin retries → marcar rate-limit y pasar al próximo modelo
             if (retryDelaySec > rateLimitedDelay) rateLimitedDelay = retryDelaySec;
             lastError = errMsg;
             lastDetail = data.error;
@@ -375,7 +339,6 @@ async function nspCallGemini(geminiKey, cachedModel, payload, messages) {
             modelDone = true;
             break;
           }
-          // Otro error (500, etc) → fallar este provider de inmediato
           return { ok: false, error: errMsg, detail: data.error, triedModels: triedLog, rateLimited: false };
         }
 
@@ -478,7 +441,7 @@ async function nspCallGeminiVision(geminiKey, cachedModel, images, prompt, syste
 
 chrome.alarms.onAlarm.addListener(function(alarm) {
   if (alarm.name === 'nsp-trend-check') {
-    console.log('[NSP SW] trend-check starting —', new Date().toLocaleTimeString());
+    console.log('[NSP SW] trend-check starting,', new Date().toLocaleTimeString());
     runTrendCheck();
   }
 });
@@ -529,8 +492,8 @@ async function runTrendCheck() {
         chrome.notifications.create('nsp-trend-' + Date.now() + '-' + j, {
           type: 'basic',
           iconUrl: 'icons/icon128.png',
-          title: '🔥 ' + (a.channel.name || 'Canal') + ' publicó un outlier',
-          message: (top.title || 'video').slice(0, 80) + ' · ' + fmtViews(top.views) + ' views en ' + fmtHours(top.hoursOld),
+          title: (a.channel.name || 'Channel') + ' published an outlier',
+          message: (top.title || 'video').slice(0, 80) + ' · ' + fmtViews(top.views) + ' views in ' + fmtHours(top.hoursOld),
           priority: 2
         });
       } catch(e) { console.warn('[NSP SW] notif fail:', e); }
@@ -609,14 +572,12 @@ function parseViews(t) {
 
 function parseRelHours(text) {
   if (!text) return null;
-  // FIX: ahora ES/EN/DE/FR/PT/IT. Antes solo ES/EN → videos alemanes ("vor 2 Tagen") daban null
-  // y el filtro de edad los descartaba TODOS (Country Feed = 0 resultados / rojo en Germany).
+  // Covers ES, EN, DE, FR, PT and IT: with only ES and EN, German dates parsed as null and the age filter dropped every result.
   var t = String(text).toLowerCase()
-    .replace(/^(hace|premiered|streamed|vor|il y a|há|fa)\s*/i, '')   // prefijos: ES/DE/FR/PT/IT
+    .replace(/^(hace|premiered|streamed|vor|il y a|há|fa)\s*/i, '')
     .trim();
   var m = t.match(/(\d+)\s*(second|segundo|sekund|seconde|minut|min|hora|hour|hr|stunde|heure|ora|d[ií]a|day|tag|jour|giorno|dia|semana|week|woche|semaine|settiman|month|mes|monat|mois|mese|year|a[ñn]o|jahr|an[s]?|anno|ann)/);
   if (!m) {
-    // formas "ayer/hoy/yesterday/gestern/hier" → ~1 día / ~0h
     if (/\b(hoy|today|heute|aujourd|hoje|oggi)\b/.test(t)) return 6;
     if (/\b(ayer|yesterday|gestern|hier|ontem|ieri)\b/.test(t)) return 24;
     return null;
@@ -700,8 +661,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return false;
   }
 
-  // — NSP YouTube Data API: fetch channel snippet+statistics (batch hasta 50 ids)
-  // Hecho desde service-worker para evitar CORS issues del content script MAIN world
+  // Channel snippet and statistics in batches of up to 50 ids. Run here because the MAIN world content script hits CORS.
   if (msg.type === 'NSP_FETCH_YT_CHANNELS') {
     var ids = (msg.channelIds || []).filter(function(id) {
       return typeof id === 'string' && /^[A-Za-z0-9_\-]{20,80}$/.test(id);
@@ -711,9 +671,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     if (!apiKey) { sendResponse({ ok: false, error: 'no key' }); return false; }
     var url = 'https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id='
       + ids.join(',') + '&key=' + apiKey;
-    // v4.40.0: con timeout (15s) — sin esto, si la YouTube Data API se colgaba, el SW y quien lo
-    // llamó esperaban para siempre y sendResponse nunca llegaba (port colgado). El AbortController
-    // del helper rechaza al expirar → cae al .catch de abajo → responde error en vez de colgarse.
+    // With a timeout: without it a hung YouTube Data API call left the caller waiting and sendResponse never arrived.
     nspFetchTimeout(url, { method: 'GET' }, 15000)
       .then(function(r) {
         var status = r.status;
@@ -782,7 +740,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  // — Open dashboard tab (URL validada: solo interna de la extensión o youtube.com, mismo criterio que NSP_OPEN_TAB)
+  // Open dashboard tab. URL restricted to extension-internal or youtube.com, same rule as NSP_OPEN_TAB.
   if (msg.type === 'ASHLYV_OPEN') {
     var url = String(msg.url || '') || chrome.runtime.getURL('ashlyv/ashlyv.html');
     var extPrefixOpen = chrome.runtime.getURL('');
@@ -826,9 +784,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   }
 
   // — Set YouTube PREF cookie to force gl/hl for the user's session.
-  //   Called by content script when the user picks a market with gl/hl set.
-  //   This is the "soft" persistence layer — pages loaded AFTER this call
-  //   will respect the new locale. Current pages still need a reload to apply.
+  //   Pages loaded after this call pick up the new locale; pages already open need a reload.
   if (msg.type === 'NSP_SET_YT_COOKIE') {
     var gl = String(msg.gl || '').trim();
     var hl = String(msg.hl || '').trim();
@@ -988,9 +944,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     });
     return true;
   }
-  // PATCH: merge parcial del estado del dashboard. Antes NO existía este handler →
-  // el dashboard mandaba ASHLYV_GLOBAL_STATE_PATCH (idioma, filtros, watchlist, focus,
-  // auto-mix) y se perdía: nada persistía al recargar. Ahora hace merge y guarda.
+  // Merges a partial dashboard state. Without this handler the patches were dropped and nothing survived a reload.
   if (msg.type === 'ASHLYV_GLOBAL_STATE_PATCH') {
     chrome.storage.local.get('ashlyv_global_state', function(r) {
       var merged = Object.assign({}, r.ashlyv_global_state || {}, msg.patch || {});
@@ -1109,8 +1063,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
           try { images.push(await nspFetchImageAsBase64(urls[i])); } catch (eImg) {}
         }
         if (!images.length) { sendResponse({ ok: false, error: 'thumb_fetch_failed' }); return; }
-        var system = 'Eres un clasificador EXPERTO de canales "faceless" de YouTube (automatizacion). FACELESS = el canal NO depende de una persona real frente a camara: usa voz en off + imagenes/stock/IA, gameplay, compilaciones, texto, ilustraciones o b-roll. NO ES FACELESS: un presentador o persona recurrente a camara, un vlogger, un noticiero o medio (reporteros, logos de TV, eventos reales), reacciones, o un artista musical. Respondes SOLO con JSON valido, sin texto extra.';
-        var prompt = 'Mira la(s) miniatura(s) de este canal de YouTube y decide si es FACELESS (automatizacion) o no.\nTitulo del video: "' + title + '"\nCanal: "' + channel + '"\n\nDevuelve EXACTAMENTE este JSON: {"faceless": true|false, "confidence": 0-100, "type": "AI"|"compilation"|"narration"|"gameplay"|"news"|"vlog"|"person"|"music"|"other", "reason": "max 12 palabras"}';
+        var system = 'You classify YouTube channels as faceless or not. FACELESS means the channel does not depend on a real person on camera: voice over with images, stock or AI footage, gameplay, compilations, text, illustrations or b-roll. NOT FACELESS: a recurring host on camera, a vlogger, a news outlet (reporters, TV logos, real events), reaction videos, or a music artist. Answer with valid JSON only, no extra text.';
+        var prompt = 'Look at the thumbnail or thumbnails from this YouTube channel and decide whether it is faceless.\nVideo title: "' + title + '"\nChannel: "' + channel + '"\n\nReturn EXACTLY this JSON: {"faceless": true|false, "confidence": 0-100, "type": "AI"|"compilation"|"narration"|"gameplay"|"news"|"vlog"|"person"|"music"|"other", "reason": "max 12 words"}';
         var res = await nspCallGeminiVision(geminiKey, cachedModel, images, prompt, system);
         if (!res.ok) { sendResponse({ ok: false, error: res.error || 'vision_failed' }); return; }
         var verdict = null;
@@ -1124,20 +1078,17 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  // — v3.8.0 — Multi-provider AI cascade ───────────────────────────────────
-  // Cascade: 1) Groq (cloud, 750-1000 tok/s, 30 RPM)
-  //          2) Ollama local (M-series Mac, sin límites, sin internet)
-  //          3) Gemini (fallback final)
-  // Cada provider traduce su formato a la respuesta unificada {ok, text, functionCalls}.
+  // Provider cascade: Groq first, then local Ollama, then Gemini.
   if (msg.type === 'ASHLYV_CHAT_REQUEST') {
     chrome.storage.local.get([
       'nsp_gemini_api_key', 'nsp_gemini_working_model',
       'nsp_groq_api_key', 'nsp_groq_model', 'nsp_selected_model',
       'nsp_ollama_url', 'nsp_ollama_model', 'nsp_ollama_enabled',
       'nsp_provider_priority',
-      'nsp_preferred_provider'  // v3.8.3: si está set y no es 'auto', usa solo ese
+      'nsp_preferred_provider'
     ], async function(r) {
-      try {   // defensa: cualquier throw acá adentro (callback async + return true) colgaría el canal para siempre
+      // A throw inside this async callback would hang the message channel for good.
+      try {
       var payload = msg.payload || {};
       var messages = Array.isArray(payload.messages) ? payload.messages : [];
       if (!messages.length) { sendResponse({ ok: false, error: 'no_messages' }); return; }
@@ -1164,21 +1115,16 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
 
       var cachedModel = r && typeof r.nsp_gemini_working_model === 'string' ? r.nsp_gemini_working_model : '';
 
-      // v3.9.0 — COLA DE PROVIDERS CON FALLTHROUGH AUTOMÁTICO EN RATE-LIMIT.
-      // El "preferred provider" (el selector de abajo del chat) ya NO es exclusivo:
-      // define la PRIORIDAD, pero si ese provider tira rate-limit (429), no responde
-      // o falla, pasamos AUTOMÁTICAMENTE al siguiente configurado. Resultado: el
-      // usuario NUNCA ve un error de rate-limit mientras haya UN provider libre.
+      // The preferred provider sets priority, not exclusivity: on a rate limit or a failure the next configured provider takes over.
       var preferredProvider = chosenProvider || (r && r.nsp_preferred_provider) || 'auto';
       if (chosenProvider === 'gemini' && chosenModel) cachedModel = chosenModel;
       if (chosenProvider === 'ollama' && chosenModel) ollamaModel = chosenModel;
       var order = [];
       function pushProv(name) { if (order.indexOf(name) === -1) order.push(name); }
       if (preferredProvider === 'groq' || preferredProvider === 'ollama' || preferredProvider === 'gemini') {
-        pushProv(preferredProvider);            // el elegido va PRIMERO (prioridad)
+        pushProv(preferredProvider);
       }
-      pushProv('groq'); pushProv('ollama'); pushProv('gemini'); // el resto = fallback automático
-      // Filtrar a los que realmente están configurados / habilitados
+      pushProv('groq'); pushProv('ollama'); pushProv('gemini');
       var queue = order.filter(function(p) {
         if (p === 'groq') return !!groqValid;
         if (p === 'ollama') return !!ollamaEnabled;
@@ -1187,13 +1133,13 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       });
 
       if (!queue.length) {
-        sendResponse({ ok: false, error: 'no_provider_configured', detail: 'No hay proveedor de IA configurado. Agregá tu key de Groq o Gemini en Options (o habilitá Ollama).' });
+        sendResponse({ ok: false, error: 'no_provider_configured', detail: 'No AI provider is configured. Add your Groq or Gemini key in Options, or enable Ollama.' });
         return;
       }
 
       var lastErr = '';
-      var anyAttempted = false;   // ¿algún provider llegó a llamar de verdad?
-      var allRateLimited = true;  // ¿TODOS los fallos fueron por rate-limit?
+      var anyAttempted = false;
+      var allRateLimited = true;
 
       for (var qi = 0; qi < queue.length; qi++) {
         var prov = queue[qi];
@@ -1205,13 +1151,13 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
             if (gr.ok) { sendResponse(Object.assign({ provider: 'groq', modelUsed: groqModel }, gr)); return; }
             lastErr = 'Groq: ' + (gr.error || 'unknown');
             if (!gr.rateLimited) allRateLimited = false;
-            console.warn('[NSP SW] Groq agotado → fallthrough:', lastErr);
+            console.warn('[NSP SW] Groq exhausted, falling through:', lastErr);
           } else if (prov === 'ollama') {
             var alive = await nspPingOllama(ollamaUrl);
             if (!alive) {
-              lastErr = 'Ollama no responde en ' + ollamaUrl;
-              allRateLimited = false; // no responder no es rate-limit
-              console.warn('[NSP SW] Ollama no reachable → fallthrough');
+              lastErr = 'Ollama is not responding at ' + ollamaUrl;
+              allRateLimited = false;
+              console.warn('[NSP SW] Ollama not reachable, falling through');
               continue;
             }
             anyAttempted = true;
@@ -1219,8 +1165,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
             var orr = await nspCallOllama(ollamaUrl, ollamaModel, payload, messages);
             if (orr.ok) { sendResponse(Object.assign({ provider: 'ollama', modelUsed: ollamaModel }, orr)); return; }
             lastErr = 'Ollama: ' + (orr.error || 'unknown');
-            allRateLimited = false; // un fallo de Ollama es local, no rate-limit
-            console.warn('[NSP SW] Ollama agotado → fallthrough:', lastErr);
+            allRateLimited = false;
+            console.warn('[NSP SW] Ollama exhausted, falling through:', lastErr);
           } else if (prov === 'gemini') {
             anyAttempted = true;
             console.log('[NSP SW] Provider → gemini');
@@ -1228,7 +1174,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
             if (ge.ok) { sendResponse(Object.assign({ provider: 'gemini' }, ge)); return; }
             lastErr = 'Gemini: ' + (ge.error || 'unknown');
             if (!ge.rateLimited) allRateLimited = false;
-            console.warn('[NSP SW] Gemini agotado → fallthrough:', lastErr);
+            console.warn('[NSP SW] Gemini exhausted, falling through:', lastErr);
           }
         } catch (e) {
           lastErr = prov + ' exception: ' + (e && e.message || e);
@@ -1237,12 +1183,10 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         }
       }
 
-      // Se agotaron TODOS los providers de la cola.
       if (anyAttempted && allRateLimited) {
-        // Caso raro: todos saturados a la vez. Mensaje suave, sin "rate limit" agresivo.
-        sendResponse({ ok: false, error: 'all_busy', detail: 'Los proveedores de IA están saturados ahora mismo. Esperá unos segundos y reintentá.', lastError: lastErr });
+        sendResponse({ ok: false, error: 'all_busy', detail: 'All AI providers are busy right now. Wait a few seconds and try again.', lastError: lastErr });
       } else {
-        sendResponse({ ok: false, error: 'all_providers_failed', detail: lastErr || 'Ningún proveedor disponible' });
+        sendResponse({ ok: false, error: 'all_providers_failed', detail: lastErr || 'No provider available' });
       }
       } catch (eChat) { try { sendResponse({ ok: false, error: 'chat_exception', detail: String(eChat && eChat.message || eChat) }); } catch (e2) {} }
     });
@@ -1265,7 +1209,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  // v3.17.0 — Búsqueda activa de mercado vía InnerTube (alimenta el corpus del predictor)
+  // Market search over InnerTube, feeds the predictor corpus.
   if (msg.type === 'NSP_AGENT_SEARCH_MARKET') {
     var mq = String(msg.query || '').slice(0, 120);
     if (!mq) { sendResponse({ ok: false, error: 'no_query' }); return false; }
@@ -1273,7 +1217,6 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       innertubeFetch('search', { query: mq }, { gl: msg.gl || 'US', hl: msg.hl || 'en' })
         .then(function(data) {
           var vids = (extractVideosFromInnertube(data) || []).slice(0, 45);
-          // Parsear views numéricas para que el corpus tenga señal real
           var parsed = vids.map(function(v) {
             var viewsNum = 0;
             try {
@@ -1376,9 +1319,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  // ── NSP_FETCH_TRANSCRIPT: trae la transcripción/subtítulos de un video de YouTube ──
-  // Es LA pieza que faltaba para "remakear" el estilo: con el guion real (+ tiempos = ritmo)
-  // se regenera el video. Usa InnerTube player (sin cookies) → captionTracks → timedtext json3.
+  // Captions for a video, read through the InnerTube player without cookies.
   if (msg.type === 'NSP_FETCH_TRANSCRIPT') {
     var vid = String(msg.videoId || '').trim();
     if (!/^[A-Za-z0-9_-]{11}$/.test(vid)) { sendResponse({ ok: false, error: 'bad_video_id' }); return false; }
@@ -1390,7 +1331,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         try { title = (player.videoDetails && player.videoDetails.title) || ''; } catch (e) {}
         try { author = (player.videoDetails && player.videoDetails.author) || ''; } catch (e) {}
         if (!tracks.length) { sendResponse({ ok: false, error: 'no_captions', title: title, author: author }); return; }
-        // preferí: idioma pedido no-asr → cualquier no-asr → idioma pedido asr → el primero
+        // Preference order: requested language non-asr, any non-asr, requested language asr, then the first track.
         var hl = String(msg.hl || 'en').toLowerCase().slice(0, 2);
         function score(t) { var lc = String(t.languageCode || '').toLowerCase().slice(0, 2); return (lc === hl ? 0 : 2) + (t.kind === 'asr' ? 1 : 0); }
         tracks.sort(function (a, b) { return score(a) - score(b); });
@@ -1418,8 +1359,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  // ── NSP_FETCH_STORYBOARD: spec del storyboard (decenas de fotogramas de TODO el video) ──
-  // Sirve para MEDIR el edit real: ritmo de cortes, movimiento y color a lo largo del video.
+  // Storyboard spec, used to measure cut rhythm, motion and color across the whole video.
   if (msg.type === 'NSP_FETCH_STORYBOARD') {
     var sbId = String(msg.videoId || '').trim();
     if (!/^[A-Za-z0-9_-]{11}$/.test(sbId)) { sendResponse({ ok: false, error: 'bad_video_id' }); return false; }
@@ -1433,9 +1373,9 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         var levels = parts.slice(1).map(function (p) { var f = p.split('#'); return { tileW: +f[0], tileH: +f[1], total: +f[2], cols: +f[3], rows: +f[4], interval: +f[5], name: f[6], sigh: f[7] }; })
           .filter(function (L) { return L.cols > 0 && L.rows > 0 && L.total > 0 && L.tileW > 0; });
         if (!levels.length) { sendResponse({ ok: false, error: 'no_levels' }); return; }
-        var idx = levels.length - 1, L = levels[idx];   // nivel de mayor detalle (más fotogramas)
+        var idx = levels.length - 1, L = levels[idx];
         var per = L.cols * L.rows, sheets = Math.max(1, Math.ceil(L.total / per)), sprites = [];
-        for (var n = 0; n < Math.min(sheets, 8); n++) {   // tope 8 sprites: suficiente para medir, no satura
+        for (var n = 0; n < Math.min(sheets, 8); n++) {
           var u = String(base).split('$L').join(idx).split('$N').join(L.name).split('$M').join(n);
           u += (u.indexOf('?') >= 0 ? '&' : '?') + 'sigh=' + L.sigh;
           sprites.push(u);
@@ -1446,7 +1386,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  // — v3.9.0 GOD-TIER: stats reales de canal (parsea /about) ───────────────
+  // Channel stats parsed out of /about.
   if (msg.type === 'NSP_AGENT_CHANNEL_STATS') {
     (async function() {
       try {
@@ -1455,7 +1395,6 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         var aboutUrl = chUrl + '/about';
         var resp = await fetch(aboutUrl, { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'es,en' } });
         var html = await resp.text();
-        // Parsea desde el ytInitialData embebido o meta tags
         function extractNum(re) { var m = html.match(re); return m ? m[1] : ''; }
         var subsRaw = extractNum(/"subscriberCountText":\{"(?:simpleText|accessibility)"[^}]*?"(?:simpleText"?:?\s*")?([\d.,]+ ?[KMB]?)[^"]*?(?:subscriber|suscriptor)/i)
           || extractNum(/([\d.,]+\s?[KMB]?)\s*subscribers/i)
@@ -1475,13 +1414,13 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
           ok: true,
           channelUrl: chUrl,
           name: nameRaw || '',
-          subscribers: subsRaw || 'desconocido',
-          videoCount: videoCountRaw || 'desconocido',
-          totalViews: viewsRaw || 'desconocido',
-          joined: joinedRaw || 'desconocido',
-          country: countryRaw || 'desconocido',
+          subscribers: subsRaw || 'unknown',
+          videoCount: videoCountRaw || 'unknown',
+          totalViews: viewsRaw || 'unknown',
+          joined: joinedRaw || 'unknown',
+          country: countryRaw || 'unknown',
           description: (descRaw || '').slice(0, 300),
-          note: subsRaw ? '' : 'Parsing parcial — YouTube cambió su HTML. Datos pueden faltar.'
+          note: subsRaw ? '' : 'Partial parse: YouTube changed its HTML, some fields may be missing.'
         });
       } catch (e) {
         sendResponse({ ok: false, error: String(e && e.message || e) });
@@ -1490,7 +1429,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  // — v3.9.0 GOD-TIER: videos recientes de un canal (parsea /videos) ────────
+  // Recent videos parsed out of /videos.
   if (msg.type === 'NSP_AGENT_CHANNEL_VIDEOS') {
     (async function() {
       try {
@@ -1499,7 +1438,6 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         var videosUrl = cvUrl + '/videos';
         var resp = await fetch(videosUrl, { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'es,en' } });
         var html = await resp.text();
-        // Extrae títulos + viewCountText + publishedTime de los richItemRenderer
         var videos = [];
         var re = /"videoRenderer":\{"videoId":"([^"]+)"[^}]*?"title":\{"runs":\[\{"text":"([^"]+)"\}\][^}]*?(?:"viewCountText":\{"simpleText":"([^"]*)"\})?[^}]*?(?:"publishedTimeText":\{"simpleText":"([^"]*)"\})?/g;
         var m, guard = 0;
@@ -1513,7 +1451,6 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
             url: 'https://www.youtube.com/watch?v=' + m[1]
           });
         }
-        // Fallback simple si el regex grande no matcheó
         if (!videos.length) {
           var reSimple = /"videoId":"([^"]+)"[^}]{0,400}?"text":"([^"]{4,120})"/g;
           var m2, g2 = 0, seen = {};
@@ -1580,9 +1517,7 @@ function innertubeFetch(endpoint, body, opts) {
   var fullBody = Object.assign({}, body || {}, {
     context: buildInnertubeContext(opts.gl, opts.hl)
   });
-  // FIX: en un service-worker MV3, headers como Origin/Referer/X-YouTube-* son "forbidden"
-  // y el navegador los descarta o falla la request → daba err en todo. Solo Content-Type
-  // (lo que sí funciona, verificado contra youtubei/v1). gl/hl viajan dentro del context.
+  // In an MV3 service worker Origin, Referer and X-YouTube-* are forbidden headers and the request fails, so only Content-Type is sent; gl and hl travel inside context.
   return fetch(url, {
     method: 'POST',
     credentials: 'omit', // CRITICAL: no user cookies → no personalization
@@ -1756,12 +1691,7 @@ function fetchCountryFacelessFeed(gl, hl, queries, maxAgeHours) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// NSP POLICY ENGINE (Fase 1) — rutas de mensajes 'policy:*'
-// Listener PROPIO y aditivo (no toca el hub existente; los tipos no colisionan).
-// Seguridad: SOLO responde a remitentes de ESTA extensión (content scripts y
-// páginas propias → sender.id === chrome.runtime.id). Cualquier otro origen
-// recibe rechazo sin datos. policies.json se sirve con caché en memoria.
-// 'policy:evaluate' se conecta en STEP 3 (requiere nsp-policy.js).
+// Routes for 'policy:*' messages. Separate listener, and it only answers senders from this extension so no page can reach it.
 // ════════════════════════════════════════════════════════════════════════════
 var _nspPoliciesCache = null;
 function nspPolicyLoadRules() {
@@ -1771,25 +1701,23 @@ function nspPolicyLoadRules() {
     .then(function (j) { _nspPoliciesCache = j; return j; });
 }
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
-  if (!msg || typeof msg.type !== 'string' || msg.type.indexOf('policy:') !== 0) return;  // no es nuestro → lo ven los demás listeners
+  if (!msg || typeof msg.type !== 'string' || msg.type.indexOf('policy:') !== 0) return;
   if (!sender || sender.id !== chrome.runtime.id) { try { sendResponse({ ok: false, error: 'sender_not_allowed' }); } catch (eR) {} return; }
   if (msg.type === 'policy:rules') {
     nspPolicyLoadRules()
       .then(function (rules) { sendResponse({ ok: true, rules: rules }); })
       .catch(function (e) { sendResponse({ ok: false, error: String(e && e.message || e) }); });
-    return true;  // respuesta async
+    return true;
   }
   if (msg.type === 'policy:evaluate') {
-    // Evalúa un paquete {channelKey, lang, script, title, description} con el motor.
-    // Disponible para CUALQUIER contexto propio (content scripts vía bridge, páginas).
     if (typeof NSPPolicy === 'undefined' || !NSPPolicy || !NSPPolicy.evaluatePackage) {
-      try { sendResponse({ ok: false, error: 'NSPPolicy no cargado (importScripts falló)' }); } catch (eR3) {}
+      try { sendResponse({ ok: false, error: 'NSPPolicy is not loaded, importScripts failed' }); } catch (eR3) {}
       return;
     }
     NSPPolicy.evaluatePackage(msg.payload || {})
       .then(function (result) { sendResponse({ ok: true, result: result }); })
       .catch(function (e) { sendResponse({ ok: false, error: String(e && e.message || e) }); });
-    return true;  // respuesta async
+    return true;
   }
   try { sendResponse({ ok: false, error: 'unknown_policy_route' }); } catch (eR2) {}
 });

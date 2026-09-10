@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,32 +9,32 @@
 <body>
   <header class="tk-head" id="tk-head"></header>
   <div class="tk-wrap">
-    <p class="tk-sub">Convierte un tema en un <b>paquete de producción completo</b>: guion continuo + breakdown por escenas (narración + idea visual) + título, descripción y tags listos para subir. Pensado para canales faceless.</p>
+    <p class="tk-sub">Turns a topic into a <b>complete production package</b>: a continuous script, a scene by scene breakdown with narration and visual idea, plus title, description and tags ready to upload. Built for faceless channels.</p>
 
     <div class="tk-card">
-      <h3>1 · Definí el video</h3>
+      <h3>1 · Define the video</h3>
       <div class="tk-row">
         <div class="tk-field grow">
-          <label>Tema / idea</label>
-          <input class="tk-in" id="topic" placeholder="Ej: el misterio del faro que desapareció en 1921" />
+          <label>Topic or idea</label>
+          <input class="tk-in" id="topic" placeholder="Example: the mystery of the lighthouse that vanished in 1921" />
         </div>
         <div class="tk-field">
-          <label>Nicho</label>
+          <label>Niche</label>
           <select class="tk-in" id="niche">
-            <option value="historias para dormir">Historias para dormir</option>
-            <option value="misterios / terror">Misterios / Terror</option>
-            <option value="historia / documentales">Historia / Documental</option>
-            <option value="motivación / estoicismo">Motivación / Estoicismo</option>
-            <option value="curiosidades / datos">Curiosidades / Datos</option>
-            <option value="crimen real">Crimen real</option>
-            <option value="ciencia / espacio">Ciencia / Espacio</option>
-            <option value="finanzas / negocios">Finanzas / Negocios</option>
+            <option value="historias para dormir">Sleep stories</option>
+            <option value="misterios / terror">Mystery and horror</option>
+            <option value="historia / documentales">History and documentary</option>
+            <option value="motivación / estoicismo">Motivation and stoicism</option>
+            <option value="curiosidades / datos">Curious facts</option>
+            <option value="crimen real">True crime</option>
+            <option value="ciencia / espacio">Science and space</option>
+            <option value="finanzas / negocios">Finance and business</option>
           </select>
         </div>
       </div>
       <div class="tk-row" style="margin-top:12px">
         <div class="tk-field">
-          <label>Duración (min)</label>
+          <label>Length (min)</label>
           <select class="tk-in" id="mins">
             <option value="1">1 min (Short)</option>
             <option value="3">3 min</option>
@@ -45,28 +45,28 @@
           </select>
         </div>
         <div class="tk-field">
-          <label>Idioma</label>
+          <label>Language</label>
           <select class="tk-in" id="lang">
-            <option value="español">Español</option>
-            <option value="inglés">Inglés</option>
-            <option value="portugués">Portugués</option>
-            <option value="alemán">Alemán</option>
-            <option value="francés">Francés</option>
+            <option value="español">Spanish</option>
+            <option value="inglés">English</option>
+            <option value="portugués">Portuguese</option>
+            <option value="alemán">German</option>
+            <option value="francés">French</option>
           </select>
         </div>
         <div class="tk-field">
-          <label>Tono</label>
+          <label>Tone</label>
           <select class="tk-in" id="tone">
-            <option value="cinematográfico y envolvente">Cinematográfico</option>
-            <option value="calmado, lento, para dormir">Calmado (sleep)</option>
-            <option value="intrigante y de suspenso">Suspenso</option>
-            <option value="enérgico y directo">Enérgico</option>
-            <option value="documental serio">Documental</option>
+            <option value="cinematográfico y envolvente">Cinematic</option>
+            <option value="calmado, lento, para dormir">Calm (sleep)</option>
+            <option value="intrigante y de suspenso">Suspense</option>
+            <option value="enérgico y directo">Energetic</option>
+            <option value="documental serio">Documentary</option>
           </select>
         </div>
         <div class="tk-field" style="flex:0 0 auto">
           <label>&nbsp;</label>
-          <button class="tk-btn primary" id="go">⚡ Generar guion</button>
+          <button class="tk-btn primary" id="go">Generate script</button>
         </div>
       </div>
       <div class="tk-status" id="status"></div>

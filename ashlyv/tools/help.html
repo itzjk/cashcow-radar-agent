@@ -1,35 +1,35 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Guía de herramientas · ZERACK</title>
+  <title>Tools guide · ZERACK</title>
   <link rel="stylesheet" href="tools.css" />
 </head>
 <body>
   <header class="tk-head" id="tk-head"></header>
   <div class="tk-wrap">
-    <p class="tk-sub">Cómo se encadenan las herramientas para producir un video faceless de punta a punta. Todas usan tu API key (Groq/Gemini, gratis) que ponés en <b>Opciones</b>. La voz usa el sintetizador del navegador (sin créditos).</p>
+    <p class="tk-sub">How the tools chain together to produce a faceless video end to end. They all use the free Groq or Gemini API key you set in <b>Options</b>. Voice runs on the browser synthesizer, no credits needed.</p>
 
     <div class="tk-card">
-      <h3>🔁 El flujo recomendado</h3>
-      <div class="tk-block-b">1) <b>NicheMaster</b> → validás el nicho (score, RPM, sub-nichos, ideas).
-2) <b>RivalRadar</b> → espiás la competencia (búsquedas, formatos, huecos).
-3) <b>ScriptPilot</b> → generás el guion + escenas + título/desc/tags.
-4) <b>VoxBatch</b> → narrás el guion (voz del navegador) o exportás SSML.
-5) <b>MotionForge</b> → prompts de imagen por escena + miniatura.
+      <h3>The recommended flow</h3>
+      <div class="tk-block-b">1) <b>NicheMaster</b>: validate the niche (score, RPM, sub-niches, ideas).
+2) <b>RivalRadar</b>: study the competition (searches, formats, gaps).
+3) <b>ScriptPilot</b>: generate the script, scenes and title, description and tags.
+4) <b>VoxBatch</b>: narrate the script with a browser voice, or export SSML.
+5) <b>MotionForge</b>: image prompts per scene, plus thumbnails.
 6) <b>Command Center</b> lands everything you save, scored and ranked.</div>
     </div>
 
-    <div class="tk-card"><h3>📜 ScriptPilot AI</h3><div class="tk-block-b">Tema + nicho + duración + idioma → guion continuo, breakdown por escenas, metadata lista para subir. Botones para mandar el guion a VoxBatch o MotionForge.</div></div>
-    <div class="tk-card"><h3>🎙️ VoxBatch Pro</h3><div class="tk-block-b">Pegás el guion, lo divido en escenas y lo narro con voces del navegador (gratis). Elegís voz, velocidad y tono. Exportás la cola en SSML. La voz no se guarda como archivo desde acá: grabala o subí tu MP3 directo a Monetize Studio.</div></div>
-    <div class="tk-card"><h3>🎨 MotionForge Studio</h3><div class="tk-block-b">Guion → un prompt de imagen/video por escena (en inglés, listo para Flow/Veo/Midjourney/Nano Banana) con estética coherente, + 3 conceptos de miniatura de alto CTR.</div></div>
-    <div class="tk-card"><h3>🛰️ RivalRadar Pro</h3><div class="tk-block-b">Nicho/keyword → búsquedas que abren YouTube con un clic, formatos que funcionan, huecos sin explotar, ángulos de monetización, RPM y saturación.</div></div>
-    <div class="tk-card"><h3>📊 NicheMaster</h3><div class="tk-block-b">Nicho → score de oportunidad (0-100), RPM, demanda, saturación, fit faceless, sub-nichos jugosos, ideas de video (clic → ScriptPilot), monetización y riesgos.</div></div>
+    <div class="tk-card"><h3>ScriptPilot AI</h3><div class="tk-block-b">Topic, niche, length and language become a continuous script, a scene breakdown and metadata ready to upload. Buttons hand the script to VoxBatch or MotionForge.</div></div>
+    <div class="tk-card"><h3>VoxBatch Pro</h3><div class="tk-block-b">Paste the script, it splits into scenes and narrates them with the free browser voices. Pick voice, speed and pitch, and export the queue as SSML. The audio cannot be saved as a file from here: record it, or upload your own MP3 to Monetize Studio.</div></div>
+    <div class="tk-card"><h3>MotionForge Studio</h3><div class="tk-block-b">A script becomes one image or video prompt per scene, written in English and ready for Flow, Veo, Midjourney or Nano Banana, with a consistent look, plus 3 high CTR thumbnail concepts.</div></div>
+    <div class="tk-card"><h3>RivalRadar Pro</h3><div class="tk-block-b">A niche or keyword becomes searches that open YouTube in one click, the formats that work, the gaps nobody fills, monetization angles, RPM and saturation.</div></div>
+    <div class="tk-card"><h3>NicheMaster</h3><div class="tk-block-b">A niche becomes an opportunity score from 0 to 100, RPM, demand, saturation, faceless fit, the richest sub-niches, video ideas that open in ScriptPilot, monetization routes and risks.</div></div>
     
 
-    <div class="tk-card"><h3>🔑 ¿No genera nada?</h3><div class="tk-block-b">Necesitás una API key (gratis): Groq (console.groq.com) o Gemini (aistudio.google.com). Pegala en Opciones y volvé.</div>
-      <button class="tk-btn primary" id="op">⚙️ Abrir Opciones</button>
+    <div class="tk-card"><h3>Nothing is being generated?</h3><div class="tk-block-b">You need a free API key from Groq (console.groq.com) or Gemini (aistudio.google.com). Paste it in Options and come back.</div>
+      <button class="tk-btn primary" id="op">Open Options</button>
     </div>
   </div>
   <script src="toolkit.js"></script>

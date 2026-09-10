@@ -1,22 +1,13 @@
-// ════════════════════════════════════════════════════════════════════════════
-// NSP STUDIO AGENT — Agente conversacional dentro de YouTube Studio (v3.12.0)
-// ════════════════════════════════════════════════════════════════════════════
-// ISOLATED world sobre studio.youtube.com. chrome.runtime + chrome.storage + DOM.
-// Es el MISMO agente que el del scan (function calling vía SW ASHLYV_CHAT_REQUEST),
-// pero con tools para TODAS las áreas de Studio: analytics, contenido, comentarios,
-// dashboard, monetización. Conversación persistente (sobrevive recargas al navegar).
-// NO toca el scanner. Trusted Types compliant (solo createElement/textContent).
-// ════════════════════════════════════════════════════════════════════════════
+// Studio agent, ISOLATED world on studio.youtube.com. Studio enforces Trusted Types, so build DOM with createElement and textContent only.
 
 (function() {
   'use strict';
   if (window.__nspStudioLoaded) return;
   window.__nspStudioLoaded = true;
-  console.log('[NSP Studio] v4.1.0 — predictor multi-idioma (DE/ES/FR/PT/EN) + nicho Historias/Drama. Cargado en', window.location.href);
+  console.log('[NSP Studio] v4.1.0 loaded at', window.location.href);
 
-  // ── Estado ──────────────────────────────────────────────────────────────────
   var S = {
-    messages: [],       // historial de conversación (formato Gemini-ish)
+    messages: [],
     pending: false,
     panelOpen: false,
     loaded: false
@@ -41,14 +32,13 @@
   }
   function pageLabel(t) {
     return ({
-      'video-analytics': 'Analíticas del Video', 'video-comments': 'Comentarios del Video',
-      'video-edit': 'Edición del Video', 'channel-analytics': 'Analíticas del Canal',
-      'comments': 'Comentarios', 'content-list': 'Contenido', 'monetization': 'Monetización',
+      'video-analytics': 'Video analytics', 'video-comments': 'Video comments',
+      'video-edit': 'Video details', 'channel-analytics': 'Channel analytics',
+      'comments': 'Comments', 'content-list': 'Content', 'monetization': 'Monetization',
       'channel-dashboard': 'Dashboard', 'other': 'YouTube Studio'
     })[t] || 'YouTube Studio';
   }
 
-  // ── Extracción de datos del DOM ──────────────────────────────────────────────
   function readPage() {
     var data = { pageType: pageType(), pageLabel: pageLabel(pageType()), url: window.location.href, videoTitle: '', metrics: [], text: '' };
     try {
@@ -81,7 +71,6 @@
       });
     } catch(e) {}
     if (!vids.length) {
-      // fallback: texto del área de contenido
       var d = readPage();
       return { ok: true, source: 'page-text', count: 0, raw: d.text.slice(0, 4000) };
     }
@@ -104,15 +93,14 @@
     return { ok: true, source: 'nodes', count: comments.length, comments: comments };
   }
 
-  // ── Tools del agente Studio ───────────────────────────────────────────────────
   function studioToolDefs() {
     return [{
       functionDeclarations: [
-        { name: 'studioReadCurrentPage', description: 'Lee la página actual de Studio: tipo, título del video (si aplica), métricas detectadas y texto crudo de analytics. ÚSALA SIEMPRE primero para tener contexto real antes de responder.', parameters: { type:'object', properties:{}, required:[] } },
-        { name: 'studioNavigateTo', description: 'Navega a una sección de Studio. La página RECARGA (la conversación se conserva). section: dashboard | content | analytics | comments | monetization', parameters: { type:'object', properties:{ section:{ type:'string', description:'dashboard|content|analytics|comments|monetization' } }, required:['section'] } },
-        { name: 'studioGetVideosList', description: 'Lee la lista de videos del canal con sus métricas. Solo útil si estás en la página de Contenido (si no, navegá ahí primero).', parameters: { type:'object', properties:{}, required:[] } },
-        { name: 'studioGetComments', description: 'Lee los comentarios visibles (de un video o del inbox de comentarios).', parameters: { type:'object', properties:{}, required:[] } },
-        { name: 'studioDeepAnalysis', description: 'Genera un REPORTE VISUAL estructurado del video/página actual (virality score, métricas con benchmark, fortalezas, debilidades, plan de acción). Devolvé esto cuando el usuario pida "analizá", "reporte", "diagnóstico".', parameters: { type:'object', properties:{}, required:[] } }
+        { name: 'studioReadCurrentPage', description: 'Read the current Studio page: page type, video title if any, detected metrics and the raw analytics text. Always call this first so the answer is based on real data.', parameters: { type:'object', properties:{}, required:[] } },
+        { name: 'studioNavigateTo', description: 'Go to a Studio section. The page reloads and the conversation is kept. section: dashboard | content | analytics | comments | monetization', parameters: { type:'object', properties:{ section:{ type:'string', description:'dashboard|content|analytics|comments|monetization' } }, required:['section'] } },
+        { name: 'studioGetVideosList', description: 'Read the channel video list with its metrics. Only works on the Content page, navigate there first if needed.', parameters: { type:'object', properties:{}, required:[] } },
+        { name: 'studioGetComments', description: 'Read the visible comments, either on a video or in the comments inbox.', parameters: { type:'object', properties:{}, required:[] } },
+        { name: 'studioDeepAnalysis', description: 'Build a structured visual report for the current video or page: virality score, metrics against benchmarks, strengths, weaknesses and an action plan. Use it when the user asks to analyze, for a report or for a diagnosis.', parameters: { type:'object', properties:{}, required:[] } }
       ]
     }];
   }
@@ -127,12 +115,12 @@
       if (name === 'studioGetVideosList') return Promise.resolve(readVideosList());
       if (name === 'studioGetComments') return Promise.resolve(readComments());
       if (name === 'studioDeepAnalysis') {
-        // Marca especial: el loop la maneja con render visual aparte
+        // The agent loop watches for this marker and renders the report itself.
         return Promise.resolve({ ok: true, _deepAnalysis: true, data: readPage() });
       }
       if (name === 'studioNavigateTo') {
         var ch = channelId();
-        if (!ch) return Promise.resolve({ ok: false, error: 'No detecté el channelId en la URL. Andá manualmente a una sección de Studio.' });
+        if (!ch) return Promise.resolve({ ok: false, error: 'No channelId in the URL. Open a Studio section manually.' });
         var sec = String(args.section || '').toLowerCase();
         var paths = {
           dashboard: '/channel/' + ch,
@@ -141,37 +129,35 @@
           comments: '/channel/' + ch + '/comments/inbox',
           monetization: '/channel/' + ch + '/monetization'
         };
-        if (!paths[sec]) return Promise.resolve({ ok: false, error: 'Sección desconocida: ' + sec + '. Válidas: dashboard, content, analytics, comments, monetization' });
-        // Persistir conversación + flag para auto-continuar
+        if (!paths[sec]) return Promise.resolve({ ok: false, error: 'Unknown section: ' + sec + '. Valid ones: dashboard, content, analytics, comments, monetization' });
+        // Flag the saved conversation so it resumes by itself after the reload.
         saveConv(true);
         setTimeout(function() { window.location.href = 'https://studio.youtube.com' + paths[sec]; }, 400);
-        return Promise.resolve({ ok: true, navigatedTo: sec, note: 'Navegando a ' + sec + '. La página recarga; la conversación se conserva y vas a poder seguir.' });
+        return Promise.resolve({ ok: true, navigatedTo: sec, note: 'Going to ' + sec + '. The page reloads, the conversation is kept and you can continue.' });
       }
-      return Promise.resolve({ ok: false, error: 'tool desconocida: ' + name });
+      return Promise.resolve({ ok: false, error: 'unknown tool: ' + name });
     } catch(e) { return Promise.resolve({ ok: false, error: String(e && e.message || e) }); }
   }
 
-  // ── System prompt ─────────────────────────────────────────────────────────────
   function systemPrompt() {
-    return 'Sos ZERACK — el mentor de YouTube más letal del mundo, ahora DENTRO del YouTube Studio del usuario. Construiste y vendiste canales de 7 cifras. Tu única misión: convertir a esta persona en alguien que genera millones con YouTube, SÍ O SÍ. No sos un asistente — sos su socio estratégico exigente.\n\n'
-      + 'CONTEXTO ACTUAL: el usuario está en "' + pageLabel(pageType()) + '"' + (videoId() ? ' (un video específico)' : '') + '.\n\n'
-      + 'TENÉS CONTROL de Studio vía tools:\n'
-      + '→ studioReadCurrentPage: lee analytics/datos REALES de la página actual. USALA SIEMPRE primero, nunca estimes a ojo.\n'
-      + '→ studioNavigateTo(section): navega a dashboard/content/analytics/comments/monetization (recarga, la conversación se conserva).\n'
-      + '→ studioGetVideosList: lista de videos del canal (estar en Contenido).\n'
-      + '→ studioGetComments: lee comentarios (señal de engagement + ideas de contenido).\n'
-      + '→ studioDeepAnalysis: reporte visual estructurado (cuando piden "analizá"/"reporte"/"diagnóstico").\n\n'
-      + 'TU CONOCIMIENTO (aplicalo con los datos reales del usuario):\n'
-      + 'PACKAGING decide 80%: título + thumbnail SON el producto. CTR <4% = el video muere. RETENCIÓN = el algoritmo: primeros 30s (hook) deciden todo, >50% retención = YouTube te empuja. CTR <2% pobre / 4-6% bueno / >6% excelente. Tráfico browse/home = empuje masivo (la meta). Monetización en capas: AdSense → sponsors ($15-50 CPM) → afiliados → producto propio (lo que hace millonario). RPM por nicho: finanzas $15-40, negocios $12-25, tech $8-15, historia/misterio $4-8.\n\n'
-      + 'METODOLOGÍA (diagnóstico → prescripción): 1) leé DATOS REALES con las tools. 2) Encontrá el CUELLO DE BOTELLA (¿packaging? ¿retención? ¿nicho? ¿consistencia?). 3) Prescribí la acción de MAYOR impacto primero. 4) Terminá SIEMPRE con el PRÓXIMO PASO concreto ("Ahora hacé X"). Sos un mentor exigente: empujá a la acción, sé brutalmente honesto, conectá todo a DINERO.\n\n'
-      + 'FORMATO: texto plano, SIN markdown (sin ** ## - ni "1."). Usá flechas "→" o "1)". MAYÚSCULAS para enfatizar. Específico con números reales, accionable, nunca genérico. Español.';
+    return 'You are ZERACK, the sharpest YouTube mentor there is, working inside the user\'s own YouTube Studio. You built and sold seven figure channels. Your job: turn this person into someone who makes real money on YouTube. You are not a polite assistant, you are a demanding partner.\n\n'
+      + 'CURRENT CONTEXT: the user is on "' + pageLabel(pageType()) + '"' + (videoId() ? ' (a single video)' : '') + '.\n\n'
+      + 'YOU CONTROL STUDIO through tools:\n'
+      + '\u2192 studioReadCurrentPage: reads the real data on the current page. Always call it first, never estimate.\n'
+      + '\u2192 studioNavigateTo(section): go to dashboard, content, analytics, comments or monetization. The page reloads, the conversation is kept.\n'
+      + '\u2192 studioGetVideosList: the channel video list, only on the Content page.\n'
+      + '\u2192 studioGetComments: reads comments, an engagement signal and a source of content ideas.\n'
+      + '\u2192 studioDeepAnalysis: structured visual report, use it when the user asks to analyze or asks for a report or a diagnosis.\n\n'
+      + 'WHAT YOU KNOW (apply it to the real numbers on screen):\n'
+      + 'PACKAGING decides 80 percent: title and thumbnail are the product. CTR under 4 percent kills a video. RETENTION is the algorithm: the first 30 seconds decide everything, over 50 percent and YouTube pushes you. CTR under 2 percent is poor, 4 to 6 percent is good, over 6 percent is excellent. Browse and home traffic is the massive push, that is the target. Monetization in layers: AdSense, then sponsors at 15 to 50 dollars CPM, then affiliates, then your own product, the one that makes millions. RPM by niche: finance 15 to 40 dollars, business 12 to 25, tech 8 to 15, history and mystery 4 to 8.\n\n'
+      + 'METHOD (diagnose, then prescribe): 1) read the real data with the tools. 2) Find the bottleneck: packaging, retention, niche or consistency. 3) Prescribe the highest impact action first. 4) Always close with one concrete next step. Be demanding, be brutally honest, tie everything back to money.\n\n'
+      + 'FORMAT: plain text, no markdown, no ** ## - and no "1.". Use arrows "\u2192" or "1)". Capitals to emphasize. Specific with real numbers, actionable, never generic. English.';
   }
 
-  // ── AI call con tools (vía SW) ─────────────────────────────────────────────────
   function callAI(messages, withTools) {
     return new Promise(function(resolve, reject) {
-      if (typeof chrome === 'undefined' || !chrome.runtime) { reject(new Error('chrome.runtime no disponible')); return; }
-      var to = setTimeout(function() { reject(new Error('Timeout 90s — el provider AI no respondió')); }, 90000);
+      if (typeof chrome === 'undefined' || !chrome.runtime) { reject(new Error('chrome.runtime not available')); return; }
+      var to = setTimeout(function() { reject(new Error('Timed out after 90s, the AI provider did not answer')); }, 90000);
       var payload = { messages: messages, system: systemPrompt(), maxTokens: 2048 };
       if (withTools) payload.tools = studioToolDefs();
       chrome.runtime.sendMessage({ type: 'ASHLYV_CHAT_REQUEST', payload: payload }, function(res) {
@@ -184,7 +170,6 @@
     });
   }
 
-  // ── Agent loop multi-turn ──────────────────────────────────────────────────────
   function agentTurn(userText, bodyEl) {
     if (S.pending) return;
     S.messages.push({ role: 'user', content: userText });
@@ -195,48 +180,42 @@
 
     function step(iter) {
       if (iter > MAX_ITERS) {
-        S.messages.push({ role: 'assistant', content: '(alcancé el máximo de pasos. Preguntame de nuevo más específico.)' });
+        S.messages.push({ role: 'assistant', content: '(reached the step limit. Ask again, more specific.)' });
         S.pending = false; setSending(false); renderMessages(bodyEl); saveConv();
         return;
       }
-      // Construye mensajes API (sólo role+content+functionCall/Response)
       var apiMsgs = S.messages.filter(function(m) { return m.role !== 'tool-status' && m.role !== 'error'; });
       callAI(apiMsgs, true).then(function(res) {
         if (res.functionCalls && res.functionCalls.length) {
           var fc = res.functionCalls[0];
-          // muestra "ejecutando"
-          S.messages.push({ role: 'tool-status', content: '⚙ ' + fc.name + (fc.args && Object.keys(fc.args).length ? ' (' + JSON.stringify(fc.args) + ')' : '') });
+          S.messages.push({ role: 'tool-status', content: fc.name + (fc.args && Object.keys(fc.args).length ? ' (' + JSON.stringify(fc.args) + ')' : '') });
           renderMessages(bodyEl);
           studioExecTool(fc.name, fc.args).then(function(result) {
-            // caso especial: deep analysis → render visual + termina turn
             if (result && result._deepAnalysis) {
               runDeepAnalysis(bodyEl);
-              // registra en historial que se generó el reporte
-              S.messages.push({ role: 'assistant', content: '(generé el reporte visual de análisis arriba ↑)', functionCall: fc });
+              S.messages.push({ role: 'assistant', content: '(the visual report is rendered above)', functionCall: fc });
               S.messages.push({ role: 'function', functionResponse: { name: fc.name, response: { ok: true, rendered: true } } });
               S.pending = false; setSending(false); saveConv();
               return;
             }
-            // turno assistant con functionCall + functionResponse
             S.messages.push({ role: 'assistant', content: '', functionCall: fc });
             S.messages.push({ role: 'function', functionResponse: { name: fc.name, response: result } });
             saveConv();
             step(iter + 1);
-          }).catch(function(err) {   // antes faltaba: si el tool rechazaba, el chat quedaba "..." colgado para siempre
-            S.messages.push({ role: 'error', content: '❌ Falló la herramienta ' + fc.name + ': ' + (err && err.message || err) });
+          }).catch(function(err) {   // Without this catch a rejected tool leaves the chat stuck on the sending state.
+            S.messages.push({ role: 'error', content: 'Tool ' + fc.name + ' failed: ' + (err && err.message || err) });
             S.pending = false; setSending(false); renderMessages(bodyEl); saveConv();
           });
         } else {
-          // respuesta final de texto
-          S.messages.push({ role: 'assistant', content: cleanMd(res.text) || '(respuesta vacía)', provider: res.provider });
+          S.messages.push({ role: 'assistant', content: cleanMd(res.text) || '(empty answer)', provider: res.provider });
           S.pending = false; setSending(false); renderMessages(bodyEl); saveConv();
         }
       }).catch(function(err) {
         var msg = String(err && err.message || err);
-        if (/missing_or_invalid|no_provider|not_configured/i.test(msg)) msg = 'No hay provider AI configurado. Abrí Options → configurá Groq (gratis).';
-        else if (/all_busy|rate|quota|RESOURCE_EXHAUSTED/i.test(msg)) msg = 'Tus providers están saturados un momento. Reintentá en ~15s (ZERACK ya intentó saltar entre Groq/Gemini). Tip: configurá AMBOS en Options para no quedarte sin turno.';
-        else if (/all_providers_failed/i.test(msg)) msg = 'Ningún provider pudo responder. Verificá tu key de Groq/Gemini en Options con PROBAR CONEXIÓN.';
-        S.messages.push({ role: 'error', content: '❌ ' + msg });
+        if (/missing_or_invalid|no_provider|not_configured/i.test(msg)) msg = 'No AI provider is configured. Open Options and set up Groq, it is free.';
+        else if (/all_busy|rate|quota|RESOURCE_EXHAUSTED/i.test(msg)) msg = 'Your providers are busy right now. Try again in about 15 seconds. Setting up both Groq and Gemini in Options avoids this.';
+        else if (/all_providers_failed/i.test(msg)) msg = 'No provider could answer. Check your Groq or Gemini key in Options with the connection test.';
+        S.messages.push({ role: 'error', content: msg });
         S.pending = false; setSending(false); renderMessages(bodyEl); saveConv();
       });
     }
@@ -248,29 +227,26 @@
     return String(t).replace(/^#{1,6}\s+/gm, '').replace(/\*\*\*(.+?)\*\*\*/g, '$1').replace(/\*\*(.+?)\*\*/g, '$1').replace(/`([^`]+)`/g, '$1').replace(/\n{3,}/g, '\n\n').trim();
   }
 
-  // ── Deep analysis estructurado (reporte visual) ─────────────────────────────────
   function buildDeepPrompt(data) {
-    var sys = 'Eres analista senior de agencia YouTube. Respondé SOLO JSON válido (sin markdown, sin ```). Esquema:\n'
-      + '{"viralityScore":<0-100>,"scoreLabel":"<VIRAL POTENTIAL|SÓLIDO|NECESITA TRABAJO|BAJO RENDIMIENTO>","headline":"<1 línea max 90 chars>","metrics":[{"name":"CTR","value":"4.2%","verdict":"good|ok|bad","note":"<5-8 palabras>"}],"strengths":["<con número>"],"weaknesses":["<con número>"],"actions":[{"priority":"high|medium|low","action":"<específica>","impact":"<qué mejora>"}]}\n'
-      + 'Benchmarks: CTR <2% pobre/4-6% bueno/>6% excelente. Retención <30% pobre/>50% bueno. 3-5 metrics, 2-4 strengths, 2-4 weaknesses, 3-5 actions. Solo números reales, no inventes.';
-    var u = 'Página: ' + data.pageLabel + '.\n' + (data.videoTitle ? 'Video: "' + data.videoTitle + '"\n' : '') + '\n';
-    if (data.metrics.length) u += 'MÉTRICAS:\n' + data.metrics.slice(0, 40).join('\n') + '\n\n';
-    u += 'TEXTO CRUDO:\n' + data.text + '\n\nDevolvé SOLO el JSON.';
+    var sys = 'You are a senior YouTube agency analyst. Answer with valid JSON only, no markdown, no code fences. Schema:\n'
+      + '{"viralityScore":<0-100>,"scoreLabel":"<VIRAL POTENTIAL|SOLID|NEEDS WORK|UNDERPERFORMING>","headline":"<1 line, max 90 chars>","metrics":[{"name":"CTR","value":"4.2%","verdict":"good|ok|bad","note":"<5-8 words>"}],"strengths":["<with a number>"],"weaknesses":["<with a number>"],"actions":[{"priority":"high|medium|low","action":"<specific>","impact":"<what it improves>"}]}\n'
+      + 'Benchmarks: CTR under 2% poor, 4-6% good, over 6% excellent. Retention under 30% poor, over 50% good. 3-5 metrics, 2-4 strengths, 2-4 weaknesses, 3-5 actions. Real numbers only, do not invent any.';
+    var u = 'Page: ' + data.pageLabel + '.\n' + (data.videoTitle ? 'Video: "' + data.videoTitle + '"\n' : '') + '\n';
+    if (data.metrics.length) u += 'METRICS:\n' + data.metrics.slice(0, 40).join('\n') + '\n\n';
+    u += 'RAW TEXT:\n' + data.text + '\n\nReturn the JSON only.';
     return { sys: sys, u: u };
   }
 
   function runDeepAnalysis(bodyEl) {
     var data = readPage();
     if (!data.text || data.text.length < 50) {
-      appendMsgBubble(bodyEl, 'assistant', '⚠ No hay suficientes datos en esta página. Andá a Analíticas de un video y reintentá.');
+      appendMsgBubble(bodyEl, 'assistant', 'Not enough data on this page. Open the analytics of a video and try again.');
       return;
     }
     var holder = appendReportHolder(bodyEl);
-    holder.textContent = '⚙ Generando reporte visual...';
+    holder.textContent = 'Building the visual report';
     var pr = buildDeepPrompt(data);
     callAI([{ role: 'user', content: pr.u }], false).then(function(res) {
-      // re-call with deep system prompt: usamos un mensaje system inline via user (el callAI usa systemPrompt() general)
-      // Para forzar JSON usamos el prompt en el user message + parse robusto
       var report = parseJson(res.text);
       if (report && (report.viralityScore != null || report.strengths || report.actions)) {
         renderReport(holder, report, res.provider);
@@ -278,30 +254,30 @@
         holder.textContent = cleanMd(res.text);
       }
     }).catch(function(err) {
-      holder.textContent = '❌ ' + String(err && err.message || err);
+      holder.textContent = String(err && err.message || err);
     });
   }
 
-  // Deep analysis necesita su propio system → hacemos call directo al SW con system custom
+  // Deep analysis needs its own system prompt, so it calls the service worker directly.
   function runDeepAnalysisDirect(bodyEl) {
     var data = readPage();
     var holder = appendReportHolder(bodyEl);
-    holder.textContent = '⚙ Generando reporte visual...';
+    holder.textContent = 'Building the visual report';
     var pr = buildDeepPrompt(data);
-    // Guard: sin chrome.runtime (extensión recargada/contexto huérfano) NO dejar el holder colgado.
-    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) { holder.textContent = '❌ Extensión no disponible — recargá la página (F5).'; return; }
-    var to = setTimeout(function() { holder.textContent = '❌ Timeout — reintentá.'; }, 90000);
+    // Without this guard an orphaned context leaves the report placeholder hanging.
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) { holder.textContent = 'Extension not available, reload the page.'; return; }
+    var to = setTimeout(function() { holder.textContent = 'Timed out, try again.'; }, 90000);
     try {
     chrome.runtime.sendMessage({ type: 'ASHLYV_CHAT_REQUEST', payload: { messages: [{ role: 'user', content: pr.u }], system: pr.sys, maxTokens: 2048 } }, function(res) {
       clearTimeout(to);
       var err = chrome.runtime && chrome.runtime.lastError;
-      if (err) { holder.textContent = '❌ ' + err.message; return; }
-      if (!res || res.ok !== true) { holder.textContent = '❌ ' + ((res && (res.error || res.detail)) || 'error'); return; }
+      if (err) { holder.textContent = String(err.message); return; }
+      if (!res || res.ok !== true) { holder.textContent = String((res && (res.error || res.detail)) || 'error'); return; }
       var report = parseJson(res.text);
       if (report && (report.viralityScore != null || report.strengths || report.actions)) renderReport(holder, report, res.provider || 'ai');
-      else holder.textContent = cleanMd(res.text || '(vacío)');
+      else holder.textContent = cleanMd(res.text || '(empty)');
     });
-    } catch (e) { clearTimeout(to); holder.textContent = '❌ ' + (e && e.message || e); }
+    } catch (e) { clearTimeout(to); holder.textContent = String(e && e.message || e); }
   }
 
   function parseJson(text) {
@@ -312,12 +288,11 @@
     try { return JSON.parse(t); } catch(e) { return null; }
   }
 
-  // ── UI helpers ──────────────────────────────────────────────────────────────────
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function scoreColor(s) { s = Number(s) || 0; return s >= 75 ? '#00DC82' : s >= 55 ? '#7FE3B5' : s >= 35 ? '#FFD93D' : '#FF6B6B'; }
   function verdictColor(v) { return ({ good: '#00DC82', ok: '#FFD93D', bad: '#FF6B6B' })[v] || 'rgba(255,255,255,0.5)'; }
   function verdictDot(v) { return ({ good: '🟢', ok: '🟡', bad: '🔴' })[v] || '⚪'; }
-  function priMeta(p) { return ({ high: { l: 'ALTA', c: '#FF6B6B' }, medium: { l: 'MEDIA', c: '#FFD93D' }, low: { l: 'BAJA', c: '#7FE3B5' } })[p] || { l: 'MEDIA', c: '#FFD93D' }; }
+  function priMeta(p) { return ({ high: { l: 'HIGH', c: '#FF6B6B' }, medium: { l: 'MEDIUM', c: '#FFD93D' }, low: { l: 'LOW', c: '#7FE3B5' } })[p] || { l: 'MEDIUM', c: '#FFD93D' }; }
 
   var _shadow = null, _bodyEl = null, _sendBtn = null, _input = null;
 
@@ -355,10 +330,10 @@
       });
       holder.appendChild(s);
     }
-    sec('✓ FORTALEZAS', '#00DC82', report.strengths, '→');
-    sec('✗ DEBILIDADES', '#FF6B6B', report.weaknesses, '→');
+    sec('STRENGTHS', '#00DC82', report.strengths, '\u2192');
+    sec('WEAKNESSES', '#FF6B6B', report.weaknesses, '\u2192');
     if (Array.isArray(report.actions) && report.actions.length) {
-      var as = el('div', 'nsp-section'); var ah = el('div', 'nsp-sec-title'); ah.style.color = '#00DC82'; ah.textContent = '⚡ PLAN DE ACCIÓN'; as.appendChild(ah);
+      var as = el('div', 'nsp-section'); var ah = el('div', 'nsp-sec-title'); ah.style.color = '#00DC82'; ah.textContent = 'ACTION PLAN'; as.appendChild(ah);
       var order = { high: 0, medium: 1, low: 2 };
       report.actions.slice(0, 6).sort(function(a, b) { return (order[a.priority] != null ? order[a.priority] : 1) - (order[b.priority] != null ? order[b.priority] : 1); }).forEach(function(a) {
         var pm = priMeta(a.priority); var c = el('div', 'nsp-action-card'); c.style.borderLeftColor = pm.c;
@@ -383,15 +358,15 @@
     var b = el('div', 'nsp-msg ' + role, text); bodyEl.appendChild(b); scrollBottom(); return b;
   }
   function scrollBottom() { if (_bodyEl) _bodyEl.scrollTop = _bodyEl.scrollHeight; }
-  function setSending(on) { if (_sendBtn) { _sendBtn.disabled = on; _sendBtn.textContent = on ? '...' : 'ENVIAR'; } }
+  function setSending(on) { if (_sendBtn) { _sendBtn.disabled = on; _sendBtn.textContent = on ? '...' : 'SEND'; } }
 
   function renderMessages(bodyEl) {
     while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
     if (!S.messages.length) {
       var hint = el('div', 'nsp-empty');
       hint.appendChild(el('div', 'nsp-empty-t', '⚡ ZERACK · STUDIO'));
-      hint.appendChild(el('div', 'nsp-empty-s', 'Te ayudo con todo tu canal. Ejemplos:'));
-      ['Analizá este video y dame un reporte', '¿Qué video rinde mejor este mes?', 'Leé los comentarios y dame el sentiment', '¿Qué debería mejorar para crecer?', 'Comparame mis últimos videos'].forEach(function(ex) {
+      hint.appendChild(el('div', 'nsp-empty-s', 'Ask me about anything on your channel. Examples:'));
+      ['Analyze this video and give me a report', 'Which video is performing best this month?', 'Read the comments and give me the sentiment', 'What should I improve to grow?', 'Compare my last videos'].forEach(function(ex) {
         var c = el('button', 'nsp-chip', ex);
         c.onclick = function() { if (_input) { _input.value = ex; _input.focus(); } };
         hint.appendChild(c);
@@ -408,7 +383,6 @@
     scrollBottom();
   }
 
-  // ── Persistencia de conversación ─────────────────────────────────────────────────
   function saveConv(navFlag) {
     try {
       var payload = { messages: S.messages.slice(-40), ts: Date.now() };
@@ -428,7 +402,6 @@
     } catch(e) { cb && cb(false); }
   }
 
-  // ── Panel ─────────────────────────────────────────────────────────────────────────
   function showPanel() {
     var existing = document.getElementById('nsp-studio-panel-host');
     if (existing) { existing.style.display = 'block'; S.panelOpen = true; return existing; }
@@ -458,7 +431,6 @@
       '.nsp-msg.tool{ background:rgba(0,220,130,0.07); border:1px solid rgba(0,220,130,0.22); align-self:flex-start; color:#7FE3B5; font-size:10px; font-family:ui-monospace,monospace; }',
       '.nsp-msg.error{ background:rgba(255,80,80,0.08); border:1px solid rgba(255,80,80,0.3); align-self:flex-start; color:#ff9090; }',
       '.nsp-msg.nsp-report{ max-width:100%; align-self:stretch; background:rgba(255,255,255,0.02); border:1px solid rgba(0,220,130,0.2); padding:14px; }',
-      // Report styles
       '.nsp-hero{ display:flex; gap:14px; align-items:center; padding-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.06); margin-bottom:13px; }',
       '.nsp-gauge{ width:76px; height:76px; border-radius:50%; border:4px solid; display:flex; flex-direction:column; align-items:center; justify-content:center; flex-shrink:0; box-shadow:0 0 22px currentColor; }',
       '.nsp-gauge-num{ font-size:27px; font-weight:950; line-height:1; } .nsp-gauge-max{ font-size:9px; opacity:0.6; }',
@@ -475,11 +447,9 @@
       '.nsp-action-head{ display:flex; gap:8px; align-items:flex-start; } .nsp-pri-badge{ font-size:7.5px; font-weight:950; color:#000; padding:3px 6px; border-radius:5px; flex-shrink:0; margin-top:1px; }',
       '.nsp-action-txt{ font-size:11px; line-height:1.4; font-weight:600; font-family:-apple-system,sans-serif; } .nsp-action-impact{ font-size:9.5px; color:rgba(0,220,130,0.85); margin-top:5px; font-family:-apple-system,sans-serif; }',
       '.nsp-report-tag{ margin-top:12px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.07); font-size:8.5px; color:rgba(255,255,255,0.4); }',
-      // Empty / chips
       '.nsp-empty{ padding:20px 8px; text-align:center; } .nsp-empty-t{ font-size:14px; font-weight:900; margin-bottom:5px; } .nsp-empty-s{ font-size:10.5px; color:rgba(255,255,255,0.55); margin-bottom:12px; }',
       '.nsp-chip{ display:block; width:100%; padding:9px 11px; margin:5px 0; background:rgba(0,220,130,0.08); border:1px solid rgba(0,220,130,0.25); border-radius:9px; color:rgba(255,255,255,0.88); font-size:11px; cursor:pointer; font-family:-apple-system,sans-serif; text-align:left; transition:background .15s; }',
       '.nsp-chip:hover{ background:rgba(0,220,130,0.18); }',
-      // Input
       '#inwrap{ padding:11px 12px; border-top:1px solid rgba(255,255,255,0.08); background:#08070d; display:flex; gap:8px; align-items:flex-end; flex-shrink:0; }',
       '#in{ flex:1; min-height:38px; max-height:120px; padding:10px; border-radius:9px; background:rgba(255,255,255,0.05); border:1px solid rgba(0,220,130,0.28); color:#fff; font-family:-apple-system,sans-serif; font-size:12px; resize:none; outline:none; }',
       '#in:focus{ border-color:rgba(0,220,130,0.6); }',
@@ -494,7 +464,7 @@
     var hs = el('div'); hs.id = 'hs'; hs.textContent = pageLabel(pageType());
     hl.appendChild(hs);
     var hbtns = el('div'); hbtns.id = 'hbtns';
-    var newBtn = el('button', 'hb', '+ NUEVO');
+    var newBtn = el('button', 'hb', '+ NEW');
     newBtn.onclick = function() { S.messages = []; saveConv(); renderMessages(_bodyEl); };
     var x = el('button'); x.id = 'x'; x.textContent = '×';
     x.onclick = function() { host.style.display = 'none'; S.panelOpen = false; };
@@ -504,8 +474,8 @@
     var body = el('div'); body.id = 'body'; _bodyEl = body; p.appendChild(body);
 
     var inwrap = el('div'); inwrap.id = 'inwrap';
-    var input = document.createElement('textarea'); input.id = 'in'; input.placeholder = 'Preguntá sobre tu canal, video, comentarios...'; input.rows = 1; _input = input;
-    var send = el('button'); send.id = 'send'; send.textContent = 'ENVIAR'; _sendBtn = send;
+    var input = document.createElement('textarea'); input.id = 'in'; input.placeholder = 'Ask about your channel, video or comments'; input.rows = 1; _input = input;
+    var send = el('button'); send.id = 'send'; send.textContent = 'SEND'; _sendBtn = send;
     function doSend() { var v = (input.value || '').trim(); if (!v || S.pending) return; input.value = ''; input.style.height = 'auto'; agentTurn(v, body); }
     send.onclick = doSend;
     input.onkeydown = function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); } };
@@ -526,15 +496,10 @@
     return host;
   }
 
-  // Patch: usar runDeepAnalysisDirect (con system propio) en vez del runDeepAnalysis general
+  // runDeepAnalysisDirect carries its own system prompt, so it replaces the generic one.
   runDeepAnalysis = runDeepAnalysisDirect;
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // v3.21.0 — PREDICTOR DE VIRALIDAD (título) + ANALIZADOR DE MINIATURA (CTR)
-  // EN EL MOMENTO DE SUBIR: botones inyectados al lado del TÍTULO y de la MINIATURA
-  // en la página de subir/editar video de Studio. Sin chat, análisis directo.
-  // ════════════════════════════════════════════════════════════════════════════
-  // Cada nicho: rpm, label, `q` (query EN para buscar ganadores reales en YouTube) y `re`.
+  // Labels below are stored in the shared title corpus and matched across pages, do not translate them.
   var ZNICHE_RPM = [
     { rpm: 22, label: 'Finanzas',           q: 'how to make money investing finance explained',
       re: /finance|invest|trading|crypto|bitcoin|ethereum|stock.?market|forex|wealth|retire|dividend|hedge.?fund|portfolio|inversion|invertir|bolsa|acciones|finanzas|dinero|riqueza|presupuesto|ahorr|deuda|hipoteca|impuesto|contabilidad|money|millionair|million|mill[oó]n|millones|d[oó]lar|d[oó]lares|\busd\b|euros?|ingresos?|rico|fortuna|patrimonio|rentab/i },
@@ -580,7 +545,6 @@
       re: /vlog|challenge|prank|reaction|meme|funny|reto|reaccion/i }
   ];
 
-  // Detecta el IDIOMA del título (de/es/fr/pt/en) → sugerencias en ese idioma + corpus localizado + léxico justo.
   function zDetectLang(text) {
     var t = ' ' + String(text || '').toLowerCase().replace(/\s+/g, ' ') + ' ';
     function cnt(re) { var m = t.match(re); return m ? m.length : 0; }
@@ -597,20 +561,16 @@
     var best = 'en', bv = 0; ['de', 'es', 'fr', 'pt', 'en'].forEach(function (k) { if (sc[k] > bv) { bv = sc[k]; best = k; } });
     return bv === 0 ? 'en' : best;
   }
-  // gl/hl para buscar ganadores en el mercado del idioma del título (corpus localizado).
+  // Winners are searched in the market of the title language, so the corpus matches it.
   var ZLANG_GEO = { de: { gl: 'DE', hl: 'de' }, es: { gl: 'ES', hl: 'es' }, fr: { gl: 'FR', hl: 'fr' }, pt: { gl: 'BR', hl: 'pt' }, en: { gl: 'US', hl: 'en' } };
 
-  // Scoring: cuenta cuántas señales del nicho aparecen y elige el de MÁS hits.
-  // Empate → gana el de mayor RPM (el array está ordenado por RPM desc).
-  // Esto evita el bug "todo es General": "ganar un millón de USD con Claude" ahora
-  // dispara Finanzas (millón/USD) e IA (Claude) y se queda con el de más señales.
+  // The niche with the most distinct signal hits wins, ties go to the higher RPM, which is why the array is sorted by RPM. Picking the first match instead sent almost everything to General.
   function zDetectNiche(text) {
     var t = String(text || '').toLowerCase();
     var best = null, bestHits = 0;
     for (var i = 0; i < ZNICHE_RPM.length; i++) {
       var m = t.match(new RegExp(ZNICHE_RPM[i].re.source, 'gi'));
-      // Cuenta señales DISTINTAS (no repeticiones) para no premiar regex con muchas
-      // alternativas comunes. Empate → gana el de mayor RPM (array ordenado desc).
+      // Distinct hits only, otherwise a regex with many common alternatives always wins.
       var uniq = {}; if (m) for (var k = 0; k < m.length; k++) uniq[m[k].toLowerCase()] = 1;
       var hits = m ? Object.keys(uniq).length : 0;
       if (hits > bestHits) { bestHits = hits; best = ZNICHE_RPM[i]; }
@@ -623,16 +583,16 @@
     title = String(title || '').trim();
     var t = title.toLowerCase();
     var s = 0, signals = [];
-    if (/\b\d+\b/.test(t)) { s += 8; signals.push('número/lista (+8)'); }
+    if (/\b\d+\b/.test(t)) { s += 8; signals.push('number or list (+8)'); }
     if (/\b(top|mejores|peores|biggest|craziest|worst|best)\b/.test(t)) { s += 6; signals.push('ranking (+6)'); }
-    if (/\b(why|por qué|porque|how|cómo|what happened|qué pasó|secret|secreto|truth|verdad|nobody|nadie|reason|razón)\b/.test(t)) { s += 9; signals.push('curiosidad (+9)'); }
-    if (/\b(shocking|insane|increíble|unbelievable|no vas a creer|won'?t believe|dark|oscuro|forbidden|prohibido|disturbing|terrifying|aterrador)\b/.test(t)) { s += 8; signals.push('emoción fuerte (+8)'); }
+    if (/\b(why|por qué|porque|how|cómo|what happened|qué pasó|secret|secreto|truth|verdad|nobody|nadie|reason|razón)\b/.test(t)) { s += 9; signals.push('curiosity (+9)'); }
+    if (/\b(shocking|insane|increíble|unbelievable|no vas a creer|won'?t believe|dark|oscuro|forbidden|prohibido|disturbing|terrifying|aterrador)\b/.test(t)) { s += 8; signals.push('strong emotion (+8)'); }
     if (/\b(exposed|revealed|revelado|expuesto|finally|por fin|ultimate|definitiv|never|nunca|always|siempre)\b/.test(t)) { s += 5; signals.push('power words (+5)'); }
-    if (/\b(mystery|misterio|unsolved|sin resolver|conspiracy|conspiración|hidden|oculto|lost|perdido|ancient|antiguo|banned|censored)\b/.test(t)) { s += 7; signals.push('intriga (+7)'); }
+    if (/\b(mystery|misterio|unsolved|sin resolver|conspiracy|conspiración|hidden|oculto|lost|perdido|ancient|antiguo|banned|censored)\b/.test(t)) { s += 7; signals.push('intrigue (+7)'); }
     var len = title.length;
-    if (len >= 35 && len <= 70) { s += 6; signals.push('longitud óptima (+6)'); }
-    else if (len < 20) { s -= 4; signals.push('muy corto (-4)'); }
-    else if (len > 95) { s -= 3; signals.push('muy largo (-3)'); }
+    if (len >= 35 && len <= 70) { s += 6; signals.push('good length (+6)'); }
+    else if (len < 20) { s -= 4; signals.push('too short (-4)'); }
+    else if (len > 95) { s -= 3; signals.push('too long (-3)'); }
     s = Math.max(0, Math.min(45, s));
     var niche = zDetectNiche((nicheHint || '') + ' ' + title);
     var rpmScore = Math.min(30, Math.round((niche.rpm / 22) * 30));
@@ -653,32 +613,26 @@
     var curRe = /\b(why|por qué|how|cómo|secret|secreto|truth|verdad|nobody|nadie|what happened|qué pasó|never|nunca)\b/i;
     winners.forEach(function(w) { var wt = String(w.t || ''); if (/\d/.test(wt)) withNum++; if (curRe.test(wt)) withCur++; totalLen += wt.length; });
     var n = winners.length, pctNum = withNum / n, pctCur = withCur / n, avgLen = Math.round(totalLen / n);
-    if (pctNum >= 0.4 && !/\d/.test(t)) gaps.push('El ' + Math.round(pctNum * 100) + '% de los ganadores usa NÚMEROS — el tuyo no. Agregá uno (ej "7", "Top 10").');
-    if (pctCur >= 0.4 && !curRe.test(t)) gaps.push('El ' + Math.round(pctCur * 100) + '% usa gancho de curiosidad (por qué/cómo/secreto) — el tuyo no.');
-    if (title.length < avgLen - 20) gaps.push('Tu título es más corto (' + title.length + ') que el promedio ganador (' + avgLen + '). Dale más intriga.');
-    if (title.length > avgLen + 30) gaps.push('Tu título es más largo (' + title.length + ') que el promedio ganador (' + avgLen + '). Cortalo, lo importante adelante.');
+    if (pctNum >= 0.4 && !/\d/.test(t)) gaps.push(Math.round(pctNum * 100) + '% of the winners use NUMBERS, yours does not. Add one, for example "7" or "Top 10".');
+    if (pctCur >= 0.4 && !curRe.test(t)) gaps.push(Math.round(pctCur * 100) + '% use a curiosity hook (why, how, secret), yours does not.');
+    if (title.length < avgLen - 20) gaps.push('Your title is shorter (' + title.length + ') than the winning average (' + avgLen + '). Give it more intrigue.');
+    if (title.length > avgLen + 30) gaps.push('Your title is longer (' + title.length + ') than the winning average (' + avgLen + '). Cut it and put what matters first.');
     return { gaps: gaps, winnerAvgLen: avgLen };
   }
 
-  // Genera TÍTULOS SUGERIDOS a partir del tema del usuario + fórmulas ganadoras del nicho.
-  // Extrae el núcleo del tema, la entidad propia (ej "Claude") y el monto ($), y arma
-  // variaciones con números, gancho de curiosidad, power words y transformación.
+  // Suggestions are written in the language of the title, so the wording below stays per language.
   function zSuggestTitles(title, niche) {
     var raw = String(title || '').trim();
     if (!raw) return [];
     var lo = raw.toLowerCase();
-    var lang = zDetectLang(raw);   // de/es/fr/pt/en → sugiere en el MISMO idioma del título (antes solo es/en)
-    // Entidad propia tipo "Claude" (Mixed-case, no acrónimos tipo USD, no la 1ª palabra)
-    // Antes exigía raw.indexOf(w) > 1, lo que DESCARTABA la entidad cuando iba al inicio
-    // (caso típico "Claude: ..."). Ahora solo filtra palabras vacías/interrogativas.
+    var lang = zDetectLang(raw);
+    // Any mixed case word can be the entity, including the first one, titles often open with it.
     var mixed = (raw.match(/\b[A-ZÁÉÍÓÚ][a-záéíóú][\wáéíóúñ]*\b/g) || []).filter(function(w) {
       return !/^(c[oó]mo|como|qu[eé]|por|porque|how|why|what|the|el|la|los|las|un|una|este|esta)$/i.test(w);
     });
     var entity = mixed.length ? mixed[0] : '';
-    // Monto de dinero (con dígito) o "millón" como fallback
     var moneyM = raw.match(/\$\s?\d[\d.,]*\s?(k|m|mil|millones|mill[oó]n|million)?|\d[\d.,]*\s?(d[oó]lares|usd|euros)/i);
     var money = moneyM ? moneyM[0].trim() : (/(mill[oó]n|million)/i.test(lo) ? '$1.000.000' : '');
-    // Núcleo del tema: quita signos e interrogativos iniciales
     var core = raw.replace(/[¿?¡!]/g, '').replace(/^\s*(c[oó]mo|como|por\s?qu[eé]|porque|qu[eé]|how\s?to|how|why|what)\s+/i, '').trim();
     if (core.length < 3) core = raw.replace(/[¿?¡!]/g, '').trim();
     var coreLo = core.charAt(0).toLowerCase() + core.slice(1);
@@ -696,8 +650,8 @@
       out.push('Como ' + coreLo + ' — passo a passo (2026)', '7 formas de ' + coreLo, 'A verdade sobre ' + coreLo + ' que NINGUÉM conta', ent + 'o método que ' + (money ? 'me deu ' + money : 'realmente funciona'), 'Por que ' + coreLo + ' muda TUDO');
       if (money) out.push('De 0 a ' + money + (entity ? ' com ' + entity : '') + ' — o método exato');
     } else {
-      out.push('How to ' + coreLo + ' — step by step (2026)', '7 ways to ' + coreLo, 'The truth about ' + coreLo + ' nobody tells you', ent + 'the method that ' + (money ? 'made me ' + money : 'actually works'), 'Why ' + coreLo + ' changes everything');
-      if (money) out.push('From $0 to ' + money + (entity ? ' with ' + entity : '') + ' — exact method');
+      out.push('How to ' + coreLo + ', step by step (2026)', '7 ways to ' + coreLo, 'The truth about ' + coreLo + ' nobody tells you', ent + 'the method that ' + (money ? 'made me ' + money : 'actually works'), 'Why ' + coreLo + ' changes everything');
+      if (money) out.push('From $0 to ' + money + (entity ? ' with ' + entity : '') + ', the exact method');
     }
     var seen = {}, clean = [];
     out.forEach(function(s) {
@@ -709,15 +663,14 @@
     return clean.slice(0, 6);
   }
 
-  // Lee el corpus de mercado (chrome.storage, accesible directo en mundo ISOLATED)
   function zReadCorpus(nicheLabel, limit) {
     return new Promise(function(resolve) {
       var done = false;
       function finish(res) { if (done) return; done = true; resolve(res); }
       var empty = { winners: [], nicheTotal: 0, corpusTotal: 0 };
-      // Guard: sin chrome.storage (contexto inválido) NO colgar el botón PREDECIR.
+      // Without this guard an invalid context leaves the predict button spinning.
       if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) { finish(empty); return; }
-      // Timeout: si el callback de storage nunca llega (extensión recargada), resolvemos vacío.
+      // If the storage callback never fires after a reload, resolve empty instead of hanging.
       var to = setTimeout(function() { finish(empty); }, 5000);
       try {
         chrome.storage.local.get('nsp_title_corpus', function(r) {
@@ -731,7 +684,6 @@
     });
   }
 
-  // Búsqueda activa en YouTube (vía SW InnerTube) cuando el corpus del nicho está flaco
   function zSearchMarket(query, geo) {
     geo = geo || { gl: 'US', hl: 'en' };
     return new Promise(function(resolve) {
@@ -746,12 +698,8 @@
     });
   }
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // zTitleEngine — scoring de títulos: SIMILITUD LÉXICA (TF-IDF+coseno, pond. VPH) +
-  // estructura del HOOK + PERCENTIL calibrado vs el corpus del nicho. Puro JS, sin libs.
-  // ════════════════════════════════════════════════════════════════════════════
   var zTitleEngine = (function () {
-    var MIN_N = 25;  // <25 ganadores → sin percentil ni léxico fuerte (baja confianza)
+    var MIN_N = 25;  // Under 25 winners there is no percentile and the lexical score is low confidence.
     var RE = {
       curio: { es: /\b(por\s?qu[eé]|c[oó]mo|qu[eé]|qui[eé]n|cu[aá]l|cu[aá]ndo|secreto|verdad|nadie|raz[oó]n|pas[oó]|nunca)\b/i,
                en: /\b(why|how|what|who|which|when|did|secret|truth|nobody|reason|never|happened)\b/i,
@@ -770,24 +718,20 @@
                  pt: /\b(como|por\s?que)\b[\s\S]*\b(sobreviveu|tornou|venceu|ganhou|conseguiu)\w*/i }
     };
     function pick(map, lang) { return map[lang] || map.en; }
-    // ── Núcleo TF-IDF → lib compartida lib/nsp-text.js (el manifest la carga ANTES
-    // en este mismo bloque). MISMA implementación, salida verificada byte-idéntica.
-    // buildIdf ahora recibe LISTAS DE TOKENS (ver call-site en analyze()).
-    // Si la lib no cargó, analyze() lanza y zRunTitlePrediction cae a su motor
-    // fallback existente (try/catch propio) — sin romper el resto de Studio.
+    // TF-IDF comes from lib/nsp-text.js, loaded earlier by the manifest. If it is missing, analyze() throws and zRunTitlePrediction falls back to the older engine.
     var _NT = (typeof NSPText !== 'undefined' && NSPText) || null;
-    function _noLib() { throw new Error('NSPText (lib/nsp-text.js) no cargada — revisa el orden del manifest'); }
+    function _noLib() { throw new Error('NSPText (lib/nsp-text.js) is not loaded, check the manifest order'); }
     var tokenize = _NT ? _NT.tokenize : _noLib;
     var buildIdf = _NT ? _NT.buildIdf : _noLib;
     var tfidf = _NT ? _NT.tfidf : _noLib;
     var norm = _NT ? _NT.norm : _noLib;
     var cosine = _NT ? _NT.cosineSimilarity : _noLib;
-    function weightOf(rec) {  // ajuste #5: nunca 0/undefined
+    function weightOf(rec) {  // Never returns 0 or undefined, a zero weight would drop the record.
       var v = Number(rec && rec.v); if (isFinite(v) && v > 0) return v;
       var w = Number(rec && rec.w); if (isFinite(w) && w > 0) return Math.max(1, w / 720);
       return 1;
     }
-    var lexAgg = _NT ? _NT.weightedCosineAgg : _noLib;  // coseno pond. por VPH; exclude = leave-one-out (#2) — lib compartida
+    var lexAgg = _NT ? _NT.weightedCosineAgg : _noLib;  // VPH weighted cosine, exclude is the leave-one-out index.
     function hookScore(title, lang) {
       var t = String(title || ''), lo = t.toLowerCase(), len = t.length;
       function mk(hit, max) { return { hit: !!hit, pts: hit ? max : 0, max: max }; }
@@ -796,11 +740,11 @@
       for (k in parts) { got += parts[k].pts; max += parts[k].max; if (!parts[k].hit) weak.push(k); }
       return { score: Math.round(got / max * 100), parts: parts, weak: weak };
     }
-    function blend(lex01, hook100, low) {  // ajuste #1: MISMO blend p/ título nuevo y ganadores
+    function blend(lex01, hook100, low) {  // The same blend must score the new title and the winners, otherwise the percentile is not comparable.
       var lex100 = lex01 * 100;
       return low ? Math.round(0.85 * hook100 + 0.15 * lex100) : Math.round(0.55 * lex100 + 0.45 * hook100);
     }
-    var percentileOf = _NT ? _NT.percentileOf : _noLib;  // percentil 1-99 vs distribución — lib compartida
+    var percentileOf = _NT ? _NT.percentileOf : _noLib;
     function guessCorpusLang(winners) {
       var es = 0, en = 0, i, s;
       for (i = 0; i < Math.min(winners.length, 80); i++) { s = ' ' + String(winners[i].t || '').toLowerCase() + ' '; if (/[áéíóúñ¿¡]|\b(de|la|el|que|c[oó]mo|por|los|las|un|una|con|para)\b/.test(s)) es++; if (/\b(the|how|why|what|of|to|in|is|your|did|this|best)\b/.test(s)) en++; }
@@ -855,11 +799,11 @@
       return out.slice(0, 3);
     }
     function pickWeakest(dims, low) {
-      var lbl = { number: 'sin número/lista', brackets: 'sin brackets [ ] o separador |', pattern: 'sin patrón pregunta-gancho ("cómo logró…")', length: 'largo fuera del sweet spot (30-70)', curiosity: 'sin curiosity gap (cómo/por qué/secreto)', power: 'sin power words' };
+      var lbl = { number: 'no number or list', brackets: 'no brackets [ ] or | separator', pattern: 'no question hook pattern, such as "how did they"', length: 'length outside the sweet spot of 30 to 70', curiosity: 'no curiosity gap, such as how, why or secret', power: 'no power words' };
       var weak = dims.hook.weak || [];
       if (weak.length) return lbl[weak[0]] || weak[0];
-      if (!low && dims.lexical.score < 45) return 'poco parecido a los ganadores del nicho (léxico bajo)';
-      return 'nada crítico — alineado con los ganadores';
+      if (!low && dims.lexical.score < 45) return 'little in common with the winners of the niche, low lexical score';
+      return 'nothing critical, it is in line with the winners';
     }
     function analyze(title, winners, opts) {
       title = String(title || '').trim();
@@ -867,14 +811,14 @@
       if (!title || !winners.length) return { ok: false };
       var corpusLang = guessCorpusLang(winners);
       var titleLang = (opts && opts.titleLang) || zDetectLang(title);
-      var crossLang = titleLang !== corpusLang;   // título en idioma distinto a los ganadores → el léxico NO aplica
-      var winToks = winners.map(function (w) { return tokenize(w.t); });            // tokeniza 1x (lib)
-      var idf = buildIdf(winToks);                                                  // buildIdf de la lib recibe LISTAS DE TOKENS
-      var vecs = winToks.map(function (t) { return tfidf(t, idf); });               // cache 1x (#4)
-      var weights = winners.map(weightOf);                                          // (#5)
-      var low = winners.length < MIN_N;                                             // (#3)
-      var lexLow = low || crossLang;   // léxico de baja confianza si hay pocos datos O distinto idioma → el blend se apoya en el gancho
-      var lowReason = low ? ('solo ' + winners.length + ' ganadores del nicho (mín ' + MIN_N + ' para percentil + léxico fuerte)') : (crossLang ? ('tu título está en ' + titleLang.toUpperCase() + ' y los ganadores en ' + corpusLang.toUpperCase() + ' — comparo por ESTRUCTURA (el parecido de palabras no aplica entre idiomas)') : null);
+      var crossLang = titleLang !== corpusLang;   // Word overlap is meaningless when the title and the winners are in different languages.
+      var winToks = winners.map(function (w) { return tokenize(w.t); });
+      var idf = buildIdf(winToks);
+      var vecs = winToks.map(function (t) { return tfidf(t, idf); });
+      var weights = winners.map(weightOf);
+      var low = winners.length < MIN_N;
+      var lexLow = low || crossLang;   // With few winners or a different language the blend leans on the hook instead.
+      var lowReason = low ? ('only ' + winners.length + ' winners in this niche, ' + MIN_N + ' are needed for a percentile and a strong lexical score') : (crossLang ? ('your title is in ' + titleLang.toUpperCase() + ' and the winners are in ' + corpusLang.toUpperCase() + ', so the comparison is by STRUCTURE, word overlap does not carry across languages') : null);
       var qv = tfidf(tokenize(title), idf);
       var lex01 = lexAgg(qv, vecs, weights, -1);
       var hook = hookScore(title, titleLang);
@@ -882,41 +826,41 @@
       var percentile = null;
       if (!low) {
         var dist = [], i;
-        for (i = 0; i < winners.length; i++) { var l = lexAgg(vecs[i], vecs, weights, i); dist.push(blend(l, hookScore(winners[i].t, corpusLang).score, lexLow)); }  // LOO (#2) + MISMO blend (#1)
+        for (i = 0; i < winners.length; i++) { var l = lexAgg(vecs[i], vecs, weights, i); dist.push(blend(l, hookScore(winners[i].t, corpusLang).score, lexLow)); }
         dist.sort(function (a, b) { return a - b; });
         percentile = percentileOf(score, dist);
       }
       var dims = {
-        lexical: { score: Math.round(lex01 * 100), lowConf: lexLow, note: crossLang ? ('título en ' + titleLang.toUpperCase() + ' vs ganadores en ' + corpusLang.toUpperCase() + ' — el parecido de palabras no aplica entre idiomas; comparo por estructura') : (low ? ('pocos datos (' + winners.length + ') — léxico de baja confianza') : ('coseno TF-IDF vs ' + winners.length + ' ganadores, ponderado por VPH')) },
-        hook: { score: hook.score, parts: hook.parts, weak: hook.weak, note: 'estructura del gancho' }
+        lexical: { score: Math.round(lex01 * 100), lowConf: lexLow, note: crossLang ? ('title in ' + titleLang.toUpperCase() + ' vs winners in ' + corpusLang.toUpperCase() + ', word overlap does not carry across languages, comparing by structure') : (low ? ('only ' + winners.length + ' records, low confidence lexical score') : ('TF-IDF cosine against ' + winners.length + ' winners, weighted by VPH')) },
+        hook: { score: hook.score, parts: hook.parts, weak: hook.weak, note: 'hook structure' }
       };
       return { ok: true, confidence: low ? 'low' : 'high', crossLang: crossLang, lowReason: lowReason, score: score, percentile: percentile, lang: titleLang, dims: dims, weakest: pickWeakest(dims, lexLow), rewrites: rewritesFromSkeletons(title, winners, weights, titleLang) };
     }
-    function zRewriteWithZerack(titulos) { return Promise.resolve(Array.isArray(titulos) ? titulos.slice(0, 3) : []); }  // STUB, no conectado a UI
+    function zRewriteWithZerack(titulos) { return Promise.resolve(Array.isArray(titulos) ? titulos.slice(0, 3) : []); }  // Stub, not wired to the UI yet.
     return { analyze: analyze, rewrite: zRewriteWithZerack };
   })();
 
   function zRunTitlePrediction(title) {
     title = String(title || '').trim();
     var niche = zDetectNiche(title);
-    var titleLang = zDetectLang(title);   // idioma del título → corpus localizado + sugerencias + léxico justo
+    var titleLang = zDetectLang(title);
 
     function finalize(winners, nicheTotal, corpusTotal) {
       var eng = null;
       try { eng = zTitleEngine.analyze(title, winners, { nicheLabel: niche.label, titleLang: titleLang }); } catch (e) { eng = null; }
       if (eng && eng.ok) return finalizeEngine(eng, winners, nicheTotal, corpusTotal);
-      return finalizeFallback(winners, nicheTotal, corpusTotal);  // 0 ganadores o excepción → motor viejo
+      return finalizeFallback(winners, nicheTotal, corpusTotal);  // No winners or a thrown engine falls back to the older scorer.
     }
     function finalizeEngine(eng, winners, nicheTotal, corpusTotal) {
       var verdict, color;
-      if (eng.score >= 75) { verdict = 'POTENCIAL VIRAL'; color = '#00DC82'; }
-      else if (eng.score >= 58) { verdict = 'SÓLIDO'; color = '#7FE3B5'; }
-      else if (eng.score >= 40) { verdict = 'NECESITA TRABAJO'; color = '#FFD93D'; }
-      else { verdict = 'BAJO POTENCIAL'; color = '#FF6B6B'; }
+      if (eng.score >= 75) { verdict = 'VIRAL POTENTIAL'; color = '#00DC82'; }
+      else if (eng.score >= 58) { verdict = 'SOLID'; color = '#7FE3B5'; }
+      else if (eng.score >= 40) { verdict = 'NEEDS WORK'; color = '#FFD93D'; }
+      else { verdict = 'LOW POTENTIAL'; color = '#FF6B6B'; }
       var rec, st;
-      if (eng.confidence === 'low') { rec = 'BAJA CONFIANZA — ' + (eng.lowReason || 'pocos ganadores') + '. El score se apoya en la estructura del gancho (corpus-independiente). Escaneá más este nicho para activar percentil + léxico.\nLo más flojo: ' + eng.weakest + '.'; st = 'lowdata'; }
-      else if (eng.percentile != null && eng.percentile >= 70) { rec = 'FUERTE — percentil ' + eng.percentile + ' vs los ganadores reales del nicho. Lo más flojo: ' + eng.weakest + '.'; st = 'publish'; }
-      else { rec = 'MEJORABLE — percentil ' + (eng.percentile != null ? eng.percentile : '—') + ' del nicho. Atacá: ' + eng.weakest + '.'; st = 'improve'; }
+      if (eng.confidence === 'low') { rec = 'LOW CONFIDENCE: ' + (eng.lowReason || 'few winners') + '. The score rests on the hook structure alone, which needs no corpus. Scan this niche more to unlock the percentile and the lexical score.\nWeakest point: ' + eng.weakest + '.'; st = 'lowdata'; }
+      else if (eng.percentile != null && eng.percentile >= 70) { rec = 'STRONG: percentile ' + eng.percentile + ' against the real winners of the niche. Weakest point: ' + eng.weakest + '.'; st = 'publish'; }
+      else { rec = 'CAN BE BETTER: percentile ' + (eng.percentile != null ? eng.percentile : 'n/a') + ' in this niche. Fix this first: ' + eng.weakest + '.'; st = 'improve'; }
       return {
         title: title, niche: niche.label, nicheRpm: niche.rpm, usedEngine: true,
         viralScore: eng.score, percentile: eng.percentile, confidence: eng.confidence, lowReason: eng.lowReason,
@@ -932,30 +876,29 @@
       var avgV = n ? Math.round(winners.reduce(function(s, w) { return s + (w.v || 0); }, 0) / n) : 0;
       var heat = Math.min(15, Math.round((avgV / 4000) * 15));
       var sat = n >= 12 ? 4 : n >= 6 ? 7 : 10;
-      base.breakdown.mercado = { score: heat, max: 15, note: n + ' ganadores del nicho · VPH prom ' + avgV };
-      base.breakdown.saturacion = { score: sat, max: 10, note: n >= 12 ? 'alta competencia' : n >= 6 ? 'media' : 'espacio para entrar' };
+      base.breakdown.mercado = { score: heat, max: 15, note: n + ' winners in this niche, average VPH ' + avgV };
+      base.breakdown.saturacion = { score: sat, max: 10, note: n >= 12 ? 'heavy competition' : n >= 6 ? 'moderate competition' : 'room to enter' };
       var total = Math.max(0, Math.min(100, base.breakdown.titulo.score + base.breakdown.nicho.score + heat + sat));
       var verdict, color;
-      if (total >= 75) { verdict = 'POTENCIAL VIRAL'; color = '#00DC82'; }
-      else if (total >= 58) { verdict = 'SÓLIDO'; color = '#7FE3B5'; }
-      else if (total >= 40) { verdict = 'NECESITA TRABAJO'; color = '#FFD93D'; }
-      else { verdict = 'BAJO POTENCIAL'; color = '#FF6B6B'; }
+      if (total >= 75) { verdict = 'VIRAL POTENTIAL'; color = '#00DC82'; }
+      else if (total >= 58) { verdict = 'SOLID'; color = '#7FE3B5'; }
+      else if (total >= 40) { verdict = 'NEEDS WORK'; color = '#FFD93D'; }
+      else { verdict = 'LOW POTENTIAL'; color = '#FF6B6B'; }
       var cmp = zCompareWinners(title, winners);
       base.viralScore = total; base.verdict = verdict; base.color = color;
       base.moneyPotentialIndex = Math.round((total / 100) * niche.rpm * 10) / 10;
       base.marketData = { nicheTitlesInCorpus: nicheTotal || n, corpusTotal: corpusTotal || 0, topWinners: winners.slice(0, 8).map(function(w) { return { title: w.t, vph: w.v, views: w.w }; }), comparison: cmp };
-      if (n < 4) { base.recommendation = 'POCA DATA del nicho "' + niche.label + '" (solo ' + n + ' títulos). El score se basa en señales del título. Escaneá ese nicho en YouTube para comparar contra más competidores reales.'; base.recommendStatus = 'lowdata'; }
-      else if (cmp.gaps.length === 0 && total >= 60) { base.recommendation = 'LISTO PARA PUBLICAR ✓ — tu título está al nivel de los ' + n + ' ganadores del nicho (score ' + total + '/100). Publicalo.'; base.recommendStatus = 'publish'; }
-      else if (cmp.gaps.length) { base.recommendation = 'MEJORAR ANTES DE PUBLICAR — comparado con los ' + n + ' ganadores reales del nicho:\n' + cmp.gaps.map(function(g, i) { return (i + 1) + ') ' + g; }).join('\n'); base.recommendStatus = 'improve'; }
-      else { base.recommendation = 'ACEPTABLE (score ' + total + '/100) pero podés empujarlo más mirando los títulos ganadores de arriba.'; base.recommendStatus = 'acceptable'; }
+      if (n < 4) { base.recommendation = 'LOW DATA for the "' + niche.label + '" niche, only ' + n + ' titles. The score rests on title signals alone. Scan that niche on YouTube to compare against more real competitors.'; base.recommendStatus = 'lowdata'; }
+      else if (cmp.gaps.length === 0 && total >= 60) { base.recommendation = 'READY TO PUBLISH: your title matches the ' + n + ' winners of the niche, score ' + total + '/100. Publish it.'; base.recommendStatus = 'publish'; }
+      else if (cmp.gaps.length) { base.recommendation = 'IMPROVE BEFORE PUBLISHING, compared with the ' + n + ' real winners of the niche:\n' + cmp.gaps.map(function(g, i) { return (i + 1) + ') ' + g; }).join('\n'); base.recommendStatus = 'improve'; }
+      else { base.recommendation = 'ACCEPTABLE, score ' + total + '/100, but the winning titles above show how to push it further.'; base.recommendStatus = 'acceptable'; }
       base.suggestions = zSuggestTitles(title, niche);
       return base;
     }
 
-    return zReadCorpus(niche.label, 150).then(function(q1) {   // 150 (no 20) → distribución real para el percentil
+    return zReadCorpus(niche.label, 150).then(function(q1) {   // 150 records, not 20, so the percentile has a real distribution.
       if (q1.winners.length >= 8) return finalize(q1.winners, q1.nicheTotal, q1.corpusTotal);
-      // Query de mercado por NICHO (en inglés, donde está el volumen real de ganadores
-      // faceless). Antes para "General" buscaba el título literal → traía basura random.
+      // Search by niche in English, where the faceless winners actually are. Searching the literal title returned noise.
       var sq = niche.q || (niche.label !== 'General' ? niche.label : title.split(/\s+/).slice(0, 5).join(' '));
       return zSearchMarket(sq, ZLANG_GEO[titleLang] || ZLANG_GEO.en).then(function(vids) {
         var extra = (vids || []).map(function(v) {
@@ -970,7 +913,6 @@
     });
   }
 
-  // ── Analizador LOCAL de miniatura (canvas, sin AI) ──────────────────────────
   function zScoreThumb(img) {
     try {
       var W = 160, H = 90, canvas = document.createElement('canvas');
@@ -979,7 +921,7 @@
       ctx.drawImage(img, 0, 0, W, H);
       var data;
       try { data = ctx.getImageData(0, 0, W, H).data; }
-      catch (e) { return { error: 'No pude leer los píxeles (la imagen es de otro dominio / CORS). Subí el archivo en vez de usar la vista previa.' }; }
+      catch (e) { return { error: 'Cannot read the pixels, the image comes from another domain and CORS blocks it. Upload the file instead of using the preview.' }; }
       var n = W * H, sumL = 0, sumL2 = 0, sumSat = 0, minL = 255, maxL = 0, lum = new Float32Array(n);
       for (var i = 0, p = 0; i < data.length; i += 4, p++) {
         var r = data[i], g = data[i + 1], b = data[i + 2];
@@ -1002,36 +944,35 @@
       var sB = Math.round(cl(10 - Math.abs(meanL - 130) / 12, 0, 10));
       var total = cl(sC + sS + sD + sComp + sB, 0, 100);
       var verdict, color;
-      if (total >= 75) { verdict = 'POTENCIAL VIRAL'; color = '#00DC82'; }
-      else if (total >= 58) { verdict = 'SÓLIDA'; color = '#7FE3B5'; }
-      else if (total >= 40) { verdict = 'NECESITA TRABAJO'; color = '#FFD93D'; }
-      else { verdict = 'BAJO CTR'; color = '#FF6B6B'; }
+      if (total >= 75) { verdict = 'VIRAL POTENTIAL'; color = '#00DC82'; }
+      else if (total >= 58) { verdict = 'SOLID'; color = '#7FE3B5'; }
+      else if (total >= 40) { verdict = 'NEEDS WORK'; color = '#FFD93D'; }
+      else { verdict = 'LOW CTR'; color = '#FF6B6B'; }
       var tips = [];
-      if (sC < 20) tips.push('Subí el CONTRASTE — separá el sujeto del fondo con luz/sombra o un borde de color.');
-      if (sS < 14) tips.push('Más COLOR — saturá naranjas/amarillos/rojos, resaltan en el feed.');
-      if (sD < 10) tips.push('Te faltan negros puros y blancos puros — agregá profundidad.');
-      if (edgeAvg > 24) tips.push('Está MUY cargada — quitá elementos, dejá UN solo punto focal.');
-      else if (edgeAvg < 7) tips.push('Está plana/aburrida — agregá un elemento de intriga (flecha, círculo, contraste).');
-      if (meanL < 80) tips.push('Está OSCURA — en mobile (80% de tus views) no se ve. Subí exposición.');
-      else if (meanL > 185) tips.push('Está QUEMADA de luz — bajá las altas luces.');
+      if (sC < 20) tips.push('Raise the CONTRAST: separate the subject from the background with light, shadow or a colored outline.');
+      if (sS < 14) tips.push('More COLOR: push oranges, yellows and reds, they stand out in the feed.');
+      if (sD < 10) tips.push('There are no pure blacks or pure whites, add depth.');
+      if (edgeAvg > 24) tips.push('Too busy: remove elements and leave a single focal point.');
+      else if (edgeAvg < 7) tips.push('Flat and dull: add one element of intrigue, an arrow, a circle or more contrast.');
+      if (meanL < 80) tips.push('Too DARK: it disappears on mobile, which is 80 percent of your views. Raise the exposure.');
+      else if (meanL > 185) tips.push('Blown out: bring the highlights down.');
       var nw = img.naturalWidth || 0;
-      if (nw && nw < 1000) tips.push('Resolución baja (' + nw + 'px) — exportá en 1280×720 para que se vea nítida.');
-      if (!tips.length) tips.push('Sólida. Probala con el A/B test de thumbnails nativo de YouTube contra una variante.');
+      if (nw && nw < 1000) tips.push('Low resolution (' + nw + 'px): export at 1280x720 so it stays sharp.');
+      if (!tips.length) tips.push('Solid. Run it against a variant with the native YouTube thumbnail A/B test.');
       return {
         thumbScore: total, verdict: verdict, color: color,
         breakdown: [
-          { label: 'Contraste', score: sC, max: 30, note: 'std luminancia ' + Math.round(stdL) },
-          { label: 'Color / vibración', score: sS, max: 22, note: Math.round(meanSat * 100) + '% saturación' },
-          { label: 'Rango dinámico', score: sD, max: 16, note: Math.round(dynRange) + '/255' },
-          { label: 'Composición (1 foco)', score: sComp, max: 22, note: 'clutter ' + edgeAvg.toFixed(1) },
-          { label: 'Brillo (mobile)', score: sB, max: 10, note: 'luma media ' + Math.round(meanL) }
+          { label: 'Contrast', score: sC, max: 30, note: 'luminance std ' + Math.round(stdL) },
+          { label: 'Color and vibrance', score: sS, max: 22, note: Math.round(meanSat * 100) + '% saturation' },
+          { label: 'Dynamic range', score: sD, max: 16, note: Math.round(dynRange) + '/255' },
+          { label: 'Composition, one focal point', score: sComp, max: 22, note: 'clutter ' + edgeAvg.toFixed(1) },
+          { label: 'Brightness on mobile', score: sB, max: 10, note: 'mean luma ' + Math.round(meanL) }
         ],
         tips: tips
       };
-    } catch (e) { return { error: 'Error analizando: ' + (e && e.message || e) }; }
+    } catch (e) { return { error: 'Analysis error: ' + (e && e.message || e) }; }
   }
 
-  // ── Helpers visuales ────────────────────────────────────────────────────────
   function zHexA(hex, a) {
     try { hex = String(hex || '#00DC82').replace('#', ''); if (hex.length === 3) hex = hex.split('').map(function(c) { return c + c; }).join(''); var n = parseInt(hex, 16); return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')'; }
     catch (e) { return 'rgba(0,220,130,' + a + ')'; }
@@ -1056,20 +997,19 @@
     return { overlay: overlay, body: body };
   }
 
-  // Render del motor nuevo: percentil (o aviso baja confianza) + barras léxico/hook +
-  // chips de las partes del gancho + lo más flojo. 100% createElement/textContent (TT-safe).
+  // Studio enforces Trusted Types, so this render uses createElement and textContent only.
   function zRenderEngineDims(container, pred) {
     var e = pred.engine || {}, dims = e.dims || {};
     var box = document.createElement('div');
     if (e.confidence === 'high' && e.percentile != null) {
       box.style.cssText = 'display:flex;align-items:baseline;gap:8px;padding:10px 13px;border-radius:11px;background:rgba(0,220,130,0.08);border:1px solid rgba(0,220,130,0.4);margin-bottom:12px;';
-      var pn = document.createElement('span'); pn.textContent = 'Percentil ' + e.percentile; pn.style.cssText = 'font-size:21px;font-weight:900;color:#00DC82;line-height:1;';
-      var pl = document.createElement('span'); pl.textContent = 'vs ' + ((pred.marketData || {}).nicheTitlesInCorpus || '') + ' ganadores reales del nicho'; pl.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);';
+      var pn = document.createElement('span'); pn.textContent = 'Percentile ' + e.percentile; pn.style.cssText = 'font-size:21px;font-weight:900;color:#00DC82;line-height:1;';
+      var pl = document.createElement('span'); pl.textContent = 'vs ' + ((pred.marketData || {}).nicheTitlesInCorpus || '') + ' real winners of the niche'; pl.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);';
       box.appendChild(pn); box.appendChild(pl);
     } else {
       box.style.cssText = 'padding:10px 13px;border-radius:11px;background:rgba(154,166,178,0.1);border:1px solid rgba(154,166,178,0.4);margin-bottom:12px;';
-      var w1 = document.createElement('div'); w1.textContent = '⚠ Baja confianza por datos insuficientes'; w1.style.cssText = 'font-size:12px;font-weight:800;color:#cdd6df;';
-      var w2 = document.createElement('div'); w2.textContent = e.lowReason || 'pocos ganadores en el nicho'; w2.style.cssText = 'font-size:10.5px;color:rgba(255,255,255,0.55);margin-top:3px;line-height:1.4;';
+      var w1 = document.createElement('div'); w1.textContent = 'Low confidence, not enough data'; w1.style.cssText = 'font-size:12px;font-weight:800;color:#cdd6df;';
+      var w2 = document.createElement('div'); w2.textContent = e.lowReason || 'few winners in this niche'; w2.style.cssText = 'font-size:10.5px;color:rgba(255,255,255,0.55);margin-top:3px;line-height:1.4;';
       box.appendChild(w1); box.appendChild(w2);
     }
     container.appendChild(box);
@@ -1085,11 +1025,11 @@
       if (note) { var ne = document.createElement('div'); ne.textContent = note; ne.style.cssText = 'font-size:9.5px;color:rgba(255,255,255,0.42);margin-top:3px;'; line.appendChild(ne); }
       container.appendChild(line);
     }
-    if (dims.lexical) bar('Similitud léxica con ganadores', dims.lexical.score, dims.lexical.note, dims.lexical.lowConf);
+    if (dims.lexical) bar('Lexical similarity to winners', dims.lexical.score, dims.lexical.note, dims.lexical.lowConf);
     if (dims.hook) {
-      bar('Estructura del gancho', dims.hook.score, dims.hook.note, false);
+      bar('Hook structure', dims.hook.score, dims.hook.note, false);
       var chips = document.createElement('div'); chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;margin:-3px 0 11px;';
-      var lblmap = { number: 'número', brackets: 'brackets', pattern: 'patrón ?', length: 'largo', curiosity: 'curiosidad', power: 'power' };
+      var lblmap = { number: 'number', brackets: 'brackets', pattern: 'question hook', length: 'length', curiosity: 'curiosity', power: 'power words' };
       var parts = dims.hook.parts || {}, k;
       for (k in parts) {
         var hit = parts[k].hit, ch = document.createElement('span');
@@ -1099,7 +1039,7 @@
       }
       container.appendChild(chips);
     }
-    if (e.weakest) { var wk = document.createElement('div'); wk.textContent = '🎯 Lo más flojo: ' + e.weakest; wk.style.cssText = 'font-size:11px;color:#FFD93D;font-weight:600;margin-bottom:10px;'; container.appendChild(wk); }
+    if (e.weakest) { var wk = document.createElement('div'); wk.textContent = 'Weakest point: ' + e.weakest; wk.style.cssText = 'font-size:11px;color:#FFD93D;font-weight:600;margin-bottom:10px;'; container.appendChild(wk); }
   }
 
   function zRenderTitlePred(container, pred) {
@@ -1114,12 +1054,12 @@
     ri.appendChild(sn); ri.appendChild(sm); ring.appendChild(ri);
     var ht = document.createElement('div');
     var vd = document.createElement('div'); vd.textContent = pred.verdict; vd.style.cssText = 'font-size:16px;font-weight:900;color:' + pred.color + ';letter-spacing:0.03em;';
-    var nl = document.createElement('div'); nl.textContent = 'Nicho: ' + pred.niche + '  ·  RPM ~$' + pred.nicheRpm; nl.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);margin-top:5px;';
-    var ml = document.createElement('div'); ml.textContent = '💰 Índice de $: ' + pred.moneyPotentialIndex; ml.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);margin-top:2px;';
+    var nl = document.createElement('div'); nl.textContent = 'Niche: ' + pred.niche + '  \u00b7  RPM ~$' + pred.nicheRpm; nl.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);margin-top:5px;';
+    var ml = document.createElement('div'); ml.textContent = 'Money index: ' + pred.moneyPotentialIndex; ml.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);margin-top:2px;';
     ht.appendChild(vd); ht.appendChild(nl); ht.appendChild(ml); hero.appendChild(ring); hero.appendChild(ht); container.appendChild(hero);
-    if (pred.usedEngine && pred.engine) { try { zRenderEngineDims(container, pred); } catch (e) {} }   // motor nuevo: percentil + dims; el viejo breakdown queda vacío (no rompe)
+    if (pred.usedEngine && pred.engine) { try { zRenderEngineDims(container, pred); } catch (e) {} }
     var bd = pred.breakdown || {};
-    [{ l: 'Título (clickabilidad)', d: bd.titulo }, { l: 'Nicho + monetización', d: bd.nicho }, { l: 'Heat del mercado', d: bd.mercado }, { l: 'Anti-saturación', d: bd.saturacion }].forEach(function(row) {
+    [{ l: 'Title clickability', d: bd.titulo }, { l: 'Niche and monetization', d: bd.nicho }, { l: 'Market heat', d: bd.mercado }, { l: 'Anti-saturation', d: bd.saturacion }].forEach(function(row) {
       if (!row.d) return;
       var line = document.createElement('div'); line.style.cssText = 'margin-bottom:9px;';
       var top = document.createElement('div'); top.style.cssText = 'display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;';
@@ -1136,24 +1076,23 @@
     var md = pred.marketData || {}; var st = pred.recommendStatus || 'acceptable';
     var rc = st === 'publish' ? '#00DC82' : st === 'improve' ? '#FFD93D' : st === 'lowdata' ? '#9aa6b2' : '#7FE3B5';
     var rec = document.createElement('div'); rec.style.cssText = 'margin-top:8px;margin-bottom:13px;padding:12px 13px;border-radius:11px;background:' + zHexA(rc, 0.09) + ';border:1px solid ' + zHexA(rc, 0.42) + ';';
-    var rt = document.createElement('div'); rt.textContent = st === 'publish' ? '✅ LISTO PARA PUBLICAR' : st === 'improve' ? '🔧 MEJORAR ANTES DE PUBLICAR' : st === 'lowdata' ? 'ℹ POCA DATA DE MERCADO' : '➜ VEREDICTO'; rt.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:' + rc + ';margin-bottom:5px;';
+    var rt = document.createElement('div'); rt.textContent = st === 'publish' ? 'READY TO PUBLISH' : st === 'improve' ? 'IMPROVE BEFORE PUBLISHING' : st === 'lowdata' ? 'LOW MARKET DATA' : 'VERDICT'; rt.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:' + rc + ';margin-bottom:5px;';
     var rx = document.createElement('div'); rx.textContent = pred.recommendation || ''; rx.style.cssText = 'font-size:12px;color:rgba(255,255,255,0.85);line-height:1.5;white-space:pre-wrap;';
     rec.appendChild(rt); rec.appendChild(rx); container.appendChild(rec);
-    // ── Títulos sugeridos (basados en tu tema + nicho) ──
     var sugg = pred.suggestions || [];
     if (sugg.length) {
-      var sh = document.createElement('div'); sh.textContent = '💡 TÍTULOS SUGERIDOS PARA TU NICHO (' + pred.niche + ')'; sh.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.05em;color:#00DC82;margin:4px 0 8px;'; container.appendChild(sh);
+      var sh = document.createElement('div'); sh.textContent = 'SUGGESTED TITLES FOR YOUR NICHE (' + pred.niche + ')'; sh.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.05em;color:#00DC82;margin:4px 0 8px;'; container.appendChild(sh);
       sugg.forEach(function(s) {
         var sr = document.createElement('div'); sr.style.cssText = 'display:flex;gap:8px;align-items:center;padding:8px 10px;margin-bottom:6px;border-radius:9px;background:rgba(0,220,130,0.06);border:1px solid rgba(0,220,130,0.22);';
         var sx = document.createElement('div'); sx.textContent = s; sx.style.cssText = 'flex:1;font-size:11.5px;color:#fff;line-height:1.35;';
-        var cp = document.createElement('button'); cp.textContent = 'Copiar'; cp.style.cssText = 'flex:0 0 auto;background:rgba(0,220,130,0.15);border:1px solid rgba(0,220,130,0.45);color:#00DC82;font-size:10px;font-weight:800;padding:5px 9px;border-radius:7px;cursor:pointer;';
-        cp.onclick = function() { try { navigator.clipboard.writeText(s); cp.textContent = '✓ Copiado'; setTimeout(function() { cp.textContent = 'Copiar'; }, 1200); } catch (e) {} };
+        var cp = document.createElement('button'); cp.textContent = 'Copy'; cp.style.cssText = 'flex:0 0 auto;background:rgba(0,220,130,0.15);border:1px solid rgba(0,220,130,0.45);color:#00DC82;font-size:10px;font-weight:800;padding:5px 9px;border-radius:7px;cursor:pointer;';
+        cp.onclick = function() { try { navigator.clipboard.writeText(s); cp.textContent = 'Copied'; setTimeout(function() { cp.textContent = 'Copy'; }, 1200); } catch (e) {} };
         sr.appendChild(sx); sr.appendChild(cp); container.appendChild(sr);
       });
     }
     var winners = md.topWinners || [];
     if (winners.length) {
-      var wh = document.createElement('div'); wh.textContent = '🏆 GANADORES REALES DEL NICHO (' + (md.nicheTitlesInCorpus || winners.length) + ')'; wh.style.cssText = 'font-size:10px;font-weight:800;letter-spacing:0.04em;color:rgba(255,255,255,0.55);margin:4px 0 6px;'; container.appendChild(wh);
+      var wh = document.createElement('div'); wh.textContent = 'REAL WINNERS OF THIS NICHE (' + (md.nicheTitlesInCorpus || winners.length) + ')'; wh.style.cssText = 'font-size:10px;font-weight:800;letter-spacing:0.04em;color:rgba(255,255,255,0.55);margin:4px 0 6px;'; container.appendChild(wh);
       winners.slice(0, 6).forEach(function(w) {
         var wr = document.createElement('div'); wr.style.cssText = 'display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-top:1px solid rgba(255,255,255,0.05);';
         var wt = document.createElement('div'); wt.textContent = w.title; wt.style.cssText = 'flex:1;font-size:11px;color:rgba(255,255,255,0.8);line-height:1.35;';
@@ -1166,7 +1105,7 @@
   function zRenderThumb(container, img, scored) {
     while (container.firstChild) container.removeChild(container.firstChild);
     if (!scored) return;
-    if (scored.error) { var er = document.createElement('div'); er.textContent = '⚠ ' + scored.error; er.style.cssText = 'color:#FFD93D;font-size:12px;line-height:1.5;padding:8px 0;'; container.appendChild(er); return; }
+    if (scored.error) { var er = document.createElement('div'); er.textContent = scored.error; er.style.cssText = 'color:#FFD93D;font-size:12px;line-height:1.5;padding:8px 0;'; container.appendChild(er); return; }
     var hero = document.createElement('div'); hero.style.cssText = 'display:flex;gap:14px;align-items:center;padding:14px;border-radius:13px;background:#0e1217;border:1px solid ' + zHexA(scored.color, 0.45) + ';margin-bottom:14px;';
     var th = document.createElement('img'); th.src = img.src; th.style.cssText = 'width:128px;height:72px;object-fit:cover;border-radius:8px;flex:0 0 auto;border:1px solid rgba(255,255,255,0.1);';
     var info = document.createElement('div');
@@ -1187,7 +1126,7 @@
       tr.appendChild(fl); var ne = document.createElement('div'); ne.textContent = row.note || ''; ne.style.cssText = 'font-size:9.5px;color:rgba(255,255,255,0.42);margin-top:3px;';
       line.appendChild(top); line.appendChild(tr); line.appendChild(ne); container.appendChild(line);
     });
-    var th2 = document.createElement('div'); th2.textContent = '🔧 CÓMO SUBIR EL CTR'; th2.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:rgba(255,255,255,0.55);margin:10px 0 7px;'; container.appendChild(th2);
+    var th2 = document.createElement('div'); th2.textContent = 'HOW TO RAISE THE CTR'; th2.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:rgba(255,255,255,0.55);margin:10px 0 7px;'; container.appendChild(th2);
     (scored.tips || []).forEach(function(tip) {
       var t = document.createElement('div'); t.style.cssText = 'display:flex;gap:8px;font-size:11.5px;color:rgba(255,255,255,0.82);line-height:1.45;margin-bottom:6px;';
       var dot = document.createElement('span'); dot.textContent = '→'; dot.style.cssText = 'color:#00DC82;flex:0 0 auto;font-weight:900;';
@@ -1195,21 +1134,20 @@
     });
   }
 
-  // ── Panel: predecir TÍTULO ──────────────────────────────────────────────────
   function zShowTitlePredictor(prefill) {
-    var m = zModal('🔮 PREDECIR VIRALIDAD DEL TÍTULO');
-    var sub = document.createElement('div'); sub.textContent = 'Comparo tu título contra los ganadores REALES del nicho (tu base de mercado + búsqueda activa en YouTube) y te digo si publicar o mejorar.'; sub.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;margin-bottom:13px;'; m.body.appendChild(sub);
-    var ta = document.createElement('textarea'); ta.value = prefill || ''; ta.placeholder = 'Tu título…'; ta.style.cssText = 'width:100%;box-sizing:border-box;min-height:54px;resize:vertical;background:#11151a;border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#fff;padding:11px 13px;font-size:13px;font-family:inherit;line-height:1.4;outline:none;'; m.body.appendChild(ta);
-    var btn = document.createElement('button'); btn.textContent = '⚡ PREDECIR'; btn.style.cssText = 'width:100%;margin-top:13px;padding:13px;border:none;border-radius:11px;background:linear-gradient(135deg,#00DC82,#00b86b);color:#04140d;font-weight:900;font-size:13px;letter-spacing:0.05em;cursor:pointer;font-family:inherit;'; m.body.appendChild(btn);
+    var m = zModal('PREDICT TITLE VIRALITY');
+    var sub = document.createElement('div'); sub.textContent = 'Your title is compared against the real winners of the niche, from your market data plus a live YouTube search, and you get a publish or improve call.'; sub.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;margin-bottom:13px;'; m.body.appendChild(sub);
+    var ta = document.createElement('textarea'); ta.value = prefill || ''; ta.placeholder = 'Your title'; ta.style.cssText = 'width:100%;box-sizing:border-box;min-height:54px;resize:vertical;background:#11151a;border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#fff;padding:11px 13px;font-size:13px;font-family:inherit;line-height:1.4;outline:none;'; m.body.appendChild(ta);
+    var btn = document.createElement('button'); btn.textContent = 'PREDICT'; btn.style.cssText = 'width:100%;margin-top:13px;padding:13px;border:none;border-radius:11px;background:linear-gradient(135deg,#00DC82,#00b86b);color:#04140d;font-weight:900;font-size:13px;letter-spacing:0.05em;cursor:pointer;font-family:inherit;'; m.body.appendChild(btn);
     var res = document.createElement('div'); res.style.cssText = 'margin-top:16px;'; m.body.appendChild(res);
     function run() {
       var title = String(ta.value || '').trim();
       while (res.firstChild) res.removeChild(res.firstChild);
-      if (title.length < 6) { var w = document.createElement('div'); w.textContent = 'Escribí un título de al menos 6 caracteres.'; w.style.cssText = 'color:#FFD93D;font-size:12px;padding:8px 0;'; res.appendChild(w); return; }
-      btn.disabled = true; btn.textContent = '🔎 Analizando mercado…'; btn.style.opacity = '0.7';
-      var ld = document.createElement('div'); ld.textContent = 'Consultando tu base de mercado + buscando ganadores del nicho…'; ld.style.cssText = 'color:rgba(0,220,130,0.8);font-size:12px;padding:10px 0;'; res.appendChild(ld);
-      zRunTitlePrediction(title).then(function(pred) { btn.disabled = false; btn.textContent = '⚡ PREDECIR DE NUEVO'; btn.style.opacity = '1'; zRenderTitlePred(res, pred); })
-        .catch(function(err) { btn.disabled = false; btn.textContent = '⚡ PREDECIR'; btn.style.opacity = '1'; while (res.firstChild) res.removeChild(res.firstChild); var e = document.createElement('div'); e.textContent = '❌ ' + (err && err.message || err); e.style.cssText = 'color:#FF6B6B;font-size:12px;'; res.appendChild(e); });
+      if (title.length < 6) { var w = document.createElement('div'); w.textContent = 'Enter a title of at least 6 characters.'; w.style.cssText = 'color:#FFD93D;font-size:12px;padding:8px 0;'; res.appendChild(w); return; }
+      btn.disabled = true; btn.textContent = 'ANALYZING MARKET'; btn.style.opacity = '0.7';
+      var ld = document.createElement('div'); ld.textContent = 'Reading your market data and searching for winners in this niche'; ld.style.cssText = 'color:rgba(0,220,130,0.8);font-size:12px;padding:10px 0;'; res.appendChild(ld);
+      zRunTitlePrediction(title).then(function(pred) { btn.disabled = false; btn.textContent = 'PREDICT AGAIN'; btn.style.opacity = '1'; zRenderTitlePred(res, pred); })
+        .catch(function(err) { btn.disabled = false; btn.textContent = 'PREDICT'; btn.style.opacity = '1'; while (res.firstChild) res.removeChild(res.firstChild); var e = document.createElement('div'); e.textContent = String(err && err.message || err); e.style.cssText = 'color:#FF6B6B;font-size:12px;'; res.appendChild(e); });
     }
     btn.onclick = run;
     ta.onkeydown = function(e) { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); run(); } };
@@ -1217,7 +1155,6 @@
     if (prefill && prefill.length >= 6) run();
   }
 
-  // Busca la miniatura ya cargada en el editor de Studio
   function zFindStudioThumbSrc() {
     var sels = ['ytcp-thumbnail-uploader img', '#custom-thumbnail-image img', 'ytcp-video-thumbnail-editor img', '.still-cell img', '#still-picker img', 'ytcp-thumbnails-compact-editor img'];
     for (var i = 0; i < sels.length; i++) {
@@ -1227,31 +1164,29 @@
     return '';
   }
 
-  // ── Panel: analizar MINIATURA ───────────────────────────────────────────────
   function zShowThumbAnalyzer() {
-    var m = zModal('🖼 ANALIZAR MINIATURA (CTR)');
+    var m = zModal('ANALYZE THUMBNAIL (CTR)');
     var res = document.createElement('div'); res.style.cssText = 'margin-top:4px;';
     function analyze(src, cross, isRetry) {
       while (res.firstChild) res.removeChild(res.firstChild);
-      var ld = document.createElement('div'); ld.textContent = 'Analizando píxeles…'; ld.style.cssText = 'color:rgba(0,220,130,0.8);font-size:12px;padding:8px 0;'; res.appendChild(ld);
+      var ld = document.createElement('div'); ld.textContent = 'Analyzing pixels'; ld.style.cssText = 'color:rgba(0,220,130,0.8);font-size:12px;padding:8px 0;'; res.appendChild(ld);
       var img = new Image(); if (cross) img.crossOrigin = 'anonymous';
       img.onload = function() { zRenderThumb(res, img, zScoreThumb(img)); };
       img.onerror = function() {
-        // Si falló CON crossOrigin (CDN sin CORS), reintenta SIN crossOrigin: al menos
-        // carga la imagen; si el canvas queda tainted, zScoreThumb avisa con un mensaje limpio.
+        // A CDN without CORS fails with crossOrigin set, so retry without it, the canvas may end up tainted and zScoreThumb says so.
         if (cross && !isRetry) { analyze(src, false, true); return; }
-        while (res.firstChild) res.removeChild(res.firstChild); var e = document.createElement('div'); e.textContent = '⚠ No pude cargar la imagen. Subí el archivo abajo.'; e.style.cssText = 'color:#FFD93D;font-size:12px;'; res.appendChild(e);
+        while (res.firstChild) res.removeChild(res.firstChild); var e = document.createElement('div'); e.textContent = 'Cannot load the image. Upload the file below.'; e.style.cssText = 'color:#FFD93D;font-size:12px;'; res.appendChild(e);
       };
       img.src = src;
     }
     var studioSrc = zFindStudioThumbSrc();
     var info = document.createElement('div');
-    info.textContent = studioSrc ? 'Detecté tu miniatura subida. La analizo automáticamente — o subí otra abajo.' : 'No detecté una miniatura subida. Subí el archivo para analizarlo (contraste, color, composición, brillo → score de CTR).';
+    info.textContent = studioSrc ? 'Found your uploaded thumbnail and analyzed it. You can upload another one below.' : 'No uploaded thumbnail found. Upload a file to score it on contrast, color, composition and brightness.';
     info.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;margin-bottom:12px;'; m.body.appendChild(info);
     var drop = document.createElement('label');
     drop.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:18px;border:1.5px dashed rgba(0,220,130,0.4);border-radius:12px;background:rgba(0,220,130,0.04);cursor:pointer;text-align:center;margin-bottom:6px;';
     var di = document.createElement('div'); di.textContent = '🖼'; di.style.cssText = 'font-size:24px;';
-    var dt = document.createElement('div'); dt.textContent = 'Subí tu miniatura (PNG/JPG)'; dt.style.cssText = 'font-size:12px;font-weight:700;color:#00DC82;';
+    var dt = document.createElement('div'); dt.textContent = 'Upload your thumbnail, PNG or JPG'; dt.style.cssText = 'font-size:12px;font-weight:700;color:#00DC82;';
     var fi = document.createElement('input'); fi.type = 'file'; fi.accept = 'image/*'; fi.style.display = 'none';
     drop.appendChild(di); drop.appendChild(dt); drop.appendChild(fi); m.body.appendChild(drop);
     m.body.appendChild(res);
@@ -1262,7 +1197,6 @@
     if (studioSrc) analyze(studioSrc, !/^blob:|^data:/.test(studioSrc));
   }
 
-  // ── Inyección de botones al lado del TÍTULO y la MINIATURA ──────────────────
   function zGetTitleEl() {
     return document.querySelector('ytcp-social-suggestions-textbox#title-textarea #textbox, #title-textarea #textbox, ytcp-mention-textbox#title-textarea #textbox');
   }
@@ -1274,12 +1208,12 @@
     var container = document.querySelector('ytcp-video-metadata-editor #title-textarea, #title-textarea');
     if (!container && titleEl) container = titleEl.closest('ytcp-social-suggestions-textbox, ytcp-mention-textbox');
     if (!container || !container.parentNode) return;
-    // Re-inyectar si quedó huérfano tras navegación SPA (mismo bug que el de miniatura).
+    // A Studio SPA navigation orphans the button, so re-inject when its parent changed.
     var exTi = document.getElementById('nsp-title-predict-btn');
     if (exTi) { if (exTi.parentNode === container.parentNode) return; try { exTi.remove(); } catch (e) {} }
     var btn = document.createElement('button');
     btn.id = 'nsp-title-predict-btn'; btn.type = 'button';
-    btn.textContent = '🔮 Predecir viralidad del título';
+    btn.textContent = 'Predict title virality';
     btn.style.cssText = zChipStyle();
     btn.onmouseenter = function() { btn.style.background = 'rgba(0,220,130,0.2)'; };
     btn.onmouseleave = function() { btn.style.background = 'rgba(0,220,130,0.10)'; };
@@ -1289,13 +1223,12 @@
   function injectThumbAnalyzerBtn() {
     var ed = document.querySelector('ytcp-video-thumbnail-editor, ytcp-thumbnails-compact-editor, #thumbnail-image-picker, #still-picker');
     if (!ed || !ed.parentNode) return;
-    // Re-inyectar si el botón quedó huérfano tras una navegación SPA de Studio (antes el
-    // guard global lo daba por presente y nunca lo volvía a poner → desaparecía).
+    // A Studio SPA navigation orphans the button, so re-inject when its parent changed.
     var exTh = document.getElementById('nsp-thumb-analyze-btn');
     if (exTh) { if (exTh.parentNode === ed.parentNode) return; try { exTh.remove(); } catch (e) {} }
     var btn = document.createElement('button');
     btn.id = 'nsp-thumb-analyze-btn'; btn.type = 'button';
-    btn.textContent = '🖼 Analizar miniatura (CTR)';
+    btn.textContent = 'Analyze thumbnail (CTR)';
     btn.style.cssText = zChipStyle();
     btn.onmouseenter = function() { btn.style.background = 'rgba(0,220,130,0.2)'; };
     btn.onmouseleave = function() { btn.style.background = 'rgba(0,220,130,0.10)'; };
@@ -1303,7 +1236,6 @@
     ed.parentNode.insertBefore(btn, ed.nextSibling);
   }
 
-  // ── Botón flotante ────────────────────────────────────────────────────────────────
   function injectButton() {
     if (document.getElementById('nsp-studio-btn')) return;
     var btn = document.createElement('button');
@@ -1320,30 +1252,24 @@
 
   function tick() {
     try { injectButton(); } catch(e) {}
-    try { injectTitlePredictorBtn(); } catch(e) {}   // v3.21.0 — botón al lado del título
-    try { injectThumbAnalyzerBtn(); } catch(e) {}    // v3.21.0 — botón al lado de la miniatura
+    try { injectTitlePredictorBtn(); } catch(e) {}
+    try { injectThumbAnalyzerBtn(); } catch(e) {}
     try { var host = document.getElementById('nsp-studio-panel-host'); if (host && host.shadowRoot && S.panelOpen) { var hs = host.shadowRoot.getElementById('hs'); if (hs) hs.textContent = pageLabel(pageType()); } } catch(e) {}
   }
 
-  // Carga conversación previa + auto-resume tras navegación
   loadConv(function(resumeAfterNav) {
     S.loaded = true;
     if (resumeAfterNav && S.messages.length) {
-      // Limpia el flag y abre el panel para continuar
       try { chrome.storage.local.set({ 'nsp_studio_conv': { messages: S.messages, ts: Date.now() } }); } catch(e) {}
       setTimeout(function() {
         var host = showPanel();
         var body = host.shadowRoot && host.shadowRoot.getElementById('body');
-        // Continúa el loop automáticamente: el agente lee la nueva página
         if (body && !S.pending) {
-          S.messages.push({ role: 'tool-status', content: '⚙ Página recargada — leyendo nueva sección...' });
+          S.messages.push({ role: 'tool-status', content: 'Page reloaded, reading the new section' });
           renderMessages(body);
-          // re-inyecta una continuación
           var data = readPage();
           var navResp = { ok: true, arrivedAt: data.pageLabel, page: { pageType: data.pageType, videoTitle: data.videoTitle, metrics: data.metrics.slice(0, 20), text: data.text.slice(0, 3000) } };
-          // Garantizar el par functionCall→functionResponse: si la navegación cortó dejando
-          // un functionCall huérfano lo completamos; si no, empareja call+response nuevos.
-          // (Antes se empujaba un functionResponse suelto y el provider rechazaba el historial.)
+          // Every functionCall needs its functionResponse, a lone response makes the provider reject the history.
           var lastMsg = S.messages[S.messages.length - 1];
           if (lastMsg && lastMsg.functionCall && !lastMsg.functionResponse) {
             S.messages.push({ role: 'function', functionResponse: { name: lastMsg.functionCall.name || 'studioNavigateTo', response: navResp } });
@@ -1357,19 +1283,19 @@
             callAI(apiMsgs, true).then(function(res) {
               if (res.functionCalls && res.functionCalls.length && iter < MAX_ITERS) {
                 var fc = res.functionCalls[0];
-                S.messages.push({ role: 'tool-status', content: '⚙ ' + fc.name });
+                S.messages.push({ role: 'tool-status', content: fc.name });
                 renderMessages(body);
                 studioExecTool(fc.name, fc.args).then(function(result) {
                   if (result && result._deepAnalysis) { runDeepAnalysis(body); S.pending = false; setSending(false); saveConv(); return; }
                   S.messages.push({ role: 'assistant', content: '', functionCall: fc });
                   S.messages.push({ role: 'function', functionResponse: { name: fc.name, response: result } });
                   continueStep(iter + 1);
-                }).catch(function(err) { S.messages.push({ role: 'error', content: '❌ ' + (err && err.message || err) }); S.pending = false; setSending(false); renderMessages(body); saveConv(); });
+                }).catch(function(err) { S.messages.push({ role: 'error', content: String(err && err.message || err) }); S.pending = false; setSending(false); renderMessages(body); saveConv(); });
               } else {
-                S.messages.push({ role: 'assistant', content: cleanMd(res.text) || '(listo)' });
+                S.messages.push({ role: 'assistant', content: cleanMd(res.text) || '(done)' });
                 S.pending = false; setSending(false); renderMessages(body); saveConv();
               }
-            }).catch(function(err) { S.messages.push({ role: 'error', content: '❌ ' + (err.message || err) }); S.pending = false; setSending(false); renderMessages(body); saveConv(); });
+            }).catch(function(err) { S.messages.push({ role: 'error', content: String(err.message || err) }); S.pending = false; setSending(false); renderMessages(body); saveConv(); });
           })(0);
         }
       }, 2000);

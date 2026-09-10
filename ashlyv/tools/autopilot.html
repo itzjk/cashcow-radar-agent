@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,54 +9,54 @@
 <body>
   <header class="tk-head" id="tk-head"></header>
   <div class="tk-wrap">
-    <p class="tk-sub">Un tema → <b>todo el paquete</b> en un clic: guion + escenas + metadata + prompts de imagen por escena + miniaturas. Después lo mandás a VoxBatch (voz) o directo a Monetize Studio para armar el video.</p>
+    <p class="tk-sub">One topic, <b>the whole package</b> in one click: script, scenes, metadata, an image prompt per scene and thumbnails. Send it on to VoxBatch for voice, or straight to Monetize Studio to build the video.</p>
 
     <div class="tk-card">
-      <h3>1 · Solo dame el tema</h3>
+      <h3>1 · Just give me the topic</h3>
       <div class="tk-row">
         <div class="tk-field grow">
-          <label>Tema / idea</label>
-          <input class="tk-in" id="topic" placeholder="Ej: la leyenda del barco fantasma que nadie pudo explicar" />
+          <label>Topic or idea</label>
+          <input class="tk-in" id="topic" placeholder="Example: the legend of the ghost ship nobody could explain" />
         </div>
         <div class="tk-field">
-          <label>Nicho</label>
+          <label>Niche</label>
           <select class="tk-in" id="niche">
-            <option value="historias para dormir">Historias para dormir</option>
-            <option value="misterios / terror">Misterios / Terror</option>
-            <option value="historia / documentales">Historia / Documental</option>
-            <option value="motivación / estoicismo">Motivación</option>
-            <option value="curiosidades / datos">Curiosidades</option>
-            <option value="crimen real">Crimen real</option>
+            <option value="historias para dormir">Sleep stories</option>
+            <option value="misterios / terror">Mystery and horror</option>
+            <option value="historia / documentales">History and documentary</option>
+            <option value="motivación / estoicismo">Motivation</option>
+            <option value="curiosidades / datos">Curious facts</option>
+            <option value="crimen real">True crime</option>
           </select>
         </div>
       </div>
       <div class="tk-row" style="margin-top:12px">
         <div class="tk-field">
-          <label>Duración</label>
+          <label>Length</label>
           <select class="tk-in" id="mins">
             <option value="1">1 min</option><option value="3">3 min</option>
             <option value="6" selected>6 min</option><option value="10">10 min</option><option value="20">20 min</option>
           </select>
         </div>
         <div class="tk-field">
-          <label>Idioma</label>
+          <label>Language</label>
           <select class="tk-in" id="lang">
-            <option value="español">Español</option><option value="inglés">Inglés</option>
-            <option value="portugués">Portugués</option><option value="alemán">Alemán</option><option value="francés">Francés</option>
+            <option value="español">Spanish</option><option value="inglés">English</option>
+            <option value="portugués">Portuguese</option><option value="alemán">German</option><option value="francés">French</option>
           </select>
         </div>
         <div class="tk-field">
-          <label>Estética visual</label>
+          <label>Visual look</label>
           <select class="tk-in" id="look">
-            <option value="cinematic photorealistic, dramatic lighting">Cinematográfico</option>
-            <option value="dark moody, fog, mystery">Oscuro / misterio</option>
-            <option value="warm cozy fireplace, dreamy (sleep)">Cálido / sleep</option>
-            <option value="epic historical, painterly">Histórico épico</option>
+            <option value="cinematic photorealistic, dramatic lighting">Cinematic</option>
+            <option value="dark moody, fog, mystery">Dark and mysterious</option>
+            <option value="warm cozy fireplace, dreamy (sleep)">Warm and cosy</option>
+            <option value="epic historical, painterly">Epic historical</option>
           </select>
         </div>
         <div class="tk-field" style="flex:0 0 auto">
           <label>&nbsp;</label>
-          <button class="tk-btn primary" id="go">🚀 Generar TODO</button>
+          <button class="tk-btn primary" id="go">Generate everything</button>
         </div>
       </div>
       <div class="tk-status" id="status"></div>

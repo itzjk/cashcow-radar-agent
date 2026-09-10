@@ -1,14 +1,14 @@
 {
   "version": 1,
   "updated": "2026-06-10",
-  "_purpose": "Reglas de compliance para auditar NUESTRO PROPIO contenido antes de publicar. Un hardBlock significa: ELIMINA O REESCRIBE ese contenido — nunca hay workaround válido. Las listas son DATOS editables, no código.",
+  "_purpose": "Compliance rules for auditing our own content before publishing. A hard block means: remove or rewrite that content, there is no valid workaround. These lists are editable data, not code.",
   "engine": {
-    "normalization": "minúsculas + plegado de diacríticos (á→a, ü→u, ł→l, ñ→n…) + ß→ss + todo no-letra/número → espacio simple (colapsado). Los TÉRMINOS de esta tabla ya están escritos en forma normalizada/plegada. matchedTerms.index SIEMPRE apunta al texto ORIGINAL (el motor mantiene un mapa de posiciones normalizado→original).",
+    "normalization": "Lowercase, diacritics folded (á→a, ü→u, ł→l, ñ→n), ß→ss, and every non-letter or non-digit collapsed to a single space. The terms in this table are already written in normalized, folded form. matchedTerms.index always points at the ORIGINAL text: the engine keeps a map from normalized positions back to the original.",
     "matchModes": {
-      "word": "secuencia exacta de tokens CONSECUTIVOS sobre el texto normalizado (soporta frases multi-token como 'waffen ss'). OBLIGATORIO para términos cortos (≤4) y acrónimos — tras plegar ß→ss, 'ss' es subcadena de strasse/wasser/besser y daría falsos positivos en substring.",
-      "substring": "subcadena sobre el texto normalizado. SOLO para términos largos propensos a compuestos alemanes (hakenkreuzfahne, hitlergrusses…)."
+      "word": "An exact run of consecutive tokens over the normalized text, so multi-token phrases like 'waffen ss' work. Required for short terms (4 characters or fewer) and acronyms: after folding ß to ss, 'ss' sits inside strasse, wasser and besser, so substring would fire false positives.",
+      "substring": "A substring of the normalized text. Only for long terms that appear inside German compounds (hakenkreuzfahne, hitlergrusses)."
     },
-    "caseGuard": "GUARDA DE MAYÚSCULAS: para reglas word de UN solo token con término ≤4 chars (ss, sa, hj, kz), el match solo cuenta si el trozo ORIGINAL está completamente en MAYÚSCULAS. 'SA marschierte' → match; 'Sa. geschlossen' (sábado) → NO match. Se aplica por defecto; una regla puede eximirse con \"caseGuard\": false (ej. bdm, sin colisiones en alemán corriente). No aplica a frases multi-token ni a substring."
+    "caseGuard": "Uppercase guard: for single-token word rules whose term is 4 characters or fewer (ss, sa, hj, kz), a match only counts when the ORIGINAL slice is fully uppercase. 'SA marschierte' matches; 'Sa. geschlossen' (Saturday) does not. On by default; a rule can opt out with \"caseGuard\": false (bdm, for instance, does not collide with ordinary German). Does not apply to multi-token phrases or to substring rules."
   },
   "global": {
     "childSafety": {
@@ -19,7 +19,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "child porn",
-          "note": "Inequívoco en cualquier contexto; cubre 'child pornography' por subcadena."
+          "note": "Unambiguous in any context; the substring also covers 'child pornography'."
         },
         {
           "id": "cs-002",
@@ -27,7 +27,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "pornografia infantil",
-          "note": "ES, ya plegado (í→i)."
+          "note": "Spanish, already folded (í→i)."
         },
         {
           "id": "cs-003",
@@ -35,7 +35,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "kinderporno",
-          "note": "DE; subcadena cubre kinderpornografie/kinderpornos (compuestos)."
+          "note": "German; the substring covers the compounds kinderpornografie and kinderpornos."
         },
         {
           "id": "cs-004",
@@ -43,7 +43,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "sex with a minor",
-          "note": "EN; frase inequívoca."
+          "note": "English; unambiguous phrase."
         },
         {
           "id": "cs-005",
@@ -51,7 +51,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "sexo con menores",
-          "note": "ES; frase inequívoca."
+          "note": "Spanish; unambiguous phrase."
         },
         {
           "id": "cs-006",
@@ -59,7 +59,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "sex mit kindern",
-          "note": "DE; frase inequívoca."
+          "note": "German; unambiguous phrase."
         },
         {
           "id": "cs-007",
@@ -67,7 +67,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "sexualizar a un nino",
-          "note": "ES plegado (ñ→n); fraseo de sexualización de menores."
+          "note": "Spanish, folded (ñ→n); phrasing that sexualizes a minor."
         },
         {
           "id": "cs-008",
@@ -75,7 +75,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "seks z dziecmi",
-          "note": "PL plegado (ć→c); frase inequívoca."
+          "note": "Polish, folded (ć→c); unambiguous phrase."
         }
       ]
     },
@@ -88,7 +88,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "cures insomnia",
-            "note": "Claim médico absoluto — reformular a 'may help you relax'."
+            "note": "Absolute medical claim. Reword to 'may help you relax'."
           },
           {
             "id": "mc-en-002",
@@ -96,7 +96,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "cure your insomnia",
-            "note": "Variante imperativa del claim de cura."
+            "note": "Imperative variant of the cure claim."
           },
           {
             "id": "mc-en-003",
@@ -104,7 +104,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "treats insomnia",
-            "note": "'Tratar' es lenguaje clínico — los videos sleep no son tratamiento."
+            "note": "'Treats' is clinical language; sleep videos are not treatment."
           },
           {
             "id": "mc-en-004",
@@ -112,7 +112,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "heals your body",
-            "note": "Claim de sanación física."
+            "note": "Physical healing claim."
           },
           {
             "id": "mc-en-005",
@@ -120,7 +120,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "replaces medication",
-            "note": "Sugerir sustituir medicación = riesgo serio."
+            "note": "Suggesting a substitute for medication is a serious risk."
           },
           {
             "id": "mc-en-006",
@@ -128,7 +128,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "stop taking your medication",
-            "note": "Consejo médico directo — nunca."
+            "note": "Direct medical advice, never allowed."
           },
           {
             "id": "mc-en-007",
@@ -136,7 +136,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "guaranteed cure",
-            "note": "Garantía de cura — claim absoluto."
+            "note": "Guaranteed cure, an absolute claim."
           }
         ],
         "es": [
@@ -146,7 +146,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "cura el insomnio",
-            "note": "Claim absoluto — reformular a 'puede ayudarte a relajarte'."
+            "note": "Absolute claim. Reword to something like 'may help you relax'."
           },
           {
             "id": "mc-es-002",
@@ -154,7 +154,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "cura tu insomnio",
-            "note": "Variante imperativa."
+            "note": "Imperative variant."
           },
           {
             "id": "mc-es-003",
@@ -162,7 +162,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "trata el insomnio",
-            "note": "Lenguaje clínico."
+            "note": "Clinical language."
           },
           {
             "id": "mc-es-004",
@@ -170,7 +170,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "sana tu cuerpo",
-            "note": "Claim de sanación."
+            "note": "Healing claim."
           },
           {
             "id": "mc-es-005",
@@ -178,7 +178,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "reemplaza la medicacion",
-            "note": "Plegado (ó→o). Sustituir medicación = riesgo serio."
+            "note": "Folded (ó→o). Substituting medication is a serious risk."
           },
           {
             "id": "mc-es-006",
@@ -186,7 +186,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "deja de tomar tu medicacion",
-            "note": "Plegado. Consejo médico directo — nunca."
+            "note": "Folded. Direct medical advice, never allowed."
           },
           {
             "id": "mc-es-007",
@@ -194,7 +194,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "cura garantizada",
-            "note": "Garantía de cura."
+            "note": "Guaranteed cure."
           }
         ],
         "de": [
@@ -204,7 +204,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "heilt schlaflosigkeit",
-            "note": "Claim absoluto de cura (heilen)."
+            "note": "Absolute cure claim (heilen)."
           },
           {
             "id": "mc-de-002",
@@ -212,7 +212,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "heilt deinen korper",
-            "note": "Plegado (ö→o). Claim de sanación física."
+            "note": "Folded (ö→o). Physical healing claim."
           },
           {
             "id": "mc-de-003",
@@ -220,7 +220,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "behandelt schlaflosigkeit",
-            "note": "'Behandeln' = lenguaje clínico."
+            "note": "'Behandeln' is clinical language."
           },
           {
             "id": "mc-de-004",
@@ -228,7 +228,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "ersetzt medikamente",
-            "note": "Sustituir medicación = riesgo serio."
+            "note": "Substituting medication is a serious risk."
           },
           {
             "id": "mc-de-005",
@@ -236,7 +236,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "setz deine medikamente ab",
-            "note": "Consejo de abandonar medicación — nunca."
+            "note": "Telling the viewer to stop taking medication, never allowed."
           },
           {
             "id": "mc-de-006",
@@ -244,7 +244,7 @@
             "match": "substring",
             "severity": "soft",
             "term": "garantierte heilung",
-            "note": "Garantía de cura."
+            "note": "Guaranteed cure."
           }
         ]
       }
@@ -254,7 +254,7 @@
     "de_history_main": {
       "lang": "de",
       "niche": "historia",
-      "notes": "Canal de historia en alemán. StGB §86/§86a: difusión de propaganda y uso de símbolos de organizaciones inconstitucionales. Un hit aquí = ELIMINAR O REESCRIBIR el pasaje (relato histórico neutral sí; nombre/símbolo/glorificación literal no). match EXPLÍCITO en cada regla: acrónimos y términos ≤4 chars van en 'word' (tras ß→ss, 'ss' es subcadena de strasse/wasser/besser → substring daría falso positivo en cada guion).",
+      "notes": "German-language history channel. StGB §86 and §86a cover spreading propaganda and using the symbols of unconstitutional organizations. A hit here means remove or rewrite the passage: neutral historical narration is fine, a literal name, symbol or glorification is not. Every rule states its match mode: acronyms and terms of 4 characters or fewer use 'word', because after folding ß to ss the string 'ss' sits inside strasse, wasser and besser and substring would fire on every script.",
       "hardBlock": [
         {
           "id": "de86-001",
@@ -262,7 +262,7 @@
           "match": "word",
           "severity": "hard",
           "term": "ss",
-          "note": "Acrónimo org. prohibida — word OBLIGATORIO (subcadena de strasse/wasser/besser tras ß→ss) + CASE GUARD: solo cuenta si el original está TODO en mayúsculas ('SS' sí; 'ss' suelto no). TRADE-OFF ACEPTADO (matriz Fase 1, caso 7): un 'ss' minúsculo suelto en prosa informal NO se detecta — se acepta ese falso-negativo a cambio de matar la inundación de falsos positivos (Sa./strasse/wasser); nuestro pipeline genera alemán con capitalización estándar, exposición real nula. NO 'arreglar' el guard sin re-evaluar esta consecuencia."
+          "note": "Acronym of a banned organization. Word match is required, because after folding ß to ss the term sits inside strasse, wasser and besser, plus the uppercase guard: it only counts when the original is fully uppercase ('SS' yes, a bare 'ss' no). Accepted trade-off: a lowercase 'ss' in informal prose is not detected, and that false negative buys the removal of a flood of false positives. Our pipeline writes German with standard capitalization, so the real exposure is nil. Do not 'fix' the guard without re-evaluating that consequence."
         },
         {
           "id": "de86-002",
@@ -270,7 +270,7 @@
           "match": "word",
           "severity": "hard",
           "term": "sa",
-          "note": "Acrónimo org. prohibida — word obligatorio (≤4) + CASE GUARD: 'SA marschierte' match; 'Sa. geschlossen' (sábado) NO."
+          "note": "Acronym of a banned organization. Word match required (4 characters or fewer) plus the uppercase guard: 'SA marschierte' matches, 'Sa. geschlossen' (Saturday) does not."
         },
         {
           "id": "de86-003",
@@ -278,7 +278,7 @@
           "match": "word",
           "severity": "hard",
           "term": "hj",
-          "note": "Acrónimo org. juvenil prohibida — word obligatorio (≤4) + CASE GUARD de mayúsculas."
+          "note": "Acronym of a banned youth organization. Word match required (4 characters or fewer) plus the uppercase guard."
         },
         {
           "id": "de86-004",
@@ -286,7 +286,7 @@
           "match": "word",
           "severity": "hard",
           "term": "kz",
-          "note": "Abreviatura sensible (set de acrónimos del dueño) — word obligatorio (≤4) + CASE GUARD de mayúsculas."
+          "note": "Sensitive abbreviation. Word match required (4 characters or fewer) plus the uppercase guard."
         },
         {
           "id": "de86-005",
@@ -294,7 +294,7 @@
           "match": "word",
           "severity": "hard",
           "term": "nsdap",
-          "note": "Acrónimo del partido prohibido — en set de acrónimos → word."
+          "note": "Acronym of the banned party, so it belongs to the acronym set and uses word match."
         },
         {
           "id": "de86-006",
@@ -302,7 +302,7 @@
           "match": "word",
           "severity": "hard",
           "term": "bdm",
-          "note": "Acrónimo org. juvenil prohibida — word obligatorio. SIN case guard (exento explícito: 'bdm' no colisiona con palabras/abreviaturas del alemán corriente).",
+          "note": "Acronym of a banned youth organization. Word match required, with no uppercase guard: 'bdm' does not collide with ordinary German words or abbreviations.",
           "caseGuard": false
         },
         {
@@ -311,7 +311,7 @@
           "match": "word",
           "severity": "hard",
           "term": "waffen ss",
-          "note": "Frase word de DOS tokens consecutivos ('waffen-ss' normaliza a 'waffen ss'); el matcher de word soporta secuencias multi-token. Sin case guard (solo aplica a un token ≤4)."
+          "note": "Two consecutive tokens ('waffen-ss' normalizes to 'waffen ss'); the word matcher handles multi-token runs. No uppercase guard, since that only applies to a single short token."
         },
         {
           "id": "de86-101",
@@ -319,7 +319,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "hakenkreuz",
-          "note": "Símbolo §86a; substring cubre compuestos (hakenkreuzfahne, hakenkreuzbinde)."
+          "note": "§86a symbol; the substring covers compounds such as hakenkreuzfahne and hakenkreuzbinde."
         },
         {
           "id": "de86-102",
@@ -327,7 +327,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "hitlergruss",
-          "note": "Saludo prohibido; plegado ß→ss; substring cubre flexiones (hitlergrusses)."
+          "note": "Banned salute; folded ß to ss; the substring covers inflections such as hitlergrusses."
         },
         {
           "id": "de86-103",
@@ -335,7 +335,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "sieg heil",
-          "note": "Consigna prohibida (§86a)."
+          "note": "Banned slogan (§86a)."
         },
         {
           "id": "de86-104",
@@ -343,7 +343,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "heil hitler",
-          "note": "Saludo prohibido (§86a)."
+          "note": "Banned salute (§86a)."
         },
         {
           "id": "de86-105",
@@ -351,7 +351,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "blut und ehre",
-          "note": "Lema HJ prohibido (§86a)."
+          "note": "Banned HJ motto (§86a)."
         },
         {
           "id": "de86-106",
@@ -359,7 +359,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "meine ehre heisst treue",
-          "note": "Lema SS prohibido (§86a); plegado ß→ss."
+          "note": "Banned SS motto (§86a); folded ß to ss."
         },
         {
           "id": "de86-107",
@@ -367,7 +367,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "nationalsozialistische deutsche arbeiterpartei",
-          "note": "Nombre completo del partido prohibido."
+          "note": "Full name of the banned party."
         },
         {
           "id": "de86-108",
@@ -375,7 +375,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "schwarze sonne",
-          "note": "Símbolo de la escena prohibida (uso §86a)."
+          "note": "Symbol of the banned scene (§86a use)."
         },
         {
           "id": "de86-109",
@@ -383,7 +383,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "reichskriegsflagge mit hakenkreuz",
-          "note": "Variante de bandera prohibida; la frase larga evita marcar la histórica genérica."
+          "note": "Banned flag variant; the long phrase avoids flagging the generic historical flag."
         },
         {
           "id": "de86-110",
@@ -391,7 +391,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "es lebe der fuhrer",
-          "note": "Fraseo de glorificación (plegado ü→u)."
+          "note": "Glorifying phrasing (folded ü→u)."
         },
         {
           "id": "de86-111",
@@ -399,7 +399,7 @@
           "match": "substring",
           "severity": "hard",
           "term": "der fuhrer hatte recht",
-          "note": "Fraseo de glorificación (plegado ü→u)."
+          "note": "Glorifying phrasing (folded ü→u)."
         }
       ],
       "softFlag": []
@@ -407,28 +407,28 @@
     "sleep_en_main": {
       "lang": "en",
       "niche": "sleep",
-      "notes": "Hereda global.medicalClaims.softFlag.en (el motor aplica global SIEMPRE + listas del canal). Entrada presente para fijar lang/niche del canal.",
+      "notes": "Inherits global.medicalClaims.softFlag.en: the engine always applies the global lists plus the lists of the channel. This entry exists to pin the lang and niche of the channel.",
       "hardBlock": [],
       "softFlag": []
     },
     "sleep_es_main": {
       "lang": "es",
       "niche": "sleep",
-      "notes": "Hereda global.medicalClaims.softFlag.es.",
+      "notes": "Inherits global.medicalClaims.softFlag.es.",
       "hardBlock": [],
       "softFlag": []
     },
     "sleep_de_main": {
       "lang": "de",
       "niche": "sleep",
-      "notes": "Hereda global.medicalClaims.softFlag.de.",
+      "notes": "Inherits global.medicalClaims.softFlag.de.",
       "hardBlock": [],
       "softFlag": []
     },
     "pl_gardening_main": {
       "lang": "pl",
       "niche": "jardineria",
-      "notes": "Jardinería PL: mal uso de químicos/pesticidas = softFlag (revisar el pasaje: dosis de etiqueta, equipo de protección, legalidad UE). SEED INICIAL — calibrar con hablante nativo/experto antes de Fase 2.",
+      "notes": "Polish gardening: misuse of chemicals or pesticides is a soft flag, so the passage gets reviewed for label dose, protective equipment and EU legality. Initial seed list, to be calibrated with a native speaker before it is trusted.",
       "hardBlock": [],
       "softFlag": [
         {
@@ -437,7 +437,7 @@
           "match": "word",
           "severity": "soft",
           "term": "ddt",
-          "note": "Pesticida prohibido en la UE — ≤4 chars → word obligatorio."
+          "note": "Pesticide banned in the EU. Four characters or fewer, so word match is required."
         },
         {
           "id": "pl-gard-002",
@@ -445,7 +445,7 @@
           "match": "substring",
           "severity": "soft",
           "term": "podwojna dawka oprysku",
-          "note": "Plegado (ó→o). 'Doble dosis de pulverización' — sobredosificación contra etiqueta."
+          "note": "Folded (ó→o). 'Double spray dose', an overdose against the label."
         },
         {
           "id": "pl-gard-003",
@@ -453,7 +453,7 @@
           "match": "substring",
           "severity": "soft",
           "term": "dawka wieksza niz na etykiecie",
-          "note": "Plegado (ę→e, ż→z). Dosis mayor que la etiqueta."
+          "note": "Folded (ę→e, ż→z). A dose higher than the label."
         },
         {
           "id": "pl-gard-004",
@@ -461,7 +461,7 @@
           "match": "substring",
           "severity": "soft",
           "term": "oprysk bez maski",
-          "note": "Pulverizar sin máscara — omitir equipo de protección."
+          "note": "Spraying without a mask, so protective equipment is skipped."
         },
         {
           "id": "pl-gard-005",
@@ -469,7 +469,7 @@
           "match": "substring",
           "severity": "soft",
           "term": "bez okresu karencji",
-          "note": "Ignorar el periodo de carencia pre-cosecha."
+          "note": "Ignoring the pre-harvest interval."
         }
       ]
     }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,25 +9,25 @@
 <body>
   <header class="tk-head" id="tk-head"></header>
   <div class="tk-wrap">
-    <p class="tk-sub">Pegá tu guion y armo el <b>plan visual</b>: un prompt de imagen/video por escena (listo para Flow, Veo, Midjourney, Nano Banana, etc.) + 3 <b>conceptos de miniatura</b> de alto CTR. Mantiene un estilo coherente en todo el video.</p>
+    <p class="tk-sub">Paste your script and it builds the <b>visual plan</b>: one image or video prompt per scene, ready for Flow, Veo, Midjourney or Nano Banana, plus 3 high CTR <b>thumbnail concepts</b>. The style stays consistent across the whole video.</p>
 
     <div class="tk-card">
-      <h3>1 · Guion + estilo</h3>
-      <textarea class="tk-in" id="script" rows="6" placeholder="Pegá tu guion… (o llega solo desde ScriptPilot)"></textarea>
+      <h3>1 · Script and style</h3>
+      <textarea class="tk-in" id="script" rows="6" placeholder="Paste your script, or let ScriptPilot hand it over"></textarea>
       <div class="tk-row" style="margin-top:12px">
         <div class="tk-field">
-          <label>Estética</label>
+          <label>Look</label>
           <select class="tk-in" id="look">
-            <option value="cinematic photorealistic, dramatic lighting">Cinematográfico realista</option>
-            <option value="dark moody, fog, low key, mystery">Oscuro / misterio</option>
-            <option value="warm cozy, fireplace, soft, dreamy (sleep stories)">Cálido / sleep</option>
-            <option value="epic historical, painterly, golden hour">Histórico épico</option>
-            <option value="hyperreal 3D render, octane, volumetric light">3D hiperreal</option>
-            <option value="vintage documentary, film grain, archival">Documental vintage</option>
+            <option value="cinematic photorealistic, dramatic lighting">Photoreal cinematic</option>
+            <option value="dark moody, fog, low key, mystery">Dark and mysterious</option>
+            <option value="warm cozy, fireplace, soft, dreamy (sleep stories)">Warm and cosy</option>
+            <option value="epic historical, painterly, golden hour">Epic historical</option>
+            <option value="hyperreal 3D render, octane, volumetric light">Hyperreal 3D</option>
+            <option value="vintage documentary, film grain, archival">Vintage documentary</option>
           </select>
         </div>
         <div class="tk-field">
-          <label>Formato</label>
+          <label>Aspect ratio</label>
           <select class="tk-in" id="ar">
             <option value="16:9 horizontal">16:9 (YouTube)</option>
             <option value="9:16 vertical">9:16 (Shorts)</option>
@@ -35,7 +35,7 @@
           </select>
         </div>
         <div class="tk-field">
-          <label>Máx escenas</label>
+          <label>Max scenes</label>
           <select class="tk-in" id="max">
             <option value="6">6</option>
             <option value="10" selected>10</option>
@@ -45,7 +45,7 @@
         </div>
         <div class="tk-field" style="flex:0 0 auto">
           <label>&nbsp;</label>
-          <button class="tk-btn primary" id="go">⚡ Generar plan visual</button>
+          <button class="tk-btn primary" id="go">Generate visual plan</button>
         </div>
       </div>
       <div class="tk-status" id="status"></div>

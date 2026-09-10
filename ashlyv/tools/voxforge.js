@@ -1,4 +1,3 @@
-// VoxBatch Pro — divide el guion en escenas y las narra con la voz del navegador (speechSynthesis).
 (function () {
   'use strict';
   TK.mountHead('VoxBatch Pro', 'VOICE ENGINE');
@@ -8,23 +7,21 @@
   var scenes = [], voices = [];
   var synth = window.speechSynthesis || null;
 
-  // handoff desde ScriptPilot
   try { var h = localStorage.getItem('zerack_handoff_script'); if (h && !scriptEl.value) { scriptEl.value = h; localStorage.removeItem('zerack_handoff_script'); } } catch (e) {}
 
   function loadVoices() {
     if (!synth) return;
     voices = synth.getVoices() || [];
-    // prioriza español, luego el resto
     voices.sort(function (a, b) {
       var pa = /^es/i.test(a.lang) ? 0 : 1, pb = /^es/i.test(b.lang) ? 0 : 1;
       return pa - pb || a.lang.localeCompare(b.lang);
     });
     voiceSel.innerHTML = '';
-    if (!voices.length) { var o = document.createElement('option'); o.textContent = '(sin voces — usá otra plataforma)'; voiceSel.appendChild(o); return; }
+    if (!voices.length) { var o = document.createElement('option'); o.textContent = '(no voices available in this browser)'; voiceSel.appendChild(o); return; }
     voices.forEach(function (v, i) { var o = document.createElement('option'); o.value = i; o.textContent = v.name + ' · ' + v.lang + (v.default ? ' (def)' : ''); voiceSel.appendChild(o); });
   }
   if (synth) { loadVoices(); synth.onvoiceschanged = loadVoices; }
-  else TK.status(statusEl, 'Tu navegador no soporta voz del sistema. Usá Chrome.', 'error');
+  else TK.status(statusEl, 'This browser has no system voice support. Use Chrome.', 'error');
 
   rate.addEventListener('input', function () { $('rateV').textContent = (+rate.value).toFixed(2); });
   pitch.addEventListener('input', function () { $('pitchV').textContent = (+pitch.value).toFixed(2); });
@@ -34,7 +31,6 @@
     text = String(text || '').replace(/\r/g, '').trim();
     if (!text) return [];
     if (mode === 'para') return text.split(/\n\s*\n/).map(function (s) { return s.trim(); }).filter(Boolean);
-    // por frases
     var sents = text.replace(/\n+/g, ' ').match(/[^.!?…]+[.!?…]*/g) || [text];
     sents = sents.map(function (s) { return s.trim(); }).filter(Boolean);
     if (mode === 'sent') return sents;
@@ -48,18 +44,14 @@
 
   function build() {
     scenes = splitScenes(scriptEl.value);
-    if (!scenes.length) { TK.status(statusEl, 'Pegá un guion primero.', 'error'); return; }
+    if (!scenes.length) { TK.status(statusEl, 'Paste a script first.', 'error'); return; }
     var total = scenes.reduce(function (a, s) { return a + estSecs(s); }, 0);
-    TK.status(statusEl, '✓ ' + scenes.length + ' escenas · ~' + fmt(total) + ' de narración estimada.', 'ok');
+    TK.status(statusEl, scenes.length + ' scenes, about ' + fmt(total) + ' of narration.', 'ok');
     render();
   }
 
   function speak(text, onend) {
-    // v4.43.0 FIX cola colgada: antes solo había u.onend. Si una escena ERRABA al hablar
-    // ('interrupted' por un cancel, texto raro, motor de voz que falla) o synth.speak() tiraba,
-    // onend NUNCA se llamaba y playAll quedaba COLGADO en esa escena para siempre (status atascado).
-    // Ahora cualquier final —ok, error o excepción— avanza la cola EXACTAMENTE una vez (guard "once").
-    // Camino feliz idéntico: onend dispara → fin() → onend original, una sola vez.
+    // onend alone leaves the queue hung when a scene errors or speak() throws, so any ending advances it exactly once.
     var done = false;
     var fin = function () { if (done) return; done = true; if (onend) onend(); };
     if (!synth) { fin(); return; }
@@ -84,8 +76,8 @@
     synth.cancel();
     var i = 0;
     (function next() {
-      if (i >= scenes.length) { highlight(-1); TK.status(statusEl, '✓ Narración completa.', 'ok'); return; }
-      highlight(i); TK.status(statusEl, '🔊 Reproduciendo escena ' + (i + 1) + '/' + scenes.length + '…', 'busy');
+      if (i >= scenes.length) { highlight(-1); TK.status(statusEl, 'Narration finished.', 'ok'); return; }
+      highlight(i); TK.status(statusEl, 'Playing scene ' + (i + 1) + ' of ' + scenes.length, 'busy');
       speak(scenes[i], function () { i++; next(); });
     })();
   }
@@ -96,7 +88,7 @@
     var ratePct = Math.round((+rate.value) * 100) + '%';
     var s = '<?xml version="1.0"?>\n<speak version="1.0" xml:lang="' + lang + '">\n';
     scenes.forEach(function (sc, i) {
-      s += '  <!-- escena ' + (i + 1) + ' -->\n  <prosody rate="' + ratePct + '" pitch="' + (((+pitch.value) - 1) * 10).toFixed(0) + 'st">' +
+      s += '  <!-- scene ' + (i + 1) + ' -->\n  <prosody rate="' + ratePct + '" pitch="' + (((+pitch.value) - 1) * 10).toFixed(0) + 'st">' +
         TK.esc(sc) + '</prosody>\n  <break time="600ms"/>\n';
     });
     s += '</speak>\n';
@@ -106,12 +98,12 @@
   function render() {
     resultEl.innerHTML = '';
     var card = document.createElement('div'); card.className = 'tk-card';
-    var h = document.createElement('h3'); h.textContent = '🎙️ Cola de narración (' + scenes.length + ' escenas)'; card.appendChild(h);
+    var h = document.createElement('h3'); h.textContent = 'Narration queue (' + scenes.length + ' scenes)'; card.appendChild(h);
     scenes.forEach(function (sc, i) {
       var row = document.createElement('div'); row.className = 'tk-scene';
       var rh = document.createElement('div'); rh.className = 'tk-scene-h';
-      var n = document.createElement('span'); n.className = 'tk-scene-n'; n.textContent = 'ESCENA ' + (i + 1) + ' · ~' + estSecs(sc) + 's'; rh.appendChild(n);
-      var play = document.createElement('button'); play.className = 'tk-btn sm'; play.textContent = '▶ Escuchar';
+      var n = document.createElement('span'); n.className = 'tk-scene-n'; n.textContent = 'SCENE ' + (i + 1) + ' · ~' + estSecs(sc) + 's'; rh.appendChild(n);
+      var play = document.createElement('button'); play.className = 'tk-btn sm'; play.textContent = 'Play';
       play.addEventListener('click', function () { if (synth) synth.cancel(); highlight(i); speak(sc, function () { highlight(-1); }); });
       rh.appendChild(play); row.appendChild(rh);
       var tx = document.createElement('div'); tx.className = 'tk-scene-txt'; tx.textContent = sc; row.appendChild(tx);
@@ -119,13 +111,13 @@
     });
     resultEl.appendChild(card);
     var tip = document.createElement('div'); tip.className = 'tk-sub';
-    tip.innerHTML = '💡 La voz suena en el navegador (no se puede guardar como archivo desde acá). Para narración final: grabá esta voz, usá tu motor TTS con el SSML exportado, o subí tu MP3 directo a <b>Monetize Studio</b>.';
+    tip.innerHTML = 'The voice plays in the browser and cannot be saved as a file from here. For the final narration, record this voice, feed the exported SSML to your own TTS engine, or upload your MP3 to <b>Monetize Studio</b>.';
     resultEl.appendChild(tip);
   }
 
   $('build').addEventListener('click', build);
   $('playAll').addEventListener('click', playAll);
-  $('stop').addEventListener('click', function () { if (synth) synth.cancel(); highlight(-1); TK.status(statusEl, 'Detenido.', ''); });
-  $('dlssml').addEventListener('click', function () { if (!scenes.length) build(); if (scenes.length) TK.download('narracion.ssml', ssml(), 'application/ssml+xml'); });
+  $('stop').addEventListener('click', function () { if (synth) synth.cancel(); highlight(-1); TK.status(statusEl, 'Stopped.', ''); });
+  $('dlssml').addEventListener('click', function () { if (!scenes.length) build(); if (scenes.length) TK.download('narration.ssml', ssml(), 'application/ssml+xml'); });
   if (scriptEl.value.trim()) build();
 })();

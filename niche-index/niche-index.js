@@ -66,10 +66,10 @@ function renderStats(ix, rows) {
     d.appendChild(dv); d.appendChild(dk); box.appendChild(d);
   }
   var totVids = rows.reduce(function (a, r) { return a + r.vids; }, 0);
-  stat(String(rows.length), 'Nichos únicos');
-  stat(fmtN(totVids), 'Videos ingeridos');
-  stat(String((ix && ix.meta && ix.meta.scans) || 0), 'Scans acumulados');
-  stat((ix && ix.meta && ix.meta.last) ? ('hace ' + fmtAgo(ix.meta.last)) : '—', 'Último scan');
+  stat(String(rows.length), 'Unique niches');
+  stat(fmtN(totVids), 'Videos taken in');
+  stat(String((ix && ix.meta && ix.meta.scans) || 0), 'Scans so far');
+  stat((ix && ix.meta && ix.meta.last) ? (fmtAgo(ix.meta.last) + ' ago') : '—', 'Last scan');
 }
 
 function renderTable(rows) {
@@ -79,25 +79,25 @@ function renderTable(rows) {
     var e = document.createElement('div');
     e.className = 'empty';
     var l1 = document.createElement('div');
-    l1.textContent = 'El índice está vacío todavía.';
+    l1.textContent = 'The index is still empty.';
     var l2 = document.createElement('div');
-    l2.append('Corré un ');
-    var b = document.createElement('b'); b.textContent = 'SCAN ';
+    l2.append('Run a ');
+    var b = document.createElement('b'); b.textContent = 'SCAN';
     l2.appendChild(b);
-    l2.append(' en YouTube — cada scan alimenta esta base automáticamente y acá se acumula tu inteligencia de nichos.');
+    l2.append(' on YouTube. Every scan feeds this database on its own, and your niche knowledge builds up here.');
     e.appendChild(l1); e.appendChild(l2);
     wrap.appendChild(e);
     return;
   }
   var cols = [
-    { k: 'niche', label: 'Nicho' },
+    { k: 'niche', label: 'Niche' },
     { k: 'vids', label: 'Videos' },
-    { k: 'vphProm', label: 'VPH prom' },
-    { k: 'vphMax', label: 'VPH máx' },
-    { k: 'trend', label: 'Tendencia' },
-    { k: 'best', label: 'Mejor título visto' },
-    { k: 'channels', label: 'Canales top' },
-    { k: 'last', label: 'Visto' }
+    { k: 'vphProm', label: 'Avg VPH' },
+    { k: 'vphMax', label: 'Max VPH' },
+    { k: 'trend', label: 'Trend' },
+    { k: 'best', label: 'Best title seen' },
+    { k: 'channels', label: 'Top channels' },
+    { k: 'last', label: 'Seen' }
   ];
   var table = document.createElement('table');
   var thead = document.createElement('tr');
@@ -134,7 +134,7 @@ function renderTable(rows) {
     td(fmtN(r.vphMax), 'num vph');
     var tCell = document.createElement('td');
     var tSpan = document.createElement('span');
-    if (!r.trendKnown) { tSpan.className = 'flat'; tSpan.textContent = '·'; tSpan.title = 'Pocos datos aún — la tendencia aparece tras ~6 scans de este nicho.'; }
+    if (!r.trendKnown) { tSpan.className = 'flat'; tSpan.textContent = '·'; tSpan.title = 'Not enough data yet. The trend shows up after about 6 scans of this niche.'; }
     else if (r.trend > 0.15) { tSpan.className = 'up'; tSpan.textContent = ' +' + Math.round(r.trend * 100) + '%'; }
     else if (r.trend < -0.15) { tSpan.className = 'down'; tSpan.textContent = ' ' + Math.round(r.trend * 100) + '%'; }
     else { tSpan.className = 'flat'; tSpan.textContent = ''; }
@@ -148,7 +148,7 @@ function renderTable(rows) {
     bCell.appendChild(bSpan);
     tr.appendChild(bCell);
     td(r.channels || '—', 'chs');
-    td('hace ' + fmtAgo(r.last), 'chs');
+    td(fmtAgo(r.last) + ' ago', 'chs');
     table.appendChild(tr);
   });
   wrap.appendChild(table);
@@ -171,15 +171,15 @@ function refresh() {
   renderStats(state.ix, rowsFromIndex(state.ix));
   renderTable(rows);
   $('foot').textContent = HAS_CHROME
-    ? 'Datos 100% locales (chrome.storage) · el índice crece solo con cada SCAN · tope 400 nichos (borra los más viejos).'
-    : ' Vista previa sin chrome.storage — abrí esta página desde la extensión para ver tu índice real.';
+    ? 'Data stays local in chrome.storage. The index grows with every SCAN, capped at 400 niches, oldest dropped first.'
+    : 'Preview without chrome.storage. Open this page from the extension to see your real index.';
 }
 
 function load() {
   if (!HAS_CHROME) {
     state.ix = { meta: { scans: 3, last: Date.now() - 540000 }, niches: {
-      'historias medievales': { n: 'historias medievales', vids: 14, vphSum: 18200, vphMax: 4200, best: 'La reina que traicionó a su propio reino', ch: { 'Crown Chronicles': 6, 'Dark Ages': 4 }, mkts: { germany: 1, global: 2 }, last: Date.now() - 600000, hist: [{ ts: 1, v: 700 }, { ts: 2, v: 800 }, { ts: 3, v: 900 }, { ts: 4, v: 1500 }, { ts: 5, v: 1900 }, { ts: 6, v: 2400 }] },
-      'misterio espacial': { n: 'misterio espacial', vids: 8, vphSum: 6100, vphMax: 1800, best: 'Lo que la NASA encontró y no explicó', ch: { 'Void Files': 5 }, mkts: { global: 2 }, last: Date.now() - 5400000, hist: [{ ts: 1, v: 900 }, { ts: 2, v: 800 }, { ts: 3, v: 700 }, { ts: 4, v: 600 }, { ts: 5, v: 500 }, { ts: 6, v: 400 }] }
+      'medieval history': { n: 'medieval history', vids: 14, vphSum: 18200, vphMax: 4200, best: 'The queen who betrayed her own kingdom', ch: { 'Crown Chronicles': 6, 'Dark Ages': 4 }, mkts: { germany: 1, global: 2 }, last: Date.now() - 600000, hist: [{ ts: 1, v: 700 }, { ts: 2, v: 800 }, { ts: 3, v: 900 }, { ts: 4, v: 1500 }, { ts: 5, v: 1900 }, { ts: 6, v: 2400 }] },
+      'space mystery': { n: 'space mystery', vids: 8, vphSum: 6100, vphMax: 1800, best: 'What NASA found and never explained', ch: { 'Void Files': 5 }, mkts: { global: 2 }, last: Date.now() - 5400000, hist: [{ ts: 1, v: 900 }, { ts: 2, v: 800 }, { ts: 3, v: 700 }, { ts: 4, v: 600 }, { ts: 5, v: 500 }, { ts: 6, v: 400 }] }
     } };
     refresh();
     return;
@@ -199,7 +199,7 @@ $('search').addEventListener('input', function () {
 
 $('btnExport').addEventListener('click', function () {
   var rows = rowsFromIndex(state.ix);
-  var head = 'nicho,videos,vph_prom,vph_max,tendencia_pct,mejor_titulo,canales_top,mercados,ultimo_ts\n';
+  var head = 'niche,videos,avg_vph,max_vph,trend_pct,best_title,top_channels,markets,last_ts\n';
   var csv = head + rows.map(function (r) {
     function esc(s) { return '"' + String(s || '').replace(/"/g, '""') + '"'; }
     return [esc(r.niche), r.vids, r.vphProm, r.vphMax, r.trendKnown ? Math.round(r.trend * 100) : '', esc(r.best), esc(r.channels), esc(r.mkts), r.last].join(',');
@@ -208,14 +208,14 @@ $('btnExport').addEventListener('click', function () {
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a');
   a.href = url;
-  a.download = 'zerack-indice-nichos.csv';
+  a.download = 'zerack-niche-index.csv';
   document.body.appendChild(a);
   a.click();
   setTimeout(function () { try { a.remove(); URL.revokeObjectURL(url); } catch (e) {} }, 2000);
 });
 
 $('btnClear').addEventListener('click', function () {
-  if (!confirm('¿Borrar TODO el índice acumulado? Esta acción no se puede deshacer.')) return;
+  if (!confirm('Delete the whole index you have built up? This cannot be undone.')) return;
   if (HAS_CHROME) chrome.storage.local.remove('nsp_niche_index_v1', function () { load(); });
   else { state.ix = { meta: { scans: 0 }, niches: {} }; refresh(); }
 });

@@ -69,16 +69,16 @@
   }
 
   var TEMPLATES = {
-    lista: '[N] [secretos/errores/datos] de {tema} que {resultado inesperado}',
-    pregunta: '¿Por qué {sujeto} {acción inesperada}?',
-    howto: 'Cómo {resultado deseado} sin {obstáculo común}',
-    shock: 'Nadie te contó esto sobre {tema}',
-    comparacion: '{A} vs {B}: cuál {criterio} de verdad',
-    superlativo: 'El {superlativo} {tema} de la historia',
-    cifra: 'Cómo {sujeto} generó {cifra} con {método}',
-    negativo: 'Deja de {acción} — estás {consecuencia negativa}',
-    urgencia: '{tema} está cambiando: lo que tenés que hacer antes de {fecha}',
-    narrativo: 'La historia del {sujeto} que {hazaña o tragedia}'
+    lista: '[N] [secrets/mistakes/facts] about {topic} that {unexpected result}',
+    pregunta: 'Why does {subject} {unexpected action}?',
+    howto: 'How to {desired result} without {common obstacle}',
+    shock: 'Nobody told you this about {topic}',
+    comparacion: '{A} vs {B}: which one really {criterion}',
+    superlativo: 'The {superlative} {topic} in history',
+    cifra: 'How {subject} made {figure} with {method}',
+    negativo: 'Stop {action}, it is {negative consequence}',
+    urgencia: '{topic} is changing: what to do before {date}',
+    narrativo: 'The story of the {subject} who {feat or tragedy}'
   };
 
   var FORMAT_ALL = ['lista', 'pregunta', 'howto', 'shock', 'comparacion', 'superlativo', 'cifra', 'negativo', 'urgencia', 'narrativo'];
@@ -137,9 +137,9 @@
   function findOutliers(videos) {
     var rows = (videos || []).map(function (v) { return { title: getTitle(v), metric: getMetric(v) }; })
       .filter(function (r) { return r.title && r.metric > 0; });
-    if (rows.length < 4) return { count: 0, motivo: 'pocos datos con métrica' };
+    if (rows.length < 4) return { count: 0, motivo: 'too few rows carry a metric' };
     var med = median(rows.map(function (r) { return r.metric; }));
-    if (!med) return { count: 0, motivo: 'mediana 0' };
+    if (!med) return { count: 0, motivo: 'median is zero' };
     var threshold = med * 3;
     var outliers = rows.filter(function (r) { return r.metric >= threshold; })
       .sort(function (a, b) { return b.metric - a.metric; });
@@ -198,42 +198,42 @@
     var t = analyzeTitles(videos);
     var o = findOutliers(videos);
     var c = analyzeChannels(videos);
-    if (!t.count) return { ok: false, texto: 'No hay videos para analizar.' };
-    var nombre = nicho ? String(nicho) : 'este nicho';
+    if (!t.count) return { ok: false, texto: 'No videos to analyze.' };
+    var nombre = nicho ? String(nicho) : 'this niche';
     var L = [];
-    L.push('INGENIERIA INVERSA DE ' + nombre.toUpperCase() + ' (' + t.count + ' videos reales del escaneo):');
-    L.push('- Formula de titulo dominante: ' + t.formatoDominante.toUpperCase() + '. Longitud media ' + t.avgLen + ' caracteres; ' + t.conNumero + '% usan numero, ' + t.conCaps + '% usan mayusculas fuertes.');
+    L.push('REVERSE ENGINEERING OF ' + nombre.toUpperCase() + ' (' + t.count + ' real videos from the scan):');
+    L.push('- Dominant title formula: ' + t.formatoDominante.toUpperCase() + '. Average length ' + t.avgLen + ' characters; ' + t.conNumero + '% use a number, ' + t.conCaps + '% lean on capitals.');
     if (t.formatos.length) {
-      L.push('- Mezcla de formatos: ' + t.formatos.slice(0, 5).map(function (f) { return f.formato + ' ' + f.pct + '%'; }).join(', ') + '.');
+      L.push('- Format mix: ' + t.formatos.slice(0, 5).map(function (f) { return f.formato + ' ' + f.pct + '%'; }).join(', ') + '.');
     }
     if (t.palabrasGatillo.length) {
-      L.push('- Palabras gatillo del nicho: ' + t.palabrasGatillo.slice(0, 8).map(function (w) { return w.palabra + '(' + w.n + ')'; }).join(', ') + '.');
+      L.push('- Trigger words in this niche: ' + t.palabrasGatillo.slice(0, 8).map(function (w) { return w.palabra + '(' + w.n + ')'; }).join(', ') + '.');
     }
     if (o.count) {
       if (o.formatosQueExplotan.length) {
-        L.push('- LO QUE EXPLOTA (outliers vs promedio): ' + o.formatosQueExplotan.slice(0, 3).map(function (f) { return f.formato + ' (+' + f.ventaja + ' pts)'; }).join(', ') + ' rinden por encima del resto.');
+        L.push('- WHAT TAKES OFF (outliers vs the average): ' + o.formatosQueExplotan.slice(0, 3).map(function (f) { return f.formato + ' (+' + f.ventaja + ' pts)'; }).join(', ') + ' beat the rest.');
       }
       if (o.palabrasQueExplotan.length) {
-        L.push('- Palabras en los outliers: ' + o.palabrasQueExplotan.slice(0, 6).map(function (w) { return w.palabra; }).join(', ') + '.');
+        L.push('- Words inside the outliers: ' + o.palabrasQueExplotan.slice(0, 6).map(function (w) { return w.palabra; }).join(', ') + '.');
       }
       if (o.aperturasOutliers && o.aperturasOutliers.length) {
-        L.push('- Con qué ABREN los que explotan (gancho adelante, primeras 2 palabras): ' + o.aperturasOutliers.map(function (a) { return '"' + a.apertura + '"'; }).join(', ') + '.');
+        L.push('- How the outliers OPEN (hook up front, first 2 words): ' + o.aperturasOutliers.map(function (a) { return '"' + a.apertura + '"'; }).join(', ') + '.');
       }
       if (o.ejemplos.length) {
-        L.push('- Titulos reales que explotaron: ' + o.ejemplos.map(function (e) { return '"' + e.titulo + '"'; }).join(' | ') + '.');
+        L.push('- Real titles that took off: ' + o.ejemplos.map(function (e) { return '"' + e.titulo + '"'; }).join(' | ') + '.');
       }
     }
     if (c.dominantes && c.dominantes.length) {
-      L.push('- CANALES que dominan tu nicho (estudiá su mejor video y hacelo mejor): ' + c.dominantes.slice(0, 4).map(function (x) { return x.canal + ' (' + x.videos + ' en el scan, mejor: "' + x.mejorTitulo + '")'; }).join(' | ') + '.');
+      L.push('- CHANNELS that own this niche (study their best video, then beat it): ' + c.dominantes.slice(0, 4).map(function (x) { return x.canal + ' (' + x.videos + ' in the scan, best: "' + x.mejorTitulo + '")'; }).join(' | ') + '.');
     }
     if (t.numerosComunes && t.numerosComunes.length) {
-      L.push('- Números/cifras que más usan: ' + t.numerosComunes.map(function (x) { return x.num; }).join(', ') + (t.cifrasComunes && t.cifrasComunes.length ? ' | cifras: ' + t.cifrasComunes.map(function (x) { return x.cifra; }).join(', ') : '') + '.');
+      L.push('- Numbers used most: ' + t.numerosComunes.map(function (x) { return x.num; }).join(', ') + (t.cifrasComunes && t.cifrasComunes.length ? ' | figures: ' + t.cifrasComunes.map(function (x) { return x.cifra; }).join(', ') : '') + '.');
     }
     var formatoGanador = (o.count && o.formatosQueExplotan && o.formatosQueExplotan.length) ? o.formatosQueExplotan[0].formato : t.formatoDominante;
     var plantillaGanadora = TEMPLATES[formatoGanador] || t.plantilla;
-    L.push('- PLANTILLA para replicar (basada en lo que EXPLOTA = ' + formatoGanador.toUpperCase() + ', rellenala): ' + plantillaGanadora);
+    L.push('- TEMPLATE to copy, based on what takes off (' + formatoGanador.toUpperCase() + '), fill it in: ' + plantillaGanadora);
     if (t.ejemplos.length) {
-      L.push('- Ejemplos reales del escaneo a imitar: ' + t.ejemplos.map(function (e) { return '"' + e + '"'; }).join(' | ') + '.');
+      L.push('- Real examples from the scan worth imitating: ' + t.ejemplos.map(function (e) { return '"' + e + '"'; }).join(' | ') + '.');
     }
     return {
       ok: true,

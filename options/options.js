@@ -1,8 +1,6 @@
-// NSP Options — v3.5.4 — JS externo (MV3 CSP bloquea inline scripts)
-console.log('[NSP Options] options.js cargado ✓');
+console.log('[NSP Options] options.js loaded');
 
-// fetch con timeout: sin esto, "PROBAR CONEXIÓN" se colgaba para siempre (botón en
-// "⏳ PROBANDO..." disabled) si la red aceptaba la conexión pero no respondía.
+// Without a timeout the test button hangs forever when the network accepts the connection but never answers.
 function nspFetchT(url, opts, ms) {
   opts = opts || {};
   var ctrl = new AbortController();
@@ -46,24 +44,23 @@ function loadSettings() {
 }
 
 function nspGuardarGeminiKey() {
-  console.log('[NSP Options] GUARDAR clicked');
+  console.log('[NSP Options] save clicked');
   const input = document.getElementById('nsp-gemini-key');
   const status = document.getElementById('nsp-gemini-status');
-  if (!input) { console.error('[NSP Options] input element missing'); alert('Error: input no encontrado'); return; }
-  if (!status) { console.error('[NSP Options] status element missing'); alert('Error: status no encontrado'); return; }
+  if (!input) { console.error('[NSP Options] input element missing'); alert('Error: input element not found'); return; }
+  if (!status) { console.error('[NSP Options] status element missing'); alert('Error: status element not found'); return; }
 
   const raw = (input.value || '').trim();
   console.log('[NSP Options] key length:', raw.length, 'starts with:', raw.slice(0, 4));
 
   if (!raw) {
-    // NO borrar la key si el campo está vacío y YA hay una guardada. Antes, apretar el
-    // botón grande "GUARDAR CONFIGURACIÓN" con el input vacío BORRABA la API key buena.
+    // An empty field must not wipe a stored key: hitting Save with the box empty used to delete a good one.
     chrome.storage.local.get('nsp_gemini_api_key', (r) => {
       if (r && r.nsp_gemini_api_key) {
-        status.textContent = '✓ Key conservada (el campo estaba vacío, no la borré)';
+        status.textContent = 'Key kept. The field was empty, so nothing was deleted.';
         status.style.color = 'rgba(234,240,255,.6)';
       } else {
-        status.textContent = '⊘ Sin key (campo vacío)';
+        status.textContent = 'No key set. The field is empty.';
         status.style.color = 'rgba(234,240,255,.6)';
       }
     });
@@ -71,39 +68,39 @@ function nspGuardarGeminiKey() {
   }
 
   if (!raw.startsWith('AIza')) {
-    status.textContent = '❌ Formato inválido — debe empezar con "AIza". Tu key empieza con: "' + raw.slice(0, 6) + '"';
+    status.textContent = 'Wrong format. A Gemini key starts with "AIza". Yours starts with "' + raw.slice(0, 6) + '".';
     status.style.color = '#FF4F8E';
     return;
   }
 
   if (raw.length < 30 || raw.length > 60) {
-    status.textContent = '❌ Largo inválido — debe tener entre 30-60 chars. Tu key tiene: ' + raw.length;
+    status.textContent = 'Wrong length. A key is 30 to 60 characters. Yours is ' + raw.length + '.';
     status.style.color = '#FF4F8E';
     return;
   }
 
-  status.textContent = '⏳ Guardando...';
+  status.textContent = 'Saving';
   status.style.color = 'rgba(234,240,255,.6)';
 
   chrome.storage.local.set({ nsp_gemini_api_key: raw }, () => {
     if (chrome.runtime.lastError) {
-      const errMsg = chrome.runtime.lastError.message || 'error desconocido';
-      status.textContent = '❌ Error al guardar: ' + errMsg;
+      const errMsg = chrome.runtime.lastError.message || 'unknown error';
+      status.textContent = 'Could not save: ' + errMsg;
       status.style.color = '#FF4F8E';
       console.error('[NSP Options] storage set failed:', chrome.runtime.lastError);
       return;
     }
-    status.textContent = '✅ GUARDADO ✓ (' + raw.slice(0, 10) + '... · ' + raw.length + ' chars) — Click 🧪 PROBAR para verificar';
+    status.textContent = 'Saved: ' + raw.slice(0, 10) + '... · ' + raw.length + ' characters. Hit Test connection to check it.';
     status.style.color = '#2EE9FF';
-    console.log('[NSP Options] Key guardada OK');
+    console.log('[NSP Options] key saved');
 
     chrome.storage.local.get('nsp_gemini_api_key', r => {
       const stored = r && r.nsp_gemini_api_key;
       if (stored === raw) {
-        console.log('[NSP Options] verify OK — storage tiene la key exacta');
+        console.log('[NSP Options] verify OK, storage holds the exact key');
       } else {
-        console.warn('[NSP Options] verify FAIL — stored:', String(stored).slice(0, 10), 'expected:', raw.slice(0, 10));
-        status.textContent = '⚠ Guardado reportado OK pero readback diferente. Recarga la página.';
+        console.warn('[NSP Options] verify FAIL, stored:', String(stored).slice(0, 10), 'expected:', raw.slice(0, 10));
+        status.textContent = 'The save reported success but the readback differs. Reload the page.';
         status.style.color = '#FFD93D';
       }
     });
@@ -111,23 +108,23 @@ function nspGuardarGeminiKey() {
 }
 
 async function nspProbarGeminiKey() {
-  console.log('[NSP Options] PROBAR clicked');
+  console.log('[NSP Options] test clicked');
   const input = document.getElementById('nsp-gemini-key');
   const status = document.getElementById('nsp-gemini-status');
   const testBtn = document.getElementById('nsp-gemini-test-btn');
-  if (!input || !status) { alert('DOM faltante'); return; }
+  if (!input || !status) { alert('Page elements missing'); return; }
 
   const raw = (input.value || '').trim();
   if (!raw || !raw.startsWith('AIza')) {
-    status.textContent = '⚠ Pega una key válida primero (AIza...)';
+    status.textContent = 'Paste a valid key first, starting with AIza.';
     status.style.color = '#FFD93D';
     return;
   }
 
-  if (testBtn) { testBtn.disabled = true; testBtn.textContent = '⏳ PROBANDO...'; }
+  if (testBtn) { testBtn.disabled = true; testBtn.textContent = 'TESTING'; }
   status.style.color = 'rgba(234,240,255,.6)';
 
-  // Auto-discovery: prueba modelos en orden hasta que uno funcione
+  // Tries each model in order until one answers, since availability varies per key.
   const modelChain = [
     'gemini-2.5-flash',
     'gemini-2.0-flash',
@@ -142,10 +139,10 @@ async function nspProbarGeminiKey() {
   const triedLog = [];
 
   for (const modelName of modelChain) {
-    status.textContent = '⏳ Probando ' + modelName + '... (' + (triedLog.length + 1) + '/' + modelChain.length + ')';
+    status.textContent = 'Testing ' + modelName + ' (' + (triedLog.length + 1) + '/' + modelChain.length + ')';
     const url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelName) + ':generateContent?key=' + encodeURIComponent(raw);
     const body = {
-      contents: [{ role: 'user', parts: [{ text: 'di hola en 1 palabra' }] }],
+      contents: [{ role: 'user', parts: [{ text: 'say hello in one word' }] }],
       generationConfig: { maxOutputTokens: 12 }
     };
     try {
@@ -158,22 +155,20 @@ async function nspProbarGeminiKey() {
         triedLog.push(modelName + ': ' + (data.error.status || code));
         if (code === 404 || code === 400 || code === 429 || code === 403 ||
             /not found|not supported|exceeded.*quota|limit:\s*0|permission/i.test(msg)) {
-          continue; // siguiente modelo
+          continue;
         }
-        // Error fatal → reportar
-        if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🧪 PROBAR CONEXIÓN'; }
-        status.textContent = '❌ Error fatal con ' + modelName + ': ' + msg;
+        if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST CONNECTION'; }
+        status.textContent = 'Fatal error on ' + modelName + ': ' + msg;
         status.style.color = '#FF4F8E';
         return;
       }
       if (data && Array.isArray(data.candidates) && data.candidates.length) {
         const reply = (((data.candidates[0] || {}).content || {}).parts || []).map(p => p.text || '').join('').trim();
-        if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🧪 PROBAR CONEXIÓN'; }
-        // Cachear el modelo ganador
+        if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST CONNECTION'; }
         chrome.storage.local.set({ nsp_gemini_working_model: modelName }, () => {
-          console.log('[NSP Options] Modelo cacheado:', modelName);
+          console.log('[NSP Options] cached model:', modelName);
         });
-        status.textContent = '✅ MODELO OK: ' + modelName + ' — respondió: "' + reply.slice(0, 40) + '"';
+        status.textContent = 'Model works: ' + modelName + '. It answered "' + reply.slice(0, 40) + '".';
         status.style.color = '#2EE9FF';
         return;
       }
@@ -183,21 +178,19 @@ async function nspProbarGeminiKey() {
       continue;
     }
   }
-  // Si llegamos aquí, ningún modelo funcionó
-  if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🧪 PROBAR CONEXIÓN'; }
-  status.textContent = '❌ Ningún modelo Gemini disponible para tu key. Probado: ' + triedLog.slice(0, 3).join(', ') + '...';
+  if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST CONNECTION'; }
+  status.textContent = 'No Gemini model is available for this key. Tried: ' + triedLog.slice(0, 3).join(', ') + '.';
   status.style.color = '#FF4F8E';
-  console.warn('[NSP Options] Todos los modelos fallaron:', triedLog);
+  console.warn('[NSP Options] every model failed:', triedLog);
 }
 
-// Boot — esperar DOMContentLoaded para garantizar que los elementos existen
 function nspOptionsBoot() {
   console.log('[NSP Options] DOM ready, attaching listeners');
 
   const saveBtn = document.getElementById('save-btn');
   if (saveBtn) {
     saveBtn.addEventListener('click', () => {
-      console.log('[NSP Options] save-btn (grande) clicked');
+      console.log('[NSP Options] save-btn clicked');
       chrome.storage.sync.set({ nsp_settings: getSettings() }, () => {
         const msg = document.getElementById('saved-msg');
         if (msg) {
@@ -207,7 +200,7 @@ function nspOptionsBoot() {
       });
       try { nspGuardarGeminiKey(); } catch(e) { console.error('[NSP Options] gemini save threw:', e); }
     });
-    console.log('[NSP Options] save-btn listener attached ✓');
+    console.log('[NSP Options] save-btn listener attached');
   } else {
     console.warn('[NSP Options] save-btn NOT found');
   }
@@ -215,7 +208,7 @@ function nspOptionsBoot() {
   const gSaveBtn = document.getElementById('nsp-gemini-save-btn');
   if (gSaveBtn) {
     gSaveBtn.addEventListener('click', nspGuardarGeminiKey);
-    console.log('[NSP Options] nsp-gemini-save-btn listener attached ✓');
+    console.log('[NSP Options] nsp-gemini-save-btn listener attached');
   } else {
     console.warn('[NSP Options] nsp-gemini-save-btn NOT found');
   }
@@ -223,7 +216,7 @@ function nspOptionsBoot() {
   const gTestBtn = document.getElementById('nsp-gemini-test-btn');
   if (gTestBtn) {
     gTestBtn.addEventListener('click', nspProbarGeminiKey);
-    console.log('[NSP Options] nsp-gemini-test-btn listener attached ✓');
+    console.log('[NSP Options] nsp-gemini-test-btn listener attached');
   } else {
     console.warn('[NSP Options] nsp-gemini-test-btn NOT found');
   }
@@ -238,21 +231,20 @@ function nspOptionsBoot() {
   chrome.storage.local.get('nsp_gemini_api_key', (res) => {
     const k = res && res.nsp_gemini_api_key;
     const statusEl = document.getElementById('nsp-gemini-status');
-    if (k && typeof k === 'string' && /^AIza[a-zA-Z0-9\-_]{20,}$/.test(k)) {   // tolerante: antes {30,50} no repoblaba keys de 55-60 chars que SÍ se guardaron
+    if (k && typeof k === 'string' && /^AIza[a-zA-Z0-9\-_]{20,}$/.test(k)) {   // loose on purpose: {30,50} failed to repopulate stored keys of 55 to 60 characters
       const inputEl = document.getElementById('nsp-gemini-key');
       if (inputEl) inputEl.value = k;
       if (statusEl) {
-        statusEl.textContent = '✅ Gemini API key configurada (' + k.slice(0, 8) + '... — ' + k.length + ' chars)';
+        statusEl.textContent = 'Gemini API key set: ' + k.slice(0, 8) + '... · ' + k.length + ' characters';
         statusEl.style.color = 'var(--accentC)';
       }
-      console.log('[NSP Options] Gemini key cargada desde storage');
+      console.log('[NSP Options] Gemini key loaded from storage');
     } else if (statusEl) {
-      statusEl.textContent = '⊘ No hay API key configurada. Pega una arriba y dale GUARDAR.';
+      statusEl.textContent = 'No API key set. Paste one above and hit Save key.';
       statusEl.style.color = 'var(--muted)';
     }
   });
 
-  // ═════════ v3.8.0 — GROQ ═════════
   function nspGuardarGroqKey() {
     const input = document.getElementById('nsp-groq-key');
     const modelSel = document.getElementById('nsp-groq-model');
@@ -261,25 +253,25 @@ function nspOptionsBoot() {
     const raw = (input.value || '').trim();
     if (!raw) {
       chrome.storage.local.remove(['nsp_groq_api_key'], () => {
-        status.textContent = '⊘ Groq key eliminada';
+        status.textContent = 'Groq key removed.';
         status.style.color = 'rgba(234,240,255,.6)';
       });
       return;
     }
     if (!/^gsk_[A-Za-z0-9_\-]{30,}$/.test(raw)) {
-      status.textContent = '❌ Formato inválido — debe empezar con "gsk_". Tu input: "' + raw.slice(0, 8) + '..."';
+      status.textContent = 'Wrong format. A Groq key starts with "gsk_". Yours starts with "' + raw.slice(0, 8) + '".';
       status.style.color = '#FF4F8E';
       return;
     }
-    status.textContent = '⏳ Guardando Groq key...';
+    status.textContent = 'Saving the Groq key';
     status.style.color = 'rgba(234,240,255,.6)';
     chrome.storage.local.set({ nsp_groq_api_key: raw, nsp_groq_model: modelSel ? modelSel.value : 'llama-3.3-70b-versatile' }, () => {
       if (chrome.runtime.lastError) {
-        status.textContent = '❌ Error: ' + chrome.runtime.lastError.message;
+        status.textContent = 'Error: ' + chrome.runtime.lastError.message;
         status.style.color = '#FF4F8E';
         return;
       }
-      status.textContent = '✅ Groq guardado (' + raw.slice(0, 10) + '... · modelo ' + (modelSel ? modelSel.value : '') + ') — click PROBAR para verificar';
+      status.textContent = 'Groq saved: ' + raw.slice(0, 10) + '... · model ' + (modelSel ? modelSel.value : '') + '. Hit Test Groq to check it.';
       status.style.color = '#FF6B6B';
     });
   }
@@ -292,13 +284,13 @@ function nspOptionsBoot() {
     if (!input || !status) return;
     const raw = (input.value || '').trim();
     if (!raw || !raw.startsWith('gsk_')) {
-      status.textContent = '⚠ Pega una key Groq válida primero (gsk_...)';
+      status.textContent = 'Paste a valid Groq key first, starting with gsk_.';
       status.style.color = '#FFD93D';
       return;
     }
     const model = (modelSel && modelSel.value) || 'llama-3.3-70b-versatile';
-    if (testBtn) { testBtn.disabled = true; testBtn.textContent = '⏳ PROBANDO...'; }
-    status.textContent = '⏳ Probando Groq con ' + model + '...';
+    if (testBtn) { testBtn.disabled = true; testBtn.textContent = 'TESTING'; }
+    status.textContent = 'Testing Groq with ' + model;
     status.style.color = 'rgba(234,240,255,.6)';
     try {
       const t0 = Date.now();
@@ -307,24 +299,24 @@ function nspOptionsBoot() {
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + raw },
         body: JSON.stringify({
           model: model,
-          messages: [{ role: 'user', content: 'di "hola" en 1 palabra' }],
+          messages: [{ role: 'user', content: 'say hello in one word' }],
           max_tokens: 16
         })
       }, 12000);
       const elapsed = Date.now() - t0;
       const data = await resp.json();
-      if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🧪 PROBAR GROQ'; }
+      if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST GROQ'; }
       if (data.error) {
-        status.textContent = '❌ Groq rechazó: ' + (data.error.message || JSON.stringify(data.error)).slice(0, 200);
+        status.textContent = 'Groq refused: ' + (data.error.message || JSON.stringify(data.error)).slice(0, 200);
         status.style.color = '#FF4F8E';
         return;
       }
       const reply = (((data.choices && data.choices[0]) || {}).message || {}).content || '';
-      status.textContent = '✅ GROQ OK (' + elapsed + 'ms) — respondió: "' + reply.slice(0, 50) + '"';
+      status.textContent = 'Groq works, ' + elapsed + 'ms. It answered "' + reply.slice(0, 50) + '".';
       status.style.color = '#FF6B6B';
     } catch (err) {
-      if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🧪 PROBAR GROQ'; }
-      status.textContent = '❌ Error red: ' + (err.message || err);
+      if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST GROQ'; }
+      status.textContent = 'Network error: ' + (err.message || err);
       status.style.color = '#FF4F8E';
     }
   }
@@ -334,7 +326,6 @@ function nspOptionsBoot() {
   const _groqTestBtn = document.getElementById('nsp-groq-test-btn');
   if (_groqTestBtn) _groqTestBtn.addEventListener('click', nspProbarGroqKey);
 
-  // Cargar Groq al abrir
   chrome.storage.local.get(['nsp_groq_api_key', 'nsp_groq_model'], (res) => {
     const k = res && res.nsp_groq_api_key;
     const m = res && res.nsp_groq_model;
@@ -345,16 +336,15 @@ function nspOptionsBoot() {
       const modelSel = document.getElementById('nsp-groq-model');
       if (modelSel && m) modelSel.value = m;
       if (status) {
-        status.textContent = '✅ Groq configurado (' + k.slice(0, 10) + '... · ' + (m || 'default') + ')';
+        status.textContent = 'Groq is set up: ' + k.slice(0, 10) + '... · ' + (m || 'default');
         status.style.color = '#FF6B6B';
       }
     } else if (status) {
-      status.textContent = '⊘ Groq no configurado. Es opcional pero muy rápido.';
+      status.textContent = 'Groq is not set up. It is optional, but it is the fastest option.';
       status.style.color = 'var(--muted)';
     }
   });
 
-  // ═════════ v3.8.0 — OLLAMA ═════════
   function nspGuardarOllama() {
     const enabled = document.getElementById('nsp-ollama-enabled');
     const urlEl = document.getElementById('nsp-ollama-url');
@@ -364,7 +354,7 @@ function nspOptionsBoot() {
     const url = (urlEl && urlEl.value || 'http://localhost:11434').trim().replace(/\/$/, '');
     const model = (modelEl && modelEl.value || 'llama3.2:3b').trim();
     const isOn = !!(enabled && enabled.checked);
-    status.textContent = '⏳ Guardando config Ollama...';
+    status.textContent = 'Saving the Ollama settings';
     status.style.color = 'rgba(234,240,255,.6)';
     chrome.storage.local.set({
       nsp_ollama_enabled: isOn,
@@ -372,11 +362,11 @@ function nspOptionsBoot() {
       nsp_ollama_model: model
     }, () => {
       if (chrome.runtime.lastError) {
-        status.textContent = '❌ Error: ' + chrome.runtime.lastError.message;
+        status.textContent = 'Error: ' + chrome.runtime.lastError.message;
         status.style.color = '#FF4F8E';
         return;
       }
-      status.textContent = '✅ Ollama guardado: ' + (isOn ? 'HABILITADO' : 'deshabilitado') + ' · ' + url + ' · ' + model;
+      status.textContent = 'Ollama saved: ' + (isOn ? 'enabled' : 'disabled') + ' · ' + url + ' · ' + model;
       status.style.color = '#A88FFF';
     });
   }
@@ -389,8 +379,8 @@ function nspOptionsBoot() {
     if (!status) return;
     const url = (urlEl && urlEl.value || 'http://localhost:11434').trim().replace(/\/$/, '');
     const model = (modelEl && modelEl.value || 'llama3.2:3b').trim();
-    if (testBtn) { testBtn.disabled = true; testBtn.textContent = '⏳ PROBANDO...'; }
-    status.textContent = '⏳ Pingeando Ollama en ' + url + '...';
+    if (testBtn) { testBtn.disabled = true; testBtn.textContent = 'TESTING'; }
+    status.textContent = 'Pinging Ollama at ' + url;
     status.style.color = 'rgba(234,240,255,.6)';
 
     // Step 1: ping
@@ -407,28 +397,28 @@ function nspOptionsBoot() {
         tags = (tagsData.models || []).map(m => m.name);
       }
     } catch (e) {
-      if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🧪 PROBAR OLLAMA'; }
-      status.textContent = '❌ Ollama no responde en ' + url + '. ¿Está corriendo Ollama? Abre la app o ejecuta `ollama serve` en Terminal.';
+      if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST OLLAMA'; }
+      status.textContent = 'Ollama is not answering at ' + url + '. Open the app or run `ollama serve` in a terminal.';
       status.style.color = '#FF4F8E';
       return;
     }
     if (!pingOk) {
-      if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🧪 PROBAR OLLAMA'; }
-      status.textContent = '❌ Ollama no responde en ' + url + '. ¿Está corriendo?';
+      if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST OLLAMA'; }
+      status.textContent = 'Ollama is not answering at ' + url + '. Is it running?';
       status.style.color = '#FF4F8E';
       return;
     }
 
-    // Step 2: verificar que el modelo existe
+    // Step 2: check the model exists
     if (tags.indexOf(model) === -1 && tags.indexOf(model + ':latest') === -1) {
-      if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🧪 PROBAR OLLAMA'; }
-      status.textContent = '⚠ Ollama corre OK pero modelo "' + model + '" no está descargado. Modelos disponibles: ' + (tags.slice(0, 5).join(', ') || 'ninguno') + '. Ejecuta: ollama pull ' + model;
+      if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST OLLAMA'; }
+      status.textContent = 'Ollama is running, but the model "' + model + '" is not downloaded. Available: ' + (tags.slice(0, 5).join(', ') || 'none') + '. Run: ollama pull ' + model;
       status.style.color = '#FFD93D';
       return;
     }
 
-    // Step 3: enviar una request real
-    status.textContent = '⏳ Ollama responde, enviando chat de prueba...';
+    // Step 3: send a real request
+    status.textContent = 'Ollama answered. Sending a test message';
     try {
       const t0 = Date.now();
       const chatResp = await fetch(url + '/v1/chat/completions', {
@@ -436,25 +426,25 @@ function nspOptionsBoot() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: model,
-          messages: [{ role: 'user', content: 'di "hola" en 1 palabra' }],
+          messages: [{ role: 'user', content: 'say hello in one word' }],
           stream: false,
           options: { num_predict: 16 }
         })
       });
       const data = await chatResp.json();
       const elapsed = Date.now() - t0;
-      if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🧪 PROBAR OLLAMA'; }
+      if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST OLLAMA'; }
       if (data.error) {
-        status.textContent = '❌ Ollama rechazó: ' + JSON.stringify(data.error).slice(0, 200);
+        status.textContent = 'Ollama refused: ' + JSON.stringify(data.error).slice(0, 200);
         status.style.color = '#FF4F8E';
         return;
       }
       const reply = (((data.choices && data.choices[0]) || {}).message || {}).content || '';
-      status.textContent = '✅ OLLAMA OK (' + elapsed + 'ms) — modelo "' + model + '" respondió: "' + reply.slice(0, 50) + '"';
+      status.textContent = 'Ollama works, ' + elapsed + 'ms. Model "' + model + '" answered "' + reply.slice(0, 50) + '".';
       status.style.color = '#A88FFF';
     } catch (err) {
-      if (testBtn) { testBtn.disabled = false; testBtn.textContent = '🧪 PROBAR OLLAMA'; }
-      status.textContent = '❌ Error: ' + (err.message || err);
+      if (testBtn) { testBtn.disabled = false; testBtn.textContent = 'TEST OLLAMA'; }
+      status.textContent = 'Error: ' + (err.message || err);
       status.style.color = '#FF4F8E';
     }
   }
@@ -464,7 +454,6 @@ function nspOptionsBoot() {
   const _ollamaTestBtn = document.getElementById('nsp-ollama-test-btn');
   if (_ollamaTestBtn) _ollamaTestBtn.addEventListener('click', nspProbarOllama);
 
-  // Cargar Ollama config al abrir
   chrome.storage.local.get(['nsp_ollama_enabled', 'nsp_ollama_url', 'nsp_ollama_model'], (res) => {
     const enabledEl = document.getElementById('nsp-ollama-enabled');
     const urlEl = document.getElementById('nsp-ollama-url');
@@ -475,10 +464,10 @@ function nspOptionsBoot() {
     if (modelEl && res && res.nsp_ollama_model) modelEl.value = res.nsp_ollama_model;
     if (status) {
       if (res && res.nsp_ollama_enabled) {
-        status.textContent = '✅ Ollama habilitado: ' + (res.nsp_ollama_url || 'localhost:11434') + ' · ' + (res.nsp_ollama_model || 'llama3.2:3b');
+        status.textContent = 'Ollama is enabled: ' + (res.nsp_ollama_url || 'localhost:11434') + ' · ' + (res.nsp_ollama_model || 'llama3.2:3b');
         status.style.color = '#A88FFF';
       } else {
-        status.textContent = '⊘ Ollama deshabilitado. Marca el checkbox y guarda.';
+        status.textContent = 'Ollama is disabled. Tick the checkbox and save.';
         status.style.color = 'var(--muted)';
       }
     }

@@ -161,7 +161,7 @@ function renderChannels() {
     const avatarWrap = document.createElement('a');
     avatarWrap.href = '#';
     avatarWrap.className = 'ch-avatar-wrap';
-    avatarWrap.title = 'Abrir canal';
+    avatarWrap.title = 'Open channel';
     avatarWrap.addEventListener('click', (e) => {
       e.preventDefault();
       chrome.tabs.create({ url: ch.channelUrl });
@@ -186,8 +186,8 @@ function renderChannels() {
 
     const nameEl = document.createElement('div');
     nameEl.className = 'ch-name';
-    nameEl.textContent = ch.name || 'Canal';
-    nameEl.title = 'Abrir canal';
+    nameEl.textContent = ch.name || 'Channel';
+    nameEl.title = 'Open channel';
     nameEl.addEventListener('click', () => chrome.tabs.create({ url: ch.channelUrl }));
     info.appendChild(nameEl);
 
@@ -221,9 +221,9 @@ function renderChannels() {
     }
 
     const mon = document.createElement('span');
-    if (ch.monetized === 'yes')    { mon.className = 'ch-chip ch-chip-green'; mon.textContent = ' Monetizado'; }
-    else if (ch.monetized === 'likely') { mon.className = 'ch-chip ch-chip-yellow'; mon.textContent = ' Probable'; }
-    else if (ch.monetized === 'no')  { mon.className = 'ch-chip ch-chip-red';   mon.textContent = ' No monetiz.'; }
+    if (ch.monetized === 'yes')    { mon.className = 'ch-chip ch-chip-green'; mon.textContent = 'Monetized'; }
+    else if (ch.monetized === 'likely') { mon.className = 'ch-chip ch-chip-yellow'; mon.textContent = 'Likely monetized'; }
+    else if (ch.monetized === 'no')  { mon.className = 'ch-chip ch-chip-red';   mon.textContent = 'Not monetized'; }
     else                             { mon.className = 'ch-chip'; mon.textContent = ''; }
     meta.appendChild(mon);
 
@@ -234,7 +234,7 @@ function renderChannels() {
     const rmBtn = document.createElement('button');
     rmBtn.className = 'ch-remove';
     rmBtn.textContent = '';
-    rmBtn.title = 'Eliminar';
+    rmBtn.title = 'Remove';
     rmBtn.addEventListener('click', () => {
       savedChannels.splice(idx, 1);
       saveChannels();
@@ -316,7 +316,7 @@ function saveWatchlist() {
         world: 'MAIN',
         func: (data) => { localStorage.setItem('nsp_watchlist', data); },
         args: [wl],
-      }, () => { if (chrome.runtime.lastError) { /* tab cerrada/sin permiso: queda en memoria+render, no persiste al tab */ } });
+      }, () => { if (chrome.runtime.lastError) { /* tab gone or not permitted: the list stays in memory and rendered, it just does not reach the tab */ } });
     }
   });
 }
@@ -355,9 +355,7 @@ function exportCSV() {
   const a = document.createElement('a');
   a.href = url;
   a.download = `nichescanner_${Date.now()}.csv`;
-  // v4.44.0 FIX descarga CSV: antes se revocaba el object-URL JUSTO después de click(), lo que en
-  // algunos navegadores cancela la descarga antes de que empiece a leer el Blob (CSV vacío / "Failed").
-  // Diferir el revoke + adjuntar el <a> al DOM = patrón seguro ya usado en toolkit.js y country-feed.js.
+  // Revoking the object URL right after click() cancels the download in some browsers, so defer it.
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);

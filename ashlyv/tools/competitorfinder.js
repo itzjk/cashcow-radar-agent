@@ -1,13 +1,10 @@
-// RivalRadar Pro — análisis de competencia por IA + búsquedas abribles en YouTube.
 (function () {
   'use strict';
   TK.mountHead('RivalRadar Pro', 'COMPETITOR RADAR');
   var $ = function (id) { return document.getElementById(id); };
   var kw = $('kw'), statusEl = $('status'), resultEl = $('result'), go = $('go');
 
-  // Mercado → locale de YouTube (gl/hl). Las búsquedas que abrimos deben FORZAR
-  // el país/idioma del mercado elegido; si no, YouTube responde en la región del
-  // navegador y "no respeta el mercado".
+  // The opened searches must force gl/hl, otherwise YouTube answers in the browser region and ignores the chosen market.
   var MARKET_LOCALE = {
     'español': { gl: 'ES', hl: 'es' },
     'inglés (US)': { gl: 'US', hl: 'en' },
@@ -25,35 +22,35 @@
   }
 
   function sys() {
-    return 'Sos analista de competencia de YouTube faceless. Conocés VPH, RPM, retención y saturación por nicho. ' +
-      'Sos concreto y accionable, sin relleno. Devolvés EXCLUSIVAMENTE un JSON válido, sin texto extra ni markdown.';
+    return 'You are a competition analyst for faceless YouTube channels. You know VPH, RPM, retention and saturation per niche. ' +
+      'You are concrete and actionable, with no filler. You return ONLY valid JSON, with no extra text and no markdown.';
   }
   function prompt(kw, lang) {
-    return 'NICHO/KEYWORD: ' + kw + '\nMERCADO/IDIOMA: ' + lang + '\n\n' +
-      'IMPORTANTE: enfocá TODO en el mercado ' + lang + '. Las "searchQueries" deben estar escritas en el idioma de ese mercado y apuntar a canales/creadores de ESE país; NO mezcles otros idiomas ni caigas al mercado hispano por defecto.\n' +
-      'Analizá la competencia y devolvé este JSON (textos en ' + lang + ', queries en el idioma del mercado):\n' +
+    return 'NICHE/KEYWORD: ' + kw + '\nMARKET/LANGUAGE: ' + lang + '\n\n' +
+      'IMPORTANT: focus everything on the ' + lang + ' market. The "searchQueries" must be written in that market language and point at channels and creators from that country. Do not mix other languages and do not fall back to the Spanish market.\n' +
+      'Analyze the competition and return this JSON, prose in English and queries in the market language:\n' +
       '{\n' +
-      '  "searchQueries": ["8-10 búsquedas concretas de YouTube para espiar el nicho"],\n' +
-      '  "formats": [ { "name": "formato que está funcionando", "why": "por qué retiene/funciona", "example": "ejemplo de título" } ],\n' +
-      '  "gaps": ["3-5 huecos/ángulos poco explotados que podrías atacar"],\n' +
-      '  "angles": ["3-5 ángulos de monetización / sub-temas con buen RPM"],\n' +
-      '  "rpm": "rango estimado de RPM para este nicho/mercado",\n' +
-      '  "saturation": "baja|media|alta + 1 frase de por qué",\n' +
-      '  "verdict": "1-2 frases: ¿vale la pena entrar y cómo diferenciarte?"\n' +
-      '}\nNADA fuera del JSON.';
+      '  "searchQueries": ["8-10 concrete YouTube searches to study the niche"],\n' +
+      '  "formats": [ { "name": "format that is working", "why": "why it retains and works", "example": "example title" } ],\n' +
+      '  "gaps": ["3-5 gaps or angles nobody is using that you could take"],\n' +
+      '  "angles": ["3-5 monetization angles or sub-topics with good RPM"],\n' +
+      '  "rpm": "estimated RPM range for this niche and market",\n' +
+      '  "saturation": "low|medium|high plus one sentence on why",\n' +
+      '  "verdict": "1-2 sentences: is it worth entering and how to stand out"\n' +
+      '}\nNOTHING outside the JSON.';
   }
 
   function run() {
     var q = kw.value.trim();
-    if (!q) { TK.status(statusEl, 'Escribí un nicho o keyword.', 'error'); return; }
+    if (!q) { TK.status(statusEl, 'Type a niche or keyword first.', 'error'); return; }
     go.disabled = true; resultEl.innerHTML = '';
-    statusEl.innerHTML = '<span class="tk-spin"></span>Escaneando la competencia…'; statusEl.style.color = '#FFD93D';
+    statusEl.innerHTML = '<span class="tk-spin"></span>Scanning the competition'; statusEl.style.color = '#FFD93D';
     TK.ai(sys(), prompt(q, $('lang').value), 0.6).then(function (txt) {
-      var d = TK.json(txt); if (!d) throw new Error('La IA no devolvió análisis válido. Probá de nuevo.');
-      render(d); TK.status(statusEl, '✓ Análisis listo.', 'ok');
+      var d = TK.json(txt); if (!d) throw new Error('The AI did not return a valid analysis. Try again.');
+      render(d); TK.status(statusEl, 'Analysis ready.', 'ok');
     }).catch(function (e) {
       if (String(e && e.message) === 'NOKEYS') { resultEl.innerHTML = TK.needKeysHTML(); TK.wireNeedKeys(resultEl); TK.status(statusEl, '', ''); }
-      else TK.status(statusEl, '⚠ ' + (e && e.message || e), 'error');
+      else TK.status(statusEl, String(e && e.message || e), 'error');
     }).then(function () { go.disabled = false; });
   }
 
@@ -66,40 +63,36 @@
 
   function render(d) {
     resultEl.innerHTML = '';
-    // stats
     var grid = document.createElement('div'); grid.className = 'tk-grid';
     function stat(v, l) { var s = document.createElement('div'); s.className = 'tk-stat'; var vv = document.createElement('div'); vv.className = 'v'; vv.textContent = v; vv.style.fontSize = '15px'; var ll = document.createElement('div'); ll.className = 'l'; ll.textContent = l; s.appendChild(vv); s.appendChild(ll); return s; }
-    if (d.rpm) grid.appendChild(stat(d.rpm, 'RPM estimado'));
-    if (d.saturation) grid.appendChild(stat(String(d.saturation).split(' ')[0], 'Saturación'));
+    if (d.rpm) grid.appendChild(stat(d.rpm, 'Estimated RPM'));
+    if (d.saturation) grid.appendChild(stat(String(d.saturation).split(' ')[0], 'Saturation'));
     if (grid.children.length) resultEl.appendChild(grid);
-    if (d.verdict) { var vb = document.createElement('div'); vb.className = 'tk-block'; var vh = document.createElement('div'); vh.className = 'tk-block-h'; var vt = document.createElement('span'); vt.className = 'tk-bt'; vt.textContent = '🎯 Veredicto'; vh.appendChild(vt); vb.appendChild(vh); var vbd = document.createElement('div'); vbd.className = 'tk-block-b'; vbd.textContent = d.verdict + (typeof d.saturation === 'string' && d.saturation.indexOf(' ') > 0 ? '\n\nSaturación: ' + d.saturation : ''); vb.appendChild(vbd); resultEl.appendChild(vb); }
+    if (d.verdict) { var vb = document.createElement('div'); vb.className = 'tk-block'; var vh = document.createElement('div'); vh.className = 'tk-block-h'; var vt = document.createElement('span'); vt.className = 'tk-bt'; vt.textContent = 'Verdict'; vh.appendChild(vt); vb.appendChild(vh); var vbd = document.createElement('div'); vbd.className = 'tk-block-b'; vbd.textContent = d.verdict + (typeof d.saturation === 'string' && d.saturation.indexOf(' ') > 0 ? '\n\nSaturation: ' + d.saturation : ''); vb.appendChild(vbd); resultEl.appendChild(vb); }
 
-    // search queries → abren YouTube
     if (d.searchQueries && d.searchQueries.length) {
-      resultEl.appendChild(listBlock('🔎 Búsquedas para espiar (clic = abre YouTube)', d.searchQueries, function (q) {
+      resultEl.appendChild(listBlock('Searches to study the niche, click to open YouTube', d.searchQueries, function (q) {
         var row = document.createElement('div'); row.className = 'tk-scene'; row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.justifyContent = 'space-between'; row.style.gap = '10px';
         var t = document.createElement('div'); t.className = 'tk-scene-txt'; t.style.margin = '0'; t.textContent = q; row.appendChild(t);
-        var b = document.createElement('button'); b.className = 'tk-btn sm'; b.textContent = '↗ YouTube';
+        var b = document.createElement('button'); b.className = 'tk-btn sm'; b.textContent = 'YouTube';
         b.addEventListener('click', function () { var url = ytSearchUrl(q); try { chrome.tabs ? chrome.tabs.create({ url: url }) : window.open(url, '_blank'); } catch (e) { window.open(url, '_blank'); } });
         row.appendChild(b); return row;
       }));
     }
-    // formats
     if (d.formats && d.formats.length) {
-      resultEl.appendChild(listBlock('🧩 Formatos que funcionan', d.formats, function (f) {
+      resultEl.appendChild(listBlock('Formats that work', d.formats, function (f) {
         var row = document.createElement('div'); row.className = 'tk-scene';
         var n = document.createElement('div'); n.className = 'tk-scene-n'; n.textContent = f.name || ''; row.appendChild(n);
         if (f.why) { var w = document.createElement('div'); w.className = 'tk-scene-txt'; w.textContent = f.why; row.appendChild(w); }
-        if (f.example) { var ex = document.createElement('div'); ex.className = 'tk-scene-meta'; ex.textContent = '📌 ' + f.example; row.appendChild(ex); }
+        if (f.example) { var ex = document.createElement('div'); ex.className = 'tk-scene-meta'; ex.textContent = 'Example: ' + f.example; row.appendChild(ex); }
         return row;
       }));
     }
-    // gaps + angles
     function bullets(title, arr) {
       return listBlock(title, arr, function (g) { var row = document.createElement('div'); row.className = 'tk-scene-meta'; row.style.fontSize = '13px'; row.style.color = 'rgba(255,255,255,.88)'; row.style.marginTop = '8px'; row.textContent = '• ' + g; return row; });
     }
-    if (d.gaps && d.gaps.length) resultEl.appendChild(bullets('🕳️ Huecos sin explotar', d.gaps));
-    if (d.angles && d.angles.length) resultEl.appendChild(bullets('💰 Ángulos de monetización', d.angles));
+    if (d.gaps && d.gaps.length) resultEl.appendChild(bullets('Gaps nobody is filling', d.gaps));
+    if (d.angles && d.angles.length) resultEl.appendChild(bullets('Monetization angles', d.angles));
   }
 
   go.addEventListener('click', run);

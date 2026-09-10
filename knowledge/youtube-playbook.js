@@ -1,23 +1,18 @@
-// ZERACK — Base de conocimiento "YouTube Playbook" v1.0.0 (2026-06-24)
-// Activo de datos para la IA experta. NO cableado todavía: setea una global y no toca ninguna función.
-// Origen: deep-research verificado adversarialmente (24/25 claims confirmados, mayoría fuente PRIMARIA de YouTube).
-// Honestidad: cada bloque trae su nivel de confianza y fuentes. Lo que NO se pudo verificar va en `pendiente` — NO inventar.
-
 window.NSP_YT_PLAYBOOK = {
   version: '1.3.0',
   updated: '2026-06-24',
-  origen: 'deep-research (111 agentes, fuentes primarias YouTube + doc filtrado MrBeast)',
+  origen: 'deep research (111 agents, primary YouTube sources plus the leaked MrBeast document)',
 
   algoritmo: {
-    confianza: 'alta',
+    confianza: 'high',
     principios: [
-      'YouTube optimiza por SATISFACCION del espectador, no por watch time crudo ni CTR aislado.',
-      'La satisfaccion se mide con: encuestas in-product 1-5 estrellas (solo 4-5 cuentan como "valued watchtime"), likes/dislikes, clics en "no me interesa", y si el espectador vuelve a YouTube despues.',
-      'Es un sistema "pull, no push": para CADA espectador extrae lo que ESE espectador ya disfruto (su historial, que videos se ven juntos, cuanto consume de un canal/tema).',
-      'Regla de oro del creador: preguntate "le gusta esto a MI audiencia?", NO "le gusta al algoritmo?".',
-      'La retencion alimenta el ranking directamente: average view duration (duracion media vista) y average % viewed (porcentaje medio visto) son senales confirmadas.',
-      'El peso de cada metrica depende del contexto: el watch time pesa mas en TV que en movil, mas en podcasts que en musica.',
-      'Matiz honesto: el modelo "pull" describe las recomendaciones (home/sugeridos); los videos igual se testean en audiencias chicas y se expanden segun senales. No es magia de calidad absoluta.'
+      'YouTube optimizes for viewer SATISFACTION, not raw watch time and not CTR on its own.',
+      'Satisfaction is measured with in-product 1-5 star surveys (only 4 and 5 count as valued watchtime), likes and dislikes, clicks on "not interested", and whether the viewer comes back to YouTube afterwards.',
+      'It is a pull system, not a push system: for EACH viewer it pulls what THAT viewer already enjoyed (their history, which videos get watched together, how much of a channel or topic they consume).',
+      'The rule for a creator: ask "does MY audience like this?", not "does the algorithm like this?".',
+      'Retention feeds ranking directly: average view duration and average percentage viewed are confirmed signals.',
+      'How much each metric weighs depends on context: watch time counts for more on TV than on mobile, and more on podcasts than on music.',
+      'Honest caveat: the pull model describes recommendations (home and suggested). Videos are still tested on small audiences and expanded on the signals they get. It is not absolute quality magic.'
     ],
     fuentes: [
       'https://blog.youtube/inside-youtube/on-youtubes-recommendation-system/',
@@ -27,42 +22,42 @@ window.NSP_YT_PLAYBOOK = {
   },
 
   retencionYHooks: {
-    confianza: 'media',
-    nota: 'Tactica documentada de UN top-creator (doc filtrado MrBeast, sept 2024, autenticidad "alleged"). No es regla de plataforma, pero es know-how consistente entre copias independientes.',
+    confianza: 'medium',
+    nota: 'Tactics documented by ONE top creator (leaked MrBeast document, September 2024, authenticity alleged). Not a platform rule, but the know-how is consistent across independent copies.',
     principios: [
-      'Front-load del minuto 1: maximo de visuales, musica, efectos y cambios de escena rapidos desde el arranque.',
-      'Cumplir YA la promesa del titulo/miniatura ("match the clickbait expectations") y dar la mayor cantidad de info del video posible al inicio.',
-      'Re-enganches periodicos ~cada 3 minutos: un "espectaculo" que mantenga la atencion.',
-      'Hacia la mitad (~minuto 6): un re-enganche mayor, mas interesante, que requiere algo de explicacion y empuja la historia de la segunda mitad.',
-      'Principio general: nunca dejar caer el ritmo; cada tramo debe dar una razon para seguir mirando.'
+      'Front-load minute one: as many visuals, music cues, effects and scene changes as you can from the opening second.',
+      'Pay off the promise in the title and thumbnail IMMEDIATELY, and give away as much of the video as you can early on.',
+      'Re-hook roughly every 3 minutes with something worth watching.',
+      'Around the halfway mark (about minute 6), land a bigger re-hook, one that needs some explaining and pushes the story of the second half.',
+      'General principle: never let the pace drop. Every stretch has to give a reason to keep watching.'
     ],
     fuentes: ['https://protunesone.com/blog/leaked-mrbeast-document-on-his-youtube-strategies/']
   },
 
   ctrTitulosYMiniaturas: {
-    confianza: 'media',
+    confianza: 'medium',
     principios: [
-      'El titulo debe abrir un "gap de curiosidad"; la miniatura debe cumplir esa promesa. Titulo + miniatura prometen, el video ENTREGA (si no, cae la satisfaccion y te hundis).',
-      'Las CARAS NO son un boost universal de CTR (estudio 1of10, 300.000+ videos virales 2025): rinden parecido con o sin cara en general.',
-      'Las caras ayudan solo MODESTAMENTE y sobre todo a canales grandes; es dependiente del nicho (Finanzas mejor con caras; Gaming/Business casi nulo).',
-      'Priorizar contraste alto, una emocion clara y POCOS elementos legibles de un vistazo (en pantalla chica).'
+      'The title opens a curiosity gap and the thumbnail keeps that promise. Title and thumbnail promise, the video DELIVERS. If it does not, satisfaction drops and so do you.',
+      'FACES ARE NOT a universal CTR boost (1of10 study, more than 300,000 viral videos in 2025): with or without a face, performance is broadly similar.',
+      'Faces help only MODESTLY and mostly on large channels, and it depends on the niche (finance does better with faces, gaming and business barely move).',
+      'Favour high contrast, one clear emotion, and FEW elements readable at a glance on a small screen.'
     ],
     fuentes: ['https://www.searchenginejournal.com/do-faces-help-youtube-thumbnails-heres-what-the-data-says/563944/'],
-    pendiente: 'Benchmarks de CTR por nicho/tamano de canal y patrones de titulo (curiosity gap, numeros, negatividad) con evidencia CUANTITATIVA fresca — no verificado aun.'
+    pendiente: 'CTR benchmarks by niche and channel size, and title patterns (curiosity gap, numbers, negativity) with fresh QUANTITATIVE evidence. Not verified yet.'
   },
 
   antiDesmonetizacion: {
-    confianza: 'alta',
+    confianza: 'high',
     critico: true,
-    nota: 'Politica de YouTube del 15-jul-2025: "repetitious content" renombrado a "inauthentic content". Lo MAS importante para faceless. Sancion a NIVEL DE CANAL COMPLETO.',
+    nota: 'YouTube policy of 15 July 2025: "repetitious content" was renamed "inauthentic content". This is the most important part for faceless channels. The penalty hits the WHOLE channel.',
     principios: [
-      'YouTube NO penaliza usar IA. Penaliza el contenido PLANTILLIZADO/masivo casi identico y el reusado sin valor.',
-      'Ejemplos que SI violan (verbatim YouTube): canales que suben historias narrativas con solo diferencias superficiales entre si; canales que suben slideshows que comparten la misma narracion.',
-      'Para monetizar contenido propio con IA hay que: (a) seguir las politicas, (b) anadir la perspectiva/insight ORIGINAL y autentico del creador, (c) divulgar cuando contenido realista fue alterado/sintetico.',
-      'Contenido prestado/reusado (stock, clips, gameplay): cambiarlo SIGNIFICATIVAMENTE — comentario original sustancial, modificaciones sustantivas, o valor educativo/entretenimiento real.',
-      'El contenido debe hacerse para el disfrute o educacion del espectador, NO con el unico fin de conseguir views.',
-      'NUNCA presentar ficcion/IA como hechos reales (el unico caso de remocion citado, True Crime Case Files 83K subs, fue por presentar historias con IA como hechos = misinformacion).',
-      'Regla operativa ZERACK: cada video debe variar de verdad (no plantilla), llevar un angulo propio, y aportar valor — eso es lo que separa "automation que monetiza" de "AI slop que te tumban el canal".'
+      'YouTube does NOT penalize using AI. It penalizes templated, near identical output at scale, and reused material with nothing added.',
+      'Examples that DO break the rule (YouTube verbatim): channels uploading narrative stories that differ only superficially from each other, and channels uploading slideshows that share the same narration.',
+      'To monetize your own AI assisted content you must: (a) follow the policies, (b) add the creator original, authentic perspective or insight, (c) disclose when realistic content was altered or synthetic.',
+      'Borrowed or reused footage (stock, clips, gameplay) has to be changed SIGNIFICANTLY: substantial original commentary, substantive edits, or real educational or entertainment value.',
+      'Content has to be made for the viewer to enjoy or learn from, NOT for the sole purpose of collecting views.',
+      'NEVER present fiction or AI output as real fact. The one removal on record (True Crime Case Files, 83K subs) was for presenting AI stories as fact, which is misinformation.',
+      'ZERACK working rule: every video has to genuinely differ, carry its own angle, and add value. That is what separates automation that monetizes from AI slop that gets the channel taken down.'
     ],
     fuentes: [
       'https://support.google.com/youtube/answer/1311392?hl=en',
@@ -71,25 +66,25 @@ window.NSP_YT_PLAYBOOK = {
   },
 
   monetizacionYPP: {
-    confianza: 'alta',
+    confianza: 'high',
     principios: [
-      'Ruta videos largos: 1.000 suscriptores + 4.000 horas de visionado publico valido en los ultimos 12 meses.',
-      'Ruta Shorts: 1.000 suscriptores + 10.000.000 de views publicas validas de Shorts en los ultimos 90 dias.',
-      'Ademas: seguir las politicas de monetizacion, residir en pais con YPP disponible, sin strikes activos de normas, verificacion en 2 pasos (2FA), funciones avanzadas activas y cuenta de AdSense vinculada.',
-      'Existe un tier "early access" menor (500 subs / 3.000 hrs / 3M views Shorts) pero solo habilita fan-funding, NO la monetizacion completa con anuncios.'
+      'Long form route: 1,000 subscribers plus 4,000 valid public watch hours in the last 12 months.',
+      'Shorts route: 1,000 subscribers plus 10,000,000 valid public Shorts views in the last 90 days.',
+      'On top of that: follow the monetization policies, live in a country where YPP is available, no active community guidelines strikes, two step verification on, advanced features enabled, and an AdSense account linked.',
+      'There is a smaller early access tier (500 subs, 3,000 hours, 3M Shorts views) but it only unlocks fan funding, NOT full ad monetization.'
     ],
     fuentes: ['https://support.google.com/youtube/answer/72851?hl=en']
   },
 
   nichosYRpm: {
-    confianza: 'media',
-    nota: 'NO hay tabla OFICIAL de RPM por nicho, pero el RPM SE ESTIMA y SIEMPRE se debe dar un numero util: RPM = (base del nicho) x (factor de la geografia de la audiencia). Marcar como estimacion, nunca negarse a estimar.',
+    confianza: 'medium',
+    nota: 'There is no OFFICIAL RPM table by niche, but RPM CAN be estimated and a useful number should always be given: RPM = (niche base) x (audience geography factor). Mark it as an estimate, never refuse to estimate.',
     metodo: [
-      '1) Detecta el NICHO por las palabras del titulo/canal/descripcion.',
-      '2) Toma el RPM BASE del nicho (tabla rpmBasePorNicho_tier1, valida para audiencia tier-1 / ingles USA).',
-      '3) Detecta el IDIOMA y el pais del canal -> infiere la GEOGRAFIA probable de la audiencia.',
-      '4) Multiplica el RPM base por el factor geografico.',
-      '5) Da un RANGO estimado concreto (ej. "$3-6 RPM estimado"). NUNCA digas "no se puede saber el RPM".'
+      '1) Detect the NICHE from the words in the title, channel and description.',
+      '2) Take the BASE RPM for that niche (table rpmBasePorNicho_tier1, valid for a tier-1 audience, US English).',
+      '3) Detect the LANGUAGE and the country of the channel, then infer the likely audience GEOGRAPHY.',
+      '4) Multiply the base RPM by the geography factor.',
+      '5) Give a concrete estimated RANGE (for example "$3-6 RPM estimated"). NEVER say the RPM cannot be known.'
     ],
     rpmBasePorNicho_tier1_USD: {
       'finanzas/inversion/cripto/dinero': '12-40',
@@ -112,114 +107,114 @@ window.NSP_YT_PLAYBOOK = {
       'tier3 (LATAM, India, Pakistan, Sudeste Asiatico, Africa, Brasil)': 0.18
     },
     idiomaAGeografia: [
-      'Ingles: por defecto mezcla USA/tier-1 (alto); pero mucho ingles es tier-3 (India) -> si el canal es claramente US/UK usar tier-1, si es generico usar una mezcla (~0.6).',
-      'Aleman, frances (Francia), holandes, nordico, japones: tier-1/2 (~0.7-1.0).',
-      'Espanol: MIXTO -> Espana es tier-2 pero la mayoria de la audiencia hispana es LATAM (tier-3). Usar factor bajo-medio (~0.15-0.35). CLAVE para canales en espanol.',
-      'Portugues (Brasil): tier-3 (~0.15). Hindi/urdu/arabe/indonesio: tier-3 (~0.08-0.15).'
+      'English: defaults to a US and tier-1 mix (high), but a lot of English is tier-3 (India). If the channel is clearly US or UK use tier-1; if it is generic use a blend of about 0.6.',
+      'German, French (France), Dutch, Nordic and Japanese: tier-1 or tier-2, roughly 0.7 to 1.0.',
+      'Spanish: MIXED. Spain is tier-2 but most of the Spanish speaking audience is Latin America (tier-3). Use a low to mid factor, about 0.15 to 0.35. This matters for Spanish language channels.',
+      'Portuguese (Brazil): tier-3, about 0.15. Hindi, Urdu, Arabic and Indonesian: tier-3, about 0.08 to 0.15.'
     ],
-    ejemplo: 'Finanzas en INGLES US -> 12-40 x 1.0 = $12-40 RPM estimado. El MISMO nicho en ESPANOL/LATAM -> 12-40 x ~0.2 = $2.4-8 RPM. El idioma+geografia cambia el RPM hasta ~10x.',
-    fuentes: ['estimaciones de mercado (vendors, no auditadas) + caso Fortune (Adavia Davis) + CPM first-party isthischannelmonetized (tier-1 vs tier-3 = 12-28x en CPM)']
+    ejemplo: 'Finance in US English: 12-40 x 1.0 = $12-40 estimated RPM. The SAME niche in Spanish for Latin America: 12-40 x about 0.2 = $2.40-8 RPM. Language plus geography moves RPM by up to 10x.',
+    fuentes: ['market estimates (vendors, not audited) plus the Fortune case (Adavia Davis) plus first-party CPM from isthischannelmonetized (tier-1 vs tier-3 = 12 to 28x on CPM)']
   },
 
   produccionYEscala: {
-    confianza: 'media',
-    nota: 'Tacticas de operadores reales + data de mercado (no oficial de YouTube, pero convergente). Lo mas accionable para producir long-form que retiene Y monetiza.',
+    confianza: 'medium',
+    nota: 'Tactics from real operators plus market data. Not official YouTube guidance, but the sources converge. This is the most actionable part for long form that both retains and monetizes.',
     retencionLongForm: [
-      'Data 2025: retencion promedio ~23.7%; ~55% se va en los primeros 60s; un hook fuerte en los primeros 15s retiene ~65% hasta el minuto 3.',
-      'Estructura de 5 actos mapeada a timestamps ANTES de escribir: gancho/cold-open -> exposicion -> conflicto creciente -> crisis -> resolucion. Evita el "filler del medio" (causa #1 de drop a mitad).',
-      'Hook (primeros 15-30s): abri con pregunta provocadora, o revela un resultado inesperado, o teasea un giro. Confirma que estas en el lugar correcto + abre un loop + promete payoff.',
-      'Open loops: planta una pregunta temprano y reten la respuesta. Pattern interrupt cada 90-120s (corte, grafico, SFX, cambio de ritmo).'
+      '2025 data: average retention about 23.7%; about 55% leave in the first 60 seconds; a strong hook in the first 15 seconds keeps about 65% through minute 3.',
+      'Map a five act structure to timestamps BEFORE writing: hook or cold open, then setup, rising conflict, crisis, resolution. That is what kills mid video filler, the number one cause of the mid video drop.',
+      'Hook (first 15 to 30 seconds): open with a provocative question, or reveal an unexpected result, or tease a twist. Confirm the viewer is in the right place, open a loop, promise a payoff.',
+      'Open loops: plant a question early and hold the answer back. Pattern interrupt every 90 to 120 seconds (a cut, a graphic, an SFX, a change of pace).'
     ],
     midRolls: [
-      'Solo en videos de 8+ min. Numero optimo: 8-10min=1, 10-14min=2, 14-18min=2-3, 18-25min=3-4. Mas de 4 daNa la satisfaccion. Sweet spot ~1 cada 8-10 min.',
-      'EVITAR: mid-roll justo antes del climax o info clave (la gente se va y NO vuelve); en los primeros 2 min; mas de 1 cada 4 min.',
-      'COLOCAR: despues de un cierre de idea / momento de "completitud" / entre secciones antes del proximo tema. Truco: anuncia "ya viene: ..." antes del primer mid-roll.',
-      'Impacto: 10 min con 3 mid-rolls puede ganar 2-4x vs 7 min con solo pre-roll; la completion casi no baja (90% vs 92%) si estan bien colocados.'
+      'Only on videos of 8 minutes or more. Optimal count: 8-10min = 1, 10-14min = 2, 14-18min = 2-3, 18-25min = 3-4. More than 4 hurts satisfaction. Sweet spot is about one every 8 to 10 minutes.',
+      'AVOID: a mid-roll right before the climax or a key piece of information (people leave and do NOT come back), inside the first 2 minutes, or more than one every 4 minutes.',
+      'PLACE THEM: after an idea closes, at a moment of completeness, or between sections before the next topic. Trick: say what is coming next just before the first mid-roll.',
+      'Impact: 10 minutes with 3 mid-rolls can earn 2 to 4x what 7 minutes with only a pre-roll earns, and completion barely moves (90% vs 92%) when they are placed well.'
     ],
     escalaYEquipo: [
-      'Cartera de canales = digital real estate. 1 operador corre 3-5 canales (no filma/edita/narra -> no es el cuello).',
-      'Contratacion: 1) editor $25-50/h, 2) guionista $30-60/h, 3) channel manager $20-40/h (uploads+optimizacion) = 70% del trabajo. + Research VA $5-15/h. Guion $30-80, edicion $50-300/video.',
-      '4 SOPs minimas (de los primeros 10 videos manuales): Video Production Brief, Editor Style Guide, Thumbnail Brief, Upload Checklist. En Notion, seguibles sin preguntar.'
+      'A portfolio of channels is digital real estate. One operator runs 3 to 5 channels, because they do not film, edit or narrate, so that is not the bottleneck.',
+      'Hiring order: 1) editor $25-50/h, 2) writer $30-60/h, 3) channel manager $20-40/h (uploads and optimization) covers 70% of the work. Add a research assistant at $5-15/h. A script runs $30-80, an edit $50-300 per video.',
+      'Four minimum SOPs, written from your first 10 manual videos: video production brief, editor style guide, thumbnail brief, upload checklist. Keep them in Notion, followable without asking questions.'
     ],
     porQueFracasan: [
-      'Mito "set and forget": si nadie maneja el barco, deriva. La automatizacion NO es pasiva.',
-      'Outsourcing TOTAL: un canal con 60M views en 3 anos tercerizo TODO y gano solo ~$6.000. Hace VOS lo creativo (idea/guion/packaging); terceriza solo lo time-consuming (edicion).',
-      'Velocidad sobre calidad -> generico/robotico (imagenes estaticas, stock repetido, voz monotona) = desengagement + riesgo de desmonetizacion.',
-      'Automatizar ANTES de validar (titulo/thumbnail/formato debil = mas videos debiles); y quemarse al mes 4-6 justo antes de que el algoritmo componga (~mes 8 con ~30 videos).'
+      'The set and forget myth: if nobody steers the ship, it drifts. Automation is NOT passive.',
+      'TOTAL outsourcing: one channel with 60M views over 3 years outsourced everything and made only about $6,000. Do the creative work YOURSELF (idea, script, packaging) and outsource only what eats time (editing).',
+      'Speed over quality gives generic, robotic output (static images, repeated stock, a flat voice), which means disengagement and a demonetization risk.',
+      'Automating BEFORE validating (a weak title, thumbnail or format just means more weak videos), and burning out at month 4 to 6, right before the algorithm compounds (around month 8, at about 30 videos).'
     ],
     queHacenLosQueGanan: [
-      'Control estrategico: automatizan inteligentemente, no todo. Nucleo creativo propio.',
-      'Cada upload = experimento controlado: cambian 1 variable, miden, siguen con lo que funciona.',
-      'Long game: negocio de 12 MESES, no side hustle de 12 dias. Research ANTES de producir (outliers, decodificar titulo/thumbnail, gaps -> guion fuerte -> producir).',
-      'Multiples fuentes de ingreso: no solo AdSense -> afiliados, sponsors, productos propios.'
+      'Strategic control: they automate selectively, not everything. The creative core stays in house.',
+      'Every upload is a controlled experiment: change one variable, measure, keep what works.',
+      'Long game: a 12 month business, not a 12 day side hustle. Research BEFORE producing (outliers, decode the title and thumbnail, find the gaps, write a strong script, then produce).',
+      'Several income streams: not only AdSense, but affiliates, sponsors and your own products.'
     ],
-    fuentes: ['data retencion 2025 + guias de operadores/agencias + post-mortems (medium, lilys.ai) + guias de mid-roll (vidiq, fluxnote)']
+    fuentes: ['2025 retention data plus operator and agency guides plus post-mortems (medium, lilys.ai) plus mid-roll guides (vidiq, fluxnote)']
   },
 
   nichosDetallados: {
-    confianza: 'media',
-    nota: 'CPM/RPM y ejemplos de canales por nicho (estimaciones de mercado convergentes, no oficiales). Para recomendar nichos por rentabilidad y dar ejemplos a imitar.',
+    confianza: 'medium',
+    nota: 'CPM and RPM figures and example channels by niche (converging market estimates, not official). Use them to recommend niches by profitability and to name channels worth imitating.',
     topPorCPM: {
-      'Personal finance / inversion': 'CPM ~15-22, RPM ~15-30. Ej: Alux. El mas rentable.',
-      'Make money online / IA tools': 'CPM ~15-20, RPM ~10-25. Twist 2026: ganar usando IA.',
-      'Legal / court drama': 'CPM ~12-18.',
-      'Digital marketing': 'CPM ~12-18.',
-      'Real estate / lujo': 'CPM ~10-16.',
-      'Tech reviews/tutorials': 'CPM medio + ALTO afiliado.',
-      'Geography / educational': 'Ej: RealLifeLore (miniaturas unicas + temas enganchosos).',
-      'True crime / mystery': 'Ej: Stories to Remember (143k subs, 35M views).',
-      'Health / wellness': 'Angulo "que dice la investigacion real" + afiliados de suplementos 2-3x el ad revenue.',
-      'History': 'Nicho seguro perenne (premia watch time). Elegi ANGULO especifico (WWII naval, Roma s.II, espionaje Guerra Fria), NO "historia general".'
+      'Personal finance / inversion': 'CPM about 15-22, RPM about 15-30. Example: Alux. The most profitable of the lot.',
+      'Make money online / IA tools': 'CPM about 15-20, RPM about 10-25. The 2026 twist: earning by using AI.',
+      'Legal / court drama': 'CPM about 12-18.',
+      'Digital marketing': 'CPM about 12-18.',
+      'Real estate / lujo': 'CPM about 10-16.',
+      'Tech reviews/tutorials': 'Mid CPM but HIGH affiliate income.',
+      'Geography / educational': 'Example: RealLifeLore (distinctive thumbnails plus topics that hook).',
+      'True crime / mystery': 'Example: Stories to Remember (143k subs, 35M views).',
+      'Health / wellness': 'Angle: what the real research says. Supplement affiliates pay 2 to 3x the ad revenue.',
+      'History': 'A safe evergreen niche, it rewards watch time. Pick a specific ANGLE (WWII naval, second century Rome, Cold War espionage), not "general history".'
     },
     reglas: [
-      'Afiliados a menudo SUPERAN AdSense en faceless: 1 clic de alta intencion paga $50-500. No vivas solo de ads.',
-      'Elegi SUB-NICHO especifico, no la categoria amplia ("WWII naval" > "historia").',
-      'Shorts + long-form crece el canal ~3x mas rapido que un solo formato (data YT 2026): Shorts para descubrir, long-form para monetizar.'
+      'Affiliates often BEAT AdSense on faceless channels: one high intent click pays $50-500. Do not live on ads alone.',
+      'Pick a specific SUB-NICHE, not the broad category ("WWII naval" beats "history").',
+      'Shorts plus long form grows a channel about 3x faster than either alone (YouTube data, 2026): Shorts to get discovered, long form to monetize.'
     ]
   },
 
   stackHerramientas: {
-    confianza: 'media',
-    nota: 'Toolset real de operadores 2026 con precios. Stack basico total: ~$25-70/mes.',
-    guionYResearch: 'ChatGPT-4o / Claude para guion; OverseerOS / 1of10 / OutlierKit para research de outliers.',
-    voz: 'ElevenLabs = el estandar (voces mas naturales, multilingue). Starter $5/mes = ~30k chars (~25 min, 4-5 videos/mes), 3 voces custom. En faceless la VOZ es TODO (lo unico humano que se oye).',
-    visuales: 'Sora se DISCONTINUO (26-abr-2026). Stack de 2 modelos: Kling 3.0 para movimiento/B-roll (clips hasta 3 min, ~$6.99/mes) + Nano Banana 2 (modelo de imagen #1 de Google) para ilustraciones/infografias/arte.',
-    edicion: 'Descript ($24/mes, edicion por TEXTO/transcripcion + captions auto) para tutoriales/explainers; CapCut Pro ($9.99/mes) para cinematografico/vertical/efectos.',
-    miniaturas: 'Nano Banana 2 para miniaturas con personajes/productos/escenas. Generar 5 variantes -> A/B test (TubeBuddy / Test&Compare nativo) las primeras 48h -> quedarse con el ganador.',
-    workflow: 'BATCH: producir 5-10 videos en UNA sesion enfocada, no de a uno. Siempre RESEARCH primero, produccion despues.'
+    confianza: 'medium',
+    nota: 'The real 2026 operator toolset with prices. A basic stack totals about $25-70 a month.',
+    guionYResearch: 'ChatGPT-4o or Claude for scripts; OverseerOS, 1of10 or OutlierKit for outlier research.',
+    voz: 'ElevenLabs is the standard (the most natural voices, multilingual). Starter at $5 a month gives about 30k characters, roughly 25 minutes or 4 to 5 videos a month, and 3 custom voices. On a faceless channel the VOICE is everything, it is the only human thing the viewer hears.',
+    visuales: 'Sora was DISCONTINUED on 26 April 2026. Run two models: Kling 3.0 for motion and B-roll (clips up to 3 minutes, about $6.99 a month) plus Nano Banana 2 (the top Google image model) for illustrations, infographics and art.',
+    edicion: 'Descript ($24 a month, edit by TEXT and transcript with automatic captions) for tutorials and explainers; CapCut Pro ($9.99 a month) for cinematic, vertical and effects heavy work.',
+    miniaturas: 'Nano Banana 2 for thumbnails with characters, products or scenes. Generate 5 variants, A/B test them (TubeBuddy or the native Test and Compare) over the first 48 hours, and keep the winner.',
+    workflow: 'BATCH the work: produce 5 to 10 videos in one focused session, not one at a time. Always research first, produce second.'
   },
 
   metodoOutliers: {
-    confianza: 'media',
-    nota: 'Como encontrar ideas que YA funcionan ANTES de producir (lo que hacen los operadores serios). ZERACK ya hace esto (scanner de outliers).',
+    confianza: 'medium',
+    nota: 'How to find ideas that ALREADY work before producing, which is what serious operators do. ZERACK already does this with its outlier scanner.',
     principios: [
-      'Trackea videos que rinden ~10x sobre el promedio/mediana del CANAL -> muestra que empuja el algoritmo AHORA -> replicalo. La metrica es un MULTIPLICADOR (views vs promedio del canal), no views absolutos.',
-      'Un outlier fuerte combina: demanda del tema + packaging clickeable + timing + audience fit + buenos primeros 30s.',
-      'Mas fuerte si aparece en VARIOS canales del mismo nicho = demanda repetible, no suerte de un canal.',
-      'Momentum del outlier: 2-6 semanas antes de saturarse. No tenes que ser el primero, pero si estar en la PRIMERA OLA (no la tercera).',
-      'Distinto de perseguir tendencias: identificas lo que YA funciona a escala antes de la saturacion.'
+      'Track videos doing about 10x the average or median of THEIR OWN CHANNEL. That shows what the algorithm is pushing right now, so copy it. The metric is a MULTIPLIER (views against the channel average), not absolute views.',
+      'A strong outlier combines topic demand, clickable packaging, timing, audience fit and a good first 30 seconds.',
+      'It is stronger when it shows up on SEVERAL channels in the same niche: that is repeatable demand, not one channel getting lucky.',
+      'Outlier momentum lasts 2 to 6 weeks before saturation. You do not have to be first, but you do have to be in the FIRST WAVE, not the third.',
+      'This is not the same as chasing trends: you identify what already works at scale, before it saturates.'
     ]
   },
 
   systemPrimer: [
-    'Eres el cerebro experto de ZERACK para ganar dinero con YouTube faceless/automation. Tu conocimiento se basa en fuentes primarias de YouTube (2025-2026), verificado. Hablas claro, accionable y sin humo.',
+    'You are the expert brain of ZERACK for making money with faceless and automated YouTube. Your knowledge comes from primary YouTube sources (2025-2026) and has been verified. You speak plainly, give something to act on, and never pad.',
     '',
-    'ALGORITMO: YouTube premia la SATISFACCION del espectador, no el watch time crudo ni el CTR aislado (mide encuestas 1-5 estrellas, likes, "no me interesa", retorno). Es "pull, no push": recomienda a cada espectador lo que ESE espectador disfruta. La pregunta correcta es "le gusta a MI audiencia?". La retencion (duracion media y % medio visto) alimenta el ranking.',
+    'ALGORITHM: YouTube rewards viewer SATISFACTION, not raw watch time and not CTR on its own (it measures 1-5 star surveys, likes, "not interested" clicks, and whether people come back). It is pull, not push: it recommends to each viewer what THAT viewer enjoys. The right question is "does MY audience like this?". Retention (average duration and average percentage viewed) feeds ranking.',
     '',
-    'RETENCION: carga el minuto 1 al maximo y cumpli la promesa del titulo/miniatura de una. Re-engancha ~cada 3 min y a la mitad (~min 6) mete un giro que empuje la segunda mitad. No dejes caer el ritmo.',
+    'RETENTION: load minute one to the maximum and pay off the title and thumbnail promise straight away. Re-hook about every 3 minutes, and around minute 6 land a twist that pushes the second half. Never let the pace drop.',
     '',
-    'CTR: titulo = gap de curiosidad; miniatura cumple esa promesa; el video la ENTREGA. Las caras NO son boost magico de CTR (dato de 300k+ videos); priorizar contraste, una emocion y pocos elementos legibles.',
+    'CTR: the title is a curiosity gap, the thumbnail keeps that promise, and the video DELIVERS it. Faces are not a magic CTR boost (from more than 300k videos). Favour contrast, one emotion, and few readable elements.',
     '',
-    'ANTI-DESMONETIZACION (lo mas importante): YouTube NO castiga usar IA; castiga lo PLANTILLIZADO/casi-identico en masa y lo reusado sin valor, y la sancion es a TODO el canal. Cada video necesita perspectiva original, variar de verdad entre videos, y aportar valor real. Nunca presentar ficcion IA como hechos.',
+    'AVOIDING DEMONETIZATION (the most important part): YouTube does not punish using AI. It punishes templated, near identical output at scale and reused material with nothing added, and the penalty hits the WHOLE channel. Every video needs an original perspective, must genuinely differ from the last one, and must add real value. Never present AI fiction as fact.',
     '',
-    'MONETIZACION: 1.000 subs + 4.000 horas/12 meses (largos) O 1.000 subs + 10M views Shorts/90 dias, sin strikes, 2FA y AdSense.',
+    'MONETIZATION: 1,000 subs plus 4,000 watch hours over 12 months (long form), OR 1,000 subs plus 10M Shorts views over 90 days, with no strikes, two step verification on and AdSense linked.',
     '',
-    'NICHOS RENTABLES (CPM real estimado): los que mas pagan -> personal finance (CPM 15-22, ej Alux), make-money/IA (15-20), legal/court-drama (12-18), real estate (10-16). Tambien fuertes: tech (alto afiliado), geography (ej RealLifeLore), true-crime (ej Stories to Remember 143k/35M), health (angulo "que dice la ciencia" + afiliados de suplementos 2-3x los ads), history (elegi SUB-angulo tipo "WWII naval", NO "historia general"). Los afiliados often SUPERAN AdSense (1 clic de alta intencion = $50-500): no vivas solo de ads.',
+    'PROFITABLE NICHES (estimated real CPM): the best payers are personal finance (CPM 15-22, example Alux), make money and AI (15-20), legal and court drama (12-18), real estate (10-16). Also strong: tech (high affiliate), geography (example RealLifeLore), true crime (example Stories to Remember, 143k subs and 35M views), health (angle: what the science says, plus supplement affiliates at 2 to 3x the ads), history (pick a SUB-angle such as "WWII naval", not "general history"). Affiliates often BEAT AdSense (one high intent click is $50-500), so do not live on ads alone.',
     '',
-    'STACK 2026 (~$25-70/mes): guion ChatGPT/Claude; voz ElevenLabs ($5/mo, es lo unico humano -> cuidala); visuales Kling 3.0 (video/B-roll) + Nano Banana 2 (imagenes/miniaturas; OJO Sora se discontinuo en 2026); edicion Descript o CapCut; produci en BATCH (5-10 videos por sesion). ENCONTRAR IDEAS (metodo outliers): busca videos que rindan ~10x el promedio del canal Y que aparezcan en VARIOS canales del nicho (= demanda repetible, no suerte); meteti en las primeras 2-6 semanas (primera ola, no la tercera). Research SIEMPRE antes de producir.',
+    'THE 2026 STACK (about $25-70 a month): scripts from ChatGPT or Claude; voice from ElevenLabs ($5 a month, it is the only human thing in the video, so look after it); visuals from Kling 3.0 (video and B-roll) plus Nano Banana 2 (images and thumbnails; note Sora was discontinued in 2026); editing in Descript or CapCut; produce in BATCHES of 5 to 10 videos per session. FINDING IDEAS (the outlier method): look for videos doing about 10x their own channel average AND showing up on SEVERAL channels in the niche, which means repeatable demand rather than luck. Get in during the first 2 to 6 weeks, the first wave, not the third. Always research before producing.',
     '',
-    'PRODUCCION LONG-FORM Y ESCALA: retencion -> hook fuerte en los primeros 15s (55% se va en 60s si no), estructura de 5 actos mapeada a timestamps (mata el filler del medio), pattern interrupt cada 90-120s. MID-ROLLS (solo 8+ min): 8-10min=1, 10-14=2, 18-25=3-4, NUNCA mas de 4; JAMAS un mid-roll antes del climax ni en los primeros 2 min; ponlos despues de cerrar una idea. 10min con 3 mid-rolls gana 2-4x vs 7min. ESCALA: 1 operador = 3-5 canales; haces VOS lo creativo (idea/guion/packaging) y tercerizas solo edicion (el outsourcing TOTAL fracasa: un canal de 60M views gano solo $6k asi). El algoritmo COMPONE ~mes 8 con ~30 videos: es negocio de 12 meses, no de 12 dias. Diversifica ingresos (afiliados/sponsors/productos), no solo AdSense.',
+    'LONG FORM PRODUCTION AND SCALE: retention comes from a strong hook in the first 15 seconds (55% leave within 60 seconds otherwise), a five act structure mapped to timestamps (this kills mid video filler), and a pattern interrupt every 90 to 120 seconds. MID-ROLLS (only on 8 minutes or more): 8-10min = 1, 10-14 = 2, 18-25 = 3-4, NEVER more than 4; never place one before the climax or inside the first 2 minutes; put them after an idea closes. 10 minutes with 3 mid-rolls earns 2 to 4x what 7 minutes earns. SCALE: one operator runs 3 to 5 channels; you do the creative work (idea, script, packaging) and outsource only the editing (total outsourcing fails: a channel with 60M views made only $6k that way). The algorithm compounds around month 8, at about 30 videos: this is a 12 month business, not a 12 day one. Diversify income (affiliates, sponsors, products), not just AdSense.',
     '',
-    'NICHOS/RPM (SIEMPRE DA EL NUMERO, nunca te niegues): para estimar el RPM de un canal -> detecta el NICHO por sus palabras -> toma el RPM base del nicho (finanzas 12-40, negocios/legal 10-35, tech 8-18, salud/educacion 6-15, true-crime/historia 4-10, sleep 6-12, recaps 5-12, curiosidades 3-7, gaming 2-8 USD para tier-1) -> detecta IDIOMA y pais -> infiere la GEOGRAFIA de la audiencia (tier-1 USA/UK = x1.0; tier-2 Espana/Europa = x0.5; tier-3 LATAM/India/Brasil = x0.18) -> multiplica -> DA UN RANGO concreto marcado como estimacion. Ej: finanzas en ingles US = $12-40; el mismo en espanol/LATAM = $2-8. El idioma+geografia cambia el RPM hasta 10x. NUNCA digas "no hay tabla oficial" como excusa para no estimar.'
+    'NICHES AND RPM (ALWAYS GIVE THE NUMBER, never refuse): to estimate a channel RPM, detect the NICHE from its words, take the base RPM for that niche (finance 12-40, business and legal 10-35, tech 8-18, health and education 6-15, true crime and history 4-10, sleep 6-12, recaps 5-12, facts 3-7, gaming 2-8 USD for tier-1), detect the LANGUAGE and country, infer the audience GEOGRAPHY (tier-1 US and UK = x1.0; tier-2 Spain and Europe = x0.5; tier-3 Latin America, India and Brazil = x0.18), multiply, and GIVE A CONCRETE RANGE marked as an estimate. Example: finance in US English = $12-40; the same in Spanish for Latin America = $2-8. Language plus geography moves RPM by up to 10x. NEVER use "there is no official table" as an excuse not to estimate.'
   ].join('\n')
 };

@@ -81,11 +81,11 @@ function proNicheKey(item, idx) {
 }
 
 function proNicheLabel(item) {
-  var bits = [item.niche || 'Nicho escaneado'];
+  var bits = [item.niche || 'Scanned niche'];
   if (item.title) bits.push(item.title);
   if (item.language && item.language !== 'unknown') bits.push(String(item.language).toUpperCase());
   if (item.vph) bits.push('VPH ' + fmtN(item.vph));
-  if (item.revMonth) bits.push(fmtRev(item.revMonth) + '/mes');
+  if (item.revMonth) bits.push(fmtRev(item.revMonth) + '/mo');
   return bits.join(' | ');
 }
 
@@ -136,7 +136,7 @@ function toggleWatch(ch, btn) {
       delete watching[ch.channelUrl];
       btn.textContent = 'Watch';
       btn.classList.remove('active');
-      btn.title = 'Click para activar alertas de outliers';
+      btn.title = 'Click to turn on outlier alerts';
     } else {
       watching[ch.channelUrl] = {
         channelUrl: ch.channelUrl,
@@ -148,7 +148,7 @@ function toggleWatch(ch, btn) {
       };
       btn.textContent = 'Watching';
       btn.classList.add('active');
-      btn.title = 'Recibes notif. cuando publique outliers (cada 6h)';
+      btn.title = 'You get a notification when this channel posts an outlier, checked every 6 hours';
       // Ensure alarm exists
       if (chrome.alarms) {
         chrome.alarms.get('nsp-trend-check', function(a) {
@@ -168,7 +168,6 @@ function render() {
     if (activeNiche !== 'ALL') {
       var niche = ch.niche || '🔮 General';
       if (activeNiche === '🔮 General') {
-        // "Otros" catches anything not in main niches
         var mainNiches = ['🤖 AI','💻 Tech','💰 Finance','🏢 Business','📷 Camera','🎮 Gaming'];
         if (mainNiches.some(function(n) { return niche.indexOf(n.split(' ')[1]) !== -1; })) return false;
       } else {
@@ -252,7 +251,7 @@ function render() {
       var explBadge = document.createElement('span');
       explBadge.className = 'exploding-badge';
       explBadge.textContent = ' NEW & EXPLODING';
-      explBadge.title = '<6 meses + <50K subs + alta tracción';
+      explBadge.title = 'Under 6 months, under 50K subs, real traction';
       card.appendChild(explBadge);
     }
 
@@ -260,7 +259,7 @@ function render() {
     var rmBtn = document.createElement('button');
     rmBtn.className = 'ch-remove';
     rmBtn.textContent = '';
-    rmBtn.title = 'Eliminar';
+    rmBtn.title = 'Remove';
     rmBtn.addEventListener('click', function(e) {
       e.stopPropagation();
       removeChannel(ch.channelUrl);
@@ -297,7 +296,7 @@ function render() {
 
     var nameEl = document.createElement('div');
     nameEl.className = 'ch-name';
-    nameEl.textContent = ch.name || 'Canal';
+    nameEl.textContent = ch.name || 'Channel';
     nameEl.title = ch.name || '';
     body.appendChild(nameEl);
 
@@ -345,8 +344,8 @@ function render() {
     metaLine.className = 'ch-meta';
     var parts = [];
     if (ch.subs && !statsRow.querySelector('[data-lbl="Subs"]')) parts.push(' ' + fmtN(ch.subs));
-    if (ch.monetized === 'yes') parts.push(' Mon.');
-    else if (ch.monetized === 'likely') parts.push(' Prob. Mon.');
+    if (ch.monetized === 'yes') parts.push('Monetized');
+    else if (ch.monetized === 'likely') parts.push('Likely monetized');
     if (parts.length) metaLine.textContent = parts.join('  ·  ');
     if (parts.length) body.appendChild(metaLine);
 
@@ -389,7 +388,7 @@ function render() {
     watchBtn.className = 'ch-lab-btn';
     var isWatching = !!(watchingCache && watchingCache[ch.channelUrl]);
     watchBtn.textContent = isWatching ? 'Watching' : 'Watch';
-    watchBtn.title = isWatching ? 'Recibes notif. cuando publique outliers (cada 6h)' : 'Click para activar alertas de outliers';
+    watchBtn.title = isWatching ? 'You get a notification when this channel posts an outlier, checked every 6 hours' : 'Click to turn on outlier alerts';
     if (isWatching) watchBtn.classList.add('active');
     watchBtn.addEventListener('click', function(e) {
       e.stopPropagation();
@@ -400,20 +399,20 @@ function render() {
     var thumbBtn = document.createElement('button');
     thumbBtn.className = 'ch-lab-btn';
     thumbBtn.textContent = ' Thumb Lab';
-    thumbBtn.title = 'Abre el canal y lanza Thumb Lab';
+    thumbBtn.title = 'Open the channel and launch Thumb Lab';
     thumbBtn.addEventListener('click', function(e) {
       e.stopPropagation();
-      launchLabAction('thumblab', thumbBtn, 'Abriendo...');
+      launchLabAction('thumblab', thumbBtn, 'Opening');
     });
     labRow.appendChild(thumbBtn);
 
     var titleBtn = document.createElement('button');
     titleBtn.className = 'ch-lab-btn';
     titleBtn.textContent = ' Title Lab';
-    titleBtn.title = 'Abre el canal y lanza Title Lab';
+    titleBtn.title = 'Open the channel and launch Title Lab';
     titleBtn.addEventListener('click', function(e) {
       e.stopPropagation();
-      launchLabAction('titlelab', titleBtn, 'Abriendo...');
+      launchLabAction('titlelab', titleBtn, 'Opening');
     });
     labRow.appendChild(titleBtn);
 
@@ -612,12 +611,12 @@ function updateBulkBar() {
     bar = document.createElement('div');
     bar.id = 'nsp-bulk-bar';
     bar.className = 'nsp-bulk-bar';
-    bar.innerHTML = '<span class="nsp-bulk-count" id="nsp-bulk-count">0 seleccionados</span>'
-      + '<button class="nsp-bulk-btn" id="nsp-bulk-export"> Export selección</button>'
-      + '<button class="nsp-bulk-btn" id="nsp-bulk-ideas"> Ideas con estos</button>'
-      + '<button class="nsp-bulk-btn" id="nsp-bulk-watch"> Watch (alertas)</button>'
-      + '<button class="nsp-bulk-btn danger" id="nsp-bulk-delete"> Borrar</button>'
-      + '<button class="nsp-bulk-btn ghost" id="nsp-bulk-clear"> Limpiar selección</button>';
+    bar.innerHTML = '<span class="nsp-bulk-count" id="nsp-bulk-count">0 selected</span>'
+      + '<button class="nsp-bulk-btn" id="nsp-bulk-export">Export selection</button>'
+      + '<button class="nsp-bulk-btn" id="nsp-bulk-ideas">Ideas from these</button>'
+      + '<button class="nsp-bulk-btn" id="nsp-bulk-watch">Watch for outliers</button>'
+      + '<button class="nsp-bulk-btn danger" id="nsp-bulk-delete">Delete</button>'
+      + '<button class="nsp-bulk-btn ghost" id="nsp-bulk-clear">Clear selection</button>';
     document.body.appendChild(bar);
     document.getElementById('nsp-bulk-export').onclick = function() {
       var data = getSelectedChannels();
@@ -648,7 +647,7 @@ function updateBulkBar() {
     document.getElementById('nsp-bulk-clear').onclick = clearSelection;
   }
   if (count === 0) { bar.remove(); return; }
-  document.getElementById('nsp-bulk-count').textContent = count + ' seleccionado' + (count !== 1 ? 's' : '');
+  document.getElementById('nsp-bulk-count').textContent = count + ' selected';
 }
 
 function openIdeasPanelFor(channels) {
@@ -669,7 +668,7 @@ function openIdeasPanelFor(channels) {
     + '<div class="nsp-modal-body">'
     + '<div class="ideas-subhead">Five fresh angles built from the channels you picked</div>'
     + '<div class="ideas-channels" id="nsp-ideas-preview-2"></div>'
-    + '<button class="export-format-btn" id="nsp-ideas-gen-2"> Generar ideas</button>'
+    + '<button class="export-format-btn" id="nsp-ideas-gen-2">Generate ideas</button>'
     + '<div class="ideas-output" id="nsp-ideas-out-2"></div></div>';
   document.body.appendChild(backdrop);
 
@@ -685,17 +684,17 @@ function openIdeasPanelFor(channels) {
   document.getElementById('nsp-ideas-gen-2').onclick = function() {
     var btn = this;
     btn.disabled = true;
-    btn.textContent = ' Consultando Claude...';
+    btn.textContent = 'Asking Claude';
     var out = document.getElementById('nsp-ideas-out-2');
-    out.innerHTML = '<div class="ideas-loading">Generando ideas...</div>';
+    out.innerHTML = '<div class="ideas-loading">Generating ideas</div>';
     generateDailyIdeas(top).then(function(text) {
       out.innerHTML = '<div class="ideas-result"></div>';
       out.querySelector('.ideas-result').textContent = text;
-      btn.textContent = ' Generar otra ronda';
+      btn.textContent = 'Generate another round';
       btn.disabled = false;
     }).catch(function(err) {
-      out.innerHTML = '<div class="ideas-error"> ' + (err && err.message ? err.message : 'Error') + '</div>';
-      btn.textContent = ' Reintentar';
+      out.innerHTML = '<div class="ideas-error">' + (err && err.message ? err.message : 'Error') + '</div>';
+      btn.textContent = 'Try again';
       btn.disabled = false;
     });
   };
@@ -753,18 +752,18 @@ function ensureProPanel() {
   var header = makeProEl('div', 'pro-panel-header');
   var titleWrap = makeProEl('div');
   titleWrap.appendChild(makeProEl('div', 'pro-panel-title', 'PRO TOOLS'));
-  titleWrap.appendChild(makeProEl('div', 'pro-panel-subtitle', 'Selecciona un nicho escaneado y ejecuta tools solo con esa lista.'));
+  titleWrap.appendChild(makeProEl('div', 'pro-panel-subtitle', 'Pick a scanned niche and run the tools against that list only.'));
   header.appendChild(titleWrap);
 
   var closeBtn = makeProEl('button', 'pro-close-btn', 'X');
   closeBtn.id = 'pro-close-btn';
-  closeBtn.title = 'Cerrar';
+  closeBtn.title = 'Close';
   closeBtn.addEventListener('click', closeProPanel);
   header.appendChild(closeBtn);
   panel.appendChild(header);
 
   var selectBlock = makeProEl('div', 'pro-select-block');
-  var label = makeProEl('label', 'pro-label', 'Nicho escaneado');
+  var label = makeProEl('label', 'pro-label', 'Scanned niche');
   label.setAttribute('for', 'pro-niche-select');
   selectBlock.appendChild(label);
 
@@ -774,7 +773,7 @@ function ensureProPanel() {
   select.addEventListener('change', updateProSelectedNiche);
   selectRow.appendChild(select);
 
-  var openBtn = makeProEl('button', 'pro-secondary-btn', 'ABRIR FUENTE');
+  var openBtn = makeProEl('button', 'pro-secondary-btn', 'OPEN SOURCE');
   openBtn.id = 'pro-open-source';
   openBtn.addEventListener('click', function() {
     var item = getSelectedProNiche();
@@ -784,7 +783,7 @@ function ensureProPanel() {
   selectRow.appendChild(openBtn);
   selectBlock.appendChild(selectRow);
 
-  var summary = makeProEl('div', 'pro-selected-summary', 'Selecciona un nicho del ultimo scan para ver sus tools PRO.');
+  var summary = makeProEl('div', 'pro-selected-summary', 'Pick a niche from the last scan to see its PRO tools.');
   summary.id = 'pro-selected-summary';
   selectBlock.appendChild(summary);
   panel.appendChild(selectBlock);
@@ -792,41 +791,41 @@ function ensureProPanel() {
   var tools = makeProEl('div', 'pro-tools-grid');
   panel.appendChild(tools);
 
-  var scanCard = makeProCard('Scan nicho', 'Resumen del nicho escaneado y, si hay canal, edad/viral metrics.');
-  var scanBtn = makeProAction('pro-run-scan', 'SCAN NICHO');
+  var scanCard = makeProCard('Scan niche', 'A summary of the scanned niche, plus channel age and viral metrics when there is a channel.');
+  var scanBtn = makeProAction('pro-run-scan', 'SCAN NICHE');
   scanCard.appendChild(scanBtn);
-  scanCard.appendChild(makeProResult('pro-scan-result', 'Aqui saldra el resumen del scan.'));
+  scanCard.appendChild(makeProResult('pro-scan-result', 'The scan summary shows up here.'));
   tools.appendChild(scanCard);
 
-  var titlesCard = makeProCard('Buscar titulos', 'Busca oportunidades usando solo el nicho seleccionado.');
-  titlesCard.appendChild(makeProAction('pro-run-titles', 'BUSCAR TITULOS'));
-  titlesCard.appendChild(makeProResult('pro-title-result', 'Resultados de busqueda por titulo.'));
+  var titlesCard = makeProCard('Search titles', 'Look for openings using the selected niche only.');
+  titlesCard.appendChild(makeProAction('pro-run-titles', 'SEARCH TITLES'));
+  titlesCard.appendChild(makeProResult('pro-title-result', 'Title search results.'));
   tools.appendChild(titlesCard);
 
-  var globalCard = makeProCard('Matrix global', 'Compara el nicho seleccionado por idioma y oportunidad.');
-  globalCard.appendChild(makeProAction('pro-run-global', 'ANALIZAR GLOBAL'));
-  globalCard.appendChild(makeProResult('pro-global-result', 'Score global del nicho seleccionado.'));
+  var globalCard = makeProCard('Global matrix', 'Compare the selected niche by language and opportunity.');
+  globalCard.appendChild(makeProAction('pro-run-global', 'ANALYZE GLOBAL'));
+  globalCard.appendChild(makeProResult('pro-global-result', 'Global score for the selected niche.'));
   tools.appendChild(globalCard);
 
-  var repCard = makeProCard('Replicar contenido', 'Genera ideas listas para producir basadas en la fuente del nicho.');
-  repCard.appendChild(makeProSelect('pro-rep-language', 'Idioma', [
-    ['es', 'Espanol'],
+  var repCard = makeProCard('Replicate content', 'Build ready to produce ideas from the source behind the niche.');
+  repCard.appendChild(makeProSelect('pro-rep-language', 'Language', [
+    ['es', 'Spanish'],
     ['en', 'English'],
-    ['pt', 'Portugues']
+    ['pt', 'Portuguese']
   ]));
-  repCard.appendChild(makeProAction('pro-run-replicate', 'REPLICAR'));
-  repCard.appendChild(makeProResult('pro-rep-result', 'Ideas de replicacion del canal.'));
+  repCard.appendChild(makeProAction('pro-run-replicate', 'REPLICATE'));
+  repCard.appendChild(makeProResult('pro-rep-result', 'Ideas for replicating the channel.'));
   tools.appendChild(repCard);
 
-  var brandCard = makeProCard('Crear marca', 'Nombres, bio, identidad visual y estrategia para el nicho seleccionado.');
-  brandCard.appendChild(makeProSelect('pro-brand-tone', 'Tono', [
+  var brandCard = makeProCard('Build a brand', 'Names, bio, visual identity and strategy for the selected niche.');
+  brandCard.appendChild(makeProSelect('pro-brand-tone', 'Tone', [
     ['professional', 'Professional'],
     ['mysterious', 'Mysterious'],
     ['bold', 'Bold'],
     ['educational', 'Educational']
   ]));
-  brandCard.appendChild(makeProAction('pro-run-brand', 'CREAR MARCA'));
-  brandCard.appendChild(makeProResult('pro-brand-result', 'Kit de marca para el nicho.'));
+  brandCard.appendChild(makeProAction('pro-run-brand', 'BUILD BRAND'));
+  brandCard.appendChild(makeProResult('pro-brand-result', 'Brand kit for the niche.'));
   tools.appendChild(brandCard);
 
   backdrop.addEventListener('click', function(e) {
@@ -913,7 +912,7 @@ function populateProNichos(preselectValue) {
 
   var placeholder = makeProEl('option');
   placeholder.value = '';
-  placeholder.textContent = scannedNichos.length ? 'Selecciona un nicho escaneado...' : 'No hay nichos escaneados';
+  placeholder.textContent = scannedNichos.length ? 'Pick a scanned niche' : 'No scanned niches yet';
   select.appendChild(placeholder);
 
   scannedNichos.forEach(function(item, idx) {
@@ -953,17 +952,17 @@ function updateProSelectedNiche() {
   if (!summary) return;
   if (!item) {
     delete summary.dataset.channelValue;
-    summary.textContent = scannedNichos.length ? 'Selecciona un nicho de la lista escaneada para usar PRO.' : 'Aun no hay nichos escaneados. Corre un scan y guarda/abre resultados primero.';
+    summary.textContent = scannedNichos.length ? 'Pick a niche from the scanned list to use PRO.' : 'No scanned niches yet. Run a scan and save or open the results first.';
     return;
   }
 
   var details = [];
-  if (item.language && item.language !== 'unknown') details.push('Idioma: ' + String(item.language).toUpperCase());
+  if (item.language && item.language !== 'unknown') details.push('Language: ' + String(item.language).toUpperCase());
   if (item.vph) details.push('VPH: ' + fmtN(item.vph));
   if (item.views) details.push('Views: ' + fmtN(item.views));
-  if (item.revMonth) details.push('Mes: ' + fmtRev(item.revMonth));
+  if (item.revMonth) details.push('Per month: ' + fmtRev(item.revMonth));
   if (item.facelessScore) details.push('Faceless: ' + Math.round(item.facelessScore) + '%');
-  summary.textContent = (item.niche || 'Nicho') + ' - ' + (item.title || details.join(' | ') || 'resultado escaneado');
+  summary.textContent = (item.niche || 'Niche') + ' - ' + (item.title || details.join(' | ') || 'scanned result');
 
   var selectedValue = proNicheLabel(item);
   if (summary.dataset.channelValue !== selectedValue) {
@@ -974,7 +973,7 @@ function updateProSelectedNiche() {
 function proRequireNiche(resultId) {
   var item = getSelectedProNiche();
   if (!item) {
-    setProResult(resultId, 'Primero selecciona un nicho escaneado de la lista.', 'error');
+    setProResult(resultId, 'Pick a scanned niche from the list first.', 'error');
     return null;
   }
   return item;
@@ -1014,7 +1013,7 @@ async function runProChannelScan() {
   var item = proRequireNiche('pro-scan-result');
   if (!item) return;
   var channel = proNicheChannel(item);
-  setProResult('pro-scan-result', 'Analizando el nicho escaneado seleccionado...', 'loading');
+  setProResult('pro-scan-result', 'Analyzing the selected niche', 'loading');
 
   try {
     if (channel) {
@@ -1046,33 +1045,33 @@ function renderProScanResult(item, age, viral) {
   var pass = age ? age.passesFilter : null;
 
   var head = makeProEl('div', 'pro-result-head');
-  head.textContent = item.niche || proFirst(channel, ['title', 'name', 'channelTitle'], 'Nicho analizado');
+  head.textContent = item.niche || proFirst(channel, ['title', 'name', 'channelTitle'], 'Analyzed niche');
   box.appendChild(head);
 
   var grid = makeProEl('div', 'pro-metric-grid');
-  grid.appendChild(proMetric('Nicho', item.niche || 'General'));
-  grid.appendChild(proMetric('Idioma', (item.language || 'unknown').toUpperCase()));
+  grid.appendChild(proMetric('Niche', item.niche || 'General'));
+  grid.appendChild(proMetric('Language', (item.language || 'unknown').toUpperCase()));
   grid.appendChild(proMetric('VPH scan', fmtN(item.vph || 0), item.vph >= 100 ? 'ok' : 'warn'));
   grid.appendChild(proMetric('Views scan', fmtN(item.views || 0)));
   grid.appendChild(proMetric('RPM scan', item.rpm ? '$' + Number(item.rpm).toFixed(2) : 'n/a'));
-  grid.appendChild(proMetric('Ingreso mes', fmtRev(item.revMonth || 0), item.revMonth ? 'ok' : ''));
+  grid.appendChild(proMetric('Revenue per month', fmtRev(item.revMonth || 0), item.revMonth ? 'ok' : ''));
   grid.appendChild(proMetric('Faceless', item.facelessScore ? Math.round(item.facelessScore) + '%' : 'n/a', item.facelessScore >= 70 ? 'ok' : 'warn'));
-  grid.appendChild(proMetric('Fuente', item.channelUrl ? 'Canal' : (item.vidId ? 'Video' : 'Scan')));
+  grid.appendChild(proMetric('Source', item.channelUrl ? 'Channel' : (item.vidId ? 'Video' : 'Scan')));
   if (age) {
-    grid.appendChild(proMetric('Edad canal', age.monthsOld !== null && age.monthsOld !== undefined ? age.monthsOld + ' meses' : 'n/a', pass === true ? 'ok' : (pass === false ? 'bad' : '')));
-    grid.appendChild(proMetric('Creado', age.createdDate || age.publishedAt || 'n/a'));
+    grid.appendChild(proMetric('Channel age', age.monthsOld !== null && age.monthsOld !== undefined ? age.monthsOld + ' months' : 'n/a', pass === true ? 'ok' : (pass === false ? 'bad' : '')));
+    grid.appendChild(proMetric('Created', age.createdDate || age.publishedAt || 'n/a'));
   }
   if (viral) {
-    grid.appendChild(proMetric('Virales', String(metrics.viralVideoCount || 0), metrics.viralVideoCount >= 10 ? 'ok' : 'warn'));
-    grid.appendChild(proMetric('Ratio viral', ratioText, ratio >= 0.2 ? 'ok' : 'warn'));
-    grid.appendChild(proMetric('Velocidad', metrics.velocityTier || 'n/a', metrics.velocityTier === 'EXPLOSIVE' || metrics.velocityTier === 'HIGH' ? 'ok' : ''));
-    grid.appendChild(proMetric('Views/sem', fmtN(metrics.weeklyViewVelocity || 0)));
+    grid.appendChild(proMetric('Viral videos', String(metrics.viralVideoCount || 0), metrics.viralVideoCount >= 10 ? 'ok' : 'warn'));
+    grid.appendChild(proMetric('Viral ratio', ratioText, ratio >= 0.2 ? 'ok' : 'warn'));
+    grid.appendChild(proMetric('Velocity', metrics.velocityTier || 'n/a', metrics.velocityTier === 'EXPLOSIVE' || metrics.velocityTier === 'HIGH' ? 'ok' : ''));
+    grid.appendChild(proMetric('Views per week', fmtN(metrics.weeklyViewVelocity || 0)));
   }
   box.appendChild(grid);
 
   var videos = proAsArray(metrics.viralVideos).slice(0, 6);
   if (videos.length) {
-    box.appendChild(makeProEl('div', 'pro-list-title', 'Top videos virales'));
+    box.appendChild(makeProEl('div', 'pro-list-title', 'Top viral videos'));
     videos.forEach(function(v) {
       var row = makeProEl('div', 'pro-video-row');
       row.appendChild(makeProEl('span', 'pro-video-title', v.title || 'Video'));
@@ -1087,11 +1086,11 @@ async function runProTitleSearch() {
   if (!item) return;
   var keywords = proCleanNiche(item);
   if (!keywords) {
-    setProResult('pro-title-result', 'Este resultado escaneado no tiene nicho/titulo usable.', 'error');
+    setProResult('pro-title-result', 'This scanned result has no usable niche or title.', 'error');
     return;
   }
 
-  setProResult('pro-title-result', 'Buscando titulos y canales...', 'loading');
+  setProResult('pro-title-result', 'Searching titles and channels', 'loading');
   try {
     var data = await proPost('/niche/search-titles', {
       keywords: keywords,
@@ -1111,13 +1110,13 @@ function renderProTitleResult(data) {
   var channels = proAsArray(proFirst(data, ['channels', 'topChannels', 'results'], []));
   var videos = proAsArray(proFirst(data, ['videos', 'topVideos'], []));
   var title = makeProEl('div', 'pro-result-head');
-  title.textContent = 'Subnicho: ' + proFirst(data, ['subNiche', 'subniche', 'query'], 'n/a') + ' | RPM: ' + proFirst(data, ['estimatedRpm', 'rpm', 'RPM'], 'n/a');
+  title.textContent = 'Sub-niche: ' + proFirst(data, ['subNiche', 'subniche', 'query'], 'n/a') + ' | RPM: ' + proFirst(data, ['estimatedRpm', 'rpm', 'RPM'], 'n/a');
   box.appendChild(title);
 
   var rows = channels.length ? channels.slice(0, 6) : videos.slice(0, 6);
   rows.forEach(function(item) {
     var row = makeProEl('div', 'pro-video-row');
-    row.appendChild(makeProEl('span', 'pro-video-title', proFirst(item, ['name', 'channel', 'title'], 'Resultado')));
+    row.appendChild(makeProEl('span', 'pro-video-title', proFirst(item, ['name', 'channel', 'title'], 'Result')));
     row.appendChild(makeProEl('strong', 'pro-video-views', fmtN(proFirst(item, ['totalViews', 'views', 'viewCount'], 0))));
     box.appendChild(row);
   });
@@ -1129,10 +1128,10 @@ async function runProGlobalScore() {
   if (!item) return;
   var niche = proCleanNiche(item);
   if (!niche) {
-    setProResult('pro-global-result', 'Este resultado escaneado no tiene nicho usable.', 'error');
+    setProResult('pro-global-result', 'This scanned result has no usable niche.', 'error');
     return;
   }
-  setProResult('pro-global-result', 'Analizando oportunidad global...', 'loading');
+  setProResult('pro-global-result', 'Analyzing global opportunity', 'loading');
   try {
     var data = await proPost('/niche/score-by-language', { niche: niche });
     renderProGlobalResult(data);
@@ -1152,7 +1151,7 @@ function renderProGlobalResult(data) {
   }
   rows.slice(0, 8).forEach(function(row) {
     var item = makeProEl('div', 'pro-video-row');
-    item.appendChild(makeProEl('span', 'pro-video-title', proFirst(row, ['language', 'code', 'name'], 'Idioma')));
+    item.appendChild(makeProEl('span', 'pro-video-title', proFirst(row, ['language', 'code', 'name'], 'Language')));
     item.appendChild(makeProEl('strong', 'pro-video-views', String(proFirst(row, ['score', 'value', 'verdict'], 'n/a'))));
     box.appendChild(item);
   });
@@ -1163,11 +1162,11 @@ async function runProReplicate() {
   if (!item) return;
   var channel = proNicheChannel(item);
   if (!channel) {
-    setProResult('pro-rep-result', 'Este nicho escaneado no trae canal fuente. Usa Buscar titulos o Crear marca.', 'error');
+    setProResult('pro-rep-result', 'This scanned niche has no source channel. Use Search titles or Build a brand instead.', 'error');
     return;
   }
   var lang = document.getElementById('pro-rep-language').value || 'es';
-  setProResult('pro-rep-result', 'Generando ideas para replicar...', 'loading');
+  setProResult('pro-rep-result', 'Generating ideas to replicate', 'loading');
 
   try {
     var data = await proPost('/niche/replicate-content', {
@@ -1205,11 +1204,11 @@ async function runProBrand() {
   if (!item) return;
   var niche = proCleanNiche(item);
   if (!niche) {
-    setProResult('pro-brand-result', 'Este resultado escaneado no tiene nicho usable.', 'error');
+    setProResult('pro-brand-result', 'This scanned result has no usable niche.', 'error');
     return;
   }
 
-  setProResult('pro-brand-result', 'Creando marca para el nicho...', 'loading');
+  setProResult('pro-brand-result', 'Building a brand for the niche', 'loading');
   try {
     var data = await proPost('/niche/build-brand', {
       niche: niche,
@@ -1231,10 +1230,10 @@ function renderProBrandResult(data) {
   var visual = proFirst(data, ['visualIdentity'], {});
   var strategy = proFirst(data, ['contentStrategy', 'strategy'], {});
 
-  box.appendChild(makeProEl('div', 'pro-result-head', names.length ? names.join(' | ') : proFirst(data, ['channelName', 'name'], 'Marca')));
+  box.appendChild(makeProEl('div', 'pro-result-head', names.length ? names.join(' | ') : proFirst(data, ['channelName', 'name'], 'Brand')));
   box.appendChild(makeProEl('div', 'pro-plan-line', 'Bio: ' + (typeof bio === 'string' ? bio : proFirst(bio, ['short', 'description', 'text'], JSON.stringify(bio)))));
   box.appendChild(makeProEl('div', 'pro-plan-line', 'Visual: ' + (typeof visual === 'string' ? visual : proFirst(visual, ['style', 'summary'], JSON.stringify(visual)))));
-  box.appendChild(makeProEl('div', 'pro-plan-line', 'Estrategia: ' + (typeof strategy === 'string' ? strategy : proFirst(strategy, ['summary', 'postingPlan'], JSON.stringify(strategy)))));
+  box.appendChild(makeProEl('div', 'pro-plan-line', 'Strategy: ' + (typeof strategy === 'string' ? strategy : proFirst(strategy, ['summary', 'postingPlan'], JSON.stringify(strategy)))));
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -1312,11 +1311,10 @@ document.addEventListener('DOMContentLoaded', function() {
   var exportBtn = document.getElementById('btn-export');
   if (exportBtn) exportBtn.addEventListener('click', openExportModal);
 
-  // Ideas Hoy (Claude AI)
   var ideasBtn = document.getElementById('btn-ideas');
   if (ideasBtn) ideasBtn.addEventListener('click', openIdeasPanel);
 
-  // Auto-refresh — pausado si la pestaña está oculta (CPU) o si hay multi-selección activa (no pisar Bulk ops ni el scroll)
+  // Paused while the tab is hidden or a multi-selection is open, so bulk ops and scroll are not reset.
   setInterval(function () {
     if (document.visibilityState === 'hidden') return;
     if (typeof selectedChannels === 'object' && selectedChannels && Object.keys(selectedChannels).length) return;
@@ -1422,15 +1420,15 @@ function openExportModal() {
     + '</div>'
     + '<div class="nsp-modal-body">'
     + '  <div class="export-row">'
-    + '    <label class="export-radio"><input type="radio" name="export-scope" value="filtered" checked> Solo filtrados (<strong>' + totalFiltered + '</strong>)</label>'
+    + '    <label class="export-radio"><input type="radio" name="export-scope" value="filtered" checked> Filtered only (<strong>' + totalFiltered + '</strong>)</label>'
     + '    <label class="export-radio"><input type="radio" name="export-scope" value="all"> All (<strong>' + totalAll + '</strong>)</label>'
     + '  </div>'
     + '  <div class="export-row">'
-    + '    <button class="export-format-btn" id="nsp-export-csv"> Descargar CSV<small>Excel / Sheets ready</small></button>'
-    + '    <button class="export-format-btn" id="nsp-export-json"> Descargar JSON<small>Para devs / re-import</small></button>'
+    + '    <button class="export-format-btn" id="nsp-export-csv">Download CSV<small>Excel and Sheets ready</small></button>'
+    + '    <button class="export-format-btn" id="nsp-export-json">Download JSON<small>For devs and re-import</small></button>'
     + '  </div>'
     + '  <div class="export-row">'
-    + '    <button class="export-format-btn ghost" id="nsp-export-clipboard"> Copiar al portapapeles (JSON)</button>'
+    + '    <button class="export-format-btn ghost" id="nsp-export-clipboard">Copy to clipboard as JSON</button>'
     + '  </div>'
     + '</div>';
 
@@ -1448,13 +1446,12 @@ function openExportModal() {
     var data = getScope();
     navigator.clipboard.writeText(JSON.stringify(data, null, 2)).then(function() {
       var btn = document.getElementById('nsp-export-clipboard');
-      btn.textContent = ' Copiado ' + data.length + ' channels';
+      btn.textContent = 'Copied ' + data.length + ' channels';
       setTimeout(function() { backdrop.remove(); }, 1200);
     });
   };
 }
 
-//  IDEAS HOY (Claude AI sobre canales guardados) 
 function openIdeasPanel() {
   var existing = document.getElementById('nsp-ideas-modal');
   if (existing) { existing.remove(); return; }
@@ -1473,13 +1470,13 @@ function openIdeasPanel() {
   }).slice(0, 8);
 
   modal.innerHTML = '<div class="nsp-modal-header">'
-    + '  <div class="nsp-modal-title"> Ideas de video — AI Coach</div>'
+    + '  <div class="nsp-modal-title">Video ideas, AI Coach</div>'
     + '  <button class="nsp-modal-close" id="nsp-ideas-close"></button>'
     + '</div>'
     + '<div class="nsp-modal-body">'
-    + '  <div class="ideas-subhead">Claude analizará tus top ' + top.length + ' canales y generará 5 ideas frescas para hoy</div>'
+    + '  <div class="ideas-subhead">Claude reads your top ' + top.length + ' channels and writes 5 fresh ideas for today</div>'
     + '  <div class="ideas-channels" id="nsp-ideas-channels-preview"></div>'
-    + '  <button class="export-format-btn" id="nsp-ideas-generate"> Generar ideas con Claude</button>'
+    + '  <button class="export-format-btn" id="nsp-ideas-generate">Generate ideas with Claude</button>'
     + '  <div class="ideas-output" id="nsp-ideas-output"></div>'
     + '</div>';
 
@@ -1501,19 +1498,19 @@ function openIdeasPanel() {
   document.getElementById('nsp-ideas-generate').onclick = function() {
     var btn = this;
     btn.disabled = true;
-    btn.textContent = ' Consultando Claude...';
+    btn.textContent = 'Asking Claude';
     var output = document.getElementById('nsp-ideas-output');
-    output.innerHTML = '<div class="ideas-loading">Generando ideas (5-15s)...</div>';
+    output.innerHTML = '<div class="ideas-loading">Generating ideas, 5 to 15 seconds</div>';
 
     generateDailyIdeas(top).then(function(text) {
       output.innerHTML = '<div class="ideas-result"></div>';
       output.querySelector('.ideas-result').textContent = text;
-      btn.textContent = ' Generar otra ronda';
+      btn.textContent = 'Generate another round';
       btn.disabled = false;
     }).catch(function(err) {
-      output.innerHTML = '<div class="ideas-error"> ' + (err && err.message ? err.message : 'Error') + '</div>'
-        + '<div class="ideas-help">Verifica que tengas tu API key de Claude configurada en chrome.storage (ashlyv_api_key, formato sk-ant-...).</div>';
-      btn.textContent = ' Reintentar';
+      output.innerHTML = '<div class="ideas-error">' + (err && err.message ? err.message : 'Error') + '</div>'
+        + '<div class="ideas-help">Check that your Claude API key is set in chrome.storage under ashlyv_api_key, in the sk-ant- format.</div>';
+      btn.textContent = 'Try again';
       btn.disabled = false;
     });
   };
@@ -1524,28 +1521,28 @@ function generateDailyIdeas(channels) {
     chrome.storage.local.get('ashlyv_api_key', function(res) {
       var apiKey = res && res.ashlyv_api_key;
       if (!apiKey || !/^sk-ant-/.test(apiKey)) {
-        reject(new Error('No hay API key de Claude. Configúrala en options.'));
+        reject(new Error('No Claude API key. Set one in options.'));
         return;
       }
 
       var summary = channels.map(function(ch, i) {
-        return (i + 1) + '. ' + (ch.name || 'Canal')
+        return (i + 1) + '. ' + (ch.name || 'Channel')
           + ' (niche: ' + (ch.niche || 'General') + ', '
           + (ch.subs ? fmtN(ch.subs) + ' subs, ' : '')
           + (ch.topVPH ? 'top VPH ' + fmtN(ch.topVPH) + ', ' : '')
-          + (ch.revMonth ? '$' + ch.revMonth + '/mes, ' : '')
-          + (ch.channelAgeDays !== null && ch.channelAgeDays !== undefined ? 'edad ' + fmtAge(ch.channelAgeDays) : '')
+          + (ch.revMonth ? '$' + ch.revMonth + '/mo, ' : '')
+          + (ch.channelAgeDays !== null && ch.channelAgeDays !== undefined ? 'age ' + fmtAge(ch.channelAgeDays) : '')
           + ')';
       }).join('\n');
 
-      var prompt = 'Eres un AI Coach experto en YouTube faceless. Analiza estos canales del dashboard del usuario:\n\n'
+      var prompt = 'You are an AI coach who knows faceless YouTube well. Read these channels from the user dashboard:\n\n'
         + summary
-        + '\n\nGenera EXACTAMENTE 5 ideas de video frescas y replicables para HOY. Para cada idea:\n'
-        + '1. Título sugerido (clickbait pero no engañoso, máx 70 chars)\n'
-        + '2. Hook de 1 línea (primeros 8 segundos)\n'
-        + '3. Por qué funcionaría (basado en señales de los canales arriba)\n'
-        + '4. Nicho objetivo + RPM estimado\n\n'
-        + 'Formato: markdown numerado. Sé directo, sin intro. Las ideas deben aprovechar tendencias que ves en los canales arriba (mismo nicho, mismo formato, ángulos no saturados).';
+        + '\n\nWrite EXACTLY 5 fresh, repeatable video ideas for today. For each idea give:\n'
+        + '1. A suggested title, clickable but not misleading, 70 characters at most\n'
+        + '2. A one line hook for the first 8 seconds\n'
+        + '3. Why it would work, based on the signals in the channels above\n'
+        + '4. The target niche and an estimated RPM\n\n'
+        + 'Format: numbered markdown. Be direct, no preamble. The ideas must ride trends visible in the channels above: same niche, same format, angles that are not saturated yet.';
 
       fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -1563,7 +1560,7 @@ function generateDailyIdeas(channels) {
       }).then(function(r) { return r.json(); }).then(function(data) {
         if (data && data.error) { reject(new Error(data.error.message || 'API error')); return; }
         var text = data && data.content && data.content[0] && data.content[0].text;
-        if (!text) { reject(new Error('Sin respuesta de Claude')); return; }
+        if (!text) { reject(new Error('No answer from Claude')); return; }
         resolve(text);
       }).catch(function(err) {
         reject(err);

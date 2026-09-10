@@ -76,7 +76,6 @@ window.addEventListener('message', function(event) {
   chrome.storage.local.get(['ashlyv_nichos'], function(res) {
     var saved = Array.isArray(res.ashlyv_nichos) ? res.ashlyv_nichos.map(ashlyvBridgeSanitizeEntry).slice(0, 240) : [];
 
-    // Guardar uno o múltiples nichos
     var toSave = (Array.isArray(allNichos) ? allNichos.slice(0, 20) : (nichoData ? [nichoData] : [])).map(ashlyvBridgeSanitizeEntry);
     toSave.forEach(function(n) {
       var incomingKey = [n.channelId || '', n.channelUrl || '', n.vidId || '', n.title || '', n.savedAt || ''].join('|');
@@ -104,14 +103,14 @@ window.addEventListener('message', function(event) {
 });
 
 // ── NSP AI COACH bridge ──────────────────────────────────────────────────────
-console.log('[NSP COACH BRIDGE] ISOLATED bridge cargado, listeners listos');
+console.log('[NSP COACH BRIDGE] isolated bridge loaded, listeners ready');
 window.addEventListener('message', function(event) {
   if (event.source !== window) return;
   if (event.origin && event.origin !== window.location.origin) return;
   if (!event.data || event.data.type !== 'NSP_COACH_SEND') return;
   console.log('[NSP COACH BRIDGE] NSP_COACH_SEND received, reqId:', event.data.requestId);
   if (typeof chrome === 'undefined' || !chrome.runtime) {
-    console.warn('[NSP COACH BRIDGE] chrome.runtime no disponible');
+    console.warn('[NSP COACH BRIDGE] chrome.runtime not available');
     return;
   }
   var data = event.data;
@@ -122,14 +121,13 @@ window.addEventListener('message', function(event) {
     window.postMessage({ type: 'NSP_COACH_RESPONSE', requestId: reqId, ok: false, error: 'no_messages' }, window.location.origin);
     return;
   }
-  console.log('[NSP COACH BRIDGE] llamando SW ASHLYV_CHAT_REQUEST con', messages.length, 'msgs');
-  try {   // v4.39.0 FIX: si el SW está caído ("Extension context invalidated"), sendMessage LANZA síncronamente → sin esto el coach quedaba COLGADO para siempre, sin respuesta.
+  console.log('[NSP COACH BRIDGE] calling SW ASHLYV_CHAT_REQUEST with', messages.length, 'msgs');
+  try {   // sendMessage throws synchronously when the service worker is gone, without this the coach hangs forever with no answer.
   chrome.runtime.sendMessage({
     type: 'ASHLYV_CHAT_REQUEST',
     payload: {
       messages: messages,
-      // v3.9.0 — mandamos el system completo (biblia ZERACK). El SW aplica el recorte
-      // por-provider: Groq se trunca a ~9000 chars (TPM-safe) y Gemini recibe los 24000.
+      // The full system prompt is sent, the service worker trims it per provider.
       system: typeof data.system === 'string' ? data.system.slice(0, 24000) : '',
       model: typeof data.model === 'string' ? data.model : 'gemini-1.5-flash',
       maxTokens: Number(data.maxTokens) || 2048,
@@ -144,7 +142,6 @@ window.addEventListener('message', function(event) {
     }
     if (!res || res.ok !== true) {
       console.warn('[NSP COACH BRIDGE] SW response not ok:', res && res.error);
-      // v3.7.2 — pasar rate limit info al cliente
       var errPayload = { type: 'NSP_COACH_RESPONSE', requestId: reqId, ok: false, error: (res && res.error) || 'unknown_error' };
       if (res && res.retryAfter) errPayload.retryAfter = res.retryAfter;
       window.postMessage(errPayload, window.location.origin);
@@ -160,13 +157,11 @@ window.addEventListener('message', function(event) {
     }, window.location.origin);
   });
   } catch (eSend) {
-    // SW inalcanzable → responder error en vez de dejar el coach esperando eternamente
+    // Answer with an error instead of leaving the coach waiting when the service worker is unreachable.
     window.postMessage({ type: 'NSP_COACH_RESPONSE', requestId: reqId, ok: false, error: 'bridge_send: ' + String((eSend && eSend.message) || eSend) }, window.location.origin);
   }
 });
 
-// ── NSP VISION JUDGE bridge (faceless por visión IA) ─────────────────────────
-// MAIN manda thumbs+título+canal → SW baja la(s) miniatura(s), las juzga con Gemini Vision → veredicto.
 window.addEventListener('message', function(event) {
   if (event.source !== window) return;
   if (event.origin && event.origin !== window.location.origin) return;
@@ -195,9 +190,6 @@ window.addEventListener('message', function(event) {
   }
 });
 
-// ── NSP CORPUS DE MERCADO bridge (v3.15.0 PIEZA 1) ───────────────────────────
-// Persiste y consulta la base de datos de títulos+thumbnails del mercado.
-// NSP_CORPUS_INGEST: merge+dedupe+cap. NSP_CORPUS_QUERY: lee filtrado por nicho.
 window.addEventListener('message', function(event) {
   if (event.source !== window) return;
   if (event.origin && event.origin !== window.location.origin) return;
@@ -219,11 +211,10 @@ window.addEventListener('message', function(event) {
         if (!rec || !rec.t) return;
         var k = String(rec.t).toLowerCase().slice(0, 80);
         var ex = byKey[k];
-        // Si ya existe, conservar el de mayor VPH (mejor señal de performance)
+        // On a duplicate title keep the higher VPH record, it is the better performance signal.
         if (!ex || Number(rec.v || 0) > Number(ex.v || 0)) byKey[k] = rec;
       });
       var merged = Object.keys(byKey).map(function(k) { return byKey[k]; });
-      // Ordena por VPH desc y recorta al cap (conserva los mejores)
       merged.sort(function(a, b) { return Number(b.v || 0) - Number(a.v || 0); });
       if (merged.length > CORPUS_CAP) merged = merged.slice(0, CORPUS_CAP);
       chrome.storage.local.set({ nsp_title_corpus: merged }, function() {
@@ -256,9 +247,7 @@ window.addEventListener('message', function(event) {
   }
 });
 
-// ── NSP AGENT TOOLS bridge (v3.6.0) ──────────────────────────────────────────
-// MAIN posts NSP_COACH_TOOL_OPENTAB/NAVIGATE/SAVENICHE → ISOLATED ejecuta vía
-// chrome.runtime.sendMessage al SW que tiene chrome.tabs.* permissions.
+// MAIN has no chrome.tabs.* access, so these tool messages are relayed to the service worker.
 window.addEventListener('message', function(event) {
   if (event.source !== window) return;
   if (event.origin && event.origin !== window.location.origin) return;
@@ -270,7 +259,6 @@ window.addEventListener('message', function(event) {
   if (!reqId) return;
 
   if (t === 'NSP_COACH_TOOL_EXT_DATA') {
-    // v3.14.0 — ZERACK accede a TODOS los datos de la extensión (dashboard, nichos, scans, alerts)
     var area = String(event.data.area || 'all');
     chrome.storage.local.get(['ashlyv_nichos', 'ashlyv_niche_stats', 'ashlyv_recent_scan_runs_v', 'ashlyv_opportunity_history', 'ashlyv_alert_history', 'ashlyv_rpm_baselines'], function(r) {
       r = r || {};
@@ -315,7 +303,6 @@ window.addEventListener('message', function(event) {
   }
 
   if (t === 'NSP_COACH_TOOL_SEARCH_MARKET') {
-    // v3.17.0 — relay búsqueda activa de mercado al SW (InnerTube)
     var mq = String(event.data.query || '').slice(0, 120);
     chrome.runtime.sendMessage({ type: 'NSP_AGENT_SEARCH_MARKET', query: mq, gl: event.data.gl || 'US', hl: event.data.hl || 'en' }, function(res) {
       var err = chrome.runtime && chrome.runtime.lastError;
@@ -328,7 +315,7 @@ window.addEventListener('message', function(event) {
   if (t === 'NSP_COACH_TOOL_NAVIGATE') {
     var navUrl = String(event.data.url || '');
     if (!/^https:\/\/(www\.)?youtube\.com\//i.test(navUrl)) {
-      window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: false, error: 'solo youtube.com' }, window.location.origin);
+      window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: false, error: 'only youtube.com URLs are allowed' }, window.location.origin);
       return;
     }
     chrome.runtime.sendMessage({ type: 'NSP_AGENT_NAVIGATE', url: navUrl }, function(res) {
@@ -416,13 +403,13 @@ window.addEventListener('message', function(event) {
     chrome.storage.local.get(['ashlyv_nichos'], function(r) {
       var list = Array.isArray(r && r.ashlyv_nichos) ? r.ashlyv_nichos : [];
       if (!list.length) {
-        window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: false, error: 'No hay nichos guardados para exportar' }, window.location.origin);
+        window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: false, error: 'No saved niches to export' }, window.location.origin);
         return;
       }
       var blob, filename;
       if (fmt === 'json') {
         blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
-        filename = 'nsp-nichos-' + Date.now() + '.json';
+        filename = 'nsp-niches-' + Date.now() + '.json';
       } else {
         var headers = ['title', 'channelName', 'niche', 'channelUrl', 'vidId', 'savedAt', 'source'];
         var rows = [headers.join(',')];
@@ -434,7 +421,7 @@ window.addEventListener('message', function(event) {
           rows.push(row.join(','));
         });
         blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-        filename = 'nsp-nichos-' + Date.now() + '.csv';
+        filename = 'nsp-niches-' + Date.now() + '.csv';
       }
       try {
         var url = URL.createObjectURL(blob);
@@ -452,7 +439,7 @@ window.addEventListener('message', function(event) {
   if (t === 'NSP_COACH_TOOL_ADD_TRACKING') {
     var trk = event.data.nicho || {};
     chrome.storage.local.get(['ashlyv_tracking', 'nsp_tracking'], function(r) {
-      // soporta ambas keys (legacy + nueva) — usa la que exista
+      // Two storage keys exist (legacy and current), write to whichever one already holds data.
       var key = Array.isArray(r && r.nsp_tracking) ? 'nsp_tracking' : 'ashlyv_tracking';
       var list = Array.isArray(r && r[key]) ? r[key] : [];
       list.unshift({
@@ -489,21 +476,19 @@ window.addEventListener('message', function(event) {
       window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, history: hist }, window.location.origin);
     });
   } else if (data.type === 'NSP_COACH_GET_PREFERRED_PROVIDER') {
-    // v3.8.3 — leer provider preferido
     chrome.storage.local.get(['nsp_preferred_provider'], function(r) {
       var pref = r && r.nsp_preferred_provider;
       if (['groq', 'ollama', 'gemini', 'auto'].indexOf(pref) === -1) pref = 'auto';
       window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, preferredProvider: pref }, window.location.origin);
     });
   } else if (data.type === 'NSP_COACH_SET_PREFERRED_PROVIDER') {
-    // v3.8.3 — guardar provider preferido
     var prefValue = String(data.provider || 'auto');
     if (['groq', 'ollama', 'gemini', 'auto'].indexOf(prefValue) === -1) prefValue = 'auto';
     chrome.storage.local.set({ nsp_preferred_provider: prefValue }, function() {
       window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, saved: true, preferredProvider: prefValue }, window.location.origin);
     });
   } else if (data.type === 'NSP_COACH_PROVIDER_CHECK') {
-    // v3.8.2 — reporta qué providers tiene configurados (sin filtrar las keys)
+    // Reports which providers are configured without ever exposing the keys.
     chrome.storage.local.get(['nsp_groq_api_key', 'nsp_ollama_enabled', 'nsp_gemini_api_key'], function(r) {
       var hasGroq = !!(r && r.nsp_groq_api_key && /^gsk_/.test(r.nsp_groq_api_key));
       var hasOllama = !!(r && r.nsp_ollama_enabled === true);
@@ -515,14 +500,13 @@ window.addEventListener('message', function(event) {
       }, window.location.origin);
     });
   } else if (data.type === 'NSP_COACH_SESSIONS_GET') {
-    // v3.5.0: lista de sesiones del Coach (cada una = una conversación)
     chrome.storage.local.get(['nsp_coach_sessions', 'nsp_coach_history'], function(r) {
       var sessions = Array.isArray(r && r.nsp_coach_sessions) ? r.nsp_coach_sessions : [];
-      // Migración: si hay historial viejo en nsp_coach_history y NO hay sesiones, crear primera sesión
+      // Old installs only have nsp_coach_history, turn it into the first session.
       if (!sessions.length && Array.isArray(r && r.nsp_coach_history) && r.nsp_coach_history.length) {
         var migrated = {
           id: 'sess-migrated-' + Date.now(),
-          title: 'Conversación anterior',
+          title: 'Previous conversation',
           createdAt: Date.now() - 1000,
           updatedAt: Date.now(),
           messages: r.nsp_coach_history.slice(-100)
@@ -533,11 +517,10 @@ window.addEventListener('message', function(event) {
       window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, sessions: sessions }, window.location.origin);
     });
   } else if (data.type === 'NSP_COACH_SESSIONS_SET') {
-    // v3.5.0: guardar lista completa de sesiones (máx 30 sesiones, mensajes truncados a 100 c/u)
     var newSessions = Array.isArray(data.sessions) ? data.sessions.slice(-30).map(function(s) {
       return {
         id: String(s && s.id || '').slice(0, 80),
-        title: String(s && s.title || 'Conversación').slice(0, 120),
+        title: String(s && s.title || 'Conversation').slice(0, 120),
         createdAt: Number(s && s.createdAt) || Date.now(),
         updatedAt: Number(s && s.updatedAt) || Date.now(),
         messages: Array.isArray(s && s.messages) ? s.messages.slice(-100) : []

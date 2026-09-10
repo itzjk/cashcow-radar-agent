@@ -1,40 +1,36 @@
-// BrandForge — identidad completa de canal faceless con IA (nombres/handle/tagline/bio/paleta/pilares)
-// + logo y banner generados con Gemini ("Nano Banana"). 100% en página de extensión.
 (function () {
   'use strict';
-  TK.mountHead('BrandForge', 'BRANDING IA');
+  TK.mountHead('BrandForge', 'AI BRANDING');
   var $ = function (id) { return document.getElementById(id); };
   var nicheEl = $('niche'), styleEl = $('style'), langEl = $('lang'), statusEl = $('status'), resultEl = $('result'), go = $('go');
 
-  // Prefill desde handoff (ej. llega el nicho desde Emular / NicheMaster).
   try { var hp = localStorage.getItem('zerack_handoff_topic'); if (hp && !nicheEl.value) { nicheEl.value = hp; localStorage.removeItem('zerack_handoff_topic'); } } catch (e) {}
 
   function sys() {
-    return 'Sos brand strategist de canales faceless de YouTube que facturan millones. Creas identidades memorables, brandeables y monetizables. ' +
-      'Devolves EXCLUSIVAMENTE un JSON valido, sin texto extra ni markdown.';
+    return 'You are a brand strategist for faceless YouTube channels that earn at scale. You create identities that are memorable, brandable and monetizable. ' +
+      'You return ONLY valid JSON, with no extra text and no markdown.';
   }
   function aiPrompt(niche, lang) {
-    return 'NICHO DEL CANAL: "' + niche.slice(0, 500) + '"\nIDIOMA de los textos visibles: ' + lang + '\n\n' +
-      'Devolve un JSON con esta forma EXACTA:\n' +
+    return 'CHANNEL NICHE: "' + niche.slice(0, 500) + '"\nLANGUAGE of the visible text: ' + lang + '\n\n' +
+      'Return a JSON object with this EXACT shape:\n' +
       '{\n' +
-      '  "names": ["8 nombres de canal cortos, memorables y brandeables (NO genericos), en ' + lang + '"],\n' +
-      '  "handles": ["6 handles tipo @nombre, sin espacios, derivados de los nombres"],\n' +
-      '  "tagline": "1 tagline corto y potente en ' + lang + '",\n' +
-      '  "bio": "descripcion del canal en ' + lang + ' (2-3 frases: gancho + que encontraras + CTA suave)",\n' +
-      '  "palette": [{"hex":"#RRGGBB","use":"para que sirve (fondo / acento / texto)"}],\n' +
-      '  "pillars": ["5 pilares o series de contenido para el canal, en ' + lang + '"],\n' +
+      '  "names": ["8 short channel names, memorable and brandable, never generic, in ' + lang + '"],\n' +
+      '  "handles": ["6 handles like @name, no spaces, derived from the names"],\n' +
+      '  "tagline": "one short, strong tagline in ' + lang + '",\n' +
+      '  "bio": "channel description in ' + lang + ', 2-3 sentences: hook, what they will find, soft call to action",\n' +
+      '  "palette": [{"hex":"#RRGGBB","use":"what it is for: background, accent or text"}],\n' +
+      '  "pillars": ["5 content pillars or series for the channel, in ' + lang + '"],\n' +
       '  "logoIdea": "ENGLISH visual concept for the channel logo icon (object + mood, no text)",\n' +
       '  "bannerIdea": "ENGLISH visual concept for the channel banner (scene + atmosphere, no text)"\n' +
-      '}\nLa paleta debe tener 5 colores que matcheen el nicho. NADA fuera del JSON.';
+      '}\nThe palette must have 5 colors that match the niche. NOTHING outside the JSON.';
   }
 
-  // Generación de imagen con Gemini (mismo patrón que el editor: responseModalities IMAGE).
   function genImage(key, prompt) {
     var body = { contents: [{ parts: [{ text: 'Generate ONE image. ' + prompt + ' Absolutely NO text, letters, words or watermark inside the image.' }] }], generationConfig: { responseModalities: ['TEXT', 'IMAGE'] } };
     var models = ['gemini-2.0-flash-preview-image-generation', 'gemini-2.5-flash-image-preview', 'gemini-2.5-flash-image'], i = 0;
     return new Promise(function (resolve, reject) {
       (function tryM() {
-        if (i >= models.length) return reject(new Error('Gemini no devolvió imagen (modelo no disponible en tu key).'));
+        if (i >= models.length) return reject(new Error('Gemini returned no image. That model is not available on your key.'));
         var m = models[i++];
         fetch('https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent?key=' + encodeURIComponent(key), {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
@@ -54,25 +50,25 @@
 
   function run() {
     var niche = nicheEl.value.trim();
-    if (!niche) { TK.status(statusEl, 'Escribi el nicho/tema del canal primero.', 'error'); return; }
+    if (!niche) { TK.status(statusEl, 'Type the channel niche or topic first.', 'error'); return; }
     go.disabled = true; resultEl.innerHTML = '';
-    statusEl.innerHTML = '<span class="tk-spin"></span>Creando tu identidad de marca…'; statusEl.style.color = '#FFD93D';
+    statusEl.innerHTML = '<span class="tk-spin"></span>Building your brand identity'; statusEl.style.color = '#FFD93D';
     TK.keys().then(function (k) {
       _gkey = (k.gemini && /^AIza/.test(k.gemini)) ? k.gemini : '';
       return TK.ai(sys(), aiPrompt(niche, langEl.value), 0.85);
     }).then(function (txt) {
       var d = TK.json(txt);
-      if (!d || !d.names) throw new Error('La IA no devolvio una marca valida. Proba de nuevo.');
+      if (!d || !d.names) throw new Error('The AI did not return a valid brand. Try again.');
       render(d, niche, styleEl.value);
-      TK.status(statusEl, '✓ Identidad lista' + (_gkey ? ' — generando logo y banner con Gemini…' : ' (agregá tu key de Gemini en Opciones para generar el logo/banner).'), 'ok');
+      TK.status(statusEl, 'Identity ready' + (_gkey ? ', generating the logo and banner with Gemini' : '. Add your Gemini key in Options to generate the logo and banner.'), 'ok');
     }).catch(function (e) {
       if (String(e && e.message) === 'NOKEYS') { resultEl.innerHTML = TK.needKeysHTML(); TK.wireNeedKeys(resultEl); TK.status(statusEl, '', ''); }
-      else TK.status(statusEl, '⚠ ' + (e && e.message || e), 'error');
+      else TK.status(statusEl, String(e && e.message || e), 'error');
     }).then(function () { go.disabled = false; });
   }
 
   function copyBtn(text, label) {
-    var b = document.createElement('button'); b.className = 'tk-btn sm'; b.textContent = label || 'Copiar';
+    var b = document.createElement('button'); b.className = 'tk-btn sm'; b.textContent = label || 'Copy';
     b.addEventListener('click', function () { TK.copy(text, b); });
     return b;
   }
@@ -83,7 +79,7 @@
   }
   function lineList(card, items, withCopyAll) {
     if (withCopyAll && items.length) {
-      var all = document.createElement('button'); all.className = 'tk-btn sm'; all.style.float = 'right'; all.textContent = 'Copiar todo';
+      var all = document.createElement('button'); all.className = 'tk-btn sm'; all.style.float = 'right'; all.textContent = 'Copy all';
       all.addEventListener('click', function () { TK.copy(items.join('\n'), all); });
       card.querySelector('h3').appendChild(all);
     }
@@ -116,20 +112,20 @@
       img.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
       holder.appendChild(img);
       ctr.innerHTML = '';
-      var dl = document.createElement('button'); dl.className = 'tk-btn sm'; dl.textContent = '⬇ Descargar';
+      var dl = document.createElement('button'); dl.className = 'tk-btn sm'; dl.textContent = 'Download';
       dl.addEventListener('click', function () { var a = document.createElement('a'); a.href = dataUrl; a.download = fname; document.body.appendChild(a); a.click(); setTimeout(function () { try { document.body.removeChild(a); } catch (e) {} }, 2000); });
-      var re = document.createElement('button'); re.className = 'tk-btn sm'; re.textContent = '🔁 Otra variante';
+      var re = document.createElement('button'); re.className = 'tk-btn sm'; re.textContent = 'Another variant';
       re.addEventListener('click', function () { gen(); });
-      ctr.appendChild(dl); ctr.appendChild(re); ctr.appendChild(copyBtn(prompt, 'Copiar prompt'));
+      ctr.appendChild(dl); ctr.appendChild(re); ctr.appendChild(copyBtn(prompt, 'Copy prompt'));
     }
     function promptOnly(msg) {
       holder.innerHTML = ''; holder.textContent = msg;
-      ctr.innerHTML = ''; ctr.appendChild(copyBtn(prompt, 'Copiar prompt'));
+      ctr.innerHTML = ''; ctr.appendChild(copyBtn(prompt, 'Copy prompt'));
     }
     function gen() {
-      if (!_gkey) { promptOnly('🔑 Agregá tu key de Gemini en Opciones para generar la imagen. Mientras, copiá el prompt.'); return; }
-      holder.innerHTML = '<span class="tk-spin"></span> generando…'; ctr.innerHTML = '';
-      genImage(_gkey, prompt).then(paint).catch(function (e) { promptOnly('⚠ ' + (e && e.message || 'no se pudo generar') + ' — copiá el prompt y generalo en tu IA de imágenes.'); });
+      if (!_gkey) { promptOnly('Add your Gemini key in Options to generate the image. In the meantime, copy the prompt.'); return; }
+      holder.innerHTML = '<span class="tk-spin"></span> generating'; ctr.innerHTML = '';
+      genImage(_gkey, prompt).then(paint).catch(function (e) { promptOnly((e && e.message || 'The image could not be generated') + '. Copy the prompt and run it in your own image AI.'); });
     }
     gen();
   }
@@ -137,7 +133,7 @@
   function render(d, niche, styleHint) {
     resultEl.innerHTML = '';
 
-    var nc = block('🏷️ Nombres de canal');
+    var nc = block('Channel names');
     lineList(nc, (d.names || []).map(String), true);
     if (d.handles && d.handles.length) {
       var hh = document.createElement('div'); hh.className = 'tk-scene-meta'; hh.style.marginTop = '6px';
@@ -147,19 +143,19 @@
     resultEl.appendChild(nc);
 
     if (d.tagline || d.bio) {
-      var bc = block('✍️ Tagline + Bio');
-      if (d.tagline) { var tg = document.createElement('div'); tg.className = 'tk-scene'; var tgn = document.createElement('div'); tgn.style.cssText = 'font-size:15px;font-weight:900;color:#fff;margin-bottom:4px;'; tgn.textContent = '“' + d.tagline + '”'; tg.appendChild(tgn); tg.appendChild(copyBtn(d.tagline)); bc.appendChild(tg); }
+      var bc = block('Tagline and bio');
+      if (d.tagline) { var tg = document.createElement('div'); tg.className = 'tk-scene'; var tgn = document.createElement('div'); tgn.style.cssText = 'font-size:15px;font-weight:900;color:#fff;margin-bottom:4px;'; tgn.textContent = d.tagline; tg.appendChild(tgn); tg.appendChild(copyBtn(d.tagline)); bc.appendChild(tg); }
       if (d.bio) { var bo = document.createElement('div'); bo.className = 'tk-scene'; var bot = document.createElement('div'); bot.style.cssText = 'font-size:12px;color:rgba(255,255,255,.85);line-height:1.6;margin-bottom:6px;'; bot.textContent = d.bio; bo.appendChild(bot); bo.appendChild(copyBtn(d.bio)); bc.appendChild(bo); }
       resultEl.appendChild(bc);
     }
 
     if (d.palette && d.palette.length) {
-      var pc = block('🎨 Paleta de marca');
+      var pc = block('Brand palette');
       var sw = document.createElement('div'); sw.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;';
       d.palette.forEach(function (c) {
         var hex = (c && c.hex) || (typeof c === 'string' ? c : '#000000');
         var chip = document.createElement('button');
-        chip.title = 'Copiar ' + hex + (c && c.use ? ' (' + c.use + ')' : '');
+        chip.title = 'Copy ' + hex + (c && c.use ? ' (' + c.use + ')' : '');
         chip.style.cssText = 'width:64px;height:64px;border-radius:12px;border:1px solid rgba(255,255,255,.18);cursor:pointer;position:relative;background:' + hex + ';';
         var lab = document.createElement('span'); lab.style.cssText = 'position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:800;background:rgba(0,0,0,.55);color:#fff;padding:2px 0;border-radius:0 0 11px 11px;'; lab.textContent = hex;
         chip.appendChild(lab);
@@ -169,38 +165,38 @@
       pc.appendChild(sw); resultEl.appendChild(pc);
     }
 
-    var ic = block('🖼️ Logo + Banner (IA · Gemini)');
+    var ic = block('Logo and banner, generated with Gemini');
     var logoP = 'Square 1:1 minimalist YouTube channel LOGO ICON: ' + (d.logoIdea || (niche + ' symbol')) + '. Style: ' + styleHint + '. Centered emblem, bold, flat, high contrast, clean.';
     var bannerP = 'Wide 16:9 cinematic YouTube channel BANNER art: ' + (d.bannerIdea || niche) + '. Style: ' + styleHint + '. Atmospheric, professional, empty space in the center for the channel name.';
-    imgCard(ic, 'LOGO · variante 1', logoP, false, 'logo-1.png');
-    imgCard(ic, 'LOGO · variante 2', logoP, false, 'logo-2.png');
+    imgCard(ic, 'LOGO · variant 1', logoP, false, 'logo-1.png');
+    imgCard(ic, 'LOGO · variant 2', logoP, false, 'logo-2.png');
     imgCard(ic, 'BANNER (16:9)', bannerP, true, 'banner.png');
     var note = document.createElement('div'); note.className = 'tk-scene-meta';
-    note.textContent = 'Banner ideal de YouTube: 2560×1440. Si lo querés en máxima resolución, copiá el prompt y generalo grande en tu IA preferida.';
+    note.textContent = 'The ideal YouTube banner is 2560x1440. For full resolution, copy the prompt and generate it large in the image AI you prefer.';
     ic.appendChild(note);
     resultEl.appendChild(ic);
 
     var act = document.createElement('div'); act.className = 'tk-row'; act.style.marginTop = '4px';
-    var dlk = document.createElement('button'); dlk.className = 'tk-btn'; dlk.textContent = '⬇ Descargar kit de marca (.txt)';
+    var dlk = document.createElement('button'); dlk.className = 'tk-btn'; dlk.textContent = 'Download brand kit (.txt)';
     dlk.addEventListener('click', function () {
-      var kit = 'KIT DE MARCA — ' + niche + '\n\nNOMBRES:\n' + (d.names || []).join('\n')
+      var kit = 'BRAND KIT: ' + niche + '\n\nNAMES:\n' + (d.names || []).join('\n')
         + '\n\nHANDLES:\n' + (d.handles || []).join('\n')
         + '\n\nTAGLINE: ' + (d.tagline || '') + '\n\nBIO:\n' + (d.bio || '')
-        + '\n\nPALETA:\n' + (d.palette || []).map(function (c) { return (c.hex || c) + ' — ' + (c.use || ''); }).join('\n')
-        + '\n\nPILARES DE CONTENIDO:\n' + (d.pillars || []).join('\n')
+        + '\n\nPALETTE:\n' + (d.palette || []).map(function (c) { return (c.hex || c) + ': ' + (c.use || ''); }).join('\n')
+        + '\n\nCONTENT PILLARS:\n' + (d.pillars || []).join('\n')
         + '\n\nLOGO PROMPT:\n' + logoP + '\n\nBANNER PROMPT:\n' + bannerP;
-      TK.download('kit-de-marca.txt', kit);
+      TK.download('brand-kit.txt', kit);
     });
     act.appendChild(dlk);
     resultEl.appendChild(act);
 
     if (d.pillars && d.pillars.length) {
-      var plc = block('📚 Pilares de contenido');
+      var plc = block('Content pillars');
       lineList(plc, d.pillars.map(String), true);
       resultEl.appendChild(plc);
     }
   }
 
   go.addEventListener('click', run);
-  if (nicheEl.value.trim()) TK.status(statusEl, 'Nicho cargado — dale a Generar.', '');
+  if (nicheEl.value.trim()) TK.status(statusEl, 'Niche loaded. Press Generate.', '');
 })();

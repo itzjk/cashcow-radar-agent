@@ -1,6 +1,3 @@
-// ashlyv/tools/toolkit.js — helpers compartidos para las herramientas ZERACK.
-// IA: Groq (rápido) → Gemini (fallback). Keys que el usuario puso en Opciones
-// (nsp_groq_api_key / nsp_gemini_api_key). 100% en la página de extensión (host_permissions cubren ambas APIs).
 (function () {
   'use strict';
   var TK = {};
@@ -37,7 +34,7 @@
     var prompt = (sys ? sys + '\n\n' : '') + user, i = 0;
     return new Promise(function (resolve, reject) {
       (function tryM() {
-        if (i >= models.length) return reject(new Error('Gemini sin modelos disponibles'));
+        if (i >= models.length) return reject(new Error('No Gemini model available'));
         var m = models[i++];
         fetch('https://generativelanguage.googleapis.com/v1beta/models/' + m + ':generateContent?key=' + encodeURIComponent(k.gemini), {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -49,17 +46,15 @@
     });
   };
 
-  // Orquestador: Groq → Gemini. Rechaza con 'NOKEYS' si no hay ninguna key.
   TK.ai = function (sys, user, temp) {
     return TK.keys().then(function (k) {
       if (!k.groq && !k.gemini) return Promise.reject(new Error('NOKEYS'));
-      if (k.groq && /^gsk_/.test(k.groq)) return TK.groq(k, sys, user, temp).catch(function () { if (k.gemini) return TK.gemini(k, sys, user, temp); throw new Error('Groq falló y no hay Gemini'); });
+      if (k.groq && /^gsk_/.test(k.groq)) return TK.groq(k, sys, user, temp).catch(function () { if (k.gemini) return TK.gemini(k, sys, user, temp); throw new Error('Groq failed and no Gemini key is set'); });
       if (k.gemini) return TK.gemini(k, sys, user, temp);
       return Promise.reject(new Error('NOKEYS'));
     });
   };
 
-  // Extrae el primer JSON válido del texto (tolera ```json, prosa alrededor, etc.).
   TK.json = function (text) {
     if (!text) return null;
     var t = String(text).replace(/```json/gi, '```').trim();
@@ -76,7 +71,7 @@
   TK.copy = function (text, btn) {
     try {
       navigator.clipboard.writeText(text);
-      if (btn) { var o = btn.textContent; btn.textContent = '✓ Copiado'; setTimeout(function () { btn.textContent = o; }, 1300); }
+      if (btn) { var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = o; }, 1300); }
     } catch (e) {}
   };
 
@@ -95,12 +90,11 @@
     el.style.color = tone === 'error' ? '#ff6b6b' : tone === 'ok' ? '#00DC82' : tone === 'busy' ? '#FFD93D' : 'rgba(255,255,255,.6)';
   };
 
-  // Aviso estándar cuando faltan las API keys: muestra cómo activarlas.
   TK.needKeysHTML = function () {
     return '<div class="tk-need"><div class="tk-need-ic">🔑</div>' +
-      '<div class="tk-need-t">Falta tu API key (gratis)</div>' +
-      '<div class="tk-need-d">Estas herramientas usan IA. Agregá tu key de <b>Groq</b> o <b>Gemini</b> (gratis) en Opciones y volvé a intentar.</div>' +
-      '<button class="tk-btn primary" id="tk-open-options">⚙️ Abrir Opciones</button></div>';
+      '<div class="tk-need-t">Your API key is missing</div>' +
+      '<div class="tk-need-d">These tools run on AI. Add your free <b>Groq</b> or <b>Gemini</b> key in Options and try again.</div>' +
+      '<button class="tk-btn primary" id="tk-open-options">Open Options</button></div>';
   };
   TK.wireNeedKeys = function (root) {
     var b = (root || document).querySelector('#tk-open-options');
@@ -112,7 +106,6 @@
     try { window.open(chrome.runtime.getURL('options/options.html'), '_blank'); } catch (e) {}
   };
 
-  // Navega de vuelta al hub ASHLYV.
   TK.backToHub = function () {
     try { location.href = chrome.runtime.getURL('ashlyv/ashlyv.html'); } catch (e) { history.back(); }
   };
@@ -121,20 +114,18 @@
     try { if (script) localStorage.setItem('zerack_handoff_script', script); } catch (e) {}
     try { location.href = chrome.runtime.getURL('dashboard/dashboard.html'); } catch (e) { location.href = '../../dashboard/dashboard.html'; }
   };
-  // Manda un guion a otra herramienta del flujo (voxforge / thumbnailforge / scriptforge).
   TK.toTool = function (page, script, topic) {
     try { if (script) localStorage.setItem('zerack_handoff_script', script); } catch (e) {}
     try { if (topic) localStorage.setItem('zerack_handoff_topic', topic); } catch (e) {}
     location.href = page;
   };
 
-  // Monta la cabecera estándar (logo + título + volver). Espera #tk-head en el DOM.
   TK.mountHead = function (title, kicker) {
     var h = document.getElementById('tk-head'); if (!h) return;
     h.innerHTML =
       '<div class="tk-brand"><span class="tk-logo">🦇</span><div><div class="tk-kicker">' + TK.esc(kicker || 'ASHLYV · ZERACK') + '</div>' +
       '<div class="tk-title">' + TK.esc(title || '') + '</div></div></div>' +
-      '<button class="tk-btn ghost" id="tk-back">← Volver al hub</button>';
+      '<button class="tk-btn ghost" id="tk-back">Back to hub</button>';
     var b = h.querySelector('#tk-back'); if (b) b.addEventListener('click', TK.backToHub);
   };
 
