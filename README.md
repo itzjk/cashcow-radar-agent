@@ -43,7 +43,6 @@ Two extra AI paths exist and are off unless you set them up yourself: a local Ol
 - `dashboard/` — saved channels, bulk operations, CSV/JSON export.
 - `country-feed/` — faceless feed by country through InnerTube.
 - `niche-index/`, `niches/` — the niche tables with their RPM.
-- `monetize-studio/` — browser video editor: images → video, Ken Burns, automatic captions from the voice track (Whisper running locally), niche templates, WebCodecs export to MP4.
 
 **Background** (`background/service-worker.js`) — message hub, AI cascade (Groq → Ollama → Gemini), rate limiters, InnerTube proxy, periodic alarms.
 

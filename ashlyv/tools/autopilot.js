@@ -118,7 +118,7 @@
 
     // acciones del flujo
     var act = document.createElement('div'); act.className = 'tk-row'; act.style.marginTop = '6px';
-    var ed = document.createElement('button'); ed.className = 'tk-btn primary'; ed.textContent = '🛡️ Abrir en Monetize Studio';
+    var ed = document.createElement('button'); ed.className = 'tk-btn primary'; ed.textContent = 'Send to Command Center';
     ed.addEventListener('click', function () { TK.toEditor(s.fullScript || ''); });
     var vx = document.createElement('button'); vx.className = 'tk-btn'; vx.textContent = '🎙️ Narrar en VoxBatch';
     vx.addEventListener('click', function () { TK.toTool('voxforge.html', s.fullScript || ''); });

@@ -117,10 +117,9 @@
     try { location.href = chrome.runtime.getURL('ashlyv/ashlyv.html'); } catch (e) { history.back(); }
   };
 
-  // Manda un guion al editor Monetize Studio (comparten localStorage, misma extensión).
   TK.toEditor = function (script) {
     try { if (script) localStorage.setItem('zerack_handoff_script', script); } catch (e) {}
-    try { location.href = chrome.runtime.getURL('monetize-studio/index.html'); } catch (e) { location.href = '../../monetize-studio/index.html'; }
+    try { location.href = chrome.runtime.getURL('dashboard/dashboard.html'); } catch (e) { location.href = '../../dashboard/dashboard.html'; }
   };
   // Manda un guion a otra herramienta del flujo (voxforge / thumbnailforge / scriptforge).
   TK.toTool = function (page, script, topic) {

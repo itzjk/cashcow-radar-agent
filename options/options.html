@@ -8,7 +8,7 @@
     :root {
       --bg:#000000;--bg2:#0d0d0d;--card:rgba(255,255,255,.07);
       --line:rgba(255,255,255,.1);--text:#ffffff;--muted:rgba(234,240,255,.6);
-      --muted2:rgba(234,240,255,.4);--accentA:#7B5CFF;--accentB:#FF4FD8;--accentC:#2EE9FF;
+      --muted2:rgba(234,240,255,.4);--accentA:#7B5CFF;--accentB:#FF4FD8;--accentC:#FFFFFF;
       --mono:"Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     }
     *{box-sizing:border-box;margin:0;padding:0}
@@ -41,7 +41,7 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="logo"><svg viewBox="0 0 100 60" width="24" height="15" fill="#fff" style="vertical-align:middle;margin-right:4px;filter:drop-shadow(0 0 4px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg> NicheScanner Pro</div>
+  <div class="logo"><svg viewBox="0 0 100 60" width="24" height="15" fill="#fff" style="vertical-align:middle;margin-right:4px;filter:drop-shadow(0 0 4px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg> ZERACK</div>
   <div class="subtitle">Settings — Configuración de métricas y display</div>
 
   <div class="section">
@@ -54,7 +54,7 @@
     </div>
   </div>
 
-  <div class="section" style="border-color:rgba(46,233,255,0.35);background:linear-gradient(135deg,rgba(46,233,255,0.04),rgba(123,92,255,0.04));">
+  <div class="section" style="border-color:rgba(255, 255, 255,0.35);background:linear-gradient(135deg,rgba(255, 255, 255,0.04),rgba(123,92,255,0.04));">
     <div class="section-title" style="color:var(--accentC);">⚡ ZERACK — Gemini API Key</div>
     <div class="field">
       <label style="color:var(--text);">API Key (Google Gemini, gratis)</label>
@@ -64,7 +64,7 @@
         Consigue tu API key en <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" style="color:var(--accentC);text-decoration:underline;">aistudio.google.com/apikey</a> (30 segundos, sin tarjeta).
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
-        <button id="nsp-gemini-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(46,233,255,0.55);background:linear-gradient(135deg,rgba(46,233,255,0.22),rgba(123,92,255,0.12));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
+        <button id="nsp-gemini-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255, 255, 255,0.55);background:linear-gradient(135deg,rgba(255, 255, 255,0.22),rgba(123,92,255,0.12));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
           💾 GUARDAR KEY
         </button>
         <button id="nsp-gemini-test-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
@@ -76,14 +76,14 @@
   </div>
 
   <!-- v3.8.0 — GROQ provider -->
-  <div class="section" style="border-color:rgba(255,107,107,0.45);background:linear-gradient(135deg,rgba(255,107,107,0.06),rgba(255,217,61,0.04));">
-    <div class="section-title" style="color:#FF6B6B;">🚀 GROQ — Provider rápido (750-1000 tok/s)</div>
+  <div class="section" style="border-color:rgba(255,107,107,0.45);background:linear-gradient(135deg,rgba(255,107,107,0.06),rgba(255, 255, 255,0.04));">
+    <div class="section-title" style="color:#FF2D2D;">🚀 GROQ — Provider rápido (750-1000 tok/s)</div>
     <div class="field">
       <label style="color:var(--text);">Groq API Key (gratis, prioridad alta)</label>
       <input type="text" id="nsp-groq-key" placeholder="gsk_..." autocomplete="off" spellcheck="false" style="font-family:var(--mono);"/>
       <div style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.55;">
         Inferencia ultra-rápida en cloud. <strong>30 req/min, 14,400 req/día — DOBLE de Gemini.</strong><br/>
-        Crea tu key en <a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color:#FF6B6B;text-decoration:underline;">console.groq.com/keys</a> (sign-up con Google, sin tarjeta).
+        Crea tu key en <a href="https://console.groq.com/keys" target="_blank" rel="noopener" style="color:#FF2D2D;text-decoration:underline;">console.groq.com/keys</a> (sign-up con Google, sin tarjeta).
       </div>
       <div style="margin-top:8px;">
         <label style="color:var(--muted);font-size:10.5px;">Modelo Groq:</label>
@@ -96,7 +96,7 @@
         </select>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
-        <button id="nsp-groq-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,107,107,0.55);background:linear-gradient(135deg,rgba(255,107,107,0.22),rgba(255,217,61,0.10));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
+        <button id="nsp-groq-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,107,107,0.55);background:linear-gradient(135deg,rgba(255,107,107,0.22),rgba(255, 255, 255,0.10));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
           💾 GUARDAR
         </button>
         <button id="nsp-groq-test-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
@@ -108,7 +108,7 @@
   </div>
 
   <!-- v3.8.0 — OLLAMA local provider -->
-  <div class="section" style="border-color:rgba(123,92,255,0.45);background:linear-gradient(135deg,rgba(123,92,255,0.06),rgba(46,233,255,0.04));">
+  <div class="section" style="border-color:rgba(123,92,255,0.45);background:linear-gradient(135deg,rgba(123,92,255,0.06),rgba(255, 255, 255,0.04));">
     <div class="section-title" style="color:#A88FFF;">🦙 OLLAMA — Provider local (sin límites, offline)</div>
     <div class="field">
       <label style="color:var(--text);display:flex;align-items:center;gap:8px;">
@@ -130,7 +130,7 @@
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:12px;">
-        <button id="nsp-ollama-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(123,92,255,0.55);background:linear-gradient(135deg,rgba(123,92,255,0.22),rgba(46,233,255,0.10));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
+        <button id="nsp-ollama-save-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(123,92,255,0.55);background:linear-gradient(135deg,rgba(123,92,255,0.22),rgba(255, 255, 255,0.10));color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
           💾 GUARDAR
         </button>
         <button id="nsp-ollama-test-btn" type="button" style="flex:1;padding:11px;border-radius:8px;border:1px solid rgba(255,255,255,0.25);background:rgba(255,255,255,0.06);color:var(--text);font-family:var(--mono);font-size:12px;font-weight:800;cursor:pointer;letter-spacing:.06em;">
@@ -145,23 +145,23 @@
        El RPM real se calcula automáticamente por nicho detectado en el título de cada video:
        finanzas=$22, negocios=$16, IA=$13, tech=$10, sleep/relax=$10.92, history=$5.50, gaming=$3.5,
        default=$3.0. Ver calcScore() en nsp-bundle.js L1975 y ASHLYV_NICHE_RPM en L1869. -->
-  <div class="section" style="border-color:rgba(255,217,61,0.25);background:rgba(255,217,61,0.04);">
-    <div class="section-title" style="color:#FFD93D;">ℹ️ RPM Automático por Nicho</div>
+  <div class="section" style="border-color:rgba(255, 255, 255,0.25);background:rgba(255, 255, 255,0.04);">
+    <div class="section-title" style="color:#FFFFFF;">ℹ️ RPM Automático por Nicho</div>
     <div style="font-size:11px;color:var(--muted);line-height:1.6;">
       El RPM se calcula <strong>automáticamente</strong> según el nicho detectado en cada título.
       No hay que configurar nada. Ejemplos de los valores aplicados:
       <br/><br/>
       <table style="width:100%;font-size:10.5px;border-collapse:collapse;">
-        <tr><td style="padding:3px 0;color:var(--text);">Finanzas / Inversiones</td><td style="text-align:right;color:#2EE9FF;font-weight:700;">$22 / mil views</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Negocios / Emprendimiento</td><td style="text-align:right;color:#2EE9FF;font-weight:700;">$16</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">IA y Automatización</td><td style="text-align:right;color:#2EE9FF;font-weight:700;">$13</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Sleep / Relax / Meditación</td><td style="text-align:right;color:#2EE9FF;font-weight:700;">$10.92</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Tecnología / Programación</td><td style="text-align:right;color:#2EE9FF;font-weight:700;">$10</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Legal / Seguros / Hipotecas</td><td style="text-align:right;color:#2EE9FF;font-weight:700;">$9</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Salud / Fitness</td><td style="text-align:right;color:#2EE9FF;font-weight:700;">$7</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Historia / True Crime</td><td style="text-align:right;color:#2EE9FF;font-weight:700;">$5.50 - $6</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Ciencia / Naturaleza / Psicología</td><td style="text-align:right;color:#2EE9FF;font-weight:700;">$5</td></tr>
-        <tr><td style="padding:3px 0;color:var(--text);">Supervivencia / Religion</td><td style="text-align:right;color:#2EE9FF;font-weight:700;">$4.50 - $6</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Finanzas / Inversiones</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$22 / mil views</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Negocios / Emprendimiento</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$16</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">IA y Automatización</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$13</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Sleep / Relax / Meditación</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$10.92</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Tecnología / Programación</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$10</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Legal / Seguros / Hipotecas</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$9</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Salud / Fitness</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$7</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Historia / True Crime</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$5.50 - $6</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Ciencia / Naturaleza / Psicología</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$5</td></tr>
+        <tr><td style="padding:3px 0;color:var(--text);">Supervivencia / Religion</td><td style="text-align:right;color:#FFFFFF;font-weight:700;">$4.50 - $6</td></tr>
         <tr><td style="padding:3px 0;color:var(--text);">Gaming / Sin clasificar</td><td style="text-align:right;color:var(--muted);">$3.00 - $3.50</td></tr>
       </table>
       <br/>

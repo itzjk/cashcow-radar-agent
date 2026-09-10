@@ -97,8 +97,6 @@
         "country-feed/*",
         "niche-index/niche-index.html",
         "niche-index/*",
-        "monetize-studio/index.html",
-        "monetize-studio/*",
         "lib/face-api/*",
         "lib/mobilenet/*",
         "lib/whisper/*",

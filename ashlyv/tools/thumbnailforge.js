@@ -142,7 +142,7 @@
     var act = document.createElement('div'); act.className = 'tk-row'; act.style.marginTop = '4px';
     var dlj = document.createElement('button'); dlj.className = 'tk-btn'; dlj.textContent = '⬇ Descargar plan (.json)';
     dlj.addEventListener('click', function () { TK.download('plan-visual.json', JSON.stringify(d, null, 2), 'application/json'); });
-    var ed = document.createElement('button'); ed.className = 'tk-btn primary'; ed.textContent = '🛡️ Abrir en Monetize Studio';
+    var ed = document.createElement('button'); ed.className = 'tk-btn primary'; ed.textContent = 'Send to Command Center';
     ed.addEventListener('click', function () { TK.toEditor(scriptEl.value || ''); });
     var vx = document.createElement('button'); vx.className = 'tk-btn'; vx.textContent = '🎙️ Narrar en VoxBatch';
     vx.addEventListener('click', function () { TK.toTool('voxforge.html', scriptEl.value || ''); });

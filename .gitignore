@@ -5,7 +5,6 @@ node_modules/
 lib/whisper/ort-wasm.wasm
 lib/whisper/ort-wasm-simd.wasm
 lib/whisper/models/Xenova/whisper-tiny/onnx/*.onnx
-monetize-studio/vendor/ffmpeg-core.wasm
 
 # Local backups
 *.bak

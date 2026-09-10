@@ -1,5 +1,5 @@
 #!/bin/sh
-# Downloads the five binary model/runtime files that are not stored in this repo.
+# Downloads the binary model files that are not stored in this repo.
 # Every file is checked against the SHA-256 of the build this code was released from.
 set -e
 
@@ -32,7 +32,6 @@ get() {
 
 ORT="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist"
 HF="https://huggingface.co/Xenova/whisper-tiny/resolve/main/onnx"
-FF="https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd"
 
 get "$ORT/ort-wasm.wasm" \
     "lib/whisper/ort-wasm.wasm" \
@@ -50,9 +49,5 @@ get "$HF/decoder_model_merged_quantized.onnx" \
     "lib/whisper/models/Xenova/whisper-tiny/onnx/decoder_model_merged_quantized.onnx" \
     "6c0c125986b007d2e3734bec84c18bda0152071b90b87fadac6d7764499927a0"
 
-get "$FF/ffmpeg-core.wasm" \
-    "monetize-studio/vendor/ffmpeg-core.wasm" \
-    "2390efa7fb66e7e42dbae15427571a5ffc96b829480904c30f471f0a78967f61"
-
 echo
-echo "All five assets in place. Load the folder in chrome://extensions."
+echo "All assets in place. Load the folder in chrome://extensions."

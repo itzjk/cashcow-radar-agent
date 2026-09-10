@@ -204,7 +204,7 @@ var __prog = { done: 0, error: 0, total: 0 };
 function setStatus(text, kind) {
   var s = $('status-line');
   s.textContent = text;
-  s.style.color = kind === 'error' ? '#FF6B6B' : (kind === 'ok' ? '#00DC82' : 'rgba(255,255,255,.7)');
+  s.style.color = kind === 'error' ? '#FF2D2D' : (kind === 'ok' ? '#FFFFFF' : 'rgba(255,255,255,.7)');
 }
 
 function setProgress(pct) {
@@ -314,10 +314,10 @@ function render() {
     td(fmtN(v.views), 'num');
     var verd = vphVerdict(v.vph);
     var tdV = td(fmtVPH(v.vph) + (verd.label !== 'SLOW' ? ' · ' + verd.label : ''), 'num vph');
-    if (verd.cls === 'viral') tdV.style.color = '#FFD93D';
+    if (verd.cls === 'viral') tdV.style.color = '#FFFFFF';
     var fs = Math.round(v.facelessScore || 0);
     var tdF = td(fs + '', 'num');
-    tdF.style.color = fs >= 60 ? '#00DC82' : (fs >= 30 ? '#FFD93D' : 'rgba(255,255,255,.45)');
+    tdF.style.color = fs >= 60 ? '#FFFFFF' : (fs >= 30 ? '#FFFFFF' : 'rgba(255,255,255,.45)');
     tdF.style.fontWeight = '800';
     td('$' + fmtN(v.totalRev), 'num');
     td(fmtAge(v.hoursOld), 'chs');

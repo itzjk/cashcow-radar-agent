@@ -21003,7 +21003,7 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
     try {
       var kit = 'EMULAR ESTE CANAL — kit listo para producir tu video en su estilo:\n\n'
         + buildChannelAnalysisQuickBrief(analysis)
-        + '\n\n→ PRODUCI: abri Monetize Studio (icono de la extension → 🛡️ MONETIZE STUDIO) y pega esto como guion base. Sale tu video en este estilo — algo que ni HacksLabs ni Nexlev hacen.';
+        + '\n\nPaste this into your writing tool as the base script and produce the video in this style.'
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(kit).then(function() {
           flashButton(emularBtn, '✓ KIT COPIADO — ABRI STUDIO', '🎬 EMULAR → CREAR VIDEO');

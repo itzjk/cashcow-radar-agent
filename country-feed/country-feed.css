@@ -15,8 +15,8 @@
   --border: rgba(255, 255, 255, 0.08);
   --border-2: rgba(255, 255, 255, 0.15);
   --danger: #FF4488;
-  --warn: #FFD93D;
-  --info: #2EE9FF;
+  --warn: #FFFFFF;
+  --info: #FFFFFF;
 }
 
 html, body {
@@ -98,7 +98,7 @@ body::before {
 }
 .status-dot.running {
   background: var(--warn);
-  box-shadow: 0 0 0 3px rgba(255, 217, 61, 0.18), 0 0 14px rgba(255, 217, 61, 0.5);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.18), 0 0 14px rgba(255, 255, 255, 0.5);
   animation: pulseRing 1.1s infinite;
 }
 .status-dot.done {
@@ -194,7 +194,7 @@ body::before {
 }
 .wf-node[data-state="running"] {
   border-color: var(--warn);
-  box-shadow: 0 0 0 1px rgba(255, 217, 61, 0.25), 0 4px 22px rgba(255, 217, 61, 0.2);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25), 0 4px 22px rgba(255, 255, 255, 0.2);
   animation: nodePulse 1.4s infinite;
 }
 .wf-node[data-state="done"] {
@@ -206,8 +206,8 @@ body::before {
   box-shadow: 0 0 0 1px rgba(255, 68, 136, 0.25), 0 4px 18px rgba(255, 68, 136, 0.18);
 }
 @keyframes nodePulse {
-  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 217, 61, 0.25), 0 4px 22px rgba(255, 217, 61, 0.2); }
-  50% { box-shadow: 0 0 0 2px rgba(255, 217, 61, 0.4), 0 6px 30px rgba(255, 217, 61, 0.35); }
+  0%, 100% { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25), 0 4px 22px rgba(255, 255, 255, 0.2); }
+  50% { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.4), 0 6px 30px rgba(255, 255, 255, 0.35); }
 }
 
 .wf-node-head {
@@ -322,8 +322,8 @@ body::before {
   font-size: 10.5px;
 }
 .wf-sub[data-state="running"] {
-  background: rgba(255, 217, 61, 0.06);
-  border-color: rgba(255, 217, 61, 0.3);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 .wf-sub[data-state="done"] {
   background: rgba(0, 255, 136, 0.05);
@@ -455,8 +455,8 @@ body::before {
   filter: drop-shadow(0 0 4px var(--warn));
 }
 @keyframes pulseRing {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(255, 217, 61, 0.2), 0 0 12px rgba(255, 217, 61, 0.4); }
-  50%      { box-shadow: 0 0 0 5px rgba(255, 217, 61, 0.35), 0 0 20px rgba(255, 217, 61, 0.6); }
+  0%, 100% { box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2), 0 0 12px rgba(255, 255, 255, 0.4); }
+  50%      { box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.35), 0 0 20px rgba(255, 255, 255, 0.6); }
 }
 
 /* ── Execute bar ────────────────────────────────────────── */
@@ -630,8 +630,8 @@ body::before {
   font-size: 9.5px; font-weight: 700; white-space: nowrap;
 }
 .stat-pill.vph { color: var(--neon); border-color: rgba(0,255,136,0.3); background: rgba(0,255,136,0.05); }
-.stat-pill.viral { color: #E040FF; border-color: rgba(224,64,255,0.4); background: rgba(224,64,255,0.08); }
-.stat-pill.hot { color: #FF6B35; border-color: rgba(255,107,53,0.4); background: rgba(255,107,53,0.08); }
+.stat-pill.viral { color: #FF2D2D; border-color: rgba(255, 45, 45,0.4); background: rgba(255, 45, 45,0.08); }
+.stat-pill.hot { color: #FF2D2D; border-color: rgba(255,107,53,0.4); background: rgba(255,107,53,0.08); }
 .video-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 6px; }
 .action-btn {
   padding: 6px 8px; border-radius: 5px; border: 1px solid var(--border-2);

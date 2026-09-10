@@ -100,7 +100,7 @@
     mf.addEventListener('click', function () { TK.toTool('thumbnailforge.html', d.fullScript || ''); });
     var vx = document.createElement('button'); vx.className = 'tk-btn'; vx.textContent = '🎙️ Mandar a VoxBatch';
     vx.addEventListener('click', function () { TK.toTool('voxforge.html', d.fullScript || ''); });
-    var ed = document.createElement('button'); ed.className = 'tk-btn primary'; ed.textContent = '🛡️ Abrir en Monetize Studio';
+    var ed = document.createElement('button'); ed.className = 'tk-btn primary'; ed.textContent = 'Send to Command Center';
     ed.addEventListener('click', function () { TK.toEditor(d.fullScript || ''); });
     act.appendChild(dl); act.appendChild(dlj); act.appendChild(vx); act.appendChild(mf); act.appendChild(ed);
     resultEl.appendChild(act);

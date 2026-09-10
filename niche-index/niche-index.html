@@ -8,7 +8,7 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   :root {
     --bg: #000; --panel: #0a0a0a; --line: rgba(255,255,255,.12);
-    --txt: #fff; --mut: rgba(255,255,255,.55); --ok: #00DC82; --bad: #FF6B6B; --warn: #FFD93D;
+    --txt: #fff; --mut: rgba(255,255,255,.55); --ok: #FFFFFF; --bad: #FF2D2D; --warn: #FFFFFF;
   }
   html, body { background: var(--bg); color: var(--txt); font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif; min-height: 100%; }
   body {
@@ -27,7 +27,7 @@
   button.danger { border-color: rgba(255,107,107,.5); color: var(--bad); }
   #stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 16px; }
   .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
-  .stat .v { font-size: 20px; font-weight: 900; color: var(--ok); text-shadow: 0 0 12px rgba(0,220,130,.4); }
+  .stat .v { font-size: 20px; font-weight: 900; color: var(--ok); text-shadow: 0 0 12px rgba(255, 255, 255,.4); }
   .stat .k { font-size: 9.5px; color: var(--mut); letter-spacing: .08em; text-transform: uppercase; margin-top: 3px; }
   #searchRow { display: flex; gap: 10px; margin-bottom: 12px; }
   #search { flex: 1; background: #0d0d0d; border: 1px solid rgba(255,255,255,.2); border-radius: 10px; color: #fff; padding: 11px 14px; font: 13px "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif; outline: none; }

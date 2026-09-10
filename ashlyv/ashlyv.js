@@ -1846,15 +1846,13 @@ function showAshlyVToolComingSoon(toolUrl) {
   ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;font-family:ui-monospace,Menlo,monospace;';
   ov.addEventListener('click', function (e) { if (e.target === ov) ov.parentNode.removeChild(ov); });
   var box = document.createElement('div');
-  box.style.cssText = 'width:min(440px,92vw);background:#0d1014;border:1px solid rgba(0,220,130,0.3);border-radius:16px;padding:26px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.6);';
+  box.style.cssText = 'width:min(440px,92vw);background:#0d1014;border:1px solid rgba(255,255,255,0.18);border-radius:16px;padding:26px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.6);';
   var ic = document.createElement('div'); ic.textContent = '🚧'; ic.style.cssText = 'font-size:40px;margin-bottom:10px;';
-  var t = document.createElement('div'); t.textContent = 'No pude abrir la herramienta'; t.style.cssText = 'font-size:16px;font-weight:900;color:#00DC82;margin-bottom:9px;';
-  var d = document.createElement('div'); d.textContent = 'Si acabás de actualizar, recargá la extensión en chrome://extensions (↻) y volvé a intentar. Mientras tanto podés abrir Monetize Studio.'; d.style.cssText = 'font-size:12.5px;color:rgba(255,255,255,0.6);line-height:1.6;margin-bottom:18px;';
-  var b = document.createElement('button'); b.textContent = '🛡️ Abrir Monetize Studio'; b.style.cssText = 'padding:12px 18px;border:none;border-radius:10px;background:linear-gradient(135deg,#00DC82,#00b86b);color:#04140d;font-weight:900;font-size:12.5px;cursor:pointer;font-family:inherit;';
-  b.addEventListener('click', function () { if (ov.parentNode) ov.parentNode.removeChild(ov); var u = 'monetize-studio/index.html'; try { if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) u = chrome.runtime.getURL(u); } catch (e) {} _openToolTab(u); });
+  var t = document.createElement('div'); t.textContent = 'Could not open that tool'; t.style.cssText = 'font-size:16px;font-weight:900;color:#00DC82;margin-bottom:9px;';
+  var d = document.createElement('div'); d.textContent = 'If you just updated, reload the extension in chrome://extensions and try again.'; d.style.cssText = 'font-size:12px;color:rgba(255,255,255,0.62);line-height:1.55;margin-bottom:16px;';
   var c = document.createElement('button'); c.textContent = 'Cerrar'; c.style.cssText = 'display:block;margin:12px auto 0;background:transparent;border:none;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;font-family:inherit;';
   c.addEventListener('click', function () { if (ov.parentNode) ov.parentNode.removeChild(ov); });
-  box.appendChild(ic); box.appendChild(t); box.appendChild(d); box.appendChild(b); box.appendChild(c);
+  box.appendChild(ic); box.appendChild(t); box.appendChild(d); box.appendChild(c);
   ov.appendChild(box); document.documentElement.appendChild(ov);
 }
 
