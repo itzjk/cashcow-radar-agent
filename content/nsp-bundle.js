@@ -1287,7 +1287,7 @@ function ashlyv_safeStorageSet(key, value, callback) {
     }
     var payload = {};
     payload[key] = sanitized;
-    chrome.storage.local.set(payload, function() {
+    nspStore.set(payload).then(function() {
       if (chrome.runtime && chrome.runtime.lastError) {
         console.warn('[ASHLYV] Storage error:', chrome.runtime.lastError.message);
       }
@@ -1391,11 +1391,11 @@ function ashlyv_checkInstalledVersion() {
   try {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.storage || !chrome.storage.local) return;
     var current = (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
-    chrome.storage.local.get(['ashlyv_installed_version'], function(res) {
+    nspStore.get(['ashlyv_installed_version']).then(function(res) {
       var previous = res && typeof res.ashlyv_installed_version === 'string' ? ashlyv_sanitize(res.ashlyv_installed_version).slice(0, 40) : '';
       if (previous && previous !== current) {
         console.log('[ASHLYV] Updated from', previous, 'to', current);
-        chrome.storage.local.remove(['ashlyv_thumbnail_history', 'ashlyv_alert_history']);
+        nspStore.remove(['ashlyv_thumbnail_history', 'ashlyv_alert_history']);
       }
       ashlyv_safeStorageSet('ashlyv_installed_version', current);
     });
@@ -1481,7 +1481,67 @@ function normalizeLinkedScanPrefs(currentPrefs, partial) {
   return normalizeUserScanPrefs(merged);
 }
 
+var NSP_RELAY_PENDING = {};
+var NSP_RELAY_SEQ = 0;
+
+window.addEventListener('message', function(event) {
+  if (event.source !== window) return;
+  var d = event.data;
+  if (!d || d.type !== 'NSP_RELAY_RESULT') return;
+  var pending = NSP_RELAY_PENDING[d.requestId];
+  if (!pending) return;
+  delete NSP_RELAY_PENDING[d.requestId];
+  clearTimeout(pending.timer);
+  pending.resolve(d);
+});
+
+function nspRelay(message, timeoutMs) {
+  return new Promise(function(resolve) {
+    var reqId = 'rl_' + (++NSP_RELAY_SEQ) + '_' + Date.now().toString(36);
+    message.requestId = reqId;
+    NSP_RELAY_PENDING[reqId] = {
+      resolve: resolve,
+      timer: setTimeout(function() {
+        delete NSP_RELAY_PENDING[reqId];
+        resolve({ ok: false, error: 'relay_timeout' });
+      }, timeoutMs || 15000)
+    };
+    try {
+      window.postMessage(message, window.location.origin);
+    } catch (e) {
+      delete NSP_RELAY_PENDING[reqId];
+      resolve({ ok: false, error: String(e && e.message || e) });
+    }
+  });
+}
+
+var nspStore = {
+  get: function(keys) {
+    return nspRelay({ type: 'NSP_RELAY_STORAGE', op: 'get', keys: Array.isArray(keys) ? keys : [keys] })
+      .then(function(r) { return (r && r.ok && r.data) ? r.data : {}; });
+  },
+  set: function(items) {
+    return nspRelay({ type: 'NSP_RELAY_STORAGE', op: 'set', items: items || {} })
+      .then(function(r) { return !!(r && r.ok); });
+  },
+  remove: function(keys) {
+    return nspRelay({ type: 'NSP_RELAY_STORAGE', op: 'remove', keys: Array.isArray(keys) ? keys : [keys] })
+      .then(function(r) { return !!(r && r.ok); });
+  }
+};
+
 function sendRuntimeMessage(msg) {
+  msg = msg && typeof msg === 'object' ? msg : {};
+  var call = String(msg.type || '');
+  var payload = {};
+  Object.keys(msg).forEach(function(k) { if (k !== 'type') payload[k] = msg[k]; });
+  return nspRelay({ type: 'NSP_RELAY_CALL', call: call, payload: payload }).then(function(r) {
+    if (!r || !r.ok) return { ok: false, error: (r && r.error) || 'relay_failed', noServiceWorker: !!(r && r.noServiceWorker) };
+    return r.res || { ok: false };
+  });
+}
+
+function sendRuntimeMessageLegacy(msg) {
   return new Promise(function(resolve) {
     try {
       chrome.runtime.sendMessage(msg, function(res) {
@@ -1764,22 +1824,15 @@ function requestCountryFacelessFeed(opts) {
       ? nspBuildFacelessApiExpansionQueries([], { gl: locale.gl, hl: locale.hl, lang: requestedLang || locale.hl })
       : getFacelessQueriesForLang(locale.hl);
   }
-  return new Promise(function(resolve) {
-    try {
-      chrome.runtime.sendMessage({
-        type: 'NSP_FETCH_COUNTRY_FACELESS_FEED',
-        gl: locale.gl,
-        hl: locale.hl,
-        queries: queries,
-        force: !!opts.force
-      }, function(res) {
-        var err = chrome.runtime && chrome.runtime.lastError;
-        if (err) { resolve({ ok: false, error: err.message, videos: [] }); return; }
-        resolve(res || { ok: false, videos: [] });
-      });
-    } catch(e) {
-      resolve({ ok: false, error: String(e.message || e), videos: [] });
-    }
+  return sendRuntimeMessage({
+    type: 'NSP_FETCH_COUNTRY_FACELESS_FEED',
+    gl: locale.gl,
+    hl: locale.hl,
+    queries: queries,
+    maxAgeHours: Number(opts.maxAgeHours) || 0,
+    force: !!opts.force
+  }).then(function(res) {
+    return (res && res.ok) ? res : { ok: false, error: (res && res.error) || 'no_response', videos: [] };
   });
 }
 
@@ -1968,21 +2021,16 @@ function nspSearchMarketVideosViaBridge(query, locale) {
 
 function nspFetchExpansionFeedViaRuntime(locale, queries) {
   queries = Array.isArray(queries) ? queries.slice(0, 18) : [];
-  return new Promise(function(resolve) {
-    try {
-      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-        resolve([]);
-        return;
-      }
-      chrome.runtime.sendMessage({
-        type: 'NSP_FETCH_COUNTRY_FACELESS_FEED',
-        gl: (locale && locale.gl) || 'US',
-        hl: (locale && locale.hl) || 'en',
-        queries: queries,
-        force: true
-      }, function(res) {
-        var err = chrome.runtime && chrome.runtime.lastError;
-        if (err || !res || !res.ok || !Array.isArray(res.videos)) { resolve([]); return; }
+  return sendRuntimeMessage({
+    type: 'NSP_FETCH_COUNTRY_FACELESS_FEED',
+    gl: (locale && locale.gl) || 'US',
+    hl: (locale && locale.hl) || 'en',
+    queries: queries,
+    force: true
+  }).then(function(res) {
+    return new Promise(function(resolve) {
+      try {
+        if (!res || !res.ok || !Array.isArray(res.videos)) { resolve([]); return; }
         resolve(res.videos.map(function(v) {
           v = v || {};
           v._searchQuery = String((v.source || '') + ' ' + queries.join(' ')).slice(0, 120);
@@ -1990,10 +2038,10 @@ function nspFetchExpansionFeedViaRuntime(locale, queries) {
           v.source = v.source || 'api_feed_expansion';
           return v;
         }));
-      });
-    } catch(e) {
-      resolve([]);
-    }
+      } catch (e) {
+        resolve([]);
+      }
+    });
   });
 }
 
@@ -4298,7 +4346,7 @@ function saveAshlyVNichoSecure(nichoEntry, openPage, channelQuery, urlQuery) {
           resolve({ ok: false });
           return;
         }
-        chrome.storage.local.get(['ashlyv_nichos', 'ashlyv_nichos_backup'], function(res) {
+        nspStore.get(['ashlyv_nichos', 'ashlyv_nichos_backup']).then(function(res) {
           var saved = Array.isArray(res.ashlyv_nichos) ? res.ashlyv_nichos.slice(0, 240) : [];
           saved.unshift(entry);
           var deduped = [];
@@ -4310,10 +4358,10 @@ function saveAshlyVNichoSecure(nichoEntry, openPage, channelQuery, urlQuery) {
             deduped.push(item);
           });
           deduped = deduped.slice(0, 240);
-          chrome.storage.local.set({
+          nspStore.set({
             ashlyv_nichos: deduped,
             ashlyv_nichos_backup: deduped
-          }, function() {
+          }).then(function() {
             resolve({ ok: !chrome.runtime.lastError, localFallback: true });
           });
         });
@@ -7328,7 +7376,7 @@ function nspLoadChannelCache() {
   return new Promise(function(resolve) {
     try {
       if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) { resolve({}); return; }
-      chrome.storage.local.get(NSP_CHANNEL_CACHE_KEY, function(res) {
+      nspStore.get(NSP_CHANNEL_CACHE_KEY).then(function(res) {
         var cache = (res && res[NSP_CHANNEL_CACHE_KEY]) || {};
         var now = Date.now();
         var clean = {};
@@ -7356,7 +7404,7 @@ function nspSaveChannelCache() {
     });
     var payload = {};
     payload[NSP_CHANNEL_CACHE_KEY] = toStore;
-    chrome.storage.local.set(payload);
+    nspStore.set(payload);
   } catch(e) {}
 }
 
@@ -7497,7 +7545,7 @@ function ashlyVStorageGet(keys) {
   return new Promise(function(resolve) {
     try {
       if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) { resolve({}); return; }
-      chrome.storage.local.get(keys, function(res) {
+      nspStore.get(keys).then(function(res) {
         var raw = res || {};
         var out = {};
         var list;
@@ -8327,7 +8375,7 @@ function showAshlyVRPMLeaderboardModal() {
   var body = modal.body;
   var filter = 'all';
   try {
-    chrome.runtime.sendMessage({ type: 'ASHLYV_ALERTS_READ' }, function() {});
+    sendRuntimeMessage({ type: 'ASHLYV_ALERTS_READ' });
   } catch(e) {}
   ashlyVStorageGet([ASHLYV_NICHE_STATS_KEY, ASHLYV_RPM_BASELINES_KEY, ASHLYV_ALERT_HISTORY_KEY]).then(function(res) {
     var stats = res[ASHLYV_NICHE_STATS_KEY] || {};
@@ -8453,7 +8501,7 @@ function showAshlyVAlertDropdown(container, badge) {
   if (old) { old.remove(); return; }
   ashlyVStorageGet([ASHLYV_ALERT_HISTORY_KEY, ASHLYV_ALERTS_UNREAD_KEY]).then(function(res) {
     try {
-      chrome.runtime.sendMessage({ type: 'ASHLYV_ALERTS_READ' }, function() {});
+      sendRuntimeMessage({ type: 'ASHLYV_ALERTS_READ' });
     } catch(e) {}
     var payload = {}; payload[ASHLYV_ALERTS_UNREAD_KEY] = 0;
     ashlyVStorageSet(payload);
@@ -11221,6 +11269,7 @@ var AshlyVMemory = (function() {
   }
 
   function _sendMessage(msg) {
+    if (typeof sendRuntimeMessage === 'function') return sendRuntimeMessage(msg);
     return new Promise(function(resolve) {
       try {
         chrome.runtime.sendMessage(msg, function(res) {
@@ -14581,7 +14630,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
     } else {
       function refreshWB() {
         try {
-          chrome.storage.local.get('nsp_watching', function(res) {
+          nspStore.get('nsp_watching').then(function(res) {
             var w = (res && res.nsp_watching) || {};
             var on = !!w[ch.channelUrl];
             watchBtn.textContent = on ? '✓ ACTIVADO' : '+ ACTIVAR ALERTAS';
@@ -14592,7 +14641,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
       }
       watchBtn.onclick = function() {
         try {
-          chrome.storage.local.get('nsp_watching', function(res) {
+          nspStore.get('nsp_watching').then(function(res) {
             var w = (res && res.nsp_watching) || {};
             if (w[ch.channelUrl]) delete w[ch.channelUrl];
             else {
@@ -14604,7 +14653,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
                 if (!a) chrome.alarms.create('nsp-trend-check', { periodInMinutes: 360 });
               }); } catch(e) {}
             }
-            chrome.storage.local.set({ nsp_watching: w }, refreshWB);
+            nspStore.set({ nsp_watching: w }).then(refreshWB);
           });
         } catch(e) {}
       };
@@ -15010,7 +15059,7 @@ function saveChannel(data) {
 }
 
 function saveToAllChannels(entry) {
-  try { chrome.runtime.sendMessage({ type: 'NSP_SAVE_CHANNEL', data: entry }); } catch(e) {}
+  try { sendRuntimeMessage({ type: 'NSP_SAVE_CHANNEL', data: entry }); } catch(e) {}
 }
 
 function createNSPLineIcon(kind, size) {
@@ -16268,7 +16317,7 @@ function getClaudeApiKey() {
   return new Promise(function(resolve) {
     try {
       if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) { resolve(''); return; }
-      chrome.storage.local.get('ashlyv_api_key', function(res) {
+      nspStore.get('ashlyv_api_key').then(function(res) {
         var k = res && res.ashlyv_api_key;
         if (typeof k === 'string' && /^sk-ant-[a-zA-Z0-9\-_]{20,180}$/.test(k)) resolve(k);
         else resolve('');
@@ -16694,7 +16743,7 @@ function getOutlierTitlesForNiche(label, limit) {
   limit = limit || 10;
   return new Promise(function(resolve) {
     try {
-      chrome.storage.local.get(['nsp_all_channels', 'ashlyv_nichos'], function(res) {
+      nspStore.get(['nsp_all_channels', 'ashlyv_nichos']).then(function(res) {
         var channels = res.nsp_all_channels || [];
         var nichos = res.ashlyv_nichos || [];
         var pool = [];
@@ -18687,19 +18736,19 @@ function _injectChannelOverlay_inner() {
 function handleNSPPendingChannelAction(ch) {
   if (!ch || !ch.channelUrl) return;
   if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-  chrome.storage.local.get('nsp_pending_action', function(res) {
+  nspStore.get('nsp_pending_action').then(function(res) {
     var pending = res && res.nsp_pending_action;
     if (!pending || !pending.type) return;
     // Expire after 5 minutes
     if (pending.ts && (Date.now() - pending.ts) > 5 * 60 * 1000) {
-      chrome.storage.local.remove('nsp_pending_action');
+      nspStore.remove('nsp_pending_action');
       return;
     }
     // Match channel: by URL or channelId
     var matches = (pending.channelUrl && ch.channelUrl && pending.channelUrl === ch.channelUrl)
       || (pending.channelId && ch.channelId && pending.channelId === ch.channelId);
     if (!matches) return;
-    chrome.storage.local.remove('nsp_pending_action');
+    nspStore.remove('nsp_pending_action');
     setTimeout(function() {
       try {
         if (pending.type === 'thumblab') showThumbLabPanel(ch);

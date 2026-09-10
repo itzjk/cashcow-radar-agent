@@ -626,3 +626,115 @@ window.addEventListener('message', function(event) {
     chrome.storage.local.set({ nsp_niche_index_v1: ix });
   });
 });
+
+var NSP_RELAY_CALLS = {
+  NSP_UI_PREFS_GET: 1,
+  NSP_UI_PREFS_SET: 1,
+  NSP_SCAN_CONTEXT_GET: 1,
+  NSP_SCAN_MARK_SEEN: 1,
+  NSP_SCAN_MEMORY_CLEAR: 1,
+  NSP_SAVE_CHANNEL: 1,
+  NSP_SET_YT_COOKIE: 1,
+  ASHLYV_SAVE_NICHO: 1,
+  ASHLYV_OPPORTUNITY_HISTORY_PUSH: 1,
+  ASHLYV_ALERT_PUSH: 1,
+  ASHLYV_ALERT_DISMISS: 1,
+  ASHLYV_ALERTS_READ: 1,
+  ASHLYV_SHOW_NOTIFICATION: 1,
+  ASHLYV_OPEN: 1,
+  NSP_FETCH_COUNTRY_FACELESS_FEED: 1
+};
+
+var NSP_RELAY_KEYS = {
+  nsp_pending_action: 1,
+  nsp_watching: 1,
+  nsp_all_channels: 1,
+  nsp_scan_memory: 1,
+  ashlyv_nichos: 1,
+  ashlyv_installed_version: 1,
+  ashlyv_thumbnail_history: 1,
+  ashlyv_niche_stats: 1,
+  ashlyv_rpm_baselines: 1,
+  ashlyv_alert_history: 1,
+  ashlyv_alerts_unread: 1,
+  nsp_channel_faceless_v2: 1,
+  ashlyv_nichos_backup: 1,
+  ashlyv_phase_progress: 1,
+  ashlyv_phase_ops_v1: 1,
+  ashlyv_phase_notes_v1: 1,
+  nsp_session_prefs: 1,
+  zerack_channel_snapshots_v1: 1
+};
+
+function nspRelayKeyAllowed(key) {
+  key = String(key || '');
+  if (/key|token|secret|password|auth/i.test(key)) return false;
+  return NSP_RELAY_KEYS[key] === 1;
+}
+
+function nspRelayReply(reqId, payload) {
+  var out = payload && typeof payload === 'object' ? payload : {};
+  out.type = 'NSP_RELAY_RESULT';
+  out.requestId = reqId;
+  window.postMessage(out, window.location.origin);
+}
+
+window.addEventListener('message', function(event) {
+  if (event.source !== window) return;
+  if (event.origin && event.origin !== window.location.origin) return;
+  var data = event.data;
+  if (!data || (data.type !== 'NSP_RELAY_CALL' && data.type !== 'NSP_RELAY_STORAGE')) return;
+  if (typeof chrome === 'undefined' || !chrome.runtime) return;
+  var reqId = String(data.requestId || '').slice(0, 80);
+  if (!reqId) return;
+
+  if (data.type === 'NSP_RELAY_CALL') {
+    var call = String(data.call || '');
+    if (NSP_RELAY_CALLS[call] !== 1) { nspRelayReply(reqId, { ok: false, error: 'call_not_allowed' }); return; }
+    var msg = {};
+    if (data.payload && typeof data.payload === 'object' && !Array.isArray(data.payload)) {
+      Object.keys(data.payload).forEach(function(k) { if (k !== 'type') msg[k] = data.payload[k]; });
+    }
+    msg.type = call;
+    try {
+      chrome.runtime.sendMessage(msg, function(res) {
+        var err = chrome.runtime && chrome.runtime.lastError;
+        if (err) { nspRelayReply(reqId, { ok: false, error: String(err.message || err), noServiceWorker: true }); return; }
+        nspRelayReply(reqId, { ok: true, res: res || { ok: false } });
+      });
+    } catch (e) {
+      nspRelayReply(reqId, { ok: false, error: String(e && e.message || e) });
+    }
+    return;
+  }
+
+  var op = String(data.op || '');
+  if (op === 'get') {
+    var keys = (Array.isArray(data.keys) ? data.keys : [data.keys]).filter(nspRelayKeyAllowed);
+    if (!keys.length) { nspRelayReply(reqId, { ok: false, error: 'no_allowed_keys' }); return; }
+    chrome.storage.local.get(keys, function(r) {
+      nspRelayReply(reqId, { ok: true, data: r || {} });
+    });
+    return;
+  }
+  if (op === 'set') {
+    var items = data.items && typeof data.items === 'object' ? data.items : {};
+    var clean = {};
+    Object.keys(items).forEach(function(k) { if (nspRelayKeyAllowed(k)) clean[k] = items[k]; });
+    if (!Object.keys(clean).length) { nspRelayReply(reqId, { ok: false, error: 'no_allowed_keys' }); return; }
+    chrome.storage.local.set(clean, function() {
+      var err = chrome.runtime && chrome.runtime.lastError;
+      nspRelayReply(reqId, err ? { ok: false, error: String(err.message || err) } : { ok: true });
+    });
+    return;
+  }
+  if (op === 'remove') {
+    var rk = (Array.isArray(data.keys) ? data.keys : [data.keys]).filter(nspRelayKeyAllowed);
+    if (!rk.length) { nspRelayReply(reqId, { ok: false, error: 'no_allowed_keys' }); return; }
+    chrome.storage.local.remove(rk, function() { nspRelayReply(reqId, { ok: true }); });
+    return;
+  }
+  nspRelayReply(reqId, { ok: false, error: 'bad_op' });
+});
+
+try { window.postMessage({ type: 'ASHLYV_BRIDGE_READY' }, window.location.origin); } catch (eReady) {}
