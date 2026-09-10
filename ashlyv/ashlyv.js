@@ -4036,11 +4036,11 @@ function scanRenderMd(text, container) {
 /* SNAPSHOT renderer */
 function renderSnapshot(text, container) {
   container.innerHTML = '';
-  var oport  = extractField(text,'OPORTUNIDAD_CLAVE') || extractField(text,'OPORTUNIDAD');
-  var posit  = extractField(text,'POSICIONAMIENTO') || extractField(text,'PROPUESTA');
-  var nicho  = extractField(text,'NICHO_EXACTO');
-  var model  = extractField(text,'MODELO_CONTENIDO');
-  var growth = extractField(text,'PATRON_CRECIMIENTO');
+  var oport  = extractField(text,'KEY_OPPORTUNITY') || extractField(text,'OPPORTUNITY');
+  var posit  = extractField(text,'POSITIONING') || extractField(text,'PROPOSAL');
+  var nicho  = extractField(text,'EXACT_NICHE');
+  var model  = extractField(text,'CONTENT_MODEL');
+  var growth = extractField(text,'GROWTH_PATTERN');
   if (!oport && !posit && !nicho) { scanRenderMd(text, container); return; }
 
   if (oport) {
@@ -4083,9 +4083,9 @@ function renderSnapshot(text, container) {
   }
 
   var SNAP_FIELDS = [
-    {key:'AUDIENCIA',lbl:'Target audience'},{key:'PSICOLOGIA_AUDIENCIA',lbl:'Audience psychology'},
-    {key:'MONETIZACION',lbl:'Monetization and RPM'},{key:'FORTALEZAS',lbl:'Strengths'},
-    {key:'DEBILIDADES',lbl:'Weaknesses'},{key:'ETAPA',lbl:'Growth stage'},
+    {key:'AUDIENCE',lbl:'Target audience'},{key:'AUDIENCE_PSYCHOLOGY',lbl:'Audience psychology'},
+    {key:'MONETIZATION',lbl:'Monetization and RPM'},{key:'STRENGTHS',lbl:'Strengths'},
+    {key:'WEAKNESSES',lbl:'Weaknesses'},{key:'ETAPA',lbl:'Growth stage'},
     {key:'VIRAL_POTENCIAL',lbl:'Viral potential'}
   ];
   var grid = document.createElement('div'); grid.className = 'scan-info-grid';
@@ -4212,7 +4212,7 @@ function makeRichCompCard(c, ai) {
 
 function extractCompAiData(text, handle) {
   var cleanH = handle.replace(/^@/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  var blockRe = new RegExp('CANAL:\\s*@?' + cleanH + '([\\s\\S]{0,800}?)(?=\\nCANAL:|\\n\\n##|$)', 'i');
+  var blockRe = new RegExp('CHANNEL:\\s*@?' + cleanH + '([\\s\\S]{0,800}?)(?=\\nCANAL:|\\n\\n##|$)', 'i');
   var bm = text.match(blockRe);
   if (!bm) return {};
   var block = bm[1];
@@ -4282,14 +4282,14 @@ function renderCompetitors(text, container) {
 
 /* PATTERNS renderer */
 var PAT_FIELDS = [
-  {key:'FORMATO_VIDEO',  ico:'FV', lbl:'Video format'},
-  {key:'MODELO_HOOK',    ico:'HK', lbl:'Hook model'},
-  {key:'VOZ_TIPO',       ico:'VZ', lbl:'Voice and tone'},
-  {key:'UPLOAD_DIA',     ico:'DY', lbl:'Publishing days'},
-  {key:'UPLOAD_HORA',    ico:'HR', lbl:'Best hour'},
-  {key:'DURACION_OPTIMA',ico:'DR', lbl:'Best length'},
-  {key:'THUMBNAIL_ESTILO',ico:'TH',lbl:'Thumbnail style'},
-  {key:'TITULO_FORMULA', ico:'TT', lbl:'Title formula'},
+  {key:'VIDEO_FORMAT',  ico:'FV', lbl:'Video format'},
+  {key:'HOOK_MODEL',    ico:'HK', lbl:'Hook model'},
+  {key:'VOICE_TYPE',       ico:'VZ', lbl:'Voice and tone'},
+  {key:'UPLOAD_DAY',     ico:'DY', lbl:'Publishing days'},
+  {key:'UPLOAD_TIME',    ico:'HR', lbl:'Best hour'},
+  {key:'OPTIMAL_LENGTH',ico:'DR', lbl:'Best length'},
+  {key:'THUMBNAIL_STYLE',ico:'TH',lbl:'Thumbnail style'},
+  {key:'TITLE_FORMULA', ico:'TT', lbl:'Title formula'},
   {key:'GANCHO_TIPO',    ico:'IN', lbl:'Hook and intro type'},
 ];
 function renderPatterns(text, container) {
@@ -4307,7 +4307,7 @@ function renderPatterns(text, container) {
   });
   if (hasCards) container.appendChild(grid);
 
-  var hooksRaw = extractField(text,'FORMULA_HOOKS');
+  var hooksRaw = extractField(text,'HOOK_FORMULAS');
   if (hooksRaw) {
     var hookBox = document.createElement('div'); hookBox.className = 'scan-hook-box';
     var hookLbl = document.createElement('div'); hookLbl.className = 'scan-hero-lbl'; hookLbl.textContent = 'OPENING HOOKS THAT WORK';
@@ -4319,7 +4319,7 @@ function renderPatterns(text, container) {
     hookBox.appendChild(hooksList); container.appendChild(hookBox);
   }
 
-  var titRaw = extractField(text,'TITULOS_VIRALES') || extractField(text,'TITULOS_EJEMPLO') || extractField(text,'TITULOS_TOP');
+  var titRaw = extractField(text,'VIRAL_TITLES') || extractField(text,'EXAMPLE_TITLES') || extractField(text,'TOP_TITLES');
   if (titRaw) {
     var titBox = document.createElement('div'); titBox.className = 'scan-hero-box'; titBox.style.marginTop = '14px';
     var titLbl = document.createElement('div'); titLbl.className = 'scan-hero-lbl'; titLbl.textContent = 'VIRAL TITLES FOR THIS NICHE';
@@ -4375,14 +4375,14 @@ function renderSubniches(text, container) {
   var blocks = text.split(/\n(?=NOMBRE:|---|\*\*\d|\d\.)/i);
   var hasCards = false;
   blocks.forEach(function(block) {
-    var nombre = extractField(block,'NOMBRE') || (block.match(/^\*\*([^*]+)\*\*/)||[])[1] || (block.match(/^\d+\.\s*\*\*([^*]+)\*\*/)||[])[1];
+    var nombre = extractField(block,'NAME') || (block.match(/^\*\*([^*]+)\*\*/)||[])[1] || (block.match(/^\d+\.\s*\*\*([^*]+)\*\*/)||[])[1];
     if (!nombre) return;
-    var pot   = extractField(block,'POTENCIAL') || '';
-    var comp  = extractField(block,'COMPETENCIA') || '';
-    var bar   = extractField(block,'BARRERA') || '';
-    var trend = extractField(block,'TENDENCIA') || '';
-    var why   = extractField(block,'POR_QUE') || extractField(block,'PORQUE') || extractField(block,'DESCRIPCION') || '';
-    var vid   = extractField(block,'PRIMER_VIDEO') || '';
+    var pot   = extractField(block,'POTENTIAL') || '';
+    var comp  = extractField(block,'COMPETITION') || '';
+    var bar   = extractField(block,'BARRIER') || '';
+    var trend = extractField(block,'TREND') || '';
+    var why   = extractField(block,'WHY') || extractField(block,'WHY') || extractField(block,'DESCRIPTION') || '';
+    var vid   = extractField(block,'FIRST_VIDEO') || '';
     hasCards = true;
     var card = document.createElement('div'); card.className = 'scan-sub-card';
     var nm = document.createElement('div'); nm.className = 'scan-sub-nm'; nm.textContent = nombre;
@@ -4429,9 +4429,9 @@ function renderSubniches(text, container) {
 function renderStrategy(text, container) {
   container.innerHTML = '';
   var MODES = [
-    { key: 'MODO_SEGURO',          label: 'SAFE',            cls: 'seguro',          ico: 'SG' },
-    { key: 'MODO_AGRESIVO',        label: 'AGGRESSIVE',      cls: 'agresivo',        ico: 'AG' },
-    { key: 'MODO_DIFERENCIACION',  label: 'DIFFERENTIATION', cls: 'diferenciacion',  ico: 'DF' }
+    { key: 'SAFE_MODE',          label: 'SAFE',            cls: 'seguro',          ico: 'SG' },
+    { key: 'AGGRESSIVE_MODE',        label: 'AGGRESSIVE',      cls: 'agresivo',        ico: 'AG' },
+    { key: 'DIFFERENTIATION_MODE',  label: 'DIFFERENTIATION', cls: 'diferenciacion',  ico: 'DF' }
   ];
   var modeKeys = MODES.map(function(m){ return m.key; }).join('|');
   var modeRe = new RegExp('(' + modeKeys + '):\\s*', 'i');
@@ -4445,11 +4445,11 @@ function renderStrategy(text, container) {
       if (!bm) return;
       found = true;
       var block = bm[1];
-      var titulo = extractField(block,'TITULO') || mode.label;
-      var descr  = extractField(block,'DESCRIPCION') || '';
-      var riesgo = extractField(block,'RIESGO') || '';
-      var recomp = extractField(block,'RECOMPENSA') || '';
-      var tiempo = extractField(block,'TIEMPO') || '';
+      var titulo = extractField(block,'TITLE') || mode.label;
+      var descr  = extractField(block,'DESCRIPTION') || '';
+      var riesgo = extractField(block,'RISK') || '';
+      var recomp = extractField(block,'REWARD') || '';
+      var tiempo = extractField(block,'TIME') || '';
       var acts = [];
       block.split('\n').forEach(function(line) {
         var s = line.trim();
@@ -4487,8 +4487,8 @@ function renderStrategy(text, container) {
   var phases = [], phaseBlocks = text.split(/\n(?=FASE_\d+:|FASE \d+:|Fase \d+:)/i);
   phaseBlocks.forEach(function(block, idx) {
     if (!block.match(/FASE_?\d+:|Fase \d+:/i) && idx !== 0) return;
-    var ttl = extractField(block,'TITULO') || 'Phase ' + (idx+1);
-    var dias = extractField(block,'DIAS') || '';
+    var ttl = extractField(block,'TITLE') || 'Phase ' + (idx+1);
+    var dias = extractField(block,'DAYS') || '';
     var kpi = extractField(block,'KPI') || '';
     var acts = [];
     block.split('\n').forEach(function(line) {
@@ -4544,7 +4544,7 @@ function scanRenderScores(text, container) {
     var v = line.match(/VEREDICTO\s*[:\-]\s*(.+)/i);
     if (v) scores.__VEREDICTO = v[1].trim();
   });
-  var keys = ['MARKET_OPPORTUNITY_SCORE','COMPETITION_DIFFICULTY','CONTENT_GAP_SCORE','FACELESS_SCALABILITY_SCORE','GROWTH_POTENTIAL_SCORE','MONETIZATION_POTENTIAL','EXECUTION_DIFFICULTY','POTENCIAL_NICHO','NIVEL_COMPETENCIA','RENTABILIDAD','VELOCIDAD_CRECIMIENTO','FACILIDAD_ENTRADA','SATURACION'];
+  var keys = ['MARKET_OPPORTUNITY_SCORE','COMPETITION_DIFFICULTY','CONTENT_GAP_SCORE','FACELESS_SCALABILITY_SCORE','GROWTH_POTENTIAL_SCORE','MONETIZATION_POTENTIAL','EXECUTION_DIFFICULTY','NICHE_POTENTIAL','COMPETITION_LEVEL','PROFITABILITY','GROWTH_SPEED','ENTRY_EASE','SATURATION'];
   var hasScores = keys.some(function(k){ return k in scores; });
   if (!hasScores) { scanRenderMd(text, container); return; }
   var grid = document.createElement('div'); grid.className = 'scan-score-grid';
@@ -4580,7 +4580,7 @@ function scanParseSections(report) {
 }
 var SCAN_SECTION_MAP={
   snapshot:    ['SNAPSHOT','GENERAL','OVERVIEW','PANORAMA'],
-  competitors: ['COMPETIDORES','COMPETITORS','COMPETENCIA'],
+  competitors: ['COMPETIDORES','COMPETITORS','COMPETITION'],
   patterns:    ['PATRONES','PATTERNS','CONTENIDO'],
   gaps:        ['GAPS','OPORTUNIDADES','GAP'],
   subniches:   ['SUBNICHOS','SUBNICHES','SUB-NICHOS'],
@@ -5107,109 +5107,109 @@ async function callGroqScan(handle, lang) {
         return (i + 1) + '. ' + c.name + ' | similitud ' + (c.nicheSimilarity || 0) + ' | ' + (c.whyMatters || '');
       }).join('\n') + '\n';
   }
-  var prompt = 'Eres BLACK MARKET INTELLIGENCE - el sistema de análisis de canales YouTube más avanzado del mundo. Precisión quirúrgica. Cero relleno genérico. Cada respuesta es específica, accionable y basada en los datos reales provistos.' +
+  var prompt = 'You are ZERACK channel intelligence. Surgical precision, no filler. Every answer is specific, actionable and grounded in the data you were given.' +
 chanCtx + compCtx +
-'\n\nGenera el informe completo de @' + handle + ' en ' + langName + '. ZERO análisis genérico - todo concreto y basado en los datos reales del canal.' +
-'\n\nFormato EXACTO (usa ## para secciones, nombres de campo exactos en mayúsculas):\n\n' +
+'\n\nWrite the full report for @' + handle + ' in ' + langName + '. Nothing generic: everything concrete and grounded in the channel data above.' +
+'\n\nExact format, use ## for sections and the field names in capitals exactly as written:\n\n' +
 
 '## SNAPSHOT\n' +
-'NICHO_EXACTO: [nicho ultra-específico ej: "documentales faceless IA de misterio histórico latinoamericano para escuchar antes de dormir"]\n' +
-'MODELO_CONTENIDO: [Storytelling Faceless / Educational Faceless / Emotional Narrative / Hybrid - describe el modelo en 1 frase concreta]\n' +
-'POSICIONAMIENTO: [qué hace DIFERENTE este canal vs todos los demás - ángulo único, NO genérico]\n' +
-'AUDIENCIA: [demografía precisa: rango de edad, género dominante, países principales, intereses psicográficos]\n' +
-'PSICOLOGIA_AUDIENCIA: [emoción/driver principal por la que ven: miedo/curiosidad/FOMO/relaxación/escapismo/adrenalina - explica el mecanismo psicológico]\n' +
-'PATRON_CRECIMIENTO: [Explosivo (>2x en 6 meses) / Estable / Decayendo - con razón específica basada en los datos]\n' +
-'MONETIZACION: [RPM estimado $X-$Y USD según el nicho y país de audiencia, ingreso mensual estimado, canales secundarios de monetización]\n' +
-'FORTALEZAS: [fortaleza específica 1 | fortaleza 2 | fortaleza 3 - concretas, no genéricas]\n' +
-'DEBILIDADES: [debilidad explotable 1 | debilidad 2 | debilidad 3]\n' +
-'OPORTUNIDAD_CLAVE: [la UNA acción que más impacto tendría en los próximos 90 días - muy específica]\n\n' +
+'EXACT_NICHE: [ultra specific niche, for example "faceless AI documentaries about Latin American historical mystery, made to fall asleep to"]\n' +
+'CONTENT_MODEL: [Storytelling faceless / Educational faceless / Emotional narrative / Hybrid, describe the model in one sentence]\n' +
+'POSITIONING: [what this channel does differently from everyone else, the unique angle, not a generic line]\n' +
+'AUDIENCE: [precise demographics: age range, dominant gender, main countries, psychographic interests]\n' +
+'AUDIENCE_PSYCHOLOGY: [the main emotion or driver behind watching: fear, curiosity, fear of missing out, relaxation, escapism, adrenaline, and explain it]\n' +
+'GROWTH_PATTERN: [Explosive, more than 2x in six months / Steady / Declining, with a specific reason from the data]\n' +
+'MONETIZATION: [estimated RPM in dollars for this niche and audience country, estimated monthly income, other revenue lines]\n' +
+'STRENGTHS: [specific strength 1 | strength 2 | strength 3, concrete, not generic]\n' +
+'WEAKNESSES: [exploitable weakness 1 | weakness 2 | weakness 3]\n' +
+'KEY_OPPORTUNITY: [the single action with the most impact over the next 90 days, very specific]\n\n' +
 
-'## COMPETIDORES\n' +
-'[Para cada canal de la lista verificada, un bloque con este formato exacto:]\n' +
-'CANAL: @[handle exacto de la lista]\n' +
-'SIMILITUD: [número 0-100]%\n' +
-'CRECIMIENTO: [Acelerado/Estable/Decayendo]\n' +
-'NICHO_TAG: [etiqueta específica ej: "Horror Faceless ES" / "Misterio IA" / "True Crime Latam"]\n' +
-'AMENAZA: [Alto/Medio/Bajo]\n' +
-'DESCRIPCION: [por qué es competencia directa + qué hace diferente - 1-2 frases concretas]\n\n' +
+'## COMPETITORS\n' +
+'[For every channel in the verified list, one block in exactly this format:]\n' +
+'CHANNEL: @[exact handle from the list]\n' +
+'SIMILARITY: [number 0-100]%\n' +
+'GROWTH: [Accelerating/Steady/Declining]\n' +
+'NICHE_TAG: [specific tag, for example "Faceless horror ES" / "AI mystery" / "True crime Latam"]\n' +
+'THREAT: [High/Medium/Low]\n' +
+'DESCRIPTION: [why it competes directly and what it does differently, one or two concrete sentences]\n\n' +
 
-'## PATRONES\n' +
-'FORMATO_VIDEO: [formato dominante con descripción específica del estilo de producción]\n' +
-'MODELO_HOOK: [Fear-opening / Curiosity-gap / In-medias-res / Shock-claim / Transformation-promise - con descripción]\n' +
-'VOZ_TIPO: [masculina grave / femenina suave / narrador IA clonado / duo - estilo específico de narración y ritmo]\n' +
-'UPLOAD_DIA: [días de publicación que maximizan views en las primeras 24h para este nicho]\n' +
-'UPLOAD_HORA: [hora específica CDT/EST]\n' +
-'DURACION_OPTIMA: [rango de minutos exacto que maximiza watch time y retención en este nicho]\n' +
-'THUMBNAIL_ESTILO: [descripción visual precisa: paleta de colores, tipografía, elementos visuales, ratio texto/imagen que genera CTR alto]\n' +
-'TITULO_FORMULA: [fórmula exacta con estructura ej: "[Número o Adjetivo Shock] + [Sujeto Misterioso] + [Consecuencia o Revelación]"]\n' +
-'FORMULA_HOOKS: ["Ejemplo de apertura 1 que genera retención" | "Ejemplo 2" | "Ejemplo 3"]\n' +
-'TITULOS_VIRALES: ["Título viral 1" | "Título viral 2" | "Título viral 3" | "Título viral 4" | "Título viral 5"]\n\n' +
+'## PATTERNS\n' +
+'VIDEO_FORMAT: [dominant format with a specific description of the production style]\n' +
+'HOOK_MODEL: [Fear opening / Curiosity gap / In medias res / Shock claim / Transformation promise, with a description]\n' +
+'VOICE_TYPE: [deep male / soft female / cloned AI narrator / duo, with the narration style and pace]\n' +
+'UPLOAD_DAY: [the days that maximise views in the first 24 hours for this niche]\n' +
+'UPLOAD_TIME: [specific hour, say the timezone]\n' +
+'OPTIMAL_LENGTH: [the exact minute range that maximises watch time and retention in this niche]\n' +
+'THUMBNAIL_STYLE: [precise visual description: colour palette, typography, visual elements, the text to image ratio that wins here]\n' +
+'TITLE_FORMULA: [the exact formula with its structure, for example "[Shock number or adjective] + [Mysterious subject] + [Consequence or reveal]"]\n' +
+'HOOK_FORMULAS: ["Opening example 1 that holds the viewer" | "Example 2" | "Example 3"]\n' +
+'VIRAL_TITLES: ["Viral title 1" | "Viral title 2" | "Viral title 3" | "Viral title 4" | "Viral title 5"]\n\n' +
 
 '## GAPS\n' +
-'1. **[Tema muy específico]**: [por qué existe demanda real sin oferta de calidad - menciona señales concretas + ángulo Blue Ocean]\n' +
-'2. **[Tema]**: [análisis con ángulo diferenciador]\n' +
-'3. **[Tema]**: [análisis]\n' +
-'4. **[Tema]**: [análisis]\n' +
-'5. **[Tema]**: [análisis]\n' +
-'6. **[Tema]**: [análisis]\n\n' +
+'1. **[Very specific topic]**: [why real demand exists with no quality supply, name the concrete signals and the angle to attack it]\n' +
+'2. **[Topic]**: [analysis with the differentiating angle]\n' +
+'3. **[Topic]**: [analysis]\n' +
+'4. **[Topic]**: [analysis]\n' +
+'5. **[Topic]**: [analysis]\n' +
+'6. **[Topic]**: [analysis]\n\n' +
 
-'## SUBNICHOS\n' +
-'NOMBRE: [subnicho 1 muy específico]\n' +
-'POTENCIAL: [Alto/Medio/Bajo]\n' +
-'COMPETENCIA: [Alta/Media/Baja]\n' +
-'BARRERA: [Alta/Media/Baja]\n' +
-'TENDENCIA: [Subiendo/Estable/Bajando]\n' +
-'POR_QUE: [por qué hay oportunidad real en este subnicho AHORA - señales concretas]\n' +
-'PRIMER_VIDEO: [título clickbait concreto del primer video a publicar en este subnicho]\n' +
+'## SUBNICHES\n' +
+'NAME: [very specific subniche 1]\n' +
+'POTENTIAL: [High/Medium/Low]\n' +
+'COMPETITION: [High/Medium/Low]\n' +
+'BARRIER: [High/Medium/Low]\n' +
+'TREND: [Rising/Steady/Falling]\n' +
+'WHY: [why the opportunity is real right now, with concrete signals]\n' +
+'FIRST_VIDEO: [the concrete title of the first video to publish in this subniche]\n' +
 '---\n' +
-'NOMBRE: [subnicho 2]\n' +
-'POTENCIAL: [Alto/Medio/Bajo]\n' +
-'COMPETENCIA: [Alta/Media/Baja]\n' +
-'BARRERA: [Alta/Media/Baja]\n' +
-'TENDENCIA: [Subiendo/Estable/Bajando]\n' +
-'POR_QUE: [razón concreta]\n' +
-'PRIMER_VIDEO: [título]\n' +
+'NAME: [subniche 2]\n' +
+'POTENTIAL: [High/Medium/Low]\n' +
+'COMPETITION: [High/Medium/Low]\n' +
+'BARRIER: [High/Medium/Low]\n' +
+'TREND: [Rising/Steady/Falling]\n' +
+'WHY: [concrete reason]\n' +
+'FIRST_VIDEO: [title]\n' +
 '---\n' +
-'[Repite el mismo bloque para 6 subnichos en total]\n\n' +
+'[Repeat the same block until there are six subniches]\n\n' +
 
-'## ESTRATEGIA\n' +
-'Incluye tambien: 5 ideas de videos recomendadas, formato recomendado, estilo de titulo, estilo de miniatura, frecuencia de subida, competidores que estudiar, errores que evitar, plan de 7 dias, plan de 30 dias y veredicto final tactico.\n\n' +
-'MODO_SEGURO:\n' +
-'TITULO: [nombre de esta estrategia conservadora]\n' +
-'DESCRIPCION: [para quién es, qué garantiza, qué sacrifica - concreto]\n' +
-'ACCIONES:\n' +
-'- [acción concreta con número ej: "Publicar 2 videos/semana - martes y viernes"]\n' +
-'- [acción concreta con número]\n' +
-'- [acción concreta con número]\n' +
-'- [acción concreta]\n' +
-'RIESGO: Bajo\n' +
-'RECOMPENSA: Media\n' +
-'TIEMPO: [X semanas/meses para ver resultados]\n\n' +
-'MODO_AGRESIVO:\n' +
-'TITULO: [nombre de esta estrategia de crecimiento máximo]\n' +
-'DESCRIPCION: [para quién es, qué puede ganar, qué puede perder - concreto]\n' +
-'ACCIONES:\n' +
-'- [acción concreta con número]\n' +
-'- [acción concreta con número]\n' +
-'- [acción concreta con número]\n' +
-'- [acción concreta]\n' +
-'RIESGO: Alto\n' +
-'RECOMPENSA: Alta\n' +
-'TIEMPO: [X semanas]\n\n' +
-'MODO_DIFERENCIACION:\n' +
-'TITULO: [nombre - el ángulo único que nadie está haciendo]\n' +
-'DESCRIPCION: [océano azul - qué gap explota, cómo se diferencia radicalmente del mercado]\n' +
-'ACCIONES:\n' +
-'- [acción concreta con número]\n' +
-'- [acción concreta con número]\n' +
-'- [acción concreta con número]\n' +
-'- [acción concreta]\n' +
-'RIESGO: Medio\n' +
-'RECOMPENSA: Muy Alta\n' +
-'TIEMPO: [X meses]\n\n' +
+'## STRATEGY\n' +
+'Include as well: five recommended video ideas, the recommended format, the title style, the thumbnail style and the publishing frequency.\n' +
+'SAFE_MODE:\n' +
+'TITLE: [name of this conservative strategy]\n' +
+'DESCRIPTION: [who it is for, what it guarantees, what it gives up, concrete]\n' +
+'ACTIONS:\n' +
+'- [concrete action with a number, for example "Publish 2 videos a week, Tuesday and Friday"]\n' +
+'- [concrete action with a number]\n' +
+'- [concrete action with a number]\n' +
+'- [concrete action]\n' +
+'RISK: Low\n' +
+'REWARD: Medium\n' +
+'TIME: [X weeks or months to see results]\n\n' +
+'AGGRESSIVE_MODE:\n' +
+'TITLE: [name of this maximum growth strategy]\n' +
+'DESCRIPTION: [who it is for, what it can win, what it can lose, concrete]\n' +
+'ACTIONS:\n' +
+'- [concrete action with a number]\n' +
+'- [concrete action with a number]\n' +
+'- [concrete action with a number]\n' +
+'- [concrete action]\n' +
+'RISK: High\n' +
+'REWARD: High\n' +
+'TIME: [X weeks]\n\n' +
+'DIFFERENTIATION_MODE:\n' +
+'TITLE: [name, the unique angle nobody is taking]\n' +
+'DESCRIPTION: [the open water: which gap it exploits and how it differs radically from the market]\n' +
+'ACTIONS:\n' +
+'- [concrete action with a number]\n' +
+'- [concrete action with a number]\n' +
+'- [concrete action with a number]\n' +
+'- [concrete action]\n' +
+'RISK: Medium\n' +
+'REWARD: Very high\n' +
+'TIME: [X months]\n\n' +
 
 '## SCORES\n' +
-'[Puntúa según el nicho REAL - los números deben variar significativamente por nicho, no ser genéricos]\n' +
+'[Score the real niche. The numbers must vary a lot between niches, never generic]\n' +
 'MARKET_OPPORTUNITY_SCORE: [0-100]\n' +
 'COMPETITION_DIFFICULTY: [0-100]\n' +
 'CONTENT_GAP_SCORE: [0-100]\n' +
@@ -5217,13 +5217,13 @@ chanCtx + compCtx +
 'GROWTH_POTENTIAL_SCORE: [0-100]\n' +
 'MONETIZATION_POTENTIAL: [0-100]\n' +
 'EXECUTION_DIFFICULTY: [0-100]\n' +
-'POTENCIAL_NICHO: [0-100 - tamaño de mercado, tendencia de crecimiento]\n' +
-'NIVEL_COMPETENCIA: [0-100 - densidad de canales competidores activos]\n' +
-'RENTABILIDAD: [0-100 - RPM estimado del nicho por país de audiencia]\n' +
-'VELOCIDAD_CRECIMIENTO: [0-100 - qué tan rápido puede crecer un canal nuevo en este nicho]\n' +
-'FACILIDAD_ENTRADA: [0-100 - barrera de entrada para un creador nuevo]\n' +
-'SATURACION: [0-100 - qué tan saturado está el nicho de contenido similar]\n' +
-'VEREDICTO: [ATTACK NOW / TEST CAREFULLY / WATCH ONLY / AVOID + recomendacion directa en 2 frases]';
+'NICHE_POTENTIAL: [0-100, market size and growth trend]\n' +
+'COMPETITION_LEVEL: [0-100, how dense the active competing channels are]\n' +
+'PROFITABILITY: [0-100, estimated RPM for this niche by audience country]\n' +
+'GROWTH_SPEED: [0-100, how fast a new channel can grow here]\n' +
+'ENTRY_EASE: [0-100, the barrier for a new creator]\n' +
+'SATURATION: [0-100, how saturated the niche is with similar content]\n' +
+'VERDICT: [ATTACK NOW / TEST CAREFULLY / WATCH ONLY / AVOID, plus a direct recommendation in two sentences]';
 
   var resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
