@@ -117,6 +117,7 @@ function proPost(path, body) {
 }
 
 function load() {
+  loadSnapshots();
   chrome.storage.local.get(['nsp_all_channels', 'ashlyv_nichos', 'ashlyv_nichos_backup', 'nsp_watching'], function(res) {
     allChannels = res.nsp_all_channels || [];
     watchingCache = res.nsp_watching || {};
@@ -198,6 +199,10 @@ function render() {
   });
 
   filtered.sort(function(a, b) {
+    if (activeSort === 'growth') {
+      var ga = computeGrowth(a), gb = computeGrowth(b);
+      return (gb.subsPerDay || -1) - (ga.subsPerDay || -1);
+    }
     if (activeSort === 'savedAt')  return (b.savedAt || 0)  - (a.savedAt || 0);
     if (activeSort === 'avgOS')    return (b.avgOS || 0)    - (a.avgOS || 0);
     if (activeSort === 'topVPH')   return (b.topVPH || 0)   - (a.topVPH || 0);
@@ -320,6 +325,10 @@ function render() {
       return box;
     }
 
+    var growth = computeGrowth(ch);
+    if (growth.measurements >= 2 && !growth.tooClose) {
+      statsRow.appendChild(statBox((growth.subsPerDay >= 0 ? '+' : '') + fmtN(Math.round(growth.subsPerDay)), 'Subs/day'));
+    }
     if (ch.avgOS)    statsRow.appendChild(statBox('OS:' + ch.avgOS, 'Score'));
     if (ch.topVPH)   statsRow.appendChild(statBox(fmtN(ch.topVPH), 'Top VPH'));
     if (ch.revMonth) statsRow.appendChild(statBox(fmtRev(ch.revMonth), 'Per month'));
@@ -421,6 +430,113 @@ function render() {
   renderPortfolio();
 }
 
+var SNAPSHOT_KEY = 'zerack_channel_snapshots_v1';
+var SNAPSHOTS = {};
+var SNAPSHOT_MAX_PER_CHANNEL = 14;
+var GROWTH_BATCH = 30;
+
+function parseCount(raw) {
+  if (typeof raw === 'number') return isFinite(raw) ? raw : 0;
+  var t = String(raw || '').trim().toLowerCase();
+  if (!t || t === 'desconocido' || t === 'unknown') return 0;
+  t = t.replace(/\s+/g, '');
+  var mult = 1;
+  if (/[km b]$/.test(t.slice(-1)) === false) { /* noop */ }
+  var last = t.slice(-1);
+  if (last === 'k') { mult = 1e3; t = t.slice(0, -1); }
+  else if (last === 'm') { mult = 1e6; t = t.slice(0, -1); }
+  else if (last === 'b') { mult = 1e9; t = t.slice(0, -1); }
+  var dot = t.lastIndexOf('.'), comma = t.lastIndexOf(',');
+  var dec = Math.max(dot, comma);
+  var intPart = dec >= 0 ? t.slice(0, dec).replace(/[.,]/g, '') : t.replace(/[.,]/g, '');
+  var frac = dec >= 0 ? t.slice(dec + 1).replace(/[^\d]/g, '') : '';
+  if (dec >= 0 && frac.length === 3 && mult === 1) { intPart = intPart + frac; frac = ''; }
+  var n = parseFloat(intPart + (frac ? '.' + frac : '')) || 0;
+  return Math.round(n * mult);
+}
+
+function loadSnapshots(cb) {
+  chrome.storage.local.get(SNAPSHOT_KEY, function(r) {
+    SNAPSHOTS = (r && r[SNAPSHOT_KEY]) || {};
+    if (cb) cb();
+  });
+}
+
+function computeGrowth(ch) {
+  var list = SNAPSHOTS[ch.channelUrl];
+  if (!Array.isArray(list) || list.length < 2) {
+    return { measurements: list ? list.length : 0 };
+  }
+  var first = list[0], last = list[list.length - 1];
+  var days = (last.ts - first.ts) / 86400000;
+  if (!(days > 0.5)) return { measurements: list.length, tooClose: true };
+  var subsDelta = (last.subs || 0) - (first.subs || 0);
+  var viewsDelta = (last.views || 0) - (first.views || 0);
+  return {
+    measurements: list.length,
+    days: days,
+    subsPerDay: subsDelta / days,
+    viewsPerDay: viewsDelta / days,
+    subsPct: first.subs ? (subsDelta / first.subs) * 100 : 0
+  };
+}
+
+function growthLabel(g) {
+  if (!g || g.measurements < 2) return g && g.measurements === 1 ? '1 measurement' : 'not measured';
+  if (g.tooClose) return 'measured twice today';
+  var perDay = Math.round(g.subsPerDay);
+  var sign = perDay > 0 ? '+' : '';
+  return sign + fmtN(perDay) + ' subs/day over ' + Math.round(g.days) + 'd';
+}
+
+function measureGrowth() {
+  var btn = document.getElementById('btn-growth');
+  var list = getCurrentFilteredChannels().slice(0, GROWTH_BATCH);
+  if (!list.length) { alert('Save a channel first.'); return; }
+  var done = 0, failed = 0;
+  if (btn) { btn.disabled = true; btn.textContent = 'Measuring 0/' + list.length; }
+
+  function finish() {
+    var payload = {};
+    payload[SNAPSHOT_KEY] = SNAPSHOTS;
+    chrome.storage.local.set(payload, function() {
+      if (btn) { btn.disabled = false; btn.textContent = 'Measure growth'; }
+      render();
+      var withTwo = list.filter(function(c) { return (SNAPSHOTS[c.channelUrl] || []).length >= 2; }).length;
+      alert('Measured ' + done + ' of ' + list.length + (failed ? ', ' + failed + ' could not be read' : '') +
+            '.\n' + withTwo + ' now have two or more measurements, so their growth is real.');
+    });
+  }
+
+  function step(i) {
+    if (i >= list.length) { finish(); return; }
+    var ch = list[i];
+    chrome.runtime.sendMessage({ type: 'NSP_AGENT_CHANNEL_STATS', channelUrl: ch.channelUrl }, function(res) {
+      var err = chrome.runtime && chrome.runtime.lastError;
+      if (!err && res && res.ok) {
+        var snap = {
+          ts: Date.now(),
+          subs: parseCount(res.subscribers),
+          views: parseCount(res.totalViews),
+          videos: parseCount(res.videoCount)
+        };
+        if (snap.subs || snap.views) {
+          var arr = SNAPSHOTS[ch.channelUrl] || [];
+          var lastSnap = arr[arr.length - 1];
+          if (!lastSnap || (snap.ts - lastSnap.ts) > 3600000) arr.push(snap);
+          else arr[arr.length - 1] = snap;
+          if (arr.length > SNAPSHOT_MAX_PER_CHANNEL) arr = arr.slice(-SNAPSHOT_MAX_PER_CHANNEL);
+          SNAPSHOTS[ch.channelUrl] = arr;
+          done++;
+        } else { failed++; }
+      } else { failed++; }
+      if (btn) btn.textContent = 'Measuring ' + (i + 1) + '/' + list.length;
+      setTimeout(function() { step(i + 1); }, 1200);
+    });
+  }
+  step(0);
+}
+
 function medianOf(values) {
   var arr = values.filter(function(v) { return typeof v === 'number' && isFinite(v) && v > 0; }).sort(function(a, b) { return a - b; });
   if (!arr.length) return 0;
@@ -441,6 +557,16 @@ function renderPortfolio() {
   var rev = list.reduce(function(acc, c) { return acc + (Number(c.revMonth) || 0); }, 0);
   setText('pf-rev', rev ? fmtRev(Math.round(rev)) : '--');
   setText('pf-exploding', String(list.filter(isExplodingChannel).length));
+  var measured = list.map(computeGrowth).filter(function(g) { return g.measurements >= 2 && !g.tooClose; });
+  var pfGrowth = document.getElementById('pf-growth');
+  if (pfGrowth) {
+    if (!measured.length) {
+      pfGrowth.textContent = list.length ? 'measure twice to see it' : 'no channels';
+    } else {
+      var med = medianOf(measured.map(function(g) { return g.subsPerDay; }));
+      pfGrowth.textContent = '+' + fmtN(Math.round(med)) + ' subs/day  ' + measured.length + ' measured';
+    }
+  }
 
   var byNiche = {};
   list.forEach(function(c) {
@@ -1181,6 +1307,8 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Export
+  var growthBtn = document.getElementById('btn-growth');
+  if (growthBtn) growthBtn.addEventListener('click', measureGrowth);
   var exportBtn = document.getElementById('btn-export');
   if (exportBtn) exportBtn.addEventListener('click', openExportModal);
 

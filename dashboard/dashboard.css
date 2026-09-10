@@ -915,7 +915,7 @@ body {
 
 .portfolio {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(0, 1.6fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr)) minmax(0, 1.5fr);
   gap: 10px;
   margin: 14px 0 18px;
 }
@@ -934,6 +934,7 @@ body {
   line-height: 1.1;
 }
 .pf-card.wide .pf-n { font-size: 15px; font-weight: 600; }
+#pf-growth { font-size: 15px; font-weight: 600; }
 .pf-l {
   margin-top: 6px;
   font-size: 10px;
