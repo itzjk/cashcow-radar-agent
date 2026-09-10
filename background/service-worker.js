@@ -1132,7 +1132,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.type === 'ASHLYV_CHAT_REQUEST') {
     chrome.storage.local.get([
       'nsp_gemini_api_key', 'nsp_gemini_working_model',
-      'nsp_groq_api_key', 'nsp_groq_model',
+      'nsp_groq_api_key', 'nsp_groq_model', 'nsp_selected_model',
       'nsp_ollama_url', 'nsp_ollama_model', 'nsp_ollama_enabled',
       'nsp_provider_priority',
       'nsp_preferred_provider'  // v3.8.3: si está set y no es 'auto', usa solo ese
@@ -1145,7 +1145,15 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       // Read all provider configs
       var groqKey = r && typeof r.nsp_groq_api_key === 'string' ? r.nsp_groq_api_key.trim() : '';
       var groqValid = groqKey && /^gsk_[A-Za-z0-9_\-]{30,}$/.test(groqKey);
-      var groqModel = (r && r.nsp_groq_model) || 'llama-3.1-8b-instant';
+      var groqModel = (r && r.nsp_groq_model) || 'llama-3.3-70b-versatile';
+      var chosen = String((r && r.nsp_selected_model) || 'auto');
+      var chosenProvider = '', chosenModel = '';
+      if (chosen && chosen !== 'auto') {
+        var cut = chosen.indexOf(':');
+        chosenProvider = cut > 0 ? chosen.slice(0, cut) : chosen;
+        chosenModel = cut > 0 ? chosen.slice(cut + 1) : '';
+        if (chosenProvider === 'groq' && chosenModel) groqModel = chosenModel;
+      }
 
       var ollamaEnabled = r && r.nsp_ollama_enabled === true;
       var ollamaUrl = (r && r.nsp_ollama_url) || 'http://localhost:11434';
@@ -1161,7 +1169,9 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       // define la PRIORIDAD, pero si ese provider tira rate-limit (429), no responde
       // o falla, pasamos AUTOMÁTICAMENTE al siguiente configurado. Resultado: el
       // usuario NUNCA ve un error de rate-limit mientras haya UN provider libre.
-      var preferredProvider = (r && r.nsp_preferred_provider) || 'auto';
+      var preferredProvider = chosenProvider || (r && r.nsp_preferred_provider) || 'auto';
+      if (chosenProvider === 'gemini' && chosenModel) cachedModel = chosenModel;
+      if (chosenProvider === 'ollama' && chosenModel) ollamaModel = chosenModel;
       var order = [];
       function pushProv(name) { if (order.indexOf(name) === -1) order.push(name); }
       if (preferredProvider === 'groq' || preferredProvider === 'ollama' || preferredProvider === 'gemini') {
@@ -1694,6 +1704,8 @@ function fetchCountryFacelessFeed(gl, hl, queries, maxAgeHours) {
 
   nspEmitProgress({ stage: 'session', status: 'start', sessionId: sessionId, gl: gl, hl: hl, totalSteps: queries.length });
 
+  var stepErrors = [];
+
   function fetchStep(stageId, label, promise) {
     nspEmitProgress({ stage: stageId, status: 'start', sessionId: sessionId, label: label });
     return promise
@@ -1703,7 +1715,9 @@ function fetchCountryFacelessFeed(gl, hl, queries, maxAgeHours) {
         return videos;
       })
       .catch(function(err) {
-        nspEmitProgress({ stage: stageId, status: 'error', sessionId: sessionId, label: label, error: String(err && err.message || err) });
+        var reason = String(err && err.message || err);
+        stepErrors.push(label + ': ' + reason);
+        nspEmitProgress({ stage: stageId, status: 'error', sessionId: sessionId, label: label, error: reason });
         return [];
       });
   }
@@ -1729,6 +1743,11 @@ function fetchCountryFacelessFeed(gl, hl, queries, maxAgeHours) {
       });
     });
     var list = Object.values(merged);
+    if (!list.length && stepErrors.length) {
+      var e = new Error('every_search_failed: ' + stepErrors[0]);
+      e.stepErrors = stepErrors;
+      throw e;
+    }
     console.log('[NSP SW] InnerTube feed: ' + list.length + ' unique (from ' + rawTotal + ' raw) videos from ' + arrays.length + ' sources (gl=' + gl + ' hl=' + hl + ')');
     nspEmitProgress({ stage: 'merge', status: 'done', sessionId: sessionId, rawCount: rawTotal, uniqueCount: list.length });
     nspEmitProgress({ stage: 'session', status: 'done', sessionId: sessionId, count: list.length });

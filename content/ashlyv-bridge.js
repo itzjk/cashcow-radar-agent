@@ -663,7 +663,8 @@ var NSP_RELAY_KEYS = {
   ashlyv_phase_ops_v1: 1,
   ashlyv_phase_notes_v1: 1,
   nsp_session_prefs: 1,
-  zerack_channel_snapshots_v1: 1
+  zerack_channel_snapshots_v1: 1,
+  nsp_selected_model: 1
 };
 
 function nspRelayKeyAllowed(key) {

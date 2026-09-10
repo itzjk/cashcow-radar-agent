@@ -43,6 +43,7 @@
         "https://www.youtube.com/*"
       ],
       "js": [
+        "lib/nsp-models.js",
         "lib/face-api/face-api.min.js",
         "ashlyv/ashlyv-engine.js",
         "knowledge/youtube-playbook.js",

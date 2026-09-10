@@ -23031,78 +23031,84 @@ function openNspCoachChat() {
   inputWrap.appendChild(stopBtn);
   panel.appendChild(inputWrap);
 
-  // v3.8.3 — Provider picker manual (debajo del input, arriba del footer)
-  var providerBar = document.createElement('div');
-  providerBar.id = 'provider-bar';
-  providerBar.style.cssText = 'display:flex;gap:6px;padding:8px 14px;background:#050505;border-top:1px solid rgba(255,255,255,0.06);flex-shrink:0;align-items:center;';
-  var providerLabel = document.createElement('span');
-  providerLabel.textContent = 'AI:';
-  providerLabel.style.cssText = 'font-size:9px;color:rgba(255,255,255,0.45);font-weight:700;letter-spacing:0.08em;margin-right:2px;';
-  providerBar.appendChild(providerLabel);
+  var modelBar = document.createElement('div');
+  modelBar.id = 'model-bar';
+  modelBar.style.cssText = 'position:relative;display:flex;gap:8px;padding:8px 14px;background:#050505;border-top:1px solid rgba(255,255,255,0.06);flex-shrink:0;align-items:center;';
 
-  function makeProviderBtn(id, label, color, providerKey) {
-    var b = document.createElement('button');
-    b.dataset.provider = providerKey;
-    b.textContent = label;
-    b.style.cssText = 'flex:1;padding:6px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.7);font-family:ui-monospace,monospace;font-size:9.5px;font-weight:900;cursor:pointer;letter-spacing:0.04em;transition:all .15s;';
-    b.onmouseenter = function() { if (!b._active) b.style.background = 'rgba(255,255,255,0.08)'; };
-    b.onmouseleave = function() { if (!b._active) b.style.background = 'rgba(255,255,255,0.04)'; };
-    b.onclick = function() {
-      // Marca este como activo
-      providerBar.querySelectorAll('button[data-provider]').forEach(function(other) {
-        other._active = false;
-        other.style.background = 'rgba(255,255,255,0.04)';
-        other.style.color = 'rgba(255,255,255,0.7)';
-        other.style.borderColor = 'rgba(255,255,255,0.15)';
-      });
-      b._active = true;
-      b.style.background = color;
-      b.style.color = '#000';
-      b.style.borderColor = color;
-      // Persiste preferencia
-      var prefReqId = nspCoachReqId();
-      _nspCoachPendingResponses[prefReqId] = function() { delete _nspCoachPendingResponses[prefReqId]; };
-      window.postMessage({ type: 'NSP_COACH_SET_PREFERRED_PROVIDER', requestId: prefReqId, provider: providerKey }, window.location.origin);
-      // Actualiza header subtitle
-      t2.textContent = 'FORZADO: ' + label + ' · 17 TOOLS';
-      t2.style.color = color;
-      console.log('[NSP COACH] Provider forzado a:', providerKey);
-    };
-    return b;
+  var modelBtn = document.createElement('button');
+  modelBtn.id = 'model-picker';
+  modelBtn.style.cssText = 'display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,0.16);background:rgba(255,255,255,0.05);color:#fff;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;letter-spacing:0.01em;';
+  var modelBtnLabel = document.createElement('span');
+  modelBtnLabel.textContent = 'Model';
+  var modelBtnCaret = document.createElement('span');
+  modelBtnCaret.textContent = '\u25BE';
+  modelBtnCaret.style.cssText = 'opacity:0.5;font-size:9px;';
+  modelBtn.appendChild(modelBtnLabel);
+  modelBtn.appendChild(modelBtnCaret);
+  modelBtn.onmouseenter = function () { modelBtn.style.background = 'rgba(255,255,255,0.1)'; };
+  modelBtn.onmouseleave = function () { modelBtn.style.background = 'rgba(255,255,255,0.05)'; };
+  modelBar.appendChild(modelBtn);
+
+  var modelMenu = document.createElement('div');
+  modelMenu.style.cssText = 'position:absolute;bottom:44px;left:14px;min-width:250px;max-height:320px;overflow:auto;background:#0b0b0b;border:1px solid rgba(255,255,255,0.14);border-radius:12px;padding:6px;display:none;z-index:30;box-shadow:0 18px 48px rgba(0,0,0,0.75);';
+  modelBar.appendChild(modelMenu);
+
+  var MODEL_LIST = (window.NSP_MODELS && window.NSP_MODELS.list) || [{ id: 'auto', label: 'Auto', note: '' }];
+  var currentModelId = 'auto';
+
+  function paintModelLabel(id) {
+    var entry = null;
+    for (var i = 0; i < MODEL_LIST.length; i++) if (MODEL_LIST[i].id === id) entry = MODEL_LIST[i];
+    if (!entry) entry = MODEL_LIST[0];
+    currentModelId = entry.id;
+    modelBtnLabel.textContent = entry.label;
+    Array.prototype.forEach.call(modelMenu.children, function (row) {
+      var on = row.dataset && row.dataset.modelId === entry.id;
+      row.style.background = on ? 'rgba(255,255,255,0.1)' : 'transparent';
+    });
   }
 
-  var groqBtn = makeProviderBtn('p-groq', '🚀 GROQ', '#FF6B6B', 'groq');
-  var ollamaBtn = makeProviderBtn('p-ollama', '🦙 OLLAMA', '#A88FFF', 'ollama');
-  var geminiBtn = makeProviderBtn('p-gemini', '🔵 GEMINI', '#2EE9FF', 'gemini');
-  var autoBtn = makeProviderBtn('p-auto', '⚙ AUTO', '#FFD93D', 'auto');
-  providerBar.appendChild(groqBtn);
-  providerBar.appendChild(ollamaBtn);
-  providerBar.appendChild(geminiBtn);
-  providerBar.appendChild(autoBtn);
-  panel.appendChild(providerBar);
-
-  // Carga la preferencia guardada y la marca activa
-  (function loadProviderPref() {
-    var prefReqId = nspCoachReqId();
-    var prefTimer = setTimeout(function() {
-      delete _nspCoachPendingResponses[prefReqId];
-      autoBtn.click(); // default AUTO si no se puede leer
-    }, 2000);
-    _nspCoachPendingResponses[prefReqId] = function(data) {
-      clearTimeout(prefTimer);
-      delete _nspCoachPendingResponses[prefReqId];
-      var pref = (data && data.preferredProvider) || 'auto';
-      var btnMap = { groq: groqBtn, ollama: ollamaBtn, gemini: geminiBtn, auto: autoBtn };
-      var targetBtn = btnMap[pref] || autoBtn;
-      // Marca como activo sin disparar el setter (que enviaría otro postMessage)
-      targetBtn._active = true;
-      var colorMap = { groq: '#FF6B6B', ollama: '#A88FFF', gemini: '#2EE9FF', auto: '#FFD93D' };
-      targetBtn.style.background = colorMap[pref] || '#FFD93D';
-      targetBtn.style.color = '#000';
-      targetBtn.style.borderColor = colorMap[pref] || '#FFD93D';
+  MODEL_LIST.forEach(function (entry) {
+    var row = document.createElement('button');
+    row.dataset.modelId = entry.id;
+    row.style.cssText = 'display:block;width:100%;text-align:left;padding:9px 11px;border:none;border-radius:8px;background:transparent;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;';
+    var name = document.createElement('div');
+    name.textContent = entry.label;
+    var note = document.createElement('div');
+    note.textContent = entry.note || '';
+    note.style.cssText = 'font-size:10px;font-weight:500;color:rgba(255,255,255,0.45);margin-top:2px;';
+    row.appendChild(name);
+    if (entry.note) row.appendChild(note);
+    row.onmouseenter = function () { if (entry.id !== currentModelId) row.style.background = 'rgba(255,255,255,0.06)'; };
+    row.onmouseleave = function () { if (entry.id !== currentModelId) row.style.background = 'transparent'; };
+    row.onclick = function () {
+      paintModelLabel(entry.id);
+      modelMenu.style.display = 'none';
+      nspStore.set({ nsp_selected_model: entry.id });
+      var prefReqId = nspCoachReqId();
+      _nspCoachPendingResponses[prefReqId] = function () { delete _nspCoachPendingResponses[prefReqId]; };
+      window.postMessage({ type: 'NSP_COACH_SET_PREFERRED_PROVIDER', requestId: prefReqId, provider: entry.provider || 'auto' }, window.location.origin);
+      t2.textContent = entry.label.toUpperCase();
+      t2.style.color = 'rgba(255,255,255,0.55)';
     };
-    window.postMessage({ type: 'NSP_COACH_GET_PREFERRED_PROVIDER', requestId: prefReqId }, window.location.origin);
-  })();
+    modelMenu.appendChild(row);
+  });
+
+  modelBtn.onclick = function (ev) {
+    ev.stopPropagation();
+    modelMenu.style.display = modelMenu.style.display === 'none' ? 'block' : 'none';
+  };
+  document.addEventListener('click', function (ev) {
+    if (modelMenu.style.display === 'none') return;
+    if (modelBar.contains(ev.target)) return;
+    modelMenu.style.display = 'none';
+  });
+
+  panel.appendChild(modelBar);
+
+  nspStore.get('nsp_selected_model').then(function (data) {
+    paintModelLabel((data && data.nsp_selected_model) || 'auto');
+  });
 
   // Footer bar
   var footer = document.createElement('div');

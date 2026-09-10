@@ -331,7 +331,7 @@ function finishScan(okMsg) {
   STATE._progSess = null;
   var btn = $('btn-scan');
   btn.disabled = false;
-  btn.textContent = ' ESCANEAR PAÍS';
+  btn.textContent = 'SCAN COUNTRY';
   if (okMsg) setStatus(okMsg, 'ok');
   setProgress(100);
 }
@@ -378,11 +378,26 @@ function runScan() {
     var err = chrome.runtime && chrome.runtime.lastError;
     if (err) { onFatalError(err.message); return; }
     if (!res || !res.ok) { onFatalError((res && res.error) || (STATE._firstErr || 'sin respuesta')); return; }
-    var vids = (res.videos || []).map(processVideo).filter(Boolean);
+    var raw = Array.isArray(res.videos) ? res.videos : [];
+    var vids = [];
+    try {
+      vids = raw.map(processVideo).filter(Boolean);
+    } catch (mapErr) {
+      onFatalError('Results could not be read: ' + String(mapErr && mapErr.message || mapErr));
+      return;
+    }
     STATE.videos = vids;
     applyFilters();
     render();
-    finishScan(' ' + vids.length + ' videos de ' + market.label + (res.cached ? ' (cache)' : ' (frescos)') + ' — ordenados por señal faceless.');
+    if (!raw.length) {
+      onFatalError('YouTube returned nothing for these searches inside the selected window. Widen the age or change the market.');
+      return;
+    }
+    if (!vids.length) {
+      onFatalError(raw.length + ' videos came back, but none carries a view count yet, so none can be ranked.');
+      return;
+    }
+    finishScan(vids.length + ' videos from ' + market.label + (res.cached ? ' (cached)' : ' (fresh)') + ', ranked by faceless signal.');
   });
 }
 

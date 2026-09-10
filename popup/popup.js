@@ -330,9 +330,6 @@ function bindFooter() {
   document.getElementById('btn-open-yt').addEventListener('click', () => {
     chrome.tabs.create({ url: 'https://www.youtube.com' });
   });
-  document.getElementById('btn-niches').addEventListener('click', () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL('niches/niches.html') });
-  });
 }
 
 function exportCSV() {
