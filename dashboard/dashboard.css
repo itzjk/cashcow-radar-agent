@@ -20,7 +20,7 @@ body {
   z-index: 100;
 }
 .logo { font-size: 18px; font-weight: 900; color: #FFFFFF; letter-spacing: .08em; }
-.logo-sub { color: rgba(234,240,255,.4); font-size: 12px; font-weight: 400; margin-left: 8px; letter-spacing: .04em; }
+.logo-sub { color: rgba(255, 255, 255,.4); font-size: 12px; font-weight: 400; margin-left: 8px; letter-spacing: .04em; }
 .header-right { display: flex; align-items: center; gap: 10px; }
 .count-badge {
   background: rgba(255,255,255,.12);
@@ -34,7 +34,7 @@ body {
 .icon-btn {
   background: none;
   border: 1px solid rgba(255,255,255,.1);
-  color: rgba(234,240,255,.45);
+  color: rgba(255, 255, 255,.45);
   border-radius: 8px;
   padding: 5px 12px;
   cursor: pointer;
@@ -43,7 +43,7 @@ body {
   font-family: inherit;
   transition: all .15s;
 }
-.icon-btn.danger:hover { border-color: rgba(255,80,80,.5); color: #ff2d2d; background: rgba(255,80,80,.06); }
+.icon-btn.danger:hover { border-color: rgba(255, 45, 45,.5); color: #ff2d2d; background: rgba(255, 45, 45,.06); }
 
 /* ── Toolbar ── */
 .toolbar {
@@ -59,13 +59,13 @@ body {
   z-index: 99;
 }
 .filter-group { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-.filter-label { color: rgba(234,240,255,.3); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
+.filter-label { color: rgba(255, 255, 255,.3); font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
 .pill {
   padding: 4px 11px;
   border-radius: 999px;
   border: 1px solid rgba(255,255,255,.1);
   background: transparent;
-  color: rgba(234,240,255,.45);
+  color: rgba(255, 255, 255,.45);
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
@@ -99,7 +99,7 @@ body {
 
 /* ── Channel Card ── */
 .ch-card {
-  background: rgba(12,14,26,.97);
+  background: rgba(255, 255, 255,.97);
   border: 1px solid rgba(255,255,255,.07);
   border-radius: 16px;
   overflow: hidden;
@@ -149,7 +149,7 @@ body {
   right: 8px;
   background: none;
   border: none;
-  color: rgba(234,240,255,.18);
+  color: rgba(255, 255, 255,.18);
   font-size: 12px;
   cursor: pointer;
   padding: 3px 6px;
@@ -158,7 +158,7 @@ body {
   line-height: 1;
   transition: all .15s;
 }
-.ch-remove:hover { background: rgba(255,80,80,.15); color: #ff2d2d; }
+.ch-remove:hover { background: rgba(255, 45, 45,.15); color: #ff2d2d; }
 
 /* Avatar */
 .ch-avatar-wrap {
@@ -230,12 +230,12 @@ body {
   min-width: 52px;
 }
 .ch-stat-val { font-size: 12px; font-weight: 800; color: #ffffff; line-height: 1; }
-.ch-stat-lbl { font-size: 8.5px; color: rgba(234,240,255,.3); letter-spacing: .05em; text-transform: uppercase; }
+.ch-stat-lbl { font-size: 8.5px; color: rgba(255, 255, 255,.3); letter-spacing: .05em; text-transform: uppercase; }
 
 /* Subs + rev line */
 .ch-meta {
   font-size: 10px;
-  color: rgba(234,240,255,.35);
+  color: rgba(255, 255, 255,.35);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -293,12 +293,12 @@ body {
   cursor: wait;
 }
 .ch-lab-btn.active {
-  background: rgba(255,200,0,.18);
-  border-color: rgba(255,200,0,.45);
+  background: rgba(255, 255, 255,.18);
+  border-color: rgba(255, 255, 255,.45);
   color: #FFFFFF;
 }
 .ch-lab-btn.active:hover {
-  background: rgba(255,200,0,.28);
+  background: rgba(255, 255, 255,.28);
 }
 
 /* 💎 NEW & EXPLODING badge */
@@ -310,21 +310,21 @@ body {
   align-items: center;
   padding: 4px 9px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(255,80,255,.22), rgba(255,140,0,.18));
-  border: 1px solid rgba(255,80,255,.5);
+  background: linear-gradient(135deg, rgba(255, 255, 255,.22), rgba(255, 255, 255,.18));
+  border: 1px solid rgba(255, 255, 255,.5);
   color: #FF2D2D;
   font-size: 8.5px;
   font-weight: 900;
   letter-spacing: .1em;
   text-transform: uppercase;
-  box-shadow: 0 0 14px rgba(255,80,255,.35), inset 0 1px 0 rgba(255,255,255,.1);
+  box-shadow: 0 0 14px rgba(255, 255, 255,.35), inset 0 1px 0 rgba(255,255,255,.1);
   animation: nspExpGlow 2s ease-in-out infinite;
   z-index: 2;
   pointer-events: none;
 }
 @keyframes nspExpGlow {
-  0%, 100% { box-shadow: 0 0 14px rgba(255,80,255,.35), inset 0 1px 0 rgba(255,255,255,.1); }
-  50%      { box-shadow: 0 0 22px rgba(255,80,255,.6),  inset 0 1px 0 rgba(255,255,255,.15); }
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 255, 255,.35), inset 0 1px 0 rgba(255,255,255,.1); }
+  50%      { box-shadow: 0 0 22px rgba(255, 255, 255,.6),  inset 0 1px 0 rgba(255,255,255,.15); }
 }
 
 /* ── Multi-select checkbox + bulk bar ─────────────────────────────── */
@@ -390,18 +390,18 @@ body {
   border-color: rgba(255,255,255,.6);
 }
 .nsp-bulk-btn.danger {
-  background: rgba(255,107,107,.12);
-  border-color: rgba(255,107,107,.3);
+  background: rgba(255, 45, 45,.12);
+  border-color: rgba(255, 45, 45,.3);
   color: #FF2D2D;
 }
 .nsp-bulk-btn.danger:hover {
-  background: rgba(255,107,107,.25);
-  border-color: rgba(255,107,107,.5);
+  background: rgba(255, 45, 45,.25);
+  border-color: rgba(255, 45, 45,.5);
 }
 .nsp-bulk-btn.ghost {
   background: transparent;
   border-color: rgba(255,255,255,.14);
-  color: rgba(234,240,255,.6);
+  color: rgba(255, 255, 255,.6);
 }
 
 /* ── Modal genérico (export, ideas) ─────────────────────────────── */
@@ -472,7 +472,7 @@ body {
   align-items: center;
   gap: 7px;
   font-size: 12px;
-  color: rgba(234,240,255,.85);
+  color: rgba(255, 255, 255,.85);
   cursor: pointer;
   padding: 6px 10px;
   border-radius: 8px;
@@ -505,7 +505,7 @@ body {
 .export-format-btn small {
   display: block;
   font-size: 9.5px;
-  color: rgba(234,240,255,.5);
+  color: rgba(255, 255, 255,.5);
   font-weight: 500;
   margin-top: 3px;
   letter-spacing: .04em;
@@ -518,7 +518,7 @@ body {
 /* ── Ideas panel ── */
 .ideas-subhead {
   font-size: 11px;
-  color: rgba(234,240,255,.55);
+  color: rgba(255, 255, 255,.55);
   line-height: 1.5;
 }
 .ideas-channels {
@@ -539,7 +539,7 @@ body {
 }
 .ideas-loading {
   text-align: center;
-  color: rgba(234,240,255,.5);
+  color: rgba(255, 255, 255,.5);
   font-size: 12px;
   padding: 22px;
 }
@@ -551,7 +551,7 @@ body {
   border: 1px solid rgba(255,255,255,.06);
   border-radius: 12px;
   padding: 16px;
-  color: rgba(234,240,255,.95);
+  color: rgba(255, 255, 255,.95);
   max-height: 50vh;
   overflow-y: auto;
 }
@@ -559,29 +559,29 @@ body {
   color: #FF2D2D;
   font-size: 12px;
   padding: 10px 14px;
-  background: rgba(255,107,107,.08);
+  background: rgba(255, 45, 45,.08);
   border-radius: 8px;
-  border: 1px solid rgba(255,107,107,.2);
+  border: 1px solid rgba(255, 45, 45,.2);
 }
 .ideas-help {
   margin-top: 8px;
   font-size: 10.5px;
-  color: rgba(234,240,255,.5);
+  color: rgba(255, 255, 255,.5);
   line-height: 1.5;
 }
 
 /* Age filter pills (special highlight for exploding) */
 .pill.age-exploding {
-  background: linear-gradient(135deg, rgba(255,80,255,.15), rgba(255,140,0,.12)) !important;
-  border-color: rgba(255,80,255,.4) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255,.15), rgba(255, 255, 255,.12)) !important;
+  border-color: rgba(255, 255, 255,.4) !important;
   color: #FF2D2D !important;
   font-weight: 800;
 }
 .pill.age-exploding.active {
-  background: linear-gradient(135deg, rgba(255,80,255,.3), rgba(255,140,0,.22)) !important;
-  border-color: rgba(255,80,255,.7) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255,.3), rgba(255, 255, 255,.22)) !important;
+  border-color: rgba(255, 255, 255,.7) !important;
   color: #fff !important;
-  box-shadow: 0 0 14px rgba(255,80,255,.45);
+  box-shadow: 0 0 14px rgba(255, 255, 255,.45);
 }
 
 /* ── Empty state ── */
@@ -594,8 +594,8 @@ body {
   gap: 12px;
 }
 .empty-icon { font-size: 56px; }
-.empty-title { font-size: 20px; font-weight: 800; color: rgba(234,240,255,.65); }
-.empty-desc { font-size: 13px; color: rgba(234,240,255,.3); line-height: 1.75; max-width: 440px; }
+.empty-title { font-size: 20px; font-weight: 800; color: rgba(255, 255, 255,.65); }
+.empty-desc { font-size: 13px; color: rgba(255, 255, 255,.3); line-height: 1.75; max-width: 440px; }
 .cta-btn {
   display: inline-block;
   margin-top: 8px;
@@ -625,7 +625,7 @@ body {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.06), 0 18px 70px rgba(0,0,0,.42);
 }
 .pro-launch-kicker {
-  color: rgba(234,240,255,.46);
+  color: rgba(255, 255, 255,.46);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: .18em;
@@ -642,7 +642,7 @@ body {
 .pro-launch-text {
   max-width: 760px;
   margin-top: 13px;
-  color: rgba(234,240,255,.72);
+  color: rgba(255, 255, 255,.72);
   font-size: 14px;
   line-height: 1.65;
 }
@@ -711,7 +711,7 @@ body {
 .pro-panel-subtitle {
   margin-top: 4px;
   font-size: 11px;
-  color: rgba(234,240,255,.48);
+  color: rgba(255, 255, 255,.48);
 }
 .pro-close-btn {
   width: 34px;
@@ -719,18 +719,18 @@ body {
   border-radius: 8px;
   border: 1px solid rgba(255,255,255,.12);
   background: rgba(255,255,255,.04);
-  color: rgba(234,240,255,.75);
+  color: rgba(255, 255, 255,.75);
   font-family: inherit;
   font-weight: 900;
   cursor: pointer;
 }
-.pro-close-btn:hover { border-color: rgba(255,80,80,.45); color: #ff2d2d; }
+.pro-close-btn:hover { border-color: rgba(255, 45, 45,.45); color: #ff2d2d; }
 
 .pro-select-block { padding: 18px 20px 14px; border-bottom: 1px solid rgba(255,255,255,.06); }
 .pro-label {
   display: block;
   margin-bottom: 7px;
-  color: rgba(234,240,255,.38);
+  color: rgba(255, 255, 255,.38);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: .08em;
@@ -787,7 +787,7 @@ body {
   border-radius: 9px;
   background: rgba(255, 255, 255,.06);
   border: 1px solid rgba(255, 255, 255,.16);
-  color: rgba(234,240,255,.72);
+  color: rgba(255, 255, 255,.72);
   font-size: 11px;
   line-height: 1.55;
 }
@@ -814,7 +814,7 @@ body {
 .pro-tool-desc {
   min-height: 34px;
   margin-top: 5px;
-  color: rgba(234,240,255,.42);
+  color: rgba(255, 255, 255,.42);
   font-size: 11px;
   line-height: 1.5;
 }
@@ -828,12 +828,12 @@ body {
   border: 1px solid rgba(255,255,255,.08);
   background: rgba(0,0,0,.25);
   padding: 11px;
-  color: rgba(234,240,255,.62);
+  color: rgba(255, 255, 255,.62);
   font-size: 11px;
   line-height: 1.55;
 }
 .pro-result.is-loading { color: #FFFFFF; border-color: rgba(255, 255, 255,.25); }
-.pro-result.is-error { color: #ff2d2d; border-color: rgba(255,80,80,.32); }
+.pro-result.is-error { color: #ff2d2d; border-color: rgba(255, 45, 45,.32); }
 .pro-result-head {
   margin-bottom: 10px;
   color: #ffffff;
@@ -853,10 +853,10 @@ body {
 }
 .pro-metric.ok { border-color: rgba(255, 255, 255,.28); background: rgba(255, 255, 255,.07); }
 .pro-metric.warn { border-color: rgba(255, 255, 255,.25); background: rgba(255, 255, 255,.06); }
-.pro-metric.bad { border-color: rgba(255,80,80,.28); background: rgba(255,80,80,.06); }
+.pro-metric.bad { border-color: rgba(255, 45, 45,.28); background: rgba(255, 45, 45,.06); }
 .pro-metric-label {
   display: block;
-  color: rgba(234,240,255,.38);
+  color: rgba(255, 255, 255,.38);
   font-size: 9px;
   font-weight: 900;
   text-transform: uppercase;
@@ -869,7 +869,7 @@ body {
 }
 .pro-list-title {
   margin: 13px 0 6px;
-  color: rgba(234,240,255,.55);
+  color: rgba(255, 255, 255,.55);
   font-size: 10px;
   font-weight: 900;
   text-transform: uppercase;
@@ -897,10 +897,10 @@ body {
   border: 1px solid rgba(255,255,255,.18);
 }
 .pro-plan-title { color: #fff; font-weight: 950; margin-bottom: 6px; }
-.pro-plan-line { color: rgba(234,240,255,.72); margin-top: 4px; }
+.pro-plan-line { color: rgba(255, 255, 255,.72); margin-top: 4px; }
 .pro-json {
   white-space: pre-wrap;
-  color: rgba(234,240,255,.68);
+  color: rgba(255, 255, 255,.68);
   font-family: inherit;
 }
 
