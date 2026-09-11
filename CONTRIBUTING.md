@@ -82,3 +82,15 @@ Before you claim a change works, paste the command and its output. A claim witho
 ## Renaming
 
 Do not rename an identifier, a CSS class, an element id, a storage key, a message type or a URL unless the rename is the fix. Then change every side in the same commit and say so in the message. A storage key that changes name orphans everything the user had saved; a message type that changes on one side only turns a button into a control that answers and does nothing, which is exactly what check 8 of the smoke looks for.
+
+## Continuous integration
+
+`ci/smoke.yml` is a GitHub Actions workflow that runs `node smoke.mjs` on every push and
+pull request. It lives here rather than under `.github/workflows/` because the token used
+for the first push did not carry the `workflow` scope. To enable it:
+
+```bash
+gh auth refresh -s workflow
+mkdir -p .github/workflows && git mv ci/smoke.yml .github/workflows/smoke.yml
+git commit -m "Enable the smoke workflow" && git push
+```
