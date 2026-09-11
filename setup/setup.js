@@ -168,29 +168,34 @@ function checkOllama() {
   });
 }
 
+var PROVIDER_FIELDS = {
+  openai: { input: 'openai-key', status: 'openai-status', storeKey: 'nsp_openai_api_key', shape: /^sk-[A-Za-z0-9_-]{20,}$/, model: 'openai:gpt-4o-mini', label: 'GPT-4o mini', hint: 'That does not look like an OpenAI key. It starts with sk-.' },
+  groq: { input: 'groq-key', status: 'groq-status', storeKey: 'nsp_groq_api_key', shape: /^gsk_[A-Za-z0-9_-]{30,}$/, model: 'groq:llama-3.3-70b-versatile', label: 'Llama 3.3 70B on Groq', hint: 'That does not look like a Groq key. It starts with gsk_ and is longer than this one.' },
+  gemini: { input: 'gemini-key', status: 'gemini-status', storeKey: 'nsp_gemini_api_key', shape: /^AIza[A-Za-z0-9_-]{30,50}$/, model: 'gemini:gemini-2.0-flash', label: 'Gemini 2.0 Flash', hint: 'That does not look like a Gemini key. It starts with AIza.' }
+};
+
 function saveKey(which) {
-  var isGroq = which === 'groq';
-  var input = el(isGroq ? 'groq-key' : 'gemini-key');
-  var status = el(isGroq ? 'groq-status' : 'gemini-status');
+  var cfg = PROVIDER_FIELDS[which];
+  if (!cfg) return;
+  var input = el(cfg.input);
+  var status = el(cfg.status);
   var raw = (input.value || '').trim();
-  var shape = isGroq ? /^gsk_[A-Za-z0-9_-]{30,}$/ : /^AIza[A-Za-z0-9_-]{30,50}$/;
+  var shape = cfg.shape;
 
   if (!raw) { status.textContent = 'Paste the key first.'; status.className = 'status bad'; return; }
   if (!shape.test(raw)) {
-    status.textContent = isGroq
-      ? 'That does not look like a Groq key. It starts with gsk_ and is longer than this one.'
-      : 'That does not look like a Gemini key. It starts with AIza.';
+    status.textContent = cfg.hint;
     status.className = 'status bad';
     return;
   }
 
   var payload = {};
-  payload[isGroq ? 'nsp_groq_api_key' : 'nsp_gemini_api_key'] = raw;
-  payload.nsp_selected_model = isGroq ? 'groq:llama-3.3-70b-versatile' : 'gemini:gemini-2.0-flash';
-  payload.nsp_preferred_provider = isGroq ? 'groq' : 'gemini';
+  payload[cfg.storeKey] = raw;
+  payload.nsp_selected_model = cfg.model;
+  payload.nsp_preferred_provider = which;
 
   chrome.storage.local.set(payload, function () {
-    status.textContent = 'Saved. The assistant answers with ' + (isGroq ? 'Llama 3.3 70B on Groq' : 'Gemini 2.0 Flash') + ' now.';
+    status.textContent = 'Saved. The assistant answers with ' + cfg.label + ' now.';
     status.className = 'status good';
     input.value = raw.slice(0, 6) + '...' + raw.slice(-4);
     input.disabled = true;
@@ -199,8 +204,9 @@ function saveKey(which) {
 }
 
 function refreshCloudTag() {
-  chrome.storage.local.get(['nsp_groq_api_key', 'nsp_gemini_api_key'], function (r) {
+  chrome.storage.local.get(['nsp_groq_api_key', 'nsp_gemini_api_key', 'nsp_openai_api_key'], function (r) {
     var has = [];
+    if (r && r.nsp_openai_api_key) has.push('OpenAI');
     if (r && r.nsp_groq_api_key) has.push('Groq');
     if (r && r.nsp_gemini_api_key) has.push('Gemini');
     if (has.length) setTag('cloud-state', has.join(' and ') + ' set', 'good');
@@ -212,6 +218,7 @@ document.addEventListener('DOMContentLoaded', function () {
   checkOllama();
   refreshCloudTag();
   el('btn-recheck').addEventListener('click', checkOllama);
+  el('save-openai').addEventListener('click', function () { saveKey('openai'); });
   el('save-groq').addEventListener('click', function () { saveKey('groq'); });
   el('save-gemini').addEventListener('click', function () { saveKey('gemini'); });
 
@@ -227,7 +234,13 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  chrome.storage.local.get(['nsp_groq_api_key', 'nsp_gemini_api_key'], function (r) {
+  chrome.storage.local.get(['nsp_groq_api_key', 'nsp_gemini_api_key', 'nsp_openai_api_key'], function (r) {
+    if (r && r.nsp_openai_api_key) {
+      el('openai-key').value = r.nsp_openai_api_key.slice(0, 6) + '...' + r.nsp_openai_api_key.slice(-4);
+      el('openai-key').disabled = true;
+      el('openai-status').textContent = 'A key is already stored.';
+      el('openai-status').className = 'status good';
+    }
     if (r && r.nsp_groq_api_key) {
       el('groq-key').value = r.nsp_groq_api_key.slice(0, 6) + '...' + r.nsp_groq_api_key.slice(-4);
       el('groq-key').disabled = true;

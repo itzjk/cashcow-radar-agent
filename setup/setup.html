@@ -16,8 +16,8 @@
 <div class="wrap">
 
   <p class="lead">
-    Everything here is free. Pick one of the three and the assistant starts working.
-    You only need one, and you can change it later from the model picker in the chat.
+    Pick one and the assistant starts working. You only need one, and you can change it later
+    from the model picker in the chat. The local option and the two free tiers cost nothing.
   </p>
 
   <section class="card">
@@ -44,12 +44,22 @@
 
   <section class="card">
     <div class="card-head">
-      <h2>Use a free cloud key</h2>
+      <h2>Use a cloud key</h2>
       <span class="tag" id="cloud-state">no key yet</span>
     </div>
     <p class="note">
-      Faster than a local model and it costs nothing on the free tier. The key is stored on this machine and is sent only to the provider you paste it for.
+      Faster than a local model. Groq and Gemini have a free tier, OpenAI is paid. The key is stored on this machine and is sent only to the provider you paste it for.
     </p>
+
+    <div class="field">
+      <label for="openai-key">OpenAI key, starts with sk-</label>
+      <div class="row">
+        <input id="openai-key" type="text" placeholder="sk-..." autocomplete="off" spellcheck="false"/>
+        <button class="btn" id="save-openai">Save</button>
+      </div>
+      <p class="note">This one is not free, you pay per use. It is the quickest to set up if you already have a key, and GPT-4o mini answers in about a second. Get one at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com/api-keys</a>.</p>
+      <p class="status" id="openai-status"></p>
+    </div>
 
     <div class="field">
       <label for="groq-key">Groq key, starts with gsk_</label>
@@ -89,6 +99,7 @@
     <table class="cmp">
       <thead><tr><th>Option</th><th>Cost</th><th>Speed</th><th>Reads images</th><th>Leaves your machine</th></tr></thead>
       <tbody>
+        <tr><td>OpenAI GPT-4o mini</td><td>Paid per use</td><td>About a second</td><td>No</td><td>Yes, to OpenAI</td></tr>
         <tr><td>Local model</td><td>Free, no limit</td><td>Depends on your machine</td><td>No</td><td>No</td></tr>
         <tr><td>Groq</td><td>Free tier</td><td>Fastest</td><td>No</td><td>Yes, to Groq</td></tr>
         <tr><td>Gemini</td><td>Free tier</td><td>Fast</td><td>Yes</td><td>Yes, to Google</td></tr>

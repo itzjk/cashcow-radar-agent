@@ -123,6 +123,46 @@ function nspFetchTimeout(url, opts, ms) {
 }
 
 // The Groq free tier has a low tokens-per-minute cap, so the system prompt is cut to about 9000 characters to keep one turn under it.
+async function nspCallOpenAI(apiKey, model, payload, messages) {
+  var openAIMessages = nspMessagesToOpenAI(messages);
+  if (payload.system) openAIMessages.unshift({ role: 'system', content: String(payload.system).slice(0, 24000) });
+  var body = {
+    model: model || 'gpt-4o-mini',
+    messages: openAIMessages,
+    max_tokens: Math.max(96, Math.min(4096, Number(payload.maxTokens) || 900)),
+    temperature: 0.7
+  };
+  var openAITools = nspToolsToOpenAI(payload.tools);
+  if (openAITools.length) { body.tools = openAITools; body.tool_choice = 'auto'; }
+  var t0 = Date.now();
+  var resp, data;
+  try {
+    resp = await nspFetchTimeout('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify(body)
+    }, 45000);
+    data = await resp.json();
+  } catch (eNet) {
+    return { ok: false, error: 'OpenAI network: ' + String((eNet && eNet.message) || eNet), rateLimited: false };
+  }
+  var elapsedMs = Date.now() - t0;
+  console.log('[NSP SW] OpenAI ' + body.model + ' -> ' + elapsedMs + 'ms, ' + (resp.ok ? 'OK' : 'FAIL ' + resp.status));
+  if (!resp.ok) {
+    var isRate = resp.status === 429;
+    return {
+      ok: false,
+      error: 'OpenAI ' + resp.status + ': ' + ((data && data.error && (data.error.message || data.error)) || 'error'),
+      rateLimited: isRate,
+      retryAfter: parseFloat(resp.headers.get('retry-after')) || 0,
+      detail: data && data.error
+    };
+  }
+  var parsed = nspParseOpenAIResponse(data);
+  if (parsed.ok) parsed.elapsedMs = elapsedMs;
+  return parsed;
+}
+
 async function nspCallGroq(apiKey, model, payload, messages) {
   var gate = await nspGroqWaitForRateLimit();
   if (!gate.ok) {
@@ -1255,7 +1295,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.type === 'ASHLYV_CHAT_REQUEST') {
     chrome.storage.local.get([
       'nsp_gemini_api_key', 'nsp_gemini_working_model',
-      'nsp_groq_api_key', 'nsp_groq_model', 'nsp_selected_model',
+      'nsp_groq_api_key', 'nsp_groq_model', 'nsp_selected_model', 'nsp_openai_api_key', 'nsp_openai_model',
       'nsp_ollama_url', 'nsp_ollama_model', 'nsp_ollama_enabled',
       'nsp_provider_priority',
       'nsp_preferred_provider'
@@ -1283,6 +1323,10 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         if (chosenProvider === 'groq' && chosenModel) groqModel = chosenModel;
       }
 
+      var openaiKey = r && typeof r.nsp_openai_api_key === 'string' ? r.nsp_openai_api_key.trim() : '';
+      var openaiValid = !!(openaiKey && /^sk-[A-Za-z0-9_\-]{20,}$/.test(openaiKey));
+      var openaiModel = (r && r.nsp_openai_model) || 'gpt-4o-mini';
+      if (chosenProvider === 'openai' && chosenModel) openaiModel = chosenModel;
       var ollamaEnabled = r && r.nsp_ollama_enabled === true;
       var ollamaUrl = (r && r.nsp_ollama_url) || 'http://localhost:11434';
       var ollamaModel = (r && r.nsp_ollama_model) || 'llama3.2:3b';
@@ -1298,11 +1342,12 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       if (chosenProvider === 'ollama' && chosenModel) ollamaModel = chosenModel;
       var order = [];
       function pushProv(name) { if (order.indexOf(name) === -1) order.push(name); }
-      if (preferredProvider === 'groq' || preferredProvider === 'ollama' || preferredProvider === 'gemini') {
+      if (preferredProvider === 'openai' || preferredProvider === 'groq' || preferredProvider === 'ollama' || preferredProvider === 'gemini') {
         pushProv(preferredProvider);
       }
-      pushProv('groq'); pushProv('ollama'); pushProv('gemini');
+      pushProv('openai'); pushProv('groq'); pushProv('ollama'); pushProv('gemini');
       var queue = order.filter(function(p) {
+        if (p === 'openai') return !!openaiValid;
         if (p === 'groq') return !!groqValid;
         if (p === 'ollama') return !!ollamaEnabled;
         if (p === 'gemini') return !!geminiValid;
@@ -1321,7 +1366,14 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       for (var qi = 0; qi < queue.length; qi++) {
         var prov = queue[qi];
         try {
-          if (prov === 'groq') {
+          if (prov === 'openai') {
+            anyAttempted = true;
+            console.log('[NSP SW] Provider -> openai', openaiModel);
+            var oa = await nspCallOpenAI(openaiKey, openaiModel, payload, messages);
+            if (oa.ok) { sendResponse(Object.assign({ provider: 'openai', modelUsed: openaiModel }, oa)); return; }
+            lastErr = 'OpenAI: ' + (oa.error || 'unknown');
+            if (!oa.rateLimited) allRateLimited = false;
+          } else if (prov === 'groq') {
             anyAttempted = true;
             console.log('[NSP SW] Provider → groq', groqModel);
             var gr = await nspCallGroqWithRetry(groqKey, groqModel, payload, messages);
