@@ -92,6 +92,7 @@ function renderStats(session) {
 function renderTopVideos(videos) {
   const list = document.getElementById('top-list');
   const empty = document.getElementById('empty-top');
+  setExportState((videos && videos.length) || 0);
 
   if (!videos || !videos.length) {
     list.style.display = 'none';
@@ -331,9 +332,23 @@ function bindFooter() {
   });
 }
 
+function setExportState(count) {
+  const btn = document.getElementById('btn-export');
+  const note = document.getElementById('export-note');
+  if (btn) {
+    btn.disabled = !count;
+    btn.title = count ? 'Export the ' + count + ' videos listed below as CSV' : 'Nothing to export yet';
+  }
+  if (note) note.textContent = count ? '' : 'Export needs a scan: open YouTube, hit SCAN, then come back.';
+}
+
 function exportCSV() {
+  const note = document.getElementById('export-note');
   const videos = sessionData?.topVideos || [];
-  if (!videos.length) return;
+  if (!videos.length) {
+    if (note) note.textContent = 'Nothing to export. Open YouTube, hit SCAN, then come back.';
+    return;
+  }
 
   const headers = ['Rank', 'Title', 'Channel', 'VideoID', 'VPH', 'Multiplier', 'Tier', 'OpportunityScore', 'RevenueEst'];
   const rows = videos.map((v, i) => [
@@ -342,7 +357,7 @@ function exportCSV() {
     csvEsc(v.channelName),
     v.videoId,
     v.vph,
-    v.multiplier ?? '',
+    v.outlierRatio ?? '',
     v.tier || '',
     v.os,
     v.rev || '',
@@ -358,6 +373,7 @@ function exportCSV() {
   document.body.appendChild(a);
   a.click();
   setTimeout(() => { try { document.body.removeChild(a); } catch (e) {} URL.revokeObjectURL(url); }, 2000);
+  if (note) note.textContent = 'Exported ' + videos.length + ' videos to ' + a.download + '.';
 }
 
 //  Helpers 

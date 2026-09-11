@@ -7,18 +7,18 @@
   var _gkey = '', _vids = [], _view = 'discover', _sort = 'views', _label = '';
 
   var NICHES = [
-    { n: 'Mystery', q: 'unsolved mystery documentary', i: '🔍' },
-    { n: 'History', q: 'ancient history documentary', i: '🏛️' },
-    { n: 'True Crime', q: 'true crime story', i: '🔪' },
-    { n: 'Horror', q: 'scary horror story narration', i: '👻' },
-    { n: 'Documentary', q: 'full documentary', i: '🎬' },
-    { n: 'Finance', q: 'how to make money online', i: '💰' },
-    { n: 'Motivation', q: 'stoicism discipline motivation', i: '🔥' },
-    { n: 'Sleep / Relax', q: 'relaxing sleep music rain', i: '😴' },
-    { n: 'Space and science', q: 'space universe explained', i: '🚀' },
-    { n: 'Gaming', q: 'gaming gameplay edit', i: '🎮' },
-    { n: 'Real Life', q: 'i spent 24 hours challenge', i: '📸' },
-    { n: 'Anime / Cartoon', q: 'animated story explained', i: '🎨' }
+ { n:'Mystery', q:'unsolved mystery documentary', i:''},
+ { n:'History', q:'ancient history documentary', i:''},
+ { n:'True Crime', q:'true crime story', i:''},
+ { n:'Horror', q:'scary horror story narration', i:''},
+ { n:'Documentary', q:'full documentary', i:''},
+ { n:'Finance', q:'how to make money online', i:''},
+ { n:'Motivation', q:'stoicism discipline motivation', i:''},
+ { n:'Sleep / Relax', q:'relaxing sleep music rain', i:''},
+ { n:'Space and science', q:'space universe explained', i:''},
+ { n:'Gaming', q:'gaming gameplay edit', i:''},
+ { n:'Real Life', q:'i spent 24 hours challenge', i:''},
+ { n:'Anime / Cartoon', q:'animated story explained', i:''}
   ];
 
   var _seed = '';
@@ -160,8 +160,8 @@
     var im = document.createElement('img'); im.className = 'tl-thumb'; im.loading = 'lazy'; im.src = thumbUrl(v.id); im.alt = v.title;
     tw.appendChild(im);
     if (badge) { var bd = document.createElement('span'); bd.className = 'tl-badge'; bd.textContent = badge; tw.appendChild(bd); }
-    var fv = document.createElement('button'); fv.className = 'tl-fav' + (isFav(v.id) ? ' on' : ''); fv.textContent = isFav(v.id) ? '♥' : '♡'; fv.title = 'Favorite';
-    fv.addEventListener('click', function (e) { e.stopPropagation(); toggleFav(v); fv.className = 'tl-fav' + (isFav(v.id) ? ' on' : ''); fv.textContent = isFav(v.id) ? '♥' : '♡'; });
+ var fv = document.createElement('button'); fv.className ='tl-fav'+ (isFav(v.id) ?'on':''); fv.textContent = isFav(v.id) ?'':''; fv.title ='Favorite';
+ fv.addEventListener('click', function (e) { e.stopPropagation(); toggleFav(v); fv.className ='tl-fav'+ (isFav(v.id) ?'on':''); fv.textContent = isFav(v.id) ?'':''; });
     tw.appendChild(fv);
     tw.addEventListener('click', function () { window.open('https://www.youtube.com/watch?v=' + v.id, '_blank'); });
     d.appendChild(tw);
@@ -169,7 +169,7 @@
     var tt = document.createElement('div'); tt.className = 'tl-vt'; tt.textContent = v.title; info.appendChild(tt);
     var vm = document.createElement('div'); vm.className = 'tl-vm';
     var ch = document.createElement('span'); ch.textContent = v.channel || ''; ch.style.cssText = 'max-width:55%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;';
-    var st = document.createElement('span'); st.innerHTML = '<span class="v">▶ ' + fmt(v.vn) + '</span>' + (v.vph ? ' · ⚡' + fmt(Math.round(v.vph)) + '/h' : '');
+ var st = document.createElement('span'); st.innerHTML ='<span class="v">'+ fmt(v.vn) +'</span>'+ (v.vph ?'·'+ fmt(Math.round(v.vph)) +'/h':'');
     vm.appendChild(ch); vm.appendChild(st); info.appendChild(vm);
     d.appendChild(info);
     return d;
@@ -227,7 +227,7 @@
       if (px.palette && px.palette.length) {
         var pl = document.createElement('div'); pl.style.cssText = 'font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-top:14px;'; pl.textContent = 'Dominant palette, click to copy'; c.appendChild(pl);
         var sw = document.createElement('div'); sw.style.cssText = 'display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;';
-        px.palette.forEach(function (hex) { var chip = document.createElement('button'); chip.title = 'Copy ' + hex; chip.style.cssText = 'width:56px;height:56px;border-radius:10px;border:1px solid rgba(255,255,255,.18);cursor:pointer;position:relative;background:' + hex + ';'; var lab = document.createElement('span'); lab.style.cssText = 'position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:800;background:rgba(0,0,0,.6);color:#fff;padding:2px 0;'; lab.textContent = hex; chip.appendChild(lab); chip.addEventListener('click', function () { TK.copy(hex, null); lab.textContent = '✓'; setTimeout(function () { lab.textContent = hex; }, 800); }); sw.appendChild(chip); });
+ px.palette.forEach(function (hex) { var chip = document.createElement('button'); chip.title ='Copy'+ hex; chip.style.cssText ='width:56px;height:56px;border-radius:10px;border:1px solid rgba(255,255,255,.18);cursor:pointer;position:relative;background:'+ hex +';'; var lab = document.createElement('span'); lab.style.cssText ='position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:800;background:rgba(0,0,0,.6);color:#fff;padding:2px 0;'; lab.textContent = hex; chip.appendChild(lab); chip.addEventListener('click', function () { TK.copy(hex, null); lab.textContent =''; setTimeout(function () { lab.textContent = hex; }, 800); }); sw.appendChild(chip); });
         c.appendChild(sw);
       }
     }
@@ -250,7 +250,7 @@
       holder.innerHTML = ''; holder.style.padding = '0';
       var im = document.createElement('img'); im.src = dataUrl; im.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;'; holder.appendChild(im); b.innerHTML = '';
       var dl = document.createElement('button'); dl.className = 'tk-btn sm'; dl.textContent = 'Download'; dl.addEventListener('click', function () { var a = document.createElement('a'); a.href = dataUrl; a.download = 'thumblab-' + (i + 1) + '.png'; document.body.appendChild(a); a.click(); setTimeout(function () { try { document.body.removeChild(a); } catch (e) {} }, 2000); });
-      var re = document.createElement('button'); re.className = 'tk-btn sm'; re.textContent = '🔁'; re.title = 'Another variant'; re.addEventListener('click', gen);
+ var re = document.createElement('button'); re.className ='tk-btn sm'; re.textContent =''; re.title ='Another variant'; re.addEventListener('click', gen);
       b.appendChild(dl); b.appendChild(re); b.appendChild(copyBtn(prompt, 'Prompt'));
     }
     function gen() { if (!_gkey) { holder.innerHTML = ''; holder.textContent = 'Gemini key missing'; b.innerHTML = ''; b.appendChild(copyBtn(prompt, 'Copy prompt')); return; } holder.innerHTML = '<span class="tk-spin"></span>'; b.innerHTML = ''; genImage(_gkey, prompt).then(paint).catch(function () { holder.innerHTML = ''; holder.textContent = 'Could not generate'; b.innerHTML = ''; b.appendChild(copyBtn(prompt, 'Copy prompt')); }); }

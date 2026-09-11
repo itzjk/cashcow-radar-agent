@@ -103,7 +103,7 @@ window.NSP_YT_PLAYBOOK = {
     },
     multiplicadorGeografico: {
       'tier1 (USA, UK, Canada, Australia, Alemania, nordicos)': 1.0,
-      'tier2 (Espana, Europa sur/este, Japon, Corea)': 0.5,
+      'tier 2 (Spain, southern and eastern Europe, Japan, Korea)': 0.5,
       'tier3 (LATAM, India, Pakistan, Sudeste Asiatico, Africa, Brasil)': 0.18
     },
     idiomaAGeografia: [

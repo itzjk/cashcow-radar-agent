@@ -1,5 +1,8 @@
 #!/bin/sh
-# Downloads the binary model files that are not stored in this repo.
+# Downloads the four binary files that are too large for the repo, into lib/whisper.
+# Nothing in the extension imports lib/whisper today, so the scanner, the scan, the policy
+# engine and every panel run without this script. Run it only to wire local transcription
+# back up.
 # Every file is checked against the SHA-256 of the build this code was released from.
 set -e
 
@@ -50,4 +53,5 @@ get "$HF/decoder_model_merged_quantized.onnx" \
     "6c0c125986b007d2e3734bec84c18bda0152071b90b87fadac6d7764499927a0"
 
 echo
-echo "All assets in place. Load the folder in chrome://extensions."
+echo "The four whisper assets are in place. No page imports them yet, so nothing in the"
+echo "extension changes until something loads lib/whisper/whisper-local.js."

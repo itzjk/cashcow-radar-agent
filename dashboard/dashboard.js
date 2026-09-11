@@ -1,14 +1,12 @@
-// NSP Channel Hub — unified dashboard
-
 var allChannels = [];
 var activeFilter = 'ALL';
 var activeNiche  = 'ALL';
 var activeAge    = 'ALL';
 var activeSort   = 'savedAt';
+var activeView   = 'cards';
 var searchQuery  = '';
-var scannedNichos = [];
-var selectedChannels = {}; // key: channelUrl  bool
-var watchingCache = {};   // mirrors chrome.storage.local.nsp_watching
+var selectedChannels = {};
+var watchingCache = {};
 
 function fmtAge(days) {
   if (days === null || days === undefined) return null;
@@ -20,8 +18,10 @@ function fmtAge(days) {
   return remMo > 0 ? years + 'y ' + remMo + 'mo' : years + 'y';
 }
 
+// Same rules as isNewAndExploding in content/nsp-bundle.js, with the channel's best VPH
+// where that copy uses the average VPH of a scan, which is not stored per channel.
 function isExplodingChannel(ch) {
-  if (!ch.channelAgeDays || ch.channelAgeDays > 365) return false;
+  if (!hasAge(ch) || ch.channelAgeDays > 365) return false;
 
   var subs = ch.subs || 0;
   var ageMonths = ch.channelAgeDays / 30;
@@ -30,15 +30,14 @@ function isExplodingChannel(ch) {
     ? (ch.totalViews / ch.videoCount) : 0;
   var topVPH = ch.topVPH || 0;
 
-  // Path 1: classic <6mo + <50K + traction
+  if (avgViewsPerVideo < 3000 && subsPerMonth < 1000 && subs < 1000) return false;
+
   if (ch.channelAgeDays <= 180 && subs <= 50000 && subs > 0) {
-    if (topVPH >= 50 || avgViewsPerVideo >= 50000) return true;
+    if (topVPH >= 50 && avgViewsPerVideo >= 2000) return true;
+    if (avgViewsPerVideo >= 50000) return true;
   }
-  // Path 2: insane velocity (>5K subs/month)
   if (ch.channelAgeDays <= 300 && subsPerMonth >= 5000) return true;
-  // Path 3: very young (<3mo) with any traction
   if (ch.channelAgeDays <= 90 && subs >= 1000) return true;
-  // Path 4: young + viral avg views
   if (ch.channelAgeDays <= 180 && avgViewsPerVideo >= 100000) return true;
 
   return false;
@@ -57,75 +56,12 @@ function fmtRev(n) {
   return '$' + n;
 }
 
-var PRO_API_BASE = 'http://127.0.0.1:8000';
-
-function proFirst(obj, keys, fallback) {
-  if (!obj) return fallback;
-  for (var i = 0; i < keys.length; i++) {
-    if (obj[keys[i]] !== undefined && obj[keys[i]] !== null && obj[keys[i]] !== '') return obj[keys[i]];
-  }
-  return fallback;
-}
-
-function proAsArray(value) {
-  if (!value) return [];
-  return Object.prototype.toString.call(value) === '[object Array]' ? value : [];
-}
-
-function proNicheValue(item) {
-  return String(item.channelUrl || item.vidId || item.channelId || item.title || item.niche || item.savedAt || '');
-}
-
-function proNicheKey(item, idx) {
-  return String(idx) + '::' + proNicheValue(item);
-}
-
-function proNicheLabel(item) {
-  var bits = [item.niche || 'Scanned niche'];
-  if (item.title) bits.push(item.title);
-  if (item.language && item.language !== 'unknown') bits.push(String(item.language).toUpperCase());
-  if (item.vph) bits.push('VPH ' + fmtN(item.vph));
-  if (item.revMonth) bits.push(fmtRev(item.revMonth) + '/mo');
-  return bits.join(' | ');
-}
-
-function proCleanNiche(item) {
-  var raw = item.niche || item.title || '';
-  return String(raw).replace(/[^\w\s\-&.,]/g, '').replace(/\s+/g, ' ').trim();
-}
-
-function proNicheChannel(item) {
-  return item.channelUrl || item.url || item.channelId || '';
-}
-
-function proPost(path, body) {
-  return fetch(PRO_API_BASE + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body || {})
-  }).then(function(resp) {
-    return resp.text().then(function(text) {
-      var data = null;
-      try { data = text ? JSON.parse(text) : {}; } catch (e) { data = { raw: text }; }
-      if (!resp.ok || (data && data.ok === false)) {
-        var msg = proFirst(data, ['detail', 'error', 'message'], text || 'Backend error');
-        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
-      }
-      return data && typeof data.ok !== 'undefined' ? data.data : data;
-    });
-  });
-}
-
 function load() {
   loadSnapshots();
-  chrome.storage.local.get(['nsp_all_channels', 'ashlyv_nichos', 'ashlyv_nichos_backup', 'nsp_watching'], function(res) {
+  chrome.storage.local.get(['nsp_all_channels', 'nsp_watching'], function(res) {
     allChannels = res.nsp_all_channels || [];
     watchingCache = res.nsp_watching || {};
-    scannedNichos = Array.isArray(res.ashlyv_nichos) && res.ashlyv_nichos.length
-      ? res.ashlyv_nichos
-      : (Array.isArray(res.ashlyv_nichos_backup) ? res.ashlyv_nichos_backup : []);
     render();
-    if (document.getElementById('pro-niche-select')) populateProNichos();
   });
 }
 
@@ -149,7 +85,6 @@ function toggleWatch(ch, btn) {
       btn.textContent = 'Watching';
       btn.classList.add('active');
       btn.title = 'You get a notification when this channel posts an outlier, checked every 6 hours';
-      // Ensure alarm exists
       if (chrome.alarms) {
         chrome.alarms.get('nsp-trend-check', function(a) {
           if (!a) chrome.alarms.create('nsp-trend-check', { periodInMinutes: 360 });
@@ -194,264 +129,478 @@ function buildNichePills() {
   });
 }
 
-function render() {
-  buildNichePills();
-  var filtered = allChannels.filter(function(ch) {
-    if (activeFilter !== 'ALL' && ch.source !== activeFilter) return false;
-    if (activeNiche !== 'ALL' && (ch.niche || '') !== activeNiche) return false;
-    // Age filter
-    if (activeAge !== 'ALL') {
-      var d = ch.channelAgeDays;
-      if (activeAge === 'EXPLODING') {
-        if (!isExplodingChannel(ch)) return false;
-      } else if (activeAge === 'LT3M') {
-        if (!d || d > 90) return false;
-      } else if (activeAge === 'LT6M') {
-        if (!d || d > 180) return false;
-      } else if (activeAge === 'LT1Y') {
-        if (!d || d > 365) return false;
-      } else if (activeAge === 'GT1Y') {
-        if (!d || d <= 365) return false;
-      }
-    }
-    if (searchQuery) {
-      var q = searchQuery.toLowerCase();
-      if (!(ch.name || '').toLowerCase().includes(q) &&
-          !(ch.niche || '').toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
+function el(tag, className, text) {
+  var node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined && text !== null) node.textContent = text;
+  return node;
+}
 
-  filtered.sort(function(a, b) {
+function hasAge(ch) {
+  return typeof ch.channelAgeDays === 'number' && isFinite(ch.channelAgeDays) && ch.channelAgeDays >= 0;
+}
+
+function measuredNumber(v) {
+  return typeof v === 'number' && isFinite(v) && v > 0 ? v : null;
+}
+
+function measuredValues(list, pick) {
+  var out = [];
+  list.forEach(function(c) {
+    var v = pick(c);
+    if (v !== null && v !== undefined) out.push(v);
+  });
+  return out;
+}
+
+function fmtSigned(n) {
+  var r = Math.round(n);
+  if (r > 0) return '+' + fmtN(r);
+  if (r < 0) return '-' + fmtN(Math.abs(r));
+  return '0';
+}
+
+function fmtSince(ts) {
+  if (!ts) return null;
+  var days = (Date.now() - ts) / 86400000;
+  if (days < 1) return 'today';
+  if (days < 2) return 'yesterday';
+  if (days < 30) return Math.round(days) + 'd ago';
+  return Math.round(days / 30) + 'mo ago';
+}
+
+var AGE_LABELS = {
+  ALL: 'Any',
+  EXPLODING: 'New and exploding',
+  LT3M: 'under 3 months',
+  LT6M: 'under 6 months',
+  LT1Y: 'under 1 year',
+  GT1Y: '1 year or older'
+};
+
+function channelMatchesFilters(ch) {
+  if (activeFilter !== 'ALL' && ch.source !== activeFilter) return false;
+  if (activeNiche !== 'ALL' && (ch.niche || '') !== activeNiche) return false;
+  if (activeAge !== 'ALL') {
+    var d = hasAge(ch) ? ch.channelAgeDays : null;
+    if (activeAge === 'EXPLODING') { if (!isExplodingChannel(ch)) return false; }
+    else if (d === null) return false;
+    else if (activeAge === 'LT3M' && d > 90) return false;
+    else if (activeAge === 'LT6M' && d > 180) return false;
+    else if (activeAge === 'LT1Y' && d > 365) return false;
+    else if (activeAge === 'GT1Y' && d <= 365) return false;
+  }
+  if (searchQuery) {
+    var q = searchQuery.toLowerCase();
+    if (!(ch.name || '').toLowerCase().includes(q) &&
+        !(ch.niche || '').toLowerCase().includes(q)) return false;
+  }
+  return true;
+}
+
+function sortChannels(list) {
+  return list.sort(function(a, b) {
     if (activeSort === 'growth') {
       var ga = computeGrowth(a), gb = computeGrowth(b);
-      return (gb.subsPerDay || -1) - (ga.subsPerDay || -1);
+      var va = (ga.measurements >= 2 && !ga.tooClose) ? ga.subsPerDay : -Infinity;
+      var vb = (gb.measurements >= 2 && !gb.tooClose) ? gb.subsPerDay : -Infinity;
+      if (va === vb) return 0;
+      return vb - va;
     }
     if (activeSort === 'savedAt')  return (b.savedAt || 0)  - (a.savedAt || 0);
+    if (activeSort === 'subs')     return (b.subs || 0)     - (a.subs || 0);
     if (activeSort === 'avgOS')    return (b.avgOS || 0)    - (a.avgOS || 0);
     if (activeSort === 'topVPH')   return (b.topVPH || 0)   - (a.topVPH || 0);
     if (activeSort === 'revMonth') return (b.revMonth || 0) - (a.revMonth || 0);
     if (activeSort === 'channelAgeDays') {
-      // Ascending: youngest first; channels without age last
-      var aa = a.channelAgeDays === null || a.channelAgeDays === undefined ? Infinity : a.channelAgeDays;
-      var bb = b.channelAgeDays === null || b.channelAgeDays === undefined ? Infinity : b.channelAgeDays;
+      var aa = hasAge(a) ? a.channelAgeDays : Infinity;
+      var bb = hasAge(b) ? b.channelAgeDays : Infinity;
       return aa - bb;
     }
     return 0;
   });
+}
 
-  document.getElementById('total-count').textContent = allChannels.length + (allChannels.length === 1 ? ' channel' : ' channels');
-  document.getElementById('empty-state').style.display = filtered.length ? 'none' : 'block';
+function activeFilterSummary() {
+  var bits = [];
+  if (activeFilter !== 'ALL') bits.push('Source: ' + (activeFilter === 'manual' ? 'Saved' : 'Scout'));
+  if (activeNiche !== 'ALL') bits.push('Niche: ' + activeNiche);
+  if (activeAge !== 'ALL') bits.push('Age: ' + (AGE_LABELS[activeAge] || activeAge));
+  if (searchQuery) bits.push('Search: ' + searchQuery);
+  return bits;
+}
+
+function syncPillGroup(selector, key, value) {
+  document.querySelectorAll(selector).forEach(function(b) {
+    if (b.dataset[key] === value) b.classList.add('active');
+    else b.classList.remove('active');
+  });
+}
+
+function resetFilters() {
+  activeFilter = 'ALL';
+  activeNiche = 'ALL';
+  activeAge = 'ALL';
+  searchQuery = '';
+  var search = document.getElementById('search-input');
+  if (search) search.value = '';
+  syncPillGroup('.pill[data-filter]', 'filter', 'ALL');
+  syncPillGroup('.pill.age', 'age', 'ALL');
+  render();
+}
+
+function render() {
+  buildNichePills();
+  var list = sortChannels(getCurrentFilteredChannels());
+
+  var count = document.getElementById('total-count');
+  if (count) {
+    count.textContent = list.length === allChannels.length
+      ? allChannels.length + (allChannels.length === 1 ? ' channel' : ' channels')
+      : list.length + ' of ' + allChannels.length + ' channels';
+  }
+
+  renderEmptyState(list);
 
   var grid = document.getElementById('grid');
-  grid.innerHTML = '';
+  var tableHost = document.getElementById('table-view');
+  grid.textContent = '';
+  if (tableHost) tableHost.textContent = '';
+  grid.style.display = (list.length && activeView === 'cards') ? 'grid' : 'none';
+  if (tableHost) tableHost.style.display = (list.length && activeView === 'table') ? 'block' : 'none';
 
-  filtered.forEach(function(ch) {
-    var tier = ch.topTier || 'SLOW';
-    var card = document.createElement('div');
-    card.className = 'ch-card';
-    card.dataset.tier = tier;
+  if (list.length) {
+    if (activeView === 'table' && tableHost) renderTable(list, tableHost);
+    else list.forEach(function(ch) { grid.appendChild(buildCard(ch)); });
+  }
 
-    // Source badge
-    var srcBadge = document.createElement('span');
-    srcBadge.className = 'source-badge source-' + (ch.source || 'scout');
-    srcBadge.textContent = ch.source === 'manual' ? 'Saved' : 'Scout';
-    card.appendChild(srcBadge);
+  renderPortfolio(list);
+}
 
-    // Multi-select checkbox
-    var selCheck = document.createElement('input');
-    selCheck.type = 'checkbox';
-    selCheck.className = 'ch-select-check';
-    selCheck.checked = !!selectedChannels[ch.channelUrl];
-    selCheck.addEventListener('click', function(e) { e.stopPropagation(); });
-    selCheck.addEventListener('change', function() {
-      if (selCheck.checked) selectedChannels[ch.channelUrl] = true;
-      else delete selectedChannels[ch.channelUrl];
-      updateBulkBar();
+function renderEmptyState(list) {
+  var box = document.getElementById('empty-state');
+  if (!box) return;
+  box.textContent = '';
+  if (list.length) { box.style.display = 'none'; return; }
+  box.style.display = 'flex';
+
+  if (!allChannels.length) {
+    box.appendChild(el('div', 'empty-title', 'Nothing saved yet'));
+    box.appendChild(el('div', 'empty-desc', 'Two ways to fill this page:'));
+    var steps = document.createElement('ol');
+    steps.className = 'empty-steps';
+    [
+      'Open a YouTube channel and press Save in the ZERACK bar. Saving from the channel page also reads its age, total views and video count.',
+      'Run a scan on a YouTube search. Scout saves every channel it scores while you browse.'
+    ].forEach(function(text) {
+      steps.appendChild(el('li', null, text));
     });
-    card.appendChild(selCheck);
+    box.appendChild(steps);
+    var cta = el('a', 'cta-btn', 'Go to YouTube');
+    cta.href = 'https://www.youtube.com';
+    cta.target = '_blank';
+    box.appendChild(cta);
+    return;
+  }
 
-    // NEW & EXPLODING badge (NEXLEV killer formula)
-    if (isExplodingChannel(ch)) {
-      var explBadge = document.createElement('span');
-      explBadge.className = 'exploding-badge';
-      explBadge.textContent = ' NEW & EXPLODING';
-      explBadge.title = 'Under 6 months, under 50K subs, real traction';
-      card.appendChild(explBadge);
-    }
+  box.appendChild(el('div', 'empty-title', 'Nothing matches these filters'));
+  var bits = activeFilterSummary();
+  box.appendChild(el('div', 'empty-desc', bits.length
+    ? 'Active filters: ' + bits.join('  ·  ')
+    : 'All ' + allChannels.length + ' saved channels are hidden.'));
+  if (activeAge !== 'ALL' && !allChannels.some(hasAge)) {
+    box.appendChild(el('div', 'empty-desc', 'No saved channel has an age yet. The age is read from the channel About page when you save from the channel itself, so channels collected by Scout have none.'));
+  }
+  var clearBtn = el('button', 'cta-btn', 'Clear filters');
+  clearBtn.addEventListener('click', resetFilters);
+  box.appendChild(clearBtn);
+}
 
-    // Remove btn
-    var rmBtn = document.createElement('button');
-    rmBtn.className = 'ch-remove';
-    rmBtn.textContent = '';
-    rmBtn.title = 'Remove';
-    rmBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      removeChannel(ch.channelUrl);
-    });
-    card.appendChild(rmBtn);
+function buildCard(ch) {
+  var tier = ch.topTier || 'SLOW';
+  var card = el('div', 'ch-card');
+  card.dataset.tier = tier;
 
-    // Avatar
-    var wrap = document.createElement('div');
-    wrap.className = 'ch-avatar-wrap';
-    if (ch.avatarUrl) {
-      var img = document.createElement('img');
-      img.className = 'ch-avatar';
-      img.src = ch.avatarUrl;
-      img.alt = ch.name || '';
-      img.onerror = function() {
-        wrap.innerHTML = '';
-        var pl = document.createElement('span');
-        pl.className = 'ch-avatar-placeholder';
-        pl.textContent = ((ch.name || '?')[0]).toUpperCase();
-        wrap.appendChild(pl);
-      };
-      wrap.appendChild(img);
-    } else {
-      var pl = document.createElement('span');
-      pl.className = 'ch-avatar-placeholder';
-      pl.textContent = ((ch.name || '?')[0]).toUpperCase();
-      wrap.appendChild(pl);
-    }
-    card.appendChild(wrap);
+  var selCheck = document.createElement('input');
+  selCheck.type = 'checkbox';
+  selCheck.className = 'ch-select-check';
+  selCheck.title = 'Select this channel for a bulk action';
+  selCheck.checked = !!selectedChannels[ch.channelUrl];
+  selCheck.addEventListener('click', function(e) { e.stopPropagation(); });
+  selCheck.addEventListener('change', function() {
+    if (selCheck.checked) selectedChannels[ch.channelUrl] = true;
+    else delete selectedChannels[ch.channelUrl];
+    updateBulkBar();
+  });
+  card.appendChild(selCheck);
 
-    // Body
-    var body = document.createElement('div');
-    body.className = 'ch-body';
+  if (isExplodingChannel(ch)) {
+    var explBadge = el('span', 'exploding-badge', 'NEW & EXPLODING');
+    explBadge.title = 'Under a year old with measured traction: views per video, subscribers per month, or both';
+    card.appendChild(explBadge);
+  }
 
-    var nameEl = document.createElement('div');
-    nameEl.className = 'ch-name';
-    nameEl.textContent = ch.name || 'Channel';
-    nameEl.title = ch.name || '';
-    body.appendChild(nameEl);
+  var wrap = el('div', 'ch-avatar-wrap');
+  if (ch.avatarUrl) {
+    var img = document.createElement('img');
+    img.className = 'ch-avatar';
+    img.src = ch.avatarUrl;
+    img.alt = ch.name || '';
+    img.onerror = function() {
+      wrap.textContent = '';
+      wrap.appendChild(el('span', 'ch-avatar-placeholder', ((ch.name || '?')[0]).toUpperCase()));
+    };
+    wrap.appendChild(img);
+  } else {
+    wrap.appendChild(el('span', 'ch-avatar-placeholder', ((ch.name || '?')[0]).toUpperCase()));
+  }
+  card.appendChild(wrap);
 
-    // Niche
-    var nicheEl = document.createElement('span');
-    nicheEl.className = 'ch-niche';
-    nicheEl.textContent = ch.niche || '🔮 General';
-    body.appendChild(nicheEl);
+  var body = el('div', 'ch-body');
 
-    // Stats row
-    var statsRow = document.createElement('div');
-    statsRow.className = 'ch-stats';
+  var nameEl = el('div', 'ch-name', ch.name || 'Channel');
+  nameEl.title = ch.name || '';
+  body.appendChild(nameEl);
 
-    function statBox(val, lbl) {
-      var box = document.createElement('div');
-      box.className = 'ch-stat';
-      var v = document.createElement('span');
-      v.className = 'ch-stat-val';
-      v.textContent = val;
-      var l = document.createElement('span');
-      l.className = 'ch-stat-lbl';
-      l.textContent = lbl;
-      box.appendChild(v);
-      box.appendChild(l);
-      return box;
-    }
+  var chips = el('div', 'ch-chips');
+  chips.appendChild(el('span', 'source-badge source-' + (ch.source || 'scout'),
+    ch.source === 'manual' ? 'Saved by you' : 'Found by Scout'));
+  if (ch.niche) chips.appendChild(el('span', 'ch-niche', ch.niche));
+  body.appendChild(chips);
 
-    var growth = computeGrowth(ch);
-    if (growth.measurements >= 2 && !growth.tooClose) {
-      statsRow.appendChild(statBox((growth.subsPerDay >= 0 ? '+' : '') + fmtN(Math.round(growth.subsPerDay)), 'Subs/day'));
-    }
-    if (ch.avgOS)    statsRow.appendChild(statBox('OS:' + ch.avgOS, 'Score'));
-    if (ch.topVPH)   statsRow.appendChild(statBox(fmtN(ch.topVPH), 'Top VPH'));
-    if (ch.revMonth) statsRow.appendChild(statBox(fmtRev(ch.revMonth), 'Per month'));
-    if (ch.subs)     statsRow.appendChild(statBox(fmtN(ch.subs), 'Subs'));
-    if (ch.channelAgeDays !== null && ch.channelAgeDays !== undefined) {
-      var ageStr = fmtAge(ch.channelAgeDays);
-      statsRow.appendChild(statBox(ageStr, 'Age'));
-    }
+  var statsRow = el('div', 'ch-stats');
+  function statBox(val, lbl, hint) {
+    var box = el('div', 'ch-stat');
+    box.appendChild(el('span', 'ch-stat-val', val));
+    box.appendChild(el('span', 'ch-stat-lbl', lbl));
+    if (hint) box.title = hint;
+    return box;
+  }
 
-    if (statsRow.children.length) body.appendChild(statsRow);
+  var growth = computeGrowth(ch);
+  if (growth.measurements >= 2 && !growth.tooClose) {
+    statsRow.appendChild(statBox(fmtSigned(growth.subsPerDay), 'Subs/day',
+      'Measured: ' + growth.measurements + ' readings over ' + Math.round(growth.days) + ' days'));
+  }
+  if (measuredNumber(ch.subs)) statsRow.appendChild(statBox(fmtN(ch.subs), 'Subs', 'Subscribers read from the channel page'));
+  if (measuredNumber(ch.topVPH)) statsRow.appendChild(statBox(fmtN(ch.topVPH), 'Top VPH', 'Best views per hour seen on a video of this channel'));
+  if (measuredNumber(ch.videosSeen)) statsRow.appendChild(statBox(String(ch.videosSeen), 'Videos seen', 'How many videos of this channel the scanner measured before saving it'));
+  if (measuredNumber(ch.avgOS)) statsRow.appendChild(statBox(String(Math.round(ch.avgOS)), 'Score', 'Average opportunity score of the videos scanned'));
+  if (measuredNumber(ch.revMonth)) statsRow.appendChild(statBox(fmtRev(ch.revMonth), 'Est. $/mo', 'Estimate: recent views times the RPM of the niche'));
+  if (hasAge(ch)) statsRow.appendChild(statBox(fmtAge(ch.channelAgeDays), 'Age', ch.joinedDate ? 'Joined ' + ch.joinedDate : 'Read from the channel About page'));
+  if (statsRow.children.length) body.appendChild(statsRow);
 
-    // Meta line
-    var metaLine = document.createElement('div');
-    metaLine.className = 'ch-meta';
-    var parts = [];
-    if (ch.subs && !statsRow.querySelector('[data-lbl="Subs"]')) parts.push(' ' + fmtN(ch.subs));
-    if (ch.monetized === 'yes') parts.push('Monetized');
-    else if (ch.monetized === 'likely') parts.push('Likely monetized');
-    if (parts.length) metaLine.textContent = parts.join('  ·  ');
-    if (parts.length) body.appendChild(metaLine);
+  var parts = [];
+  if (ch.monetized === 'yes') parts.push('Monetized');
+  else if (ch.monetized === 'likely') parts.push('Likely monetized');
+  var since = fmtSince(ch.savedAt);
+  if (since) parts.push('Saved ' + since);
+  if (parts.length) body.appendChild(el('div', 'ch-meta', parts.join('  ·  ')));
 
-    // Open button
-    var openBtn = document.createElement('button');
-    openBtn.className = 'ch-open-btn';
-    openBtn.textContent = 'Open channel';
-    openBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
+  var openBtn = el('button', 'ch-open-btn', 'Open channel');
+  openBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    chrome.tabs.create({ url: ch.channelUrl });
+  });
+  body.appendChild(openBtn);
+
+  var labRow = el('div', 'ch-lab-row');
+
+  function launchLabAction(actionType, btn, busyLabel) {
+    if (!ch.channelUrl) return;
+    var originalText = btn.textContent;
+    btn.textContent = busyLabel;
+    btn.disabled = true;
+    var pending = {
+      type: actionType,
+      channelUrl: ch.channelUrl,
+      channelId: ch.channelId || '',
+      ts: Date.now()
+    };
+    chrome.storage.local.set({ nsp_pending_action: pending }, function() {
       chrome.tabs.create({ url: ch.channelUrl });
+      setTimeout(function() {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }, 1800);
     });
-    body.appendChild(openBtn);
+  }
 
-    // Lab tools row — open channel + auto-launch panel via pending action
-    var labRow = document.createElement('div');
-    labRow.className = 'ch-lab-row';
+  labRow.appendChild(buildWatchButton(ch, 'ch-lab-btn'));
 
-    function launchLabAction(actionType, btn, busyLabel) {
-      if (!ch.channelUrl) return;
-      var originalText = btn.textContent;
-      btn.textContent = busyLabel;
-      btn.disabled = true;
-      var pending = {
-        type: actionType,
-        channelUrl: ch.channelUrl,
-        channelId: ch.channelId || '',
-        ts: Date.now()
-      };
-      chrome.storage.local.set({ nsp_pending_action: pending }, function() {
-        chrome.tabs.create({ url: ch.channelUrl });
-        setTimeout(function() {
-          btn.textContent = originalText;
-          btn.disabled = false;
-        }, 1800);
+  var thumbBtn = el('button', 'ch-lab-btn', 'Thumb Lab');
+  thumbBtn.title = 'Open the channel and launch Thumb Lab';
+  thumbBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    launchLabAction('thumblab', thumbBtn, 'Opening');
+  });
+  labRow.appendChild(thumbBtn);
+
+  var titleBtn = el('button', 'ch-lab-btn', 'Title Lab');
+  titleBtn.title = 'Open the channel and launch Title Lab';
+  titleBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    launchLabAction('titlelab', titleBtn, 'Opening');
+  });
+  labRow.appendChild(titleBtn);
+
+  var rmBtn = el('button', 'ch-remove', 'Remove');
+  rmBtn.title = 'Remove this channel from the list';
+  rmBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    removeChannel(ch.channelUrl);
+  });
+  labRow.appendChild(rmBtn);
+
+  body.appendChild(labRow);
+  card.appendChild(body);
+  card.addEventListener('click', function() {
+    chrome.tabs.create({ url: ch.channelUrl });
+  });
+  return card;
+}
+
+function buildWatchButton(ch, className) {
+  var btn = el('button', className);
+  var isWatching = !!(watchingCache && watchingCache[ch.channelUrl]);
+  btn.textContent = isWatching ? 'Watching' : 'Watch';
+  btn.title = isWatching
+    ? 'You get a notification when this channel posts an outlier, checked every 6 hours'
+    : 'Click to turn on outlier alerts';
+  if (isWatching) btn.classList.add('active');
+  btn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    toggleWatch(ch, btn);
+  });
+  return btn;
+}
+
+var TABLE_COLUMNS = [
+  { label: '', sort: '' },
+  { label: 'Channel', sort: 'savedAt' },
+  { label: 'Niche', sort: '' },
+  { label: 'Source', sort: '' },
+  { label: 'Subs', sort: 'subs', num: true },
+  { label: 'Age', sort: 'channelAgeDays', num: true },
+  { label: 'Top VPH', sort: 'topVPH', num: true },
+  { label: 'Score', sort: 'avgOS', num: true },
+  { label: 'Est. $/mo', sort: 'revMonth', num: true },
+  { label: 'Subs/day', sort: 'growth', num: true },
+  { label: '', sort: '' }
+];
+
+function renderTable(list, host) {
+  var scroll = el('div', 'table-scroll');
+  var table = el('table', 'ch-table');
+
+  var thead = document.createElement('thead');
+  var headRow = document.createElement('tr');
+  TABLE_COLUMNS.forEach(function(col) {
+    var th = document.createElement('th');
+    if (col.num) th.className = 'num';
+    th.textContent = col.label;
+    if (col.sort) {
+      th.classList.add('sortable');
+      if (activeSort === col.sort) {
+        th.classList.add('sorted');
+        th.appendChild(el('span', 'sort-caret', col.sort === 'channelAgeDays' ? '▲' : '▼'));
+      }
+      th.title = 'Sort by ' + col.label;
+      th.addEventListener('click', function() {
+        activeSort = col.sort;
+        syncPillGroup('.pill.sort', 'sort', activeSort);
+        render();
       });
     }
-
-    // Watch button (trend alerts)
-    var watchBtn = document.createElement('button');
-    watchBtn.className = 'ch-lab-btn';
-    var isWatching = !!(watchingCache && watchingCache[ch.channelUrl]);
-    watchBtn.textContent = isWatching ? 'Watching' : 'Watch';
-    watchBtn.title = isWatching ? 'You get a notification when this channel posts an outlier, checked every 6 hours' : 'Click to turn on outlier alerts';
-    if (isWatching) watchBtn.classList.add('active');
-    watchBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      toggleWatch(ch, watchBtn);
-    });
-    labRow.appendChild(watchBtn);
-
-    var thumbBtn = document.createElement('button');
-    thumbBtn.className = 'ch-lab-btn';
-    thumbBtn.textContent = ' Thumb Lab';
-    thumbBtn.title = 'Open the channel and launch Thumb Lab';
-    thumbBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      launchLabAction('thumblab', thumbBtn, 'Opening');
-    });
-    labRow.appendChild(thumbBtn);
-
-    var titleBtn = document.createElement('button');
-    titleBtn.className = 'ch-lab-btn';
-    titleBtn.textContent = ' Title Lab';
-    titleBtn.title = 'Open the channel and launch Title Lab';
-    titleBtn.addEventListener('click', function(e) {
-      e.stopPropagation();
-      launchLabAction('titlelab', titleBtn, 'Opening');
-    });
-    labRow.appendChild(titleBtn);
-
-    body.appendChild(labRow);
-
-    card.appendChild(body);
-    card.addEventListener('click', function() {
-      chrome.tabs.create({ url: ch.channelUrl });
-    });
-
-    grid.appendChild(card);
+    headRow.appendChild(th);
   });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
 
-  renderPortfolio();
+  var tbody = document.createElement('tbody');
+  list.forEach(function(ch) {
+    tbody.appendChild(buildTableRow(ch));
+  });
+  table.appendChild(tbody);
+  scroll.appendChild(table);
+  host.appendChild(scroll);
+  host.appendChild(el('div', 'table-note', 'A dash means the value was never measured. Age, total views and video count are read when you save from the channel page. Subs per day needs two measurements at least a day apart.'));
+}
+
+function buildTableRow(ch) {
+  var row = document.createElement('tr');
+  if (isExplodingChannel(ch)) row.classList.add('is-exploding');
+
+  var selCell = document.createElement('td');
+  var selCheck = document.createElement('input');
+  selCheck.type = 'checkbox';
+  selCheck.className = 'ch-select-check in-table';
+  selCheck.title = 'Select this channel for a bulk action';
+  selCheck.checked = !!selectedChannels[ch.channelUrl];
+  selCheck.addEventListener('change', function() {
+    if (selCheck.checked) selectedChannels[ch.channelUrl] = true;
+    else delete selectedChannels[ch.channelUrl];
+    updateBulkBar();
+  });
+  selCell.appendChild(selCheck);
+  row.appendChild(selCell);
+
+  var nameCell = document.createElement('td');
+  var nameBtn = el('button', 'table-name', ch.name || 'Channel');
+  nameBtn.title = 'Open ' + (ch.name || 'this channel') + ' on YouTube';
+  nameBtn.addEventListener('click', function() { chrome.tabs.create({ url: ch.channelUrl }); });
+  nameCell.appendChild(nameBtn);
+  if (isExplodingChannel(ch)) nameCell.appendChild(el('span', 'table-flag', 'NEW & EXPLODING'));
+  row.appendChild(nameCell);
+
+  row.appendChild(cellText(ch.niche || ''));
+  row.appendChild(cellText(ch.source === 'manual' ? 'Saved' : 'Scout'));
+  row.appendChild(cellNum(measuredNumber(ch.subs) === null ? null : fmtN(ch.subs)));
+  row.appendChild(cellNum(hasAge(ch) ? fmtAge(ch.channelAgeDays) : null));
+  row.appendChild(cellNum(measuredNumber(ch.topVPH) === null ? null : fmtN(ch.topVPH)));
+  row.appendChild(cellNum(measuredNumber(ch.avgOS) === null ? null : String(Math.round(ch.avgOS))));
+  row.appendChild(cellNum(measuredNumber(ch.revMonth) === null ? null : fmtRev(ch.revMonth)));
+
+  var growth = computeGrowth(ch);
+  var growthCell = cellNum((growth.measurements >= 2 && !growth.tooClose) ? fmtSigned(growth.subsPerDay) : null);
+  if (growth.measurements >= 2 && !growth.tooClose) {
+    growthCell.title = growth.measurements + ' readings over ' + Math.round(growth.days) + ' days';
+  } else if (growth.measurements === 1) {
+    growthCell.title = 'One measurement so far, measure again tomorrow';
+  } else if (growth.tooClose) {
+    growthCell.title = 'Both measurements landed on the same day';
+  }
+  row.appendChild(growthCell);
+
+  var actions = document.createElement('td');
+  actions.className = 'table-actions';
+  actions.appendChild(buildWatchButton(ch, 'table-btn'));
+  var rm = el('button', 'table-btn danger', 'Remove');
+  rm.title = 'Remove this channel from the list';
+  rm.addEventListener('click', function() { removeChannel(ch.channelUrl); });
+  actions.appendChild(rm);
+  row.appendChild(actions);
+
+  return row;
+}
+
+function cellText(text) {
+  var td = document.createElement('td');
+  td.textContent = text || '';
+  return td;
+}
+
+function cellNum(text) {
+  var td = document.createElement('td');
+  td.className = 'num';
+  if (text === null || text === undefined) {
+    td.classList.add('unmeasured');
+    td.textContent = '-';
+    td.title = 'Never measured';
+  } else {
+    td.textContent = text;
+  }
+  return td;
 }
 
 var SNAPSHOT_KEY = 'zerack_channel_snapshots_v1';
@@ -505,18 +654,15 @@ function computeGrowth(ch) {
   };
 }
 
-function growthLabel(g) {
-  if (!g || g.measurements < 2) return g && g.measurements === 1 ? '1 measurement' : 'not measured';
-  if (g.tooClose) return 'measured twice today';
-  var perDay = Math.round(g.subsPerDay);
-  var sign = perDay > 0 ? '+' : '';
-  return sign + fmtN(perDay) + ' subs/day over ' + Math.round(g.days) + 'd';
-}
-
 function measureGrowth() {
   var btn = document.getElementById('btn-growth');
   var list = getCurrentFilteredChannels().slice(0, GROWTH_BATCH);
-  if (!list.length) { alert('Save a channel first.'); return; }
+  if (!list.length) {
+    alert(allChannels.length
+      ? 'No channel matches these filters, so there is nothing to measure.'
+      : 'Save a channel first.');
+    return;
+  }
   var done = 0, failed = 0;
   if (btn) { btn.disabled = true; btn.textContent = 'Measuring 0/' + list.length; }
 
@@ -562,58 +708,101 @@ function measureGrowth() {
 }
 
 function medianOf(values) {
-  var arr = values.filter(function(v) { return typeof v === 'number' && isFinite(v) && v > 0; }).sort(function(a, b) { return a - b; });
-  if (!arr.length) return 0;
+  var arr = values.filter(function(v) { return typeof v === 'number' && isFinite(v); }).sort(function(a, b) { return a - b; });
+  if (!arr.length) return null;
   var mid = Math.floor(arr.length / 2);
   return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
 }
 
-function renderPortfolio() {
+function coverageText(measured, total) {
+  if (!total) return 'no channels in view';
+  if (!measured) return 'not measured on any of the ' + total;
+  return 'measured on ' + measured + ' of ' + total;
+}
+
+function pfSet(id, value, meta, small) {
+  var v = document.getElementById(id);
+  if (v) {
+    v.textContent = value;
+    if (small) v.classList.add('small');
+    else v.classList.remove('small');
+  }
+  var m = document.getElementById(id + '-meta');
+  if (m) m.textContent = meta || '';
+}
+
+function renderPortfolio(list) {
   var box = document.getElementById('portfolio');
   if (!box) return;
-  var list = getCurrentFilteredChannels();
-  var setText = function(id, value) {
-    var el = document.getElementById(id);
-    if (el) el.textContent = value;
-  };
-  setText('pf-channels', String(list.length));
-  setText('pf-vph', fmtN(Math.round(medianOf(list.map(function(c) { return c.topVPH || 0; })))));
-  var rev = list.reduce(function(acc, c) { return acc + (Number(c.revMonth) || 0); }, 0);
-  setText('pf-rev', rev ? fmtRev(Math.round(rev)) : '--');
-  setText('pf-exploding', String(list.filter(isExplodingChannel).length));
-  var measured = list.map(computeGrowth).filter(function(g) { return g.measurements >= 2 && !g.tooClose; });
-  var pfGrowth = document.getElementById('pf-growth');
-  if (pfGrowth) {
-    if (!measured.length) {
-      pfGrowth.textContent = list.length ? 'measure twice to see it' : 'no channels';
-    } else {
-      var med = medianOf(measured.map(function(g) { return g.subsPerDay; }));
-      pfGrowth.textContent = '+' + fmtN(Math.round(med)) + ' subs/day  ' + measured.length + ' measured';
-    }
-  }
+  var total = list.length;
+
+  var scope = !allChannels.length ? 'nothing saved yet'
+    : total === allChannels.length ? (total === 1 ? 'the only one saved' : 'every saved channel')
+    : 'filtered out of ' + allChannels.length + ' saved';
+  pfSet('pf-channels', String(total), scope);
+
+  var subs = measuredValues(list, function(c) { return measuredNumber(c.subs); });
+  var subsMed = medianOf(subs);
+  pfSet('pf-subs', subsMed === null ? 'not measured' : fmtN(Math.round(subsMed)), coverageText(subs.length, total), subsMed === null);
+
+  var vph = measuredValues(list, function(c) { return measuredNumber(c.topVPH); });
+  var vphMed = medianOf(vph);
+  pfSet('pf-vph', vphMed === null ? 'not measured' : fmtN(Math.round(vphMed)), coverageText(vph.length, total), vphMed === null);
+
+  var revs = measuredValues(list, function(c) { return measuredNumber(c.revMonth); });
+  var revSum = revs.reduce(function(acc, v) { return acc + v; }, 0);
+  pfSet('pf-rev', revs.length ? fmtRev(Math.round(revSum)) : 'no estimate',
+    revs.length ? 'added up over ' + revs.length + ' of ' + total : 'an estimate needs a scanned channel', !revs.length);
+
+  var measuredGrowth = list.map(computeGrowth).filter(function(g) { return g.measurements >= 2 && !g.tooClose; });
+  var growthMed = medianOf(measuredGrowth.map(function(g) { return g.subsPerDay; }));
+  pfSet('pf-growth', growthMed === null ? 'not measured' : fmtSigned(growthMed) + ' subs/day',
+    growthMed === null
+      ? (total ? 'press Measure growth twice, a day apart' : 'no channels in view')
+      : coverageText(measuredGrowth.length, total), true);
+
+  var aged = list.filter(hasAge);
+  pfSet('pf-exploding', String(list.filter(isExplodingChannel).length),
+    !total ? 'no channels in view'
+      : aged.length ? 'age known on ' + aged.length + ' of ' + total
+      : 'no channel in view has an age yet');
 
   var byNiche = {};
   list.forEach(function(c) {
     var key = c.niche || 'unclassified';
-    if (!byNiche[key]) byNiche[key] = [];
-    byNiche[key].push(Number(c.avgOS) || 0);
+    if (!byNiche[key]) byNiche[key] = { total: 0, scores: [] };
+    byNiche[key].total++;
+    var score = measuredNumber(c.avgOS);
+    if (score !== null) byNiche[key].scores.push(score);
   });
-  var best = '', bestScore = 0, bestCount = 0;
+  var best = null;
   Object.keys(byNiche).forEach(function(key) {
-    if (byNiche[key].length < 2) return;
-    var m = medianOf(byNiche[key]);
-    if (m > bestScore) { bestScore = m; best = key; bestCount = byNiche[key].length; }
+    var group = byNiche[key];
+    if (group.scores.length < 2) return;
+    var med = medianOf(group.scores);
+    if (med === null) return;
+    if (!best || med > best.median) best = { key: key, median: med, scored: group.scores.length, total: group.total };
   });
-  setText('pf-niche', best ? (best + '  ' + Math.round(bestScore) + ' OS  ' + bestCount + ' channels') : 'needs 2 channels in one niche');
+  if (best) {
+    pfSet('pf-niche', best.key + '  ' + Math.round(best.median) + ' OS',
+      'median of the ' + best.scored + ' scored channels of ' + best.total + ' in this niche', true);
+  } else {
+    pfSet('pf-niche', 'not enough scores', 'needs two channels with an opportunity score in the same niche', true);
+  }
 }
 
 function removeChannel(url) {
-  allChannels = allChannels.filter(function(c) { return c.channelUrl !== url; });
-  delete selectedChannels[url];
-  chrome.storage.local.set({ nsp_all_channels: allChannels }, render);
+  chrome.storage.local.get('nsp_all_channels', function(res) {
+    var stored = Array.isArray(res.nsp_all_channels) ? res.nsp_all_channels : [];
+    var next = stored.filter(function(c) { return c.channelUrl !== url; });
+    delete selectedChannels[url];
+    chrome.storage.local.set({ nsp_all_channels: next }, function() {
+      allChannels = next;
+      render();
+    });
+  });
 }
 
-//  BULK OPERATIONS 
 function getSelectedChannels() {
   var sel = [];
   for (var i = 0; i < allChannels.length; i++) {
@@ -663,10 +852,14 @@ function updateBulkBar() {
       if (!sel.length) return;
       if (!confirm('Remove ' + sel.length + ' selected channels?')) return;
       var urls = sel.map(function(c) { return c.channelUrl; });
-      allChannels = allChannels.filter(function(c) { return urls.indexOf(c.channelUrl) === -1; });
-      chrome.storage.local.set({ nsp_all_channels: allChannels }, function() {
-        clearSelection();
-        render();
+      chrome.storage.local.get('nsp_all_channels', function(res) {
+        var stored = Array.isArray(res.nsp_all_channels) ? res.nsp_all_channels : [];
+        var next = stored.filter(function(c) { return urls.indexOf(c.channelUrl) === -1; });
+        chrome.storage.local.set({ nsp_all_channels: next }, function() {
+          allChannels = next;
+          clearSelection();
+          render();
+        });
       });
     };
     document.getElementById('nsp-bulk-clear').onclick = clearSelection;
@@ -676,7 +869,6 @@ function updateBulkBar() {
 }
 
 function openIdeasPanelFor(channels) {
-  // Same as openIdeasPanel but with custom channels list
   var existing = document.getElementById('nsp-ideas-modal');
   if (existing) existing.remove();
   var backdrop = document.createElement('div');
@@ -689,9 +881,9 @@ function openIdeasPanelFor(channels) {
   var top = channels.slice(0, 10);
   modal.innerHTML = '<div class="nsp-modal-header">'
     + '<div class="nsp-modal-title">Ideas for ' + top.length + ' selected channels</div>'
-    + '<button class="nsp-modal-close" id="nsp-ideas-close-2"></button></div>'
+    + '<button class="nsp-modal-close" id="nsp-ideas-close-2">Close</button></div>'
     + '<div class="nsp-modal-body">'
-    + '<div class="ideas-subhead">Five fresh angles built from the channels you picked</div>'
+    + '<div class="ideas-subhead">Five angles built from the channels you picked, written by the model you set in Options</div>'
     + '<div class="ideas-channels" id="nsp-ideas-preview-2"></div>'
     + '<button class="export-format-btn" id="nsp-ideas-gen-2">Generate ideas</button>'
     + '<div class="ideas-output" id="nsp-ideas-out-2"></div></div>';
@@ -709,7 +901,7 @@ function openIdeasPanelFor(channels) {
   document.getElementById('nsp-ideas-gen-2').onclick = function() {
     var btn = this;
     btn.disabled = true;
-    btn.textContent = 'Asking Claude';
+    btn.textContent = 'Asking the model';
     var out = document.getElementById('nsp-ideas-out-2');
     out.innerHTML = '<div class="ideas-loading">Generating ideas</div>';
     generateDailyIdeas(top).then(function(text) {
@@ -739,17 +931,18 @@ function bulkWatch(channels) {
       };
     });
     chrome.storage.local.set({ nsp_watching: watching }, function() {
+      watchingCache = watching;
+      render();
       var bar = document.getElementById('nsp-bulk-count');
       if (bar) {
         var prev = bar.textContent;
         bar.textContent = '' + channels.length + ' channels on the watchlist';
         setTimeout(function() { bar.textContent = prev; }, 2000);
       }
-      // Register chrome.alarm if not yet registered
       if (chrome.alarms) {
         chrome.alarms.get('nsp-trend-check', function(alarm) {
           if (!alarm) {
-            chrome.alarms.create('nsp-trend-check', { periodInMinutes: 360 }); // every 6h
+            chrome.alarms.create('nsp-trend-check', { periodInMinutes: 360 });
           }
         });
       }
@@ -757,573 +950,52 @@ function bulkWatch(channels) {
   });
 }
 
-function makeProEl(tag, className, text) {
-  var el = document.createElement(tag);
-  if (className) el.className = className;
-  if (text !== undefined && text !== null) el.textContent = text;
-  return el;
-}
-
-function ensureProPanel() {
-  if (document.getElementById('pro-panel-backdrop')) return;
-
-  var backdrop = makeProEl('div', 'pro-backdrop');
-  backdrop.id = 'pro-panel-backdrop';
-  backdrop.hidden = true;
-
-  var panel = makeProEl('div', 'pro-panel');
-  backdrop.appendChild(panel);
-
-  var header = makeProEl('div', 'pro-panel-header');
-  var titleWrap = makeProEl('div');
-  titleWrap.appendChild(makeProEl('div', 'pro-panel-title', 'PRO TOOLS'));
-  titleWrap.appendChild(makeProEl('div', 'pro-panel-subtitle', 'Pick a scanned niche and run the tools against that list only.'));
-  header.appendChild(titleWrap);
-
-  var closeBtn = makeProEl('button', 'pro-close-btn', 'X');
-  closeBtn.id = 'pro-close-btn';
-  closeBtn.title = 'Close';
-  closeBtn.addEventListener('click', closeProPanel);
-  header.appendChild(closeBtn);
-  panel.appendChild(header);
-
-  var selectBlock = makeProEl('div', 'pro-select-block');
-  var label = makeProEl('label', 'pro-label', 'Scanned niche');
-  label.setAttribute('for', 'pro-niche-select');
-  selectBlock.appendChild(label);
-
-  var selectRow = makeProEl('div', 'pro-select-row');
-  var select = makeProEl('select', 'pro-select');
-  select.id = 'pro-niche-select';
-  select.addEventListener('change', updateProSelectedNiche);
-  selectRow.appendChild(select);
-
-  var openBtn = makeProEl('button', 'pro-secondary-btn', 'OPEN SOURCE');
-  openBtn.id = 'pro-open-source';
-  openBtn.addEventListener('click', function() {
-    var item = getSelectedProNiche();
-    var url = item ? (item.channelUrl || (item.vidId ? 'https://www.youtube.com/watch?v=' + item.vidId : '')) : '';
-    if (url) chrome.tabs.create({ url: url });
-  });
-  selectRow.appendChild(openBtn);
-  selectBlock.appendChild(selectRow);
-
-  var summary = makeProEl('div', 'pro-selected-summary', 'Pick a niche from the last scan to see its PRO tools.');
-  summary.id = 'pro-selected-summary';
-  selectBlock.appendChild(summary);
-  panel.appendChild(selectBlock);
-
-  var tools = makeProEl('div', 'pro-tools-grid');
-  panel.appendChild(tools);
-
-  var scanCard = makeProCard('Scan niche', 'A summary of the scanned niche, plus channel age and viral metrics when there is a channel.');
-  var scanBtn = makeProAction('pro-run-scan', 'SCAN NICHE');
-  scanCard.appendChild(scanBtn);
-  scanCard.appendChild(makeProResult('pro-scan-result', 'The scan summary shows up here.'));
-  tools.appendChild(scanCard);
-
-  var titlesCard = makeProCard('Search titles', 'Look for openings using the selected niche only.');
-  titlesCard.appendChild(makeProAction('pro-run-titles', 'SEARCH TITLES'));
-  titlesCard.appendChild(makeProResult('pro-title-result', 'Title search results.'));
-  tools.appendChild(titlesCard);
-
-  var globalCard = makeProCard('Global matrix', 'Compare the selected niche by language and opportunity.');
-  globalCard.appendChild(makeProAction('pro-run-global', 'ANALYZE GLOBAL'));
-  globalCard.appendChild(makeProResult('pro-global-result', 'Global score for the selected niche.'));
-  tools.appendChild(globalCard);
-
-  var repCard = makeProCard('Replicate content', 'Build ready to produce ideas from the source behind the niche.');
-  repCard.appendChild(makeProSelect('pro-rep-language', 'Language', [
-    ['es', 'Spanish'],
-    ['en', 'English'],
-    ['pt', 'Portuguese']
-  ]));
-  repCard.appendChild(makeProAction('pro-run-replicate', 'REPLICATE'));
-  repCard.appendChild(makeProResult('pro-rep-result', 'Ideas for replicating the channel.'));
-  tools.appendChild(repCard);
-
-  var brandCard = makeProCard('Build a brand', 'Names, bio, visual identity and strategy for the selected niche.');
-  brandCard.appendChild(makeProSelect('pro-brand-tone', 'Tone', [
-    ['professional', 'Professional'],
-    ['mysterious', 'Mysterious'],
-    ['bold', 'Bold'],
-    ['educational', 'Educational']
-  ]));
-  brandCard.appendChild(makeProAction('pro-run-brand', 'BUILD BRAND'));
-  brandCard.appendChild(makeProResult('pro-brand-result', 'Brand kit for the niche.'));
-  tools.appendChild(brandCard);
-
-  backdrop.addEventListener('click', function(e) {
-    if (e.target === backdrop) closeProPanel();
-  });
-
-  document.body.appendChild(backdrop);
-
-  document.getElementById('pro-run-scan').addEventListener('click', runProChannelScan);
-  document.getElementById('pro-run-titles').addEventListener('click', runProTitleSearch);
-  document.getElementById('pro-run-global').addEventListener('click', runProGlobalScore);
-  document.getElementById('pro-run-replicate').addEventListener('click', runProReplicate);
-  document.getElementById('pro-run-brand').addEventListener('click', runProBrand);
-}
-
-function makeProCard(title, desc) {
-  var card = makeProEl('div', 'pro-tool-card');
-  card.appendChild(makeProEl('div', 'pro-tool-title', title));
-  card.appendChild(makeProEl('div', 'pro-tool-desc', desc));
-  return card;
-}
-
-function makeProAction(id, label) {
-  var btn = makeProEl('button', 'pro-action-btn', label);
-  btn.id = id;
-  return btn;
-}
-
-function makeProResult(id, text) {
-  var box = makeProEl('div', 'pro-result', text);
-  box.id = id;
-  return box;
-}
-
-function makeProInput(id, labelText, placeholder) {
-  var wrap = makeProEl('div', 'pro-field');
-  var label = makeProEl('label', 'pro-label', labelText);
-  label.setAttribute('for', id);
-  var input = makeProEl('input', 'pro-input');
-  input.id = id;
-  input.placeholder = placeholder || '';
-  wrap.appendChild(label);
-  wrap.appendChild(input);
-  return wrap;
-}
-
-function makeProSelect(id, labelText, options) {
-  var wrap = makeProEl('div', 'pro-field');
-  var label = makeProEl('label', 'pro-label', labelText);
-  label.setAttribute('for', id);
-  var select = makeProEl('select', 'pro-input');
-  select.id = id;
-  options.forEach(function(opt) {
-    var option = makeProEl('option');
-    option.value = opt[0];
-    option.textContent = opt[1];
-    select.appendChild(option);
-  });
-  wrap.appendChild(label);
-  wrap.appendChild(select);
-  return wrap;
-}
-
-function openProPanel(preselectValue) {
-  ensureProPanel();
-  populateProNichos(preselectValue);
-  var backdrop = document.getElementById('pro-panel-backdrop');
-  backdrop.hidden = false;
-  requestAnimationFrame(function() { backdrop.classList.add('visible'); });
-}
-
-function closeProPanel() {
-  var backdrop = document.getElementById('pro-panel-backdrop');
-  if (!backdrop) return;
-  backdrop.classList.remove('visible');
-  setTimeout(function() { backdrop.hidden = true; }, 160);
-}
-
-function populateProNichos(preselectValue) {
-  var select = document.getElementById('pro-niche-select');
-  if (!select) return;
-  var current = preselectValue || select.value;
-  while (select.firstChild) select.removeChild(select.firstChild);
-
-  var placeholder = makeProEl('option');
-  placeholder.value = '';
-  placeholder.textContent = scannedNichos.length ? 'Pick a scanned niche' : 'No scanned niches yet';
-  select.appendChild(placeholder);
-
-  scannedNichos.forEach(function(item, idx) {
-    var value = proNicheKey(item, idx);
-    var option = makeProEl('option');
-    option.value = value;
-    option.textContent = proNicheLabel(item);
-    select.appendChild(option);
-  });
-
-  if (current) select.value = current;
-  updateProSelectedNiche();
-}
-
-function getSelectedProNiche() {
-  var select = document.getElementById('pro-niche-select');
-  if (!select || !select.value) return null;
-  for (var i = 0; i < scannedNichos.length; i++) {
-    if (proNicheKey(scannedNichos[i], i) === select.value) return scannedNichos[i];
-  }
-  return null;
-}
-
-function updateProSelectedNiche() {
-  var item = getSelectedProNiche();
-  var summary = document.getElementById('pro-selected-summary');
-  var openBtn = document.getElementById('pro-open-source');
-  var hasItem = !!item;
-  var hasSource = !!(item && (item.channelUrl || item.vidId));
-
-  if (openBtn) openBtn.disabled = !hasSource;
-  ['pro-run-scan', 'pro-run-titles', 'pro-run-global', 'pro-run-replicate', 'pro-run-brand'].forEach(function(id) {
-    var btn = document.getElementById(id);
-    if (btn) btn.disabled = !hasItem;
-  });
-
-  if (!summary) return;
-  if (!item) {
-    delete summary.dataset.channelValue;
-    summary.textContent = scannedNichos.length ? 'Pick a niche from the scanned list to use PRO.' : 'No scanned niches yet. Run a scan and save or open the results first.';
-    return;
-  }
-
-  var details = [];
-  if (item.language && item.language !== 'unknown') details.push('Language: ' + String(item.language).toUpperCase());
-  if (item.vph) details.push('VPH: ' + fmtN(item.vph));
-  if (item.views) details.push('Views: ' + fmtN(item.views));
-  if (item.revMonth) details.push('Per month: ' + fmtRev(item.revMonth));
-  if (item.facelessScore) details.push('Faceless: ' + Math.round(item.facelessScore) + '%');
-  summary.textContent = (item.niche || 'Niche') + ' - ' + (item.title || details.join(' | ') || 'scanned result');
-
-  var selectedValue = proNicheLabel(item);
-  if (summary.dataset.channelValue !== selectedValue) {
-    summary.dataset.channelValue = selectedValue;
-  }
-}
-
-function proRequireNiche(resultId) {
-  var item = getSelectedProNiche();
-  if (!item) {
-    setProResult(resultId, 'Pick a scanned niche from the list first.', 'error');
-    return null;
-  }
-  return item;
-}
-
-function setProResult(id, text, state) {
-  var box = document.getElementById(id);
-  if (!box) return;
-  box.classList.remove('is-error', 'is-loading');
-  if (state === 'error') box.classList.add('is-error');
-  if (state === 'loading') box.classList.add('is-loading');
-  box.textContent = text;
-}
-
-function clearProResult(id) {
-  var box = document.getElementById(id);
-  if (!box) return null;
-  box.classList.remove('is-error', 'is-loading');
-  box.textContent = '';
-  return box;
-}
-
-function proMetric(label, value, tone) {
-  var box = makeProEl('div', 'pro-metric ' + (tone || ''));
-  box.appendChild(makeProEl('span', 'pro-metric-label', label));
-  box.appendChild(makeProEl('strong', 'pro-metric-value', value));
-  return box;
-}
-
-function appendProJson(parent, data) {
-  var pre = makeProEl('pre', 'pro-json');
-  pre.textContent = JSON.stringify(data, null, 2);
-  parent.appendChild(pre);
-}
-
-async function runProChannelScan() {
-  var item = proRequireNiche('pro-scan-result');
-  if (!item) return;
-  var channel = proNicheChannel(item);
-  setProResult('pro-scan-result', 'Analyzing the selected niche', 'loading');
-
-  try {
-    if (channel) {
-      var age = await proPost('/niche/channel-age', { channel: channel, maxMonths: 3 });
-      var viral = await proPost('/niche/viral-metrics', {
-        channel: channel,
-        language: item.language || 'es',
-        viralThreshold: 100000,
-        minViralVideos: 10,
-        maxVideos: 40
-      });
-      renderProScanResult(item, age, viral);
-    } else {
-      renderProScanResult(item, null, null);
-    }
-  } catch (err) {
-    setProResult('pro-scan-result', 'PRO error: ' + (err && err.message ? err.message : err), 'error');
-  }
-}
-
-function renderProScanResult(item, age, viral) {
-  var box = clearProResult('pro-scan-result');
-  if (!box) return;
-
-  var metrics = viral ? (viral.viralMetrics || viral || {}) : {};
-  var channel = viral ? (viral.channel || {}) : {};
-  var ratio = Number(metrics.viralRatio || 0);
-  var ratioText = (ratio <= 1 ? Math.round(ratio * 100) : Math.round(ratio)) + '%';
-  var pass = age ? age.passesFilter : null;
-
-  var head = makeProEl('div', 'pro-result-head');
-  head.textContent = item.niche || proFirst(channel, ['title', 'name', 'channelTitle'], 'Analyzed niche');
-  box.appendChild(head);
-
-  var grid = makeProEl('div', 'pro-metric-grid');
-  grid.appendChild(proMetric('Niche', item.niche || 'General'));
-  grid.appendChild(proMetric('Language', (item.language || 'unknown').toUpperCase()));
-  grid.appendChild(proMetric('VPH scan', fmtN(item.vph || 0), item.vph >= 100 ? 'ok' : 'warn'));
-  grid.appendChild(proMetric('Views scan', fmtN(item.views || 0)));
-  grid.appendChild(proMetric('RPM scan', item.rpm ? '$' + Number(item.rpm).toFixed(2) : 'n/a'));
-  grid.appendChild(proMetric('Revenue per month', fmtRev(item.revMonth || 0), item.revMonth ? 'ok' : ''));
-  grid.appendChild(proMetric('Faceless', item.facelessScore ? Math.round(item.facelessScore) + '%' : 'n/a', item.facelessScore >= 70 ? 'ok' : 'warn'));
-  grid.appendChild(proMetric('Source', item.channelUrl ? 'Channel' : (item.vidId ? 'Video' : 'Scan')));
-  if (age) {
-    grid.appendChild(proMetric('Channel age', age.monthsOld !== null && age.monthsOld !== undefined ? age.monthsOld + ' months' : 'n/a', pass === true ? 'ok' : (pass === false ? 'bad' : '')));
-    grid.appendChild(proMetric('Created', age.createdDate || age.publishedAt || 'n/a'));
-  }
-  if (viral) {
-    grid.appendChild(proMetric('Viral videos', String(metrics.viralVideoCount || 0), metrics.viralVideoCount >= 10 ? 'ok' : 'warn'));
-    grid.appendChild(proMetric('Viral ratio', ratioText, ratio >= 0.2 ? 'ok' : 'warn'));
-    grid.appendChild(proMetric('Velocity', metrics.velocityTier || 'n/a', metrics.velocityTier === 'EXPLOSIVE' || metrics.velocityTier === 'HIGH' ? 'ok' : ''));
-    grid.appendChild(proMetric('Views per week', fmtN(metrics.weeklyViewVelocity || 0)));
-  }
-  box.appendChild(grid);
-
-  var videos = proAsArray(metrics.viralVideos).slice(0, 6);
-  if (videos.length) {
-    box.appendChild(makeProEl('div', 'pro-list-title', 'Top viral videos'));
-    videos.forEach(function(v) {
-      var row = makeProEl('div', 'pro-video-row');
-      row.appendChild(makeProEl('span', 'pro-video-title', v.title || 'Video'));
-      row.appendChild(makeProEl('strong', 'pro-video-views', fmtN(v.views || 0)));
-      box.appendChild(row);
-    });
-  }
-}
-
-async function runProTitleSearch() {
-  var item = proRequireNiche('pro-title-result');
-  if (!item) return;
-  var keywords = proCleanNiche(item);
-  if (!keywords) {
-    setProResult('pro-title-result', 'This scanned result has no usable niche or title.', 'error');
-    return;
-  }
-
-  setProResult('pro-title-result', 'Searching titles and channels', 'loading');
-  try {
-    var data = await proPost('/niche/search-titles', {
-      keywords: keywords,
-      language: item.language || 'es',
-      maxResults: 30,
-      sortBy: 'views'
-    });
-    renderProTitleResult(data);
-  } catch (err) {
-    setProResult('pro-title-result', 'PRO error: ' + (err && err.message ? err.message : err), 'error');
-  }
-}
-
-function renderProTitleResult(data) {
-  var box = clearProResult('pro-title-result');
-  if (!box) return;
-  var channels = proAsArray(proFirst(data, ['channels', 'topChannels', 'results'], []));
-  var videos = proAsArray(proFirst(data, ['videos', 'topVideos'], []));
-  var title = makeProEl('div', 'pro-result-head');
-  title.textContent = 'Sub-niche: ' + proFirst(data, ['subNiche', 'subniche', 'query'], 'n/a') + ' | RPM: ' + proFirst(data, ['estimatedRpm', 'rpm', 'RPM'], 'n/a');
-  box.appendChild(title);
-
-  var rows = channels.length ? channels.slice(0, 6) : videos.slice(0, 6);
-  rows.forEach(function(item) {
-    var row = makeProEl('div', 'pro-video-row');
-    row.appendChild(makeProEl('span', 'pro-video-title', proFirst(item, ['name', 'channel', 'title'], 'Result')));
-    row.appendChild(makeProEl('strong', 'pro-video-views', fmtN(proFirst(item, ['totalViews', 'views', 'viewCount'], 0))));
-    box.appendChild(row);
-  });
-  if (!rows.length) appendProJson(box, data);
-}
-
-async function runProGlobalScore() {
-  var item = proRequireNiche('pro-global-result');
-  if (!item) return;
-  var niche = proCleanNiche(item);
-  if (!niche) {
-    setProResult('pro-global-result', 'This scanned result has no usable niche.', 'error');
-    return;
-  }
-  setProResult('pro-global-result', 'Analyzing global opportunity', 'loading');
-  try {
-    var data = await proPost('/niche/score-by-language', { niche: niche });
-    renderProGlobalResult(data);
-  } catch (err) {
-    setProResult('pro-global-result', 'PRO error: ' + (err && err.message ? err.message : err), 'error');
-  }
-}
-
-function renderProGlobalResult(data) {
-  var box = clearProResult('pro-global-result');
-  if (!box) return;
-  var rows = proAsArray(proFirst(data, ['results', 'languages', 'scores'], []));
-  box.appendChild(makeProEl('div', 'pro-result-head', 'Best: ' + proFirst(data, ['bestLanguage', 'bestVerdict', 'bestScore'], 'n/a')));
-  if (!rows.length) {
-    appendProJson(box, data);
-    return;
-  }
-  rows.slice(0, 8).forEach(function(row) {
-    var item = makeProEl('div', 'pro-video-row');
-    item.appendChild(makeProEl('span', 'pro-video-title', proFirst(row, ['language', 'code', 'name'], 'Language')));
-    item.appendChild(makeProEl('strong', 'pro-video-views', String(proFirst(row, ['score', 'value', 'verdict'], 'n/a'))));
-    box.appendChild(item);
-  });
-}
-
-async function runProReplicate() {
-  var item = proRequireNiche('pro-rep-result');
-  if (!item) return;
-  var channel = proNicheChannel(item);
-  if (!channel) {
-    setProResult('pro-rep-result', 'This scanned niche has no source channel. Use Search titles or Build a brand instead.', 'error');
-    return;
-  }
-  var lang = document.getElementById('pro-rep-language').value || 'es';
-  setProResult('pro-rep-result', 'Generating ideas to replicate', 'loading');
-
-  try {
-    var data = await proPost('/niche/replicate-content', {
-      channel: channel,
-      language: lang,
-      maxVideos: 50,
-      targetVideos: 5
-    });
-    renderProReplicateResult(data);
-  } catch (err) {
-    setProResult('pro-rep-result', 'PRO error: ' + (err && err.message ? err.message : err), 'error');
-  }
-}
-
-function renderProReplicateResult(data) {
-  var box = clearProResult('pro-rep-result');
-  if (!box) return;
-  var plans = proAsArray(proFirst(data, ['replicationPlans', 'videos', 'ideas', 'replications'], []));
-  if (!plans.length) {
-    appendProJson(box, data);
-    return;
-  }
-  plans.slice(0, 5).forEach(function(plan, idx) {
-    var item = makeProEl('div', 'pro-plan');
-    item.appendChild(makeProEl('div', 'pro-plan-title', (idx + 1) + '. ' + proFirst(plan, ['title', 'videoTitle', 'idea'], 'Idea')));
-    item.appendChild(makeProEl('div', 'pro-plan-line', 'Angle: ' + proFirst(plan, ['angle', 'concept'], 'n/a')));
-    item.appendChild(makeProEl('div', 'pro-plan-line', 'Hook: ' + proFirst(plan, ['hook', 'openingHook'], 'n/a')));
-    item.appendChild(makeProEl('div', 'pro-plan-line', 'Thumbnail: ' + proFirst(plan, ['thumbnailConcept', 'thumbnail'], 'n/a')));
-    box.appendChild(item);
-  });
-}
-
-async function runProBrand() {
-  var item = proRequireNiche('pro-brand-result');
-  if (!item) return;
-  var niche = proCleanNiche(item);
-  if (!niche) {
-    setProResult('pro-brand-result', 'This scanned result has no usable niche.', 'error');
-    return;
-  }
-
-  setProResult('pro-brand-result', 'Building a brand for the niche', 'loading');
-  try {
-    var data = await proPost('/niche/build-brand', {
-      niche: niche,
-      language: 'es',
-      tone: document.getElementById('pro-brand-tone').value || 'professional',
-      targetAudience: 'general'
-    });
-    renderProBrandResult(data);
-  } catch (err) {
-    setProResult('pro-brand-result', 'PRO error: ' + (err && err.message ? err.message : err), 'error');
-  }
-}
-
-function renderProBrandResult(data) {
-  var box = clearProResult('pro-brand-result');
-  if (!box) return;
-  var names = proAsArray(proFirst(data, ['channelNames', 'names'], []));
-  var bio = proFirst(data, ['bio'], '');
-  var visual = proFirst(data, ['visualIdentity'], {});
-  var strategy = proFirst(data, ['contentStrategy', 'strategy'], {});
-
-  box.appendChild(makeProEl('div', 'pro-result-head', names.length ? names.join(' | ') : proFirst(data, ['channelName', 'name'], 'Brand')));
-  box.appendChild(makeProEl('div', 'pro-plan-line', 'Bio: ' + (typeof bio === 'string' ? bio : proFirst(bio, ['short', 'description', 'text'], JSON.stringify(bio)))));
-  box.appendChild(makeProEl('div', 'pro-plan-line', 'Visual: ' + (typeof visual === 'string' ? visual : proFirst(visual, ['style', 'summary'], JSON.stringify(visual)))));
-  box.appendChild(makeProEl('div', 'pro-plan-line', 'Strategy: ' + (typeof strategy === 'string' ? strategy : proFirst(strategy, ['summary', 'postingPlan'], JSON.stringify(strategy)))));
-}
-
 document.addEventListener('DOMContentLoaded', function() {
   load();
 
-  var proHeaderBtn = document.getElementById('btn-pro-tools');
-  if (proHeaderBtn) {
-    proHeaderBtn.addEventListener('click', function() {
-      openProPanel();
-    });
-  }
-  var proLaunchBtn = document.getElementById('btn-pro-launch');
-  if (proLaunchBtn) {
-    proLaunchBtn.addEventListener('click', function() {
-      openProPanel();
-    });
-  }
-
-  // Source filter
   document.querySelectorAll('.pill[data-filter]').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      document.querySelectorAll('.pill[data-filter]').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
+      syncPillGroup('.pill[data-filter]', 'filter', btn.dataset.filter);
       activeFilter = btn.dataset.filter;
       render();
     });
   });
 
-  // Niche filter
-
-
-  // Age filter
   document.querySelectorAll('.pill.age').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      document.querySelectorAll('.pill.age').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
+      syncPillGroup('.pill.age', 'age', btn.dataset.age);
       activeAge = btn.dataset.age;
       render();
     });
   });
 
-  // Sort
+  document.querySelectorAll('.pill.view').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      syncPillGroup('.pill.view', 'view', btn.dataset.view);
+      activeView = btn.dataset.view;
+      render();
+    });
+  });
+
   document.querySelectorAll('.pill.sort').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      document.querySelectorAll('.pill.sort').forEach(function(b) { b.classList.remove('active'); });
-      btn.classList.add('active');
+      syncPillGroup('.pill.sort', 'sort', btn.dataset.sort);
       activeSort = btn.dataset.sort;
       render();
     });
   });
 
-  // Search
   document.getElementById('search-input').addEventListener('input', function() {
     searchQuery = this.value.trim();
     render();
   });
 
-  // Clear
   document.getElementById('btn-clear').addEventListener('click', function() {
-    if (!confirm('Remove EVERY saved channel?')) return;
+    if (!confirm('Remove every saved channel? This cannot be undone.')) return;
     allChannels = [];
     chrome.storage.local.set({ nsp_all_channels: [] }, render);
   });
 
-  // Export
   var growthBtn = document.getElementById('btn-growth');
   if (growthBtn) growthBtn.addEventListener('click', measureGrowth);
   var exportBtn = document.getElementById('btn-export');
@@ -1340,32 +1012,8 @@ document.addEventListener('DOMContentLoaded', function() {
   }, 4000);
 });
 
-//  EXPORT (CSV / JSON) 
 function getCurrentFilteredChannels() {
-  // Re-apply current filters to allChannels
-  return allChannels.filter(function(ch) {
-    if (activeFilter !== 'ALL' && ch.source !== activeFilter) return false;
-    if (activeNiche !== 'ALL') {
-      var niche = ch.niche || '🔮 General';
-      if (activeNiche === '🔮 General') {
-        var mainNiches = ['🤖 AI','💻 Tech','💰 Finance','🏢 Business','📷 Camera','🎮 Gaming'];
-        if (mainNiches.some(function(n) { return niche.indexOf(n.split(' ')[1]) !== -1; })) return false;
-      } else if (niche !== activeNiche) return false;
-    }
-    if (activeAge !== 'ALL') {
-      var d = ch.channelAgeDays;
-      if (activeAge === 'EXPLODING') { if (!isExplodingChannel(ch)) return false; }
-      else if (activeAge === 'LT3M') { if (!d || d > 90) return false; }
-      else if (activeAge === 'LT6M') { if (!d || d > 180) return false; }
-      else if (activeAge === 'LT1Y') { if (!d || d > 365) return false; }
-      else if (activeAge === 'GT1Y') { if (!d || d <= 365) return false; }
-    }
-    if (searchQuery) {
-      var q = searchQuery.toLowerCase();
-      if (!(ch.name || '').toLowerCase().includes(q) && !(ch.niche || '').toLowerCase().includes(q)) return false;
-    }
-    return true;
-  });
+  return allChannels.filter(channelMatchesFilters);
 }
 
 function downloadFile(content, filename, mimeType) {
@@ -1376,10 +1024,11 @@ function downloadFile(content, filename, mimeType) {
   a.download = filename;
   document.body.appendChild(a);
   a.click();
+  // Revoking the object URL right after click() cancels the download in some browsers, so defer it.
   setTimeout(function() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, 0);
+  }, 2000);
 }
 
 function exportAsJSON(channels) {
@@ -1416,7 +1065,6 @@ function exportAsCSV(channels) {
 }
 
 function openExportModal() {
-  // Remove existing if open
   var existing = document.getElementById('nsp-export-modal');
   if (existing) { existing.remove(); return; }
 
@@ -1434,7 +1082,7 @@ function openExportModal() {
 
   modal.innerHTML = '<div class="nsp-modal-header">'
     + '  <div class="nsp-modal-title">Export channels</div>'
-    + '  <button class="nsp-modal-close" id="nsp-export-close"></button>'
+    + '  <button class="nsp-modal-close" id="nsp-export-close">Close</button>'
     + '</div>'
     + '<div class="nsp-modal-body">'
     + '  <div class="export-row">'
@@ -1482,25 +1130,23 @@ function openIdeasPanel() {
   backdrop.appendChild(modal);
 
   var filtered = getCurrentFilteredChannels();
-  // Pick top channels by avgOS, then topVPH
   var top = filtered.slice().sort(function(a, b) {
     return (b.avgOS || 0) - (a.avgOS || 0) || (b.topVPH || 0) - (a.topVPH || 0);
   }).slice(0, 8);
 
   modal.innerHTML = '<div class="nsp-modal-header">'
-    + '  <div class="nsp-modal-title">Video ideas, AI Coach</div>'
-    + '  <button class="nsp-modal-close" id="nsp-ideas-close"></button>'
+    + '  <div class="nsp-modal-title">Video ideas</div>'
+    + '  <button class="nsp-modal-close" id="nsp-ideas-close">Close</button>'
     + '</div>'
     + '<div class="nsp-modal-body">'
-    + '  <div class="ideas-subhead">Claude reads your top ' + top.length + ' channels and writes 5 fresh ideas for today</div>'
+    + '  <div class="ideas-subhead">The model you set in Options reads your top ' + top.length + ' channels and writes five ideas for today</div>'
     + '  <div class="ideas-channels" id="nsp-ideas-channels-preview"></div>'
-    + '  <button class="export-format-btn" id="nsp-ideas-generate">Generate ideas with Claude</button>'
+    + '  <button class="export-format-btn" id="nsp-ideas-generate">Generate ideas</button>'
     + '  <div class="ideas-output" id="nsp-ideas-output"></div>'
     + '</div>';
 
   document.body.appendChild(backdrop);
 
-  // Preview chips
   var preview = document.getElementById('nsp-ideas-channels-preview');
   top.forEach(function(ch) {
     var chip = document.createElement('span');
@@ -1516,7 +1162,7 @@ function openIdeasPanel() {
   document.getElementById('nsp-ideas-generate').onclick = function() {
     var btn = this;
     btn.disabled = true;
-    btn.textContent = 'Asking Claude';
+    btn.textContent = 'Asking the model';
     var output = document.getElementById('nsp-ideas-output');
     output.innerHTML = '<div class="ideas-loading">Generating ideas, 5 to 15 seconds</div>';
 
@@ -1527,7 +1173,7 @@ function openIdeasPanel() {
       btn.disabled = false;
     }).catch(function(err) {
       output.innerHTML = '<div class="ideas-error">' + (err && err.message ? err.message : 'Error') + '</div>'
-        + '<div class="ideas-help">Set a Groq or Gemini key in Options, or pick another model, in the sk-ant- format.</div>';
+        + '<div class="ideas-help">Open Options, pick a model and add its key. Groq, Gemini and a local Ollama all work.</div>';
       btn.textContent = 'Try again';
       btn.disabled = false;
     });

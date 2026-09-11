@@ -9,6 +9,35 @@ function nspFetchT(url, opts, ms) {
   return fetch(url, opts).finally(function () { clearTimeout(to); });
 }
 
+// The provider cascade in background/service-worker.js accepts exactly this shape, so the page must not accept a key it would reject.
+var NSP_GEMINI_KEY_RE = /^AIza[a-zA-Z0-9\-_]{30,50}$/;
+
+function nspGeminiKeyProblem(raw) {
+  raw = String(raw || '');
+  if (!raw) return 'Paste a Gemini key first, starting with AIza.';
+  if (raw.indexOf('AIza') !== 0) return 'Wrong format. A Gemini key starts with "AIza". Yours starts with "' + raw.slice(0, 6) + '".';
+  if (raw.length < 34 || raw.length > 54) return 'Wrong length. The AI providers accept 34 to 54 characters. Yours is ' + raw.length + '.';
+  if (!NSP_GEMINI_KEY_RE.test(raw)) return 'Unexpected characters. After AIza a key only uses letters, digits, hyphen and underscore.';
+  return '';
+}
+
+function nspAssistantGroqModel() {
+  var sel = document.getElementById('nsp-selected-model');
+  var v = sel ? String(sel.value || '') : '';
+  return v.indexOf('groq:') === 0 ? v.slice(5) : '';
+}
+
+function nspRenderGroqEffective(forcedFromStorage) {
+  var el = document.getElementById('nsp-groq-effective');
+  if (!el) return;
+  var modelSel = document.getElementById('nsp-groq-model');
+  var picked = (modelSel && modelSel.value) || 'llama-3.3-70b-versatile';
+  var forced = forcedFromStorage || nspAssistantGroqModel();
+  el.textContent = forced
+    ? 'In force: ' + forced + ', set by the Assistant model above. The model picked here only applies while the Assistant model is Auto or on another provider.'
+    : 'In force: ' + picked + '. The Assistant model above is not pinned to Groq, so every Groq request uses this one.';
+}
+
 function getSettings() {
   var read = function (id, dflt) {
     var el = document.getElementById(id);
@@ -60,14 +89,9 @@ function nspGuardarGeminiKey() {
     return;
   }
 
-  if (!raw.startsWith('AIza')) {
-    status.textContent = 'Wrong format. A Gemini key starts with "AIza". Yours starts with "' + raw.slice(0, 6) + '".';
-    status.style.color = '#FF4F8E';
-    return;
-  }
-
-  if (raw.length < 30 || raw.length > 60) {
-    status.textContent = 'Wrong length. A key is 30 to 60 characters. Yours is ' + raw.length + '.';
+  var problem = nspGeminiKeyProblem(raw);
+  if (problem) {
+    status.textContent = problem;
     status.style.color = '#FF4F8E';
     return;
   }
@@ -108,8 +132,9 @@ async function nspProbarGeminiKey() {
   if (!input || !status) { alert('Page elements missing'); return; }
 
   const raw = (input.value || '').trim();
-  if (!raw || !raw.startsWith('AIza')) {
-    status.textContent = 'Paste a valid key first, starting with AIza.';
+  const problem = nspGeminiKeyProblem(raw);
+  if (problem) {
+    status.textContent = problem + ' A key outside that shape is never used, even if Google answers it.';
     status.style.color = '#FFD93D';
     return;
   }
@@ -224,17 +249,24 @@ function nspOptionsBoot() {
   chrome.storage.local.get('nsp_gemini_api_key', (res) => {
     const k = res && res.nsp_gemini_api_key;
     const statusEl = document.getElementById('nsp-gemini-status');
-    if (k && typeof k === 'string' && /^AIza[a-zA-Z0-9\-_]{20,}$/.test(k)) {   // loose on purpose: {30,50} failed to repopulate stored keys of 55 to 60 characters
-      const inputEl = document.getElementById('nsp-gemini-key');
-      if (inputEl) inputEl.value = k;
+    const inputEl = document.getElementById('nsp-gemini-key');
+    if (!k || typeof k !== 'string') {
+      if (statusEl) {
+        statusEl.textContent = 'No API key set. Paste one above and hit Save key.';
+        statusEl.style.color = 'var(--muted)';
+      }
+      return;
+    }
+    if (inputEl) inputEl.value = k;
+    if (NSP_GEMINI_KEY_RE.test(k)) {
       if (statusEl) {
         statusEl.textContent = 'Gemini API key set: ' + k.slice(0, 8) + '... · ' + k.length + ' characters';
         statusEl.style.color = 'var(--accentC)';
       }
       console.log('[NSP Options] Gemini key loaded from storage');
     } else if (statusEl) {
-      statusEl.textContent = 'No API key set. Paste one above and hit Save key.';
-      statusEl.style.color = 'var(--muted)';
+      statusEl.textContent = 'The stored key is not usable: ' + nspGeminiKeyProblem(k) + ' No request will use it until you paste a valid one and hit Save key.';
+      statusEl.style.color = '#FF4F8E';
     }
   });
 
@@ -258,14 +290,21 @@ function nspOptionsBoot() {
     }
     status.textContent = 'Saving the Groq key';
     status.style.color = 'rgba(234,240,255,.6)';
-    chrome.storage.local.set({ nsp_groq_api_key: raw, nsp_groq_model: modelSel ? modelSel.value : 'llama-3.3-70b-versatile' }, () => {
+    const picked = modelSel ? modelSel.value : 'llama-3.3-70b-versatile';
+    chrome.storage.local.set({ nsp_groq_api_key: raw, nsp_groq_model: picked }, () => {
       if (chrome.runtime.lastError) {
         status.textContent = 'Error: ' + chrome.runtime.lastError.message;
         status.style.color = '#FF4F8E';
         return;
       }
-      status.textContent = 'Groq saved: ' + raw.slice(0, 10) + '... · model ' + (modelSel ? modelSel.value : '') + '. Hit Test Groq to check it.';
+      const forced = nspAssistantGroqModel();
+      let line = 'Groq saved: ' + raw.slice(0, 10) + '... · model ' + picked + '.';
+      if (forced && forced !== picked) {
+        line += ' The Assistant model above is pinned to ' + forced + ' and that one wins, so requests run ' + forced + '. Set the Assistant model to Auto to use ' + picked + '.';
+      }
+      status.textContent = line + ' Hit Test Groq to check it.';
       status.style.color = '#FF6B6B';
+      nspRenderGroqEffective();
     });
   }
 
@@ -281,9 +320,10 @@ function nspOptionsBoot() {
       status.style.color = '#FFD93D';
       return;
     }
-    const model = (modelSel && modelSel.value) || 'llama-3.3-70b-versatile';
+    const forced = nspAssistantGroqModel();
+    const model = forced || (modelSel && modelSel.value) || 'llama-3.3-70b-versatile';
     if (testBtn) { testBtn.disabled = true; testBtn.textContent = 'TESTING'; }
-    status.textContent = 'Testing Groq with ' + model;
+    status.textContent = 'Testing Groq with ' + model + (forced ? ', the model the Assistant setting pins' : '');
     status.style.color = 'rgba(234,240,255,.6)';
     try {
       const t0 = Date.now();
@@ -318,10 +358,14 @@ function nspOptionsBoot() {
   if (_groqSaveBtn) _groqSaveBtn.addEventListener('click', nspGuardarGroqKey);
   const _groqTestBtn = document.getElementById('nsp-groq-test-btn');
   if (_groqTestBtn) _groqTestBtn.addEventListener('click', nspProbarGroqKey);
+  const _groqModelSel = document.getElementById('nsp-groq-model');
+  if (_groqModelSel) _groqModelSel.addEventListener('change', function () { nspRenderGroqEffective(); });
 
-  chrome.storage.local.get(['nsp_groq_api_key', 'nsp_groq_model'], (res) => {
+  chrome.storage.local.get(['nsp_groq_api_key', 'nsp_groq_model', 'nsp_selected_model'], (res) => {
     const k = res && res.nsp_groq_api_key;
     const m = res && res.nsp_groq_model;
+    const sel = String((res && res.nsp_selected_model) || 'auto');
+    const forced = sel.indexOf('groq:') === 0 ? sel.slice(5) : '';
     const status = document.getElementById('nsp-groq-status');
     if (k) {
       const inputEl = document.getElementById('nsp-groq-key');
@@ -329,13 +373,14 @@ function nspOptionsBoot() {
       const modelSel = document.getElementById('nsp-groq-model');
       if (modelSel && m) modelSel.value = m;
       if (status) {
-        status.textContent = 'Groq is set up: ' + k.slice(0, 10) + '... · ' + (m || 'default');
+        status.textContent = 'Groq is set up: ' + k.slice(0, 10) + '... · ' + (forced || m || 'llama-3.3-70b-versatile');
         status.style.color = '#FF6B6B';
       }
     } else if (status) {
       status.textContent = 'Groq is not set up. It is optional, but it is the fastest option.';
       status.style.color = 'var(--muted)';
     }
+    nspRenderGroqEffective(forced);
   });
 
   function nspGuardarOllama() {
@@ -486,10 +531,12 @@ if (document.readyState === 'loading') {
   });
   chrome.storage.local.get(['nsp_selected_model'], function (res) {
     sel.value = (res && res.nsp_selected_model) || 'auto';
+    nspRenderGroqEffective();
   });
   sel.addEventListener('change', function () {
     var entry = window.NSP_MODELS.byId(sel.value);
     chrome.storage.local.set({ nsp_selected_model: sel.value, nsp_preferred_provider: entry.provider || 'auto' });
+    nspRenderGroqEffective();
   });
 })();
 

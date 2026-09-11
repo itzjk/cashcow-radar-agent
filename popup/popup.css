@@ -390,6 +390,17 @@ body {
   letter-spacing: .03em;
 }
 .footer-btn:last-child { border-right: none; }
+.footer-btn:disabled { opacity: .45; cursor: default; }
+.footer-btn:disabled:hover { background: none; color: var(--muted); }
+.footer-note {
+  flex-shrink: 0;
+  padding: 6px 12px 8px;
+  color: var(--muted2);
+  font-size: 9.5px;
+  line-height: 1.45;
+  text-align: center;
+  min-height: 12px;
+}
 .footer-btn:hover {
   background: var(--card);
   color: var(--text);

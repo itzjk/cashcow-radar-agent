@@ -193,7 +193,7 @@ function processVideo(v) {
 }
 
 
-var STATE = { videos: [], rows: [], busy: false, sortKey: 'facelessScore', sortDir: -1, _watchdog: null, _firstErr: null };
+var STATE = { videos: [], rows: [], busy: false, sortKey: 'facelessScore', sortDir: -1, _watchdog: null, _firstErr: null, fetchedMaxAge: null, dropped: null };
 var HAS_EXT = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage);
 var $ = function(id) { return document.getElementById(id); };
 var __prog = { done: 0, error: 0, total: 0 };
@@ -232,12 +232,57 @@ function getActiveQueries() {
 function applyFilters() {
   var minVph = parseFloat($('inp-vph').value) || 0;
   var maxAge = parseFloat($('sel-age').value) || 0;
+  var belowVph = 0, olderThanWindow = 0;
   STATE.rows = STATE.videos.filter(function(v) {
-    if (minVph > 0 && v.vph < minVph) return false;
-    if (maxAge > 0 && v.hoursOld != null && v.hoursOld > maxAge) return false;
-    return true;
+    var okVph = !(minVph > 0 && v.vph < minVph);
+    var okAge = !(maxAge > 0 && v.hoursOld != null && v.hoursOld > maxAge);
+    if (!okVph) belowVph++;
+    if (!okAge) olderThanWindow++;
+    return okVph && okAge;
   });
+  STATE.dropped = { belowVph: belowVph, olderThanWindow: olderThanWindow, minVph: minVph, maxAge: maxAge };
   sortRows();
+}
+
+function ageLabel(hours) {
+  var sel = $('sel-age');
+  for (var i = 0; i < sel.options.length; i++) {
+    if ((parseFloat(sel.options[i].value) || 0) === (hours || 0)) return sel.options[i].textContent;
+  }
+  return hours + ' h';
+}
+
+function windowPhrase(hours) {
+  return hours ? ageLabel(hours) : 'no age limit';
+}
+
+function windowIsWiderThanScan() {
+  if (STATE.fetchedMaxAge == null || !STATE.fetchedMaxAge) return false;
+  var now = parseFloat($('sel-age').value) || 0;
+  return now === 0 || now > STATE.fetchedMaxAge;
+}
+
+function updateWindowNote() {
+  var el = $('window-note');
+  if (!el) return;
+  if (!windowIsWiderThanScan()) { el.textContent = ''; return; }
+  el.textContent = 'These results were pulled with Max age at ' + ageLabel(STATE.fetchedMaxAge) +
+    '. A wider window here only re-filters what already came back, it cannot add videos. Hit SCAN COUNTRY to pull ' +
+    windowPhrase(parseFloat($('sel-age').value) || 0) + '.';
+}
+
+function emptyReason() {
+  if (!STATE.videos.length) return 'Pick a country and hit SCAN COUNTRY to read real faceless results from that market feed.';
+  var d = STATE.dropped || { belowVph: 0, olderThanWindow: 0, minVph: 0, maxAge: 0 };
+  var total = STATE.videos.length;
+  var facts = [];
+  if (d.belowVph) facts.push(d.belowVph + ' of ' + total + ' are under ' + d.minVph + ' VPH');
+  if (d.olderThanWindow) facts.push(d.olderThanWindow + ' of ' + total + ' are older than ' + ageLabel(d.maxAge));
+  var acts = [];
+  if (d.belowVph) acts.push('lower the minimum VPH');
+  if (d.olderThanWindow) acts.push(STATE.fetchedMaxAge ? 'widen Max age up to the ' + ageLabel(STATE.fetchedMaxAge) + ' this scan pulled' : 'widen Max age');
+  if (!acts.length) acts.push('hit SCAN COUNTRY again');
+  return 'The filters left nothing' + (facts.length ? ': ' + facts.join(', ') : '') + '. To get them back, ' + acts.join(' or ') + '.';
 }
 
 function sortRows() {
@@ -261,7 +306,7 @@ function render() {
   if (!rows.length) {
     var e = document.createElement('div');
     e.className = 'empty';
-    e.textContent = STATE.videos.length ? 'The filters left nothing. Lower the minimum VPH or widen the age.' : 'Pick a country and hit SCAN COUNTRY to read real faceless results from that market feed.';
+    e.textContent = emptyReason();
     wrap.appendChild(e);
     return;
   }
@@ -283,8 +328,12 @@ function render() {
     if (STATE.sortKey === c.k) {
       var ar = document.createElement('span');
       ar.className = 'arrow';
-      ar.textContent = STATE.sortDir > 0 ? '' : '';
+      ar.textContent = STATE.sortDir > 0 ? '↑' : '↓';
       th.appendChild(ar);
+      th.setAttribute('aria-sort', STATE.sortDir > 0 ? 'ascending' : 'descending');
+      th.title = 'Sorted by ' + c.label + ', ' + (STATE.sortDir > 0 ? 'lowest first' : 'highest first') + '. Click to flip.';
+    } else {
+      th.title = 'Sort by ' + c.label;
     }
     th.addEventListener('click', function() {
       if (STATE.sortKey === c.k) STATE.sortDir = -STATE.sortDir;
@@ -340,13 +389,14 @@ function onFatalError(msg) {
   setProgress(0);
 }
 
-function runScan() {
+function runScan(force) {
   if (STATE.busy) return;
   if (!HAS_EXT) { runDemo(); return; }
   var market = NSP_MARKET_META[$('sel-market').value];
   if (!market || !market.gl) { setStatus('Pick a market first.', 'error'); return; }
   var queries = getActiveQueries();
   if (!queries.length) { setStatus('No active searches.', 'error'); return; }
+  var maxAge = parseFloat($('sel-age').value) || 0;
   STATE.busy = true;
   STATE.videos = [];
   STATE.rows = [];
@@ -358,7 +408,7 @@ function runScan() {
   var btn = $('btn-scan');
   btn.disabled = true;
   btn.textContent = 'SCANNING';
-  setStatus('Scanning ' + market.label + ', ' + queries.length + ' faceless searches within the selected window');
+  setStatus('Scanning ' + market.label + ', ' + queries.length + ' faceless searches over ' + windowPhrase(maxAge) + (force ? ', ignoring the cache' : ''));
   setProgress(4);
   if (STATE._watchdog) clearTimeout(STATE._watchdog);
   STATE._watchdog = setTimeout(function() { if (STATE.busy) onFatalError('Timed out: the service worker did not answer in 70 seconds. Try again.'); }, 70000);
@@ -367,8 +417,8 @@ function runScan() {
     gl: market.gl,
     hl: market.hl,
     queries: queries,
-    maxAgeHours: parseFloat($('sel-age').value) || 0,
-    force: false
+    maxAgeHours: maxAge,
+    force: !!force
   }, function(res) {
     if (STATE._watchdog) { clearTimeout(STATE._watchdog); STATE._watchdog = null; }
     if (!STATE.busy) return;
@@ -384,8 +434,10 @@ function runScan() {
       return;
     }
     STATE.videos = vids;
+    STATE.fetchedMaxAge = maxAge;
     applyFilters();
     render();
+    updateWindowNote();
     if (!raw.length) {
       onFatalError('YouTube returned nothing for these searches inside the selected window. Widen the age or change the market.');
       return;
@@ -440,17 +492,9 @@ function exportCsv() {
   setTimeout(function() { try { a.remove(); URL.revokeObjectURL(url); } catch (e) {} }, 2000);
 }
 
-function clearCache() {
-  if (!HAS_EXT || typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) return;
-  if (STATE.busy) { setStatus('Wait for the scan to finish before clearing the cache.', 'error'); return; }
-  var keys = Object.keys(NSP_MARKET_META).map(function(k) {
-    var m = NSP_MARKET_META[k];
-    return m.gl ? ('nsp_country_feed_' + m.gl + '_' + m.hl) : null;
-  }).filter(Boolean);
-  chrome.storage.local.remove(keys, function() {
-    var err = chrome.runtime && chrome.runtime.lastError;
-    setStatus(err ? 'The cache could not be cleared.' : 'Cache cleared for ' + keys.length + ' countries. The next scan pulls fresh data.', err ? 'error' : 'ok');
-  });
+function runFreshScan() {
+  if (STATE.busy) { setStatus('Wait for the scan to finish.', 'error'); return; }
+  runScan(true);
 }
 
 function runDemo() {
@@ -460,18 +504,20 @@ function runDemo() {
     { videoId: 'demo3', title: 'Top 12 secrets of the deep ocean', channelName: 'Digital Abyss', viewsText: '89K views', publishedText: '3 days ago', lengthText: '22:03' }
   ];
   STATE.videos = demo.map(processVideo).filter(Boolean);
+  STATE.fetchedMaxAge = 0;
   applyFilters();
   render();
+  updateWindowNote();
   setStatus('Demo preview, running without the extension. Open this page from the extension to scan for real.', 'ok');
   setProgress(100);
 }
 
-$('btn-scan').addEventListener('click', runScan);
+$('btn-scan').addEventListener('click', function() { runScan(false); });
 $('btn-export').addEventListener('click', exportCsv);
-$('btn-cache').addEventListener('click', clearCache);
+$('btn-cache').addEventListener('click', runFreshScan);
 var _vphDeb = null;
 $('inp-vph').addEventListener('input', function() { clearTimeout(_vphDeb); _vphDeb = setTimeout(function() { applyFilters(); render(); }, 250); });
-$('sel-age').addEventListener('change', function() { applyFilters(); render(); });
+$('sel-age').addEventListener('change', function() { applyFilters(); render(); updateWindowNote(); });
 $('sel-niche').addEventListener('change', function() { $('txt-queries').style.display = this.value === 'custom' ? 'block' : 'none'; });
 populateMarkets();
 render();

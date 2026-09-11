@@ -91,7 +91,7 @@
   };
 
   TK.needKeysHTML = function () {
-    return '<div class="tk-need"><div class="tk-need-ic">🔑</div>' +
+ return'<div class="tk-need"><div class="tk-need-ic"></div>'+
       '<div class="tk-need-t">Your API key is missing</div>' +
       '<div class="tk-need-d">These tools run on AI. Add your free <b>Groq</b> or <b>Gemini</b> key in Options and try again.</div>' +
       '<button class="tk-btn primary" id="tk-open-options">Open Options</button></div>';
@@ -123,7 +123,7 @@
   TK.mountHead = function (title, kicker) {
     var h = document.getElementById('tk-head'); if (!h) return;
     h.innerHTML =
-      '<div class="tk-brand"><span class="tk-logo">🦇</span><div><div class="tk-kicker">' + TK.esc(kicker || 'ASHLYV · ZERACK') + '</div>' +
+'<div class="tk-brand"><span class="tk-logo"></span><div><div class="tk-kicker">'+ TK.esc(kicker ||'ASHLYV · ZERACK') +'</div>'+
       '<div class="tk-title">' + TK.esc(title || '') + '</div></div></div>' +
       '<button class="tk-btn ghost" id="tk-back">Back to hub</button>';
     var b = h.querySelector('#tk-back'); if (b) b.addEventListener('click', TK.backToHub);

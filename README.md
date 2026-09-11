@@ -1,85 +1,117 @@
-# NicheScanner Pro
+# cashcow-radar
 
-A Chrome extension (Manifest V3) that puts real numbers on top of YouTube: views per hour, viral multiplier, tier, revenue estimate — on every card of every feed you browse. It also scans a feed for faceless niches, tracks channels, predicts titles inside YouTube Studio, and ships a browser-side video editor.
+ZERACK is a Chrome extension (Manifest V3) that reads YouTube the way a channel owner needs it read: what is actually moving, whether the format is one you can reproduce without a camera, and whether the script you are about to publish will get the channel demonetized.
 
-Everything runs locally in your browser. There is no server behind this, no account, and no telemetry. The AI features are optional and use **your own** API key.
+It runs in your browser. No server, no account, no telemetry. Every AI panel is optional and uses a key you paste yourself.
+
+## What is here that is not anywhere else
+
+**A demonetization policy engine.** `nsp-policy.js` is a rules engine over `data/policies.json`: it normalizes a script (diacritics folded, `ß` to `ss`, everything non-alphanumeric collapsed), matches the rule table in word or substring mode with an uppercase guard so `ss` does not fire inside *besser*, and maps every hit back to its index in the original text so you can see the exact phrase. It also keeps a per-channel corpus of top-400 token frequencies (never the raw script) and scores a new script against it, so a near-duplicate of your own back catalogue comes back yellow with the inauthentic-content reason instead of green. The service worker loads it and answers `policy:rules` and `policy:evaluate`, and the listener refuses any sender that is not this extension. **No surface calls it yet** (see Limits): today it is an engine with a message API and no button.
+
+**A reverse engine for titles, built from your own scan.** `knowledge/reverse-engine.js` takes the videos a scan just measured, finds the outliers against that set's own median, and reports which title formats over-index inside the outliers versus the rest, which words live in them, how they open in the first two words, which channels own the niche, and a fill-in template drawn from the format that actually took off. It is wired into the coach prompt at `content/nsp-bundle.js:21302`. Nothing here is generic blog advice: every number comes from the videos on your screen.
+
+**Faceless detection that looks at the thumbnail.** face-api.js `tinyFaceDetector` runs locally on each thumbnail, with the weights served from `lib/face-api/` through the bridge, and rejects a card when a face covers more than the area threshold. That is a measurement of the image, not a guess from the title.
+
+**Growth measured from two readings or not shown at all.** The Command Center's *Measure growth* reads each saved channel's subscriber and view totals and stores a timestamped snapshot under `zerack_channel_snapshots_v1`. With fewer than two snapshots, or two less than half a day apart, `computeGrowth` returns no rate and the cell prints `-` with the title *Never measured*. There is no modelled growth anywhere.
+
+**Discovery that costs no quota.** The country radar and the channel readers go through `https://www.youtube.com/youtubei/v1/`, the same private API the page itself calls, with the public WEB key YouTube ships in every page it serves and `credentials: 'omit'` so nothing is personalized to your account. No YouTube Data API units are spent to find anything.
 
 ## Install
 
 ```
 git clone <this repo>
-cd niche-scanner-pro
-./scripts/fetch-assets.sh
+cd cashcow-radar
 ```
 
-Then open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and pick this folder.
+Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and pick this folder. That is all: the scanner, the scan, the policy engine, the country radar and every panel work from a plain checkout.
 
-`fetch-assets.sh` downloads five binary files that are not stored in the repo (onnxruntime, the Whisper tiny model, and the ffmpeg core). Each one is checked against a SHA-256 of the exact build this code was released with; a mismatch aborts. They are only needed by the video editor's local transcription and its "pro quality" MP4 export — the scanner itself works without them.
+`scripts/fetch-assets.sh` downloads four large binaries into `lib/whisper/`, each checked against the SHA-256 of the build this code shipped with. **You do not need to run it.** Nothing in the extension imports `lib/whisper/` today; the script is there for whoever wires local transcription back up.
 
-## API keys (optional)
+## Models and where keys go
 
-Open the extension's **Options** page and paste either or both:
+Open **Options**: the Settings button in the popup, or `chrome://extensions`, Details, Extension options. It opens in its own tab.
 
-- **Groq** (`gsk_…`) — free tier, used first for text.
-- **Gemini** (`AIza…`) — used as fallback, and for image work.
+| Field | Storage key | What it is for |
+|---|---|---|
+| Groq API key (`gsk_…`) | `nsp_groq_api_key` | free tier, tried first for text |
+| Gemini API key (`AIza…`) | `nsp_gemini_api_key` | Google, text and thumbnail vision |
+| Enable Ollama, URL, model | `nsp_ollama_enabled`, `nsp_ollama_url`, `nsp_ollama_model` | a model on your own machine, no limits, offline |
+| Assistant model | `nsp_selected_model` | the picker |
+| Let a scan send thumbnails to the vision model | `nsp_vision_allowed` | off by default |
 
-Keys are stored in `chrome.storage.local` and never leave your browser except to call the provider you pasted a key for. Without a key, the metrics overlay, the SCAN engine, tracking and the country feed all still work — only the AI panels go quiet.
+The **Assistant model** picker is the one catalog, `lib/nsp-models.js`, read by the options page, the service worker and the overlay. Picking an entry sets the preferred provider, it does not lock you to it: on a rate limit or a failure the service worker falls through to the next provider you have configured, in the order Groq, Ollama, Gemini. Picking *Auto* takes that order as it stands.
 
-Two extra AI paths exist and are off unless you set them up yourself: a local Ollama at `127.0.0.1:11434`, and an optional local backend at `127.0.0.1:8000` (see *Known rough edges*).
+Keys live in `chrome.storage.local` and leave the browser only to reach the provider whose key you pasted. Without any key the metrics overlay, the scan, the tracking panel, the country radar, the niche index and the policy engine all still work; the AI panels say they have no provider.
 
-## What it does
+**A stored key is not permission to spend it.** Sending a thumbnail to the vision model is a separate checkbox in Options, and the service worker refuses the call with `vision_not_allowed` when the flag is not exactly `true` (`background/service-worker.js:1160`). The in-page thumbnail analyzer asks the same question through `ashlyv_thumbnail_consent`.
 
-**On youtube.com** (`content/nsp-bundle.js`, 24.5k lines, the core)
-- A metrics overlay on every video card: views per hour, multiplier against the channel's own average, tier, RPM-based revenue estimate.
-- 🦇 **SCAN** — sweeps the current feed (home, search, trending) and returns the faceless videos worth looking at, sorted by VPH, with a niche read on top.
-- 🌍 **Country selector** — switches the feed to another market (gl/hl) and re-scans it.
-- **Tracking panel** — keeps channels under watch and tells you what moved.
-- Face detection on thumbnails (face-api.js, tinyFaceDetector, local) to separate faceless content from on-camera content.
+## What each surface does
 
-**On studio.youtube.com** (`content/nsp-studio.js`) — reads your own Studio pages and scores title candidates against what already worked.
+**On youtube.com** (`content/nsp-bundle.js`, the engine)
+- A badge on every video card: views per hour, the multiplier against that channel's own average, a tier, an opportunity score, and a revenue estimate labelled `est.` because it is one. Each of the five can be switched off in Options.
+- **SCAN** sweeps the feed you are on (home, search, a channel, trending), keeps the faceless videos with traction, and puts a niche read on top.
+- A country selector that switches the feed's market and rescans it.
+- A tracking panel for channels under watch, an ad-placement probe that reports monetized, likely, not monetized or cannot check, a thumbnail analyzer, a transcript reader and a comment reader.
 
-**Internal pages**
-- `ashlyv/` — the hub: saved niches, thumbnail analyzer, intelligence panels, and 7 tools (AutoPilot, ScriptPilot, VoxBatch, MotionForge, RivalRadar, NicheMaster, Help).
-- `dashboard/` — saved channels, bulk operations, CSV/JSON export.
-- `country-feed/` — faceless feed by country through InnerTube.
-- `niche-index/`, `niches/` — the niche tables with their RPM.
+**On studio.youtube.com** (`content/nsp-studio.js`) reads your own Studio page, recognizes which page it is, and scores title candidates against the titles that already worked, in the language the corpus is written in. Studio enforces Trusted Types, so this script builds DOM with `createElement` and `textContent` only.
 
-**Background** (`background/service-worker.js`) — message hub, AI cascade (Groq → Ollama → Gemini), rate limiters, InnerTube proxy, periodic alarms.
+**Popup** (`popup/`) session counters, the session's top videos, a CSV export, and the doors to the Command Center, the Niche Index, the country radar and Options.
+
+**Command Center** (`dashboard/`) every saved channel with filters by source, niche and age, seven sort orders, a card and a table view, *Measure growth*, and export to CSV, JSON or the clipboard. Each summary tile prints *not measured* rather than a number when there is nothing measured behind it.
+
+**ZERACK hub** (`ashlyv/`) saved niches and their monetization radar, the channel intelligence engine, the thumbnail analyzer and the idea panels, plus nine tool pages under `ashlyv/tools/` (ThumbLab and VoxBatch are the two the hub links today; see Limits).
+
+**Country radar** (`country-feed/`) pick a market, get the faceless feed for that language through InnerTube, export it.
+
+**Niche Index** (`niche-index/`) the niche table your own scans have filled in, with its RPM, and a CSV export.
+
+**Service worker** (`background/service-worker.js`) the one place with privileges: the message hub, the provider cascade with its rate limiters, the InnerTube calls, the channel and transcript readers, the cookie write that switches market, the alarms, and the `policy:*` routes.
 
 ## Architecture in one paragraph
 
-Three content scripts. The heavy one runs in the **MAIN** world (the page's own context) because it needs YouTube's internal data; it has no access to `chrome.*`. A second, tiny one runs **ISOLATED** and bridges the two with `postMessage` plus DOM attributes (`content/ashlyv-bridge.js`). The third runs only on Studio. The service worker holds every privileged call. Extension pages have a CSP of `script-src 'self' 'wasm-unsafe-eval'` — no inline scripts, no eval, wasm allowed.
-
-`docs/SYSTEM.md` is a full technical map of the codebase (file by file, world by world). `ZERACK-FUNCIONES.md` documents every feature surface by surface. Both are in Spanish.
+Three content scripts. The heavy one runs in the **MAIN** world, the page's own context, because it needs YouTube's internal data, and there it has no `chrome.*` at all: no storage, no messaging, no `runtime.getURL`. A small script in the **ISOLATED** world, `content/ashlyv-bridge.js`, is its only way out, and it is a relay with two explicit allowlists: `NSP_RELAY_CALLS` names the sixteen message types the page world may forward to the service worker, and `NSP_RELAY_KEYS` names the storage keys it may read or write, with a second rule that refuses any key whose name contains *key*, *token*, *secret*, *password* or *auth* even if it were listed. The third content script runs only on Studio. The service worker holds every privileged call: network, cookies, tabs, notifications, alarms, and the policy engine loaded with `importScripts`. Extension pages run under `script-src 'self' 'wasm-unsafe-eval'`, so there is no inline script and no inline handler anywhere, and `node smoke.mjs` fails if one appears.
 
 ## Permissions, and why
 
 | Permission | Reason |
 |---|---|
-| `storage` | your keys, saved niches, tracked channels |
-| `scripting`, `tabs` | injecting and re-injecting the overlay |
-| `alarms` | periodic re-scan and trend check |
-| `cookies` | the YouTube `PREF` cookie, to switch market |
-| `downloads` | exporting CSV/JSON and the rendered video |
-| `notifications`, `clipboardWrite` | results and copy buttons |
-| host: youtube.com, studio.youtube.com | where it runs |
-| host: googleapis.com, api.groq.com, pollinations.ai, api.openverse.org | the AI/image endpoints, only when you use them |
-| host: localhost, 127.0.0.1 | optional local Ollama / local backend |
+| `storage` | your keys, saved niches, tracked channels, growth snapshots, the niche index |
+| `scripting` | the popup reads the live session out of the open YouTube tab's MAIN world |
+| `tabs` | opening the hub, the Command Center and a market search, and knowing which tab is active |
+| `alarms` | the periodic rescan and trend check |
+| `cookies` | writing YouTube's `PREF` cookie, the only way to switch market |
+| `notifications` | the scan and alert notifications |
+| `clipboardWrite` | the copy buttons that go through `document.execCommand('copy')` |
+| `downloads` | declared and not called: the CSV and JSON exports use a blob and `<a download>`. Drop it |
+| `https://www.youtube.com/*`, `https://*.youtube.com/*` | where the overlay runs, and the InnerTube endpoint |
+| `https://studio.youtube.com/*` | the Studio agent |
+| `https://www.googleapis.com/*` | the YouTube Data API, for comments and channel reads |
+| `https://generativelanguage.googleapis.com/*` | Gemini, when you have pasted a Gemini key |
+| `https://api.groq.com/*` | Groq, when you have pasted a Groq key |
+| `https://translate.googleapis.com/*` | translating a foreign-language title before scoring it |
+| `https://i.ytimg.com/*`, `https://img.youtube.com/*` | reading thumbnail pixels for the face and contrast checks |
+| `http://localhost/*`, `http://127.0.0.1/*` | Ollama, and the optional local backend at `127.0.0.1:8000` |
+| `https://image.pollinations.ai/*`, `https://*.pollinations.ai/*`, `https://api.openverse.org/*` | declared and not called by any file in this repo. Drop them before publishing |
 
-The only key hardcoded in the source is `AIzaSyAO_FJ2…`, the **public InnerTube key** YouTube itself ships in every page it serves. It is not a credential.
+`AIzaSyAO_FJ2…` in `background/service-worker.js:1593` and `content/nsp-bundle.js:16085` is the public InnerTube WEB key that YouTube itself ships in every page it serves. It is not a credential and it is not ours.
 
-## Known rough edges
+## Limits
 
-Honest list, so nobody has to discover them:
+Run `node smoke.mjs` for the machine-checkable list. These are the ones a checker cannot see:
 
-- `ashlyv/ashlyv-api.js:10` hardcodes `http://127.0.0.1:8000` for a local backend that is not part of this repo. Those specific panels will fail without it; the rest of the hub does not care.
-- `content/nsp-bundle.js` is one 24,500-line file. It works, and it is not pleasant.
-- Most UI strings and both documentation files are in Spanish.
-- `icons/generate-icons.html` and `icons/make-icons.js` are one-shot dev tools, not part of the extension.
-- `niche-detector.test.js` is a plain Node script (`node niche-detector.test.js`), not a test-runner suite.
+- **The policy engine has no button.** `nsp-policy.js` and `data/policies.json` are loaded and reachable at `policy:evaluate`, and no page in this build sends that message. The engine is real, the surface is missing.
+- **`content/nsp-bundle.js` is one file of about 24,400 lines.** It works. It is not pleasant.
+- **The YouTube Data API key has no opt-in and no home.** `content/nsp-bundle.js:7286` reads `nsp_yt_data_api_key` out of `localStorage` on youtube.com, where any script on the page can read it, Options has no field to set it, and the three call sites that use it spend quota with no gate. Leave it empty until that is rebuilt.
+- **The popup's tier counters and its *Analyzed* number have different denominators.** `Analyzed` counts every card scored; `RISING+` and `VIRAL` are counted over the session's top 20, so they stop climbing at 20.
+- **Five of the nine tool pages have no link.** `autopilot`, `brandforge`, `competitorfinder`, `help` and `nichemaster` under `ashlyv/tools/` only open if you type the address.
+- **Six controls in the ZERACK hub do nothing.** `ashlyv/ashlyv-api.js` sends `ASHLYV_OLLAMA_HEALTH`, `ASHLYV_OLLAMA_CHAT`, `ASHLYV_OLLAMA_VISION`, `ASHLYV_ANTHROPIC_VALIDATE`, `ASHLYV_ANTHROPIC_CHAT` and `ASHLYV_ANTHROPIC_VISION`, and no handler exists for any of them. It also points at a local backend at `http://127.0.0.1:8000` that is not part of this repo.
+- **Strings are not all English yet.** `node smoke.mjs` names every file with Spanish or emoji left in a string the user reads. Spanish inside search queries, YouTube DOM matchers and language detection tables is data and stays; the smoke exempts those tables by name.
+- **`lib/whisper/` is dead weight.** Nothing imports it, and the manifest still exposes it as a web accessible resource.
+- **`ZERACK-FUNCIONES.md` and `docs/` are in Spanish**, and `docs/SYSTEM.md` describes the tree before the rename.
+- **`icons/generate-icons.html` and `icons/make-icons.js`** are one-shot dev tools, not part of the extension.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See `LICENSE`. Copyright (c) 2026 By Itzael.
 
 Not affiliated with, endorsed by, or connected to YouTube or Google. "YouTube" is a trademark of Google LLC. Use it on your own account, at your own risk, within YouTube's Terms of Service.

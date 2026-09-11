@@ -15,7 +15,7 @@
   var CONV_KEY = 'nsp_studio_conv';
   var MAX_ITERS = 6;
 
-  // ── Page type ─────────────────────────────────────────────────────────────
+ // Page type 
   function channelId() { return (window.location.href.match(/\/channel\/(UC[\w-]+)/) || [])[1] || ''; }
   function videoId() { return (window.location.href.match(/\/video\/([\w-]+)/) || [])[1] || ''; }
   function pageType() {
@@ -291,7 +291,7 @@
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function scoreColor(s) { s = Number(s) || 0; return s >= 75 ? '#00DC82' : s >= 55 ? '#7FE3B5' : s >= 35 ? '#FFD93D' : '#FF6B6B'; }
   function verdictColor(v) { return ({ good: '#00DC82', ok: '#FFD93D', bad: '#FF6B6B' })[v] || 'rgba(255,255,255,0.5)'; }
-  function verdictDot(v) { return ({ good: '🟢', ok: '🟡', bad: '🔴' })[v] || '⚪'; }
+ function verdictDot(v) { return ({ good:'', ok:'', bad:''})[v] ||''; }
   function priMeta(p) { return ({ high: { l: 'HIGH', c: '#FF6B6B' }, medium: { l: 'MEDIUM', c: '#FFD93D' }, low: { l: 'LOW', c: '#7FE3B5' } })[p] || { l: 'MEDIUM', c: '#FFD93D' }; }
 
   var _shadow = null, _bodyEl = null, _sendBtn = null, _input = null;
@@ -339,12 +339,12 @@
         var pm = priMeta(a.priority); var c = el('div', 'nsp-action-card'); c.style.borderLeftColor = pm.c;
         var head = el('div', 'nsp-action-head'); var b = el('span', 'nsp-pri-badge', pm.l); b.style.background = pm.c; head.appendChild(b);
         head.appendChild(el('span', 'nsp-action-txt', String(a.action || ''))); c.appendChild(head);
-        if (a.impact) c.appendChild(el('div', 'nsp-action-impact', '↳ ' + String(a.impact)));
+ if (a.impact) c.appendChild(el('div','nsp-action-impact',''+ String(a.impact)));
         as.appendChild(c);
       });
       holder.appendChild(as);
     }
-    var tag = el('div', 'nsp-report-tag', '✦ ' + String(provider || 'AI').toUpperCase() + ' · NSP Studio Analyst');
+ var tag = el('div','nsp-report-tag',''+ String(provider ||'AI').toUpperCase() +'· NSP Studio Analyst');
     holder.appendChild(tag);
     scrollBottom();
   }
@@ -364,7 +364,7 @@
     while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
     if (!S.messages.length) {
       var hint = el('div', 'nsp-empty');
-      hint.appendChild(el('div', 'nsp-empty-t', '⚡ ZERACK · STUDIO'));
+ hint.appendChild(el('div','nsp-empty-t','ZERACK · STUDIO'));
       hint.appendChild(el('div', 'nsp-empty-s', 'Ask me about anything on your channel. Examples:'));
       ['Analyze this video and give me a report', 'Which video is performing best this month?', 'Read the comments and give me the sentiment', 'What should I improve to grow?', 'Compare my last videos'].forEach(function(ex) {
         var c = el('button', 'nsp-chip', ex);
@@ -460,7 +460,7 @@
     var p = el('div'); p.id = 'p';
     var h = el('div'); h.id = 'h';
     var hl = el('div');
-    hl.appendChild(function(){ var t = el('div'); t.id = 'ht'; t.textContent = '⚡ ZERACK · STUDIO'; return t; }());
+ hl.appendChild(function(){ var t = el('div'); t.id ='ht'; t.textContent ='ZERACK · STUDIO'; return t; }());
     var hs = el('div'); hs.id = 'hs'; hs.textContent = pageLabel(pageType());
     hl.appendChild(hs);
     var hbtns = el('div'); hbtns.id = 'hbtns';
@@ -735,7 +735,7 @@
     function hookScore(title, lang) {
       var t = String(title || ''), lo = t.toLowerCase(), len = t.length;
       function mk(hit, max) { return { hit: !!hit, pts: hit ? max : 0, max: max }; }
-      var parts = { number: mk(/\b\d+\b/.test(lo), 18), brackets: mk(/[\[\]\(\)\|►▶]/.test(t), 10), pattern: mk(pick(RE.survive, lang).test(lo), 16), length: mk(len >= 30 && len <= 70, 14), curiosity: mk(pick(RE.curio, lang).test(lo), 24), power: mk(pick(RE.power, lang).test(lo), 18) };
+ var parts = { number: mk(/\b\d+\b/.test(lo), 18), brackets: mk(/[\[\]\(\)\|]/.test(t), 10), pattern: mk(pick(RE.survive, lang).test(lo), 16), length: mk(len >= 30 && len <= 70, 14), curiosity: mk(pick(RE.curio, lang).test(lo), 24), power: mk(pick(RE.power, lang).test(lo), 18) };
       var got = 0, max = 0, weak = [], k;
       for (k in parts) { got += parts[k].pts; max += parts[k].max; if (!parts[k].hit) weak.push(k); }
       return { score: Math.round(got / max * 100), parts: parts, weak: weak };
@@ -990,7 +990,7 @@
     var hdr = document.createElement('div');
     hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid rgba(255,255,255,0.07);position:sticky;top:0;background:#0a0c0f;z-index:2;';
     var ht = document.createElement('div'); ht.textContent = titleText; ht.style.cssText = 'font-weight:900;font-size:14px;letter-spacing:0.06em;color:#00DC82;';
-    var cb = document.createElement('button'); cb.textContent = '✕'; cb.style.cssText = 'background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:18px;cursor:pointer;line-height:1;padding:2px 6px;'; cb.onclick = function() { overlay.remove(); };
+ var cb = document.createElement('button'); cb.textContent =''; cb.style.cssText ='background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:18px;cursor:pointer;line-height:1;padding:2px 6px;'; cb.onclick = function() { overlay.remove(); };
     hdr.appendChild(ht); hdr.appendChild(cb); box.appendChild(hdr);
     var body = document.createElement('div'); body.style.cssText = 'padding:18px;'; box.appendChild(body);
     overlay.appendChild(box); document.documentElement.appendChild(overlay);
@@ -1033,7 +1033,7 @@
       var parts = dims.hook.parts || {}, k;
       for (k in parts) {
         var hit = parts[k].hit, ch = document.createElement('span');
-        ch.textContent = (hit ? '✓ ' : '✗ ') + (lblmap[k] || k);
+ ch.textContent = (hit ?'':'') + (lblmap[k] || k);
         ch.style.cssText = 'font-size:9.5px;font-weight:700;padding:3px 7px;border-radius:6px;' + (hit ? 'background:rgba(0,220,130,0.14);color:#00DC82;border:1px solid rgba(0,220,130,0.4);' : 'background:rgba(255,107,107,0.12);color:#FF6B6B;border:1px solid rgba(255,107,107,0.35);');
         chips.appendChild(ch);
       }
@@ -1129,7 +1129,7 @@
     var th2 = document.createElement('div'); th2.textContent = 'HOW TO RAISE THE CTR'; th2.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:rgba(255,255,255,0.55);margin:10px 0 7px;'; container.appendChild(th2);
     (scored.tips || []).forEach(function(tip) {
       var t = document.createElement('div'); t.style.cssText = 'display:flex;gap:8px;font-size:11.5px;color:rgba(255,255,255,0.82);line-height:1.45;margin-bottom:6px;';
-      var dot = document.createElement('span'); dot.textContent = '→'; dot.style.cssText = 'color:#00DC82;flex:0 0 auto;font-weight:900;';
+ var dot = document.createElement('span'); dot.textContent =''; dot.style.cssText ='color:#00DC82;flex:0 0 auto;font-weight:900;';
       var tx = document.createElement('span'); tx.textContent = tip; t.appendChild(dot); t.appendChild(tx); container.appendChild(t);
     });
   }
@@ -1185,7 +1185,7 @@
     info.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;margin-bottom:12px;'; m.body.appendChild(info);
     var drop = document.createElement('label');
     drop.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:18px;border:1.5px dashed rgba(0,220,130,0.4);border-radius:12px;background:rgba(0,220,130,0.04);cursor:pointer;text-align:center;margin-bottom:6px;';
-    var di = document.createElement('div'); di.textContent = '🖼'; di.style.cssText = 'font-size:24px;';
+ var di = document.createElement('div'); di.textContent =''; di.style.cssText ='font-size:24px;';
     var dt = document.createElement('div'); dt.textContent = 'Upload your thumbnail, PNG or JPG'; dt.style.cssText = 'font-size:12px;font-weight:700;color:#00DC82;';
     var fi = document.createElement('input'); fi.type = 'file'; fi.accept = 'image/*'; fi.style.display = 'none';
     drop.appendChild(di); drop.appendChild(dt); drop.appendChild(fi); m.body.appendChild(drop);
@@ -1241,7 +1241,7 @@
     var btn = document.createElement('button');
     btn.id = 'nsp-studio-btn';
     btn.style.cssText = 'position:fixed;bottom:28px;right:28px;z-index:2147483646;display:flex;align-items:center;gap:9px;height:48px;padding:0 20px;border-radius:24px;background:linear-gradient(135deg,#0a0c0f,#11161b);border:1.5px solid rgba(0,220,130,0.6);color:#00DC82;font-size:13px;font-weight:900;cursor:pointer;font-family:Roboto,Arial,sans-serif;letter-spacing:0.05em;box-shadow:0 8px 28px rgba(0,220,130,0.32);transition:all 0.2s;';
-    var ic = document.createElement('span'); ic.style.fontSize = '18px'; ic.textContent = '🧠';
+ var ic = document.createElement('span'); ic.style.fontSize ='18px'; ic.textContent ='';
     var lb = document.createElement('span'); lb.textContent = 'ZERACK';
     btn.appendChild(ic); btn.appendChild(lb);
     btn.onmouseenter = function() { btn.style.transform = 'translateY(-2px) scale(1.04)'; };

@@ -16,7 +16,7 @@ function nspSetHTML(el, html) {
 
 
 
-// ── Global style ─────────────────────────────────────────────────────────────
+// Global style 
 (function () {
   // Without a default Trusted Types policy every innerHTML on youtube.com throws and the panels die silently.
   try {
@@ -122,7 +122,7 @@ var NSP_YT_LOCALE_MAP = {
   lt: { hl: 'lt', gl: 'LT' }
 };
 var NSP_MARKET_META = {
-  global:      { label: 'Global',      flag: '🌍', gl: null, hl: null, lang: null },
+ global: { label:'Global', flag:'', gl: null, hl: null, lang: null },
   usa:         { label: 'USA',         flag: '🇺🇸', gl: 'US', hl: 'en', lang: 'en' },
   australia:   { label: 'Australia',   flag: '🇦🇺', gl: 'AU', hl: 'en', lang: 'en' },
   uk:          { label: 'UK',          flag: '🇬🇧', gl: 'GB', hl: 'en', lang: 'en' },
@@ -167,7 +167,7 @@ var NSP_DEPTH_META = {
   deep: { label: 'Deep' }
 };
 
-// ── Faceless niche queries per language ─────────────────────────────────────
+// Faceless niche queries per language 
 // Used by the InnerTube fetcher when market != global. Each language has 8-12
 // high-yield faceless queries that pull niche content from that specific country.
 // Generated from cross-referencing top faceless niches × native-speaker keywords.
@@ -238,7 +238,7 @@ function getFacelessQueriesForLang(hl) {
   var code = String(hl || 'en').toLowerCase();
   return NSP_FACELESS_QUERIES_BY_LANG[code] || NSP_FACELESS_QUERIES_BY_LANG.en;
 }
-// ── AI Faceless Detection (replaces unreliable TTS/voice heuristics) ──────
+// AI Faceless Detection (replaces unreliable TTS/voice heuristics) 
 // 2026 reality: voice-quality alone can't distinguish faceless AI from real
 // narration. We use TITLE PATTERNS + CHANNEL NAME PATTERNS + thumbnail analysis.
 //
@@ -303,12 +303,12 @@ var AI_FACELESS_CHANNEL_PATTERNS = [
 ];
 
 // CHANNEL_NAME_HUMAN_FACE_PENALTY: patterns that suggest a real person channel
-// (these should NOT match faceless candidates → penalty)
+// (these should NOT match faceless candidates penalty)
 var CHANNEL_NAME_HUMAN_FACE_PENALTY = /^(@?[a-z]+\s*(vlogs?|cooks?|reviews?|reacts?|gaming|tv\s+show|live)|talk show|podcast con|with\s+[a-z]+|by\s+[a-z]+)/i;
 
 // AI_FACELESS_CHANNEL_WHITELIST: known faceless AI channels (substring match,
 // case-insensitive). When channel name CONTAINS any of these, it's a confirmed
-// faceless AI channel → strong boost.
+// faceless AI channel strong boost.
 var AI_FACELESS_CHANNEL_WHITELIST = [
   // English mega-faceless brands
   'fern', 'kurzgesagt', 'asapscience', 'veritasium', 'real engineering',
@@ -490,7 +490,7 @@ function nspLoadFaceApiModel() {
     console.log('[NSP face-api] Loading tinyFaceDetector from:', modelUrl);
     _nspFaceApiLoadingPromise = faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl)
       .then(function() {
-        console.log('[NSP face-api] tinyFaceDetector model loaded ✓');
+ console.log('[NSP face-api] tinyFaceDetector model loaded');
         return true;
       })
       .catch(function(err) {
@@ -719,7 +719,7 @@ function scoreFacelessAIPatterns(title, channelName, thumbnailImg) {
   var hits = [];
 
   // Whitelist check (substring match): if channel name CONTAINS any whitelist
-  // entry → strong faceless confirmation
+ // entry strong faceless confirmation
   for (var w = 0; w < AI_FACELESS_CHANNEL_WHITELIST.length; w++) {
     if (cLower.indexOf(AI_FACELESS_CHANNEL_WHITELIST[w]) !== -1) {
       score += 35;
@@ -752,7 +752,7 @@ function scoreFacelessAIPatterns(title, channelName, thumbnailImg) {
     hits.push('human_face_penalty');
   }
 
-  // Strong dual signal: both title + channel match → big bonus
+ // Strong dual signal: both title + channel match big bonus
   var titleHits = hits.filter(function(h) { return h.indexOf('title_pattern') === 0; }).length;
   var channelHits = hits.filter(function(h) { return h.indexOf('channel_pattern') === 0; }).length;
   if (titleHits > 0 && channelHits > 0) score += 15;
@@ -771,7 +771,7 @@ function scoreFacelessAIPatterns(title, channelName, thumbnailImg) {
   return { score: Math.max(-25, Math.min(80, score)), hits: hits };
 }
 
-// ── Generative AI faceless classifier ─────────────────────────────────────
+// Generative AI faceless classifier 
 // User target: German channels made from AI-generated stills + AI voice + ambience.
 // This is intentionally stricter than generic "no face" detection: traditional
 // animation, real-footage documentaries, music, gameplay, and media brands do
@@ -1197,7 +1197,7 @@ function ashlyv_validateStorageValue(key, value) {
             bestRpm: isFinite(Number(item.bestRpm)) ? Number(item.bestRpm) : 0,
             timesSeen: isFinite(Number(item.timesSeen)) ? Math.max(0, Number(item.timesSeen)) : 0,
             lastSeen: isFinite(Number(item.lastSeen)) ? Number(item.lastSeen) : 0,
-            trend: item.trend === '↑' || item.trend === '↓' ? item.trend : '→',
+ trend: item.trend ===''|| item.trend ===''? item.trend :'',
             rpmHistory: Array.isArray(item.rpmHistory) ? item.rpmHistory.slice(-5).map(function(n) { n = Number(n); return isFinite(n) ? n : 0; }) : []
           };
         });
@@ -1647,7 +1647,7 @@ function getAllowedMarketLanguages(market) {
   return only;
 }
 
-// ── Extended language detection (wrapper over detectTextLanguage) ──
+// Extended language detection (wrapper over detectTextLanguage) 
 // Adds heuristics for ja/nl/sv/no/da/ko/zh which are NOT in the base
 // detectTextLanguage. Falls back to base for everything else. Pure wrapper —
 // never overrides a confident detection from the base function.
@@ -1764,7 +1764,7 @@ function matchesUserScanPreferences(text) {
   return true;
 }
 
-// ── COUNTRY FEED FETCHER (calls service worker → InnerTube API) ────────────
+// COUNTRY FEED FETCHER (calls service worker InnerTube API) 
 // Returns videos from REAL country-specific YouTube content via InnerTube
 // with credentials:'omit'. Cached 15min in chrome.storage by the SW.
 //
@@ -2223,7 +2223,7 @@ function getDepthProfile(scope) {
   return scope === 'channel' ? current.channel : current.scan;
 }
 
-// ── Parsers ──────────────────────────────────────────────────────────────────
+// Parsers 
 
 function pViews(t) {
   if (!t) return 0;
@@ -2239,22 +2239,30 @@ function pViews(t) {
   return isNaN(c) ? 0 : c;
 }
 
+// YouTube's own rendered age words, one row per unit. The CJK and Korean entries require the "ago" marker (前 / 전) because 日, 年 and 分 also occur inside ordinary words such as 日本.
+var NSP_AGE_UNITS = [
+  { h: 1 / 3600, u: 'second|seconds|sec|secs|segundo|segundos|sekunde|sekunden|sek|sekund|sekunder|saniye\\b|detik\\b|gi[âa]y\\b|секунд|δευτερ[οό]λεπτ|วินาที|सेकंड|שניות|שנייה|ثانية|ثوان|秒前|초\\s*전' },
+  { h: 1 / 60, u: 'minute|minutes|min|mins|minuto|minutos|minuten|minut|minuter|minutter|dakika\\b|menit\\b|ph[úu]t\\b|минут|λεπτ[άο]|นาที|मिनट|דקות|דקה|دقيقة|دقائق|分鐘前|分钟前|分前|분\\s*전' },
+  { h: 1, u: 'hour|hours|hr|hrs|hora|horas|stunde|stunden|godzina|godziny|godzin|timme|timmar|timer|time\\b(?=\\s*siden)|uur|heure|heures|or[ae]\\b|oras\\b|saat\\b|jam\\b|giờ|gio\\b|час(?:а|ов)?(?![а-яё])|[ωώ]ρε|[ωώ]ρα(?![α-ωά-ώ])|ชั่วโมง|घंटे|घंटा|שעות|שעה|ساعة|ساعات|時間前|小時前|小时前|시간\\s*전' },
+  { h: 24, u: 'day|days|d[íi]a|d[íi]as|tag|tage|tagen|dzie[nń]|dni|dniach|dniami|dag|dagen|dagar|dager|jour|jours|giorno|giorni|g[üu]n\\b|hari\\b|ng[àa]y\\b|araw\\b|дн|день|[ηή]μ[έε]ρ|μ[έε]ρ[εα]|วัน|दिन|ימים|יום|يوم|[أا]يام|日前|天前|일\\s*전' },
+  { h: 168, u: 'week|weeks|wk|wks|weken|semana|semanas|semaine|semaines|settimana|settimane|woche|wochen|tydzie[nń]|tygodnie|tygodni|tygodniach|vecka|veckor|uke|uker|uge|uger|hafta\\b|minggu\\b|tu[ầa]n\\b|linggo\\b|недел|εβδομ[άα]δ|สัปดาห์|सप्ताह|हफ़्ते|हफ्ते|שבועות|שבוע|[أا]سبوع|[أا]سابيع|週間前|週前|周前|주\\s*전' },
+  { h: 720, u: 'month|months|mo|mos|m[eê]s|m[eê]ses|mois|monat|monate|monaten|miesi[aą]c|miesi[aą]ce|miesi[eę]cy|miesi[aą]cach|månad|månader|maan|maanden|ay\\b|bulan\\b|th[áa]ng\\b|buwan\\b|месяц|μ[ήη]ν[αε]|เดือน|महीने|महीना|माह|חודשים|חודש|شهر|[أا]شهر|か月前|ヶ月前|カ月前|ヵ月前|箇月前|個月前|个月前|개월\\s*전' },
+  { h: 8760, u: 'year|years|yr|yrs|a[ñn]o|a[ñn]os|anno|anni|ann[ée]e|ann[ée]es|ans?\\b|jahr|jahre|jahren|rok|lata|lat|roku|år|jaar|y[ıi]l\\b|tahun\\b|n[ăa]m\\b|taon\\b|год[а]?(?![а-яё])|лет(?![а-яё])|[έε]τ[ηο]|χρ[οό]ν[οι]|ปี|साल|वर्ष|שנים|שנה|سنة|سنوات|عام|[أا]عوام|年前|년\\s*전' },
+  { h: 8760, u: 'a\\b' }
+];
+var NSP_AGE_UNIT_RES = NSP_AGE_UNITS.map(function(row) {
+  return new RegExp('(\\d+(?:[.,]\\d+)?)\\s*(?:' + row.u + ')', 'i');
+});
+var NSP_AGE_PHRASE_RE = new RegExp('((?:hace\\s+)?\\d+(?:[.,]\\d+)?\\s*(?:'
+  + NSP_AGE_UNITS.map(function(row) { return row.u; }).join('|')
+  + ')(?:\\s+ago)?)', 'i');
+
 function pHours(t) {
   if (!t) return null;
   t = ('' + t).toLowerCase();
-  var tbl = [
-    [/(\d+(?:[.,]\d+)?)\s*(second|seconds|sec|segundo|segundos|sekunde|sekunden|sek|sekund)/, 1/3600],
-    [/(\d+(?:[.,]\d+)?)\s*(minute|minutes|min|minuto|minutos|minute|minuten|minut)/, 1/60],
-    [/(\d+(?:[.,]\d+)?)\s*(hour|hours|hr|hrs|hora|horas|stunde|stunden|godzina|godziny|godzin|timme|timer|uur)/, 1],
-    [/(\d+)\s*(day|days|d[íi]a|d[íi]as|tag|tage|tagen|dzie[nń]|dni|dniach|dniami|dag|dagen)/, 24],
-    [/(\d+)\s*(week|weeks|wk|wks|semana|semanas|woche|wochen|tydzie[nń]|tygodnie|tygodni|tygodniach|vecka|veckor|uke|uker|uge|uger)/, 168],
-    [/(\d+)\s*(month|months|mo|mos|mes|meses|monat|monate|monaten|miesi[aą]c|miesi[aą]ce|miesi[eę]cy|miesi[aą]cach|månad|månader|maan|maanden)/, 720],
-    [/(\d+)\s*(year|years|yr|yrs|a[ñn]o|a[ñn]os|jahr|jahre|jahren|rok|lata|lat|roku|år|jaar)/, 8760],
-    [/(?:hace\s*)?(\d+)\s*a\b/, 8760],
-  ];
-  for (var i = 0; i < tbl.length; i++) {
-    var r = t.match(tbl[i][0]);
-    if (r) return parseFloat(String(r[1]).replace(',', '.')) * tbl[i][1];
+  for (var i = 0; i < NSP_AGE_UNIT_RES.length; i++) {
+    var r = t.match(NSP_AGE_UNIT_RES[i]);
+    if (r) return parseFloat(String(r[1]).replace(',', '.')) * NSP_AGE_UNITS[i].h;
   }
   return null;
 }
@@ -3005,12 +3013,14 @@ function detectRPM(text) {
   return 4;
 }
 var TIERS = [
-  { key:'VIRAL',  min:5000, label:'VIRAL 🔴',  col:'#E040FF', bg:'rgba(200,0,255,.2)',  bd:'rgba(200,0,255,.5)'  },
-  { key:'HOT',    min:500,  label:'HOT 🔥',   col:'#FF6B35', bg:'rgba(255,80,0,.15)', bd:'rgba(255,80,0,.45)'  },
-  { key:'RISING', min:50,   label:'RISING ⚡', col:'#FFD700', bg:'rgba(255,200,0,.12)',bd:'rgba(255,200,0,.4)'  },
+  { key:'VIRAL',  min:5000, label:'VIRAL',    col:'#E040FF', bg:'rgba(200,0,255,.2)',  bd:'rgba(200,0,255,.5)'  },
+  { key:'HOT',    min:500,  label:'HOT',      col:'#FF6B35', bg:'rgba(255,80,0,.15)', bd:'rgba(255,80,0,.45)'  },
+  { key:'RISING', min:50,   label:'RISING',   col:'#FFD700', bg:'rgba(255,200,0,.12)',bd:'rgba(255,200,0,.4)'  },
   { key:'ACTIVE', min:5,    label:'ACTIVE',   col:'#00DC82', bg:'rgba(0,220,130,.1)', bd:'rgba(0,220,130,.3)'  },
   { key:'SLOW',   min:0,    label:'SLOW',     col:'#888',    bg:'rgba(80,80,80,.1)',  bd:'rgba(80,80,80,.2)'   },
 ];
+// Used when the published date could not be parsed: velocity is unknown, so no tier can be claimed.
+var TIER_AGE_UNKNOWN = { key:'UNKNOWN', min:null, label:'AGE UNKNOWN', col:'#888', bg:'rgba(80,80,80,.1)', bd:'rgba(80,80,80,.2)' };
 
 function calcSeoScore(title, tags) {
   let score = 0; const t = (title || '').trim(); const words = t.split(/\s+/).length;
@@ -3064,19 +3074,20 @@ function keywordCompetition(title) {
 }
 
 function velocityLabel(vph) {
-  if (vph > 50000) return { text: '🚀 VIRAL',    color: '#ff3d00' };
-  if (vph > 10000) return { text: '🔥 HOT',      color: '#ff9800' };
-  if (vph > 2000)  return { text: '📈 RISING',   color: '#00e676' };
-  if (vph > 500)   return { text: '➡️ STEADY',   color: '#66fcf1' };
-  if (vph > 0)     return { text: '📉 SLOW',     color: '#aaaaaa' };
-  return                  { text: '⏳ NEW',       color: '#aaaaaa' };
+  if (vph == null || !isFinite(vph)) return { text: 'AGE UNKNOWN', color: '#aaaaaa' };
+  if (vph > 50000) return { text: 'VIRAL',    color: '#ff3d00' };
+  if (vph > 10000) return { text: 'HOT',      color: '#ff9800' };
+  if (vph > 2000)  return { text: 'RISING',   color: '#00e676' };
+  if (vph > 500)   return { text: 'STEADY',   color: '#66fcf1' };
+  if (vph > 0)     return { text: 'SLOW',     color: '#aaaaaa' };
+  return                  { text: 'NEW',      color: '#aaaaaa' };
 }
 
 function calcScore(views, hoursOld, isShort, title, durationSecs) {
   if (!views || views < 1) return null;
-  var h = (hoursOld != null && hoursOld > 0) ? hoursOld : 720;
-  var vph = views / h;
-  
+  var ageKnown = (hoursOld != null && isFinite(hoursOld) && Number(hoursOld) > 0);
+  var vph = ageKnown ? views / Number(hoursOld) : null;
+
   var t = (title || '').toLowerCase();
   // RPM = niche base rate (same number in every language) multiplied by a geo factor for the detected language.
   var baseRpm = 3.0;
@@ -3114,29 +3125,37 @@ function calcScore(views, hoursOld, isShort, title, durationSecs) {
   
   var rpm = isShort ? 0.08 : parseFloat(baseRpm.toFixed(2));
 
-  var tier = TIERS[TIERS.length - 1];
-  for (var i = 0; i < TIERS.length; i++) { if (vph >= TIERS[i].min) { tier = TIERS[i]; break; } }
-  
+  var tier = TIER_AGE_UNKNOWN;
+  if (ageKnown) {
+    tier = TIERS[TIERS.length - 1];
+    for (var i = 0; i < TIERS.length; i++) { if (vph >= TIERS[i].min) { tier = TIERS[i]; break; } }
+  }
+
   var totalRev = Math.round((views * 0.95) / 1000 * rpm);
 
-  var rev = 0;
-  if (hoursOld !== null && hoursOld <= 720) {
-    var hoursLeft = 720 - hoursOld;
-    var futureViews = vph * 0.25 * hoursLeft;
-    rev = Math.round(((views + futureViews) * 0.95) / 1000 * rpm);
-  } else {
-    var vphPeak = vph / 0.05;
-    rev = Math.round((vphPeak * 24 * 7 * 1.7) * 0.95 / 1000 * rpm);
+  // With no age there is no velocity, so the monthly projection and the opportunity score stay unset instead of resting on an assumed 30 days.
+  var rev = null;
+  var os = null;
+  if (ageKnown) {
+    if (hoursOld <= 720) {
+      var hoursLeft = 720 - hoursOld;
+      var futureViews = vph * 0.25 * hoursLeft;
+      rev = Math.round(((views + futureViews) * 0.95) / 1000 * rpm);
+    } else {
+      var vphPeak = vph / 0.05;
+      rev = Math.round((vphPeak * 24 * 7 * 1.7) * 0.95 / 1000 * rpm);
+    }
+    var freshBonus = hoursOld <= 168 ? 30 : hoursOld <= 720 ? 15 : hoursOld <= 1440 ? 8 : 5;
+    var vphScore = Math.min(Math.log(vph + 1) / Math.log(10) / 4, 1) * 70;
+    os = Math.min(Math.round(vphScore + freshBonus), 100);
   }
-  
-  var freshBonus = (hoursOld == null) ? 20 : (hoursOld <= 168 ? 30 : hoursOld <= 720 ? 15 : hoursOld <= 1440 ? 8 : 5);
-  var vphScore = Math.min(Math.log(vph + 1) / Math.log(10) / 4, 1) * 70;
-  var os = Math.min(Math.round(vphScore + freshBonus), 100);
-  
-  return { vph: vph, tier: tier, os: os, rev: rev, totalRev: totalRev, rpm: rpm, isShort: !!isShort, title: title };
+
+  return { vph: vph, tier: tier, os: os, rev: rev, totalRev: totalRev, rpm: rpm, isShort: !!isShort, title: title, ageUnknown: !ageKnown };
 }
 
 function fmtVPH(v) {
+  if (v == null || !isFinite(Number(v))) return '—';
+  v = Number(v);
   if (v >= 10000) return (v / 1000).toFixed(1) + 'K';
   if (v >= 1000)  return (v / 1000).toFixed(2) + 'K';
   if (v >= 1)     return v.toFixed(1);
@@ -3149,7 +3168,7 @@ function fmtN(n) {
   return '' + n;
 }
 
-// ── Badge ────────────────────────────────────────────────────────────────────
+// Badge 
 
 function chip(txt, col, bg, bd) {
   var s = document.createElement('span');
@@ -3201,11 +3220,12 @@ function makeBadge(views, sc) {
   ensureNspBadgeStyles();
   var el = document.createElement('div');
   el.className = 'nsp-badge';
+  var ageUnknown = (sc.vph == null || !isFinite(sc.vph));
   el.dataset.tier = sc.tier.key;
-  el.dataset.vph = Math.round(sc.vph);
-  el.dataset.os = sc.os;
+  el.dataset.vph = ageUnknown ? '' : Math.round(sc.vph);
+  el.dataset.os = (sc.os == null) ? '' : sc.os;
 
-  // ── Resolve outlier tier first so we can include it in summary
+ // Resolve outlier tier first so we can include it in summary
   if (!sc._outlierTier) {
     try {
       var _ck = sc.channelKey || sc.channelUrl;
@@ -3214,14 +3234,20 @@ function makeBadge(views, sc) {
     } catch(e) {}
   }
 
-  // ── SUMMARY (1 line, always visible, compact)
+ // SUMMARY (1 line, always visible, compact)
   var summary = document.createElement('div');
   summary.className = 'nsp-badge-summary';
   summary.title = 'Hover to see the full detail';
 
-  if (sc.isShort) summary.appendChild(monoBadgeChip('▶', true));
-  if (NSP_DISPLAY.showVPH) summary.appendChild(monoBadgeChip('⚡ ' + fmtVPH(sc.vph) + '/h', true));
-  if (sc.totalRev > 0) {
+  if (sc.isShort) summary.appendChild(monoBadgeChip('SHORT', true));
+  if (ageUnknown) {
+    var ageChip = monoBadgeChip('AGE UNKNOWN', true);
+    ageChip.title = 'YouTube gave no readable published date for this card, so views per hour cannot be measured.';
+    summary.appendChild(ageChip);
+  } else if (NSP_DISPLAY.showVPH) {
+    summary.appendChild(monoBadgeChip('VPH ' + fmtVPH(sc.vph) + '/h', true));
+  }
+  if (sc.totalRev > 0 && sc.rev != null) {
     var fmtR = function(n) {
       if (n >= 1000) return '$' + (n / 1000).toFixed(1) + 'K';
       return '$' + Math.round(n);
@@ -3240,7 +3266,7 @@ function makeBadge(views, sc) {
     summary.appendChild(outChipSummary);
   }
 
-  // ── DETAIL (hidden until hover)
+ // DETAIL (hidden until hover)
   var detail = document.createElement('div');
   detail.className = 'nsp-badge-detail';
 
@@ -3249,26 +3275,28 @@ function makeBadge(views, sc) {
   var r2 = document.createElement('div'); r2.className = 'nsp-badge-row';
   var r3 = document.createElement('div'); r3.className = 'nsp-badge-row';
 
-  if (sc.isShort) r1.appendChild(monoBadgeChip('▶ SHORT', true));
+  if (sc.isShort) r1.appendChild(monoBadgeChip('SHORT', true));
   var vel = velocityLabel(sc.vph);
-  r1.appendChild(monoBadgeChip('👁 ' + fmtN(views), false));
-  if (NSP_DISPLAY.showVPH) r1.appendChild(monoBadgeChip('⚡ ' + fmtVPH(sc.vph) + '/h', true));
-  r1.appendChild(monoBadgeChip(vel.text, false));
+  r1.appendChild(monoBadgeChip('VIEWS ' + fmtN(views), false));
+  if (NSP_DISPLAY.showVPH && !ageUnknown) r1.appendChild(monoBadgeChip('VPH ' + fmtVPH(sc.vph) + '/h', true));
+  var velChip = monoBadgeChip(vel.text, false);
+  if (ageUnknown) velChip.title = 'YouTube gave no readable published date for this card, so views per hour cannot be measured.';
+  r1.appendChild(velChip);
 
   var seoScore = calcSeoScore(sc.title, []);
   var seo = seoLabel(seoScore);
   var ctr = estimateCTR(sc.title);
   var comp = keywordCompetition(sc.title);
 
-  r2.appendChild(monoBadgeChip('💰 RPM $' + sc.rpm.toFixed(2), false));
-  r2.appendChild(monoBadgeChip('📊 ' + seo.text, false));
-  r2.appendChild(monoBadgeChip('🎯 CTR ~' + ctr + '%', false));
-  r2.appendChild(monoBadgeChip('⚔️ Comp: ' + comp.level, false));
+  r2.appendChild(monoBadgeChip('RPM $' + sc.rpm.toFixed(2), false));
+  r2.appendChild(monoBadgeChip(seo.text, false));
+  r2.appendChild(monoBadgeChip('CTR ~' + ctr + '%', false));
+  r2.appendChild(monoBadgeChip('Comp: ' + comp.level, false));
 
   if (sc.totalRev > 0) {
     var fmtRD = function(n) { return '$' + Math.round(n).toLocaleString('en-US'); };
-    r3.appendChild(monoBadgeChip('💵 ' + fmtRD(sc.totalRev) + ' total', true));
-    r3.appendChild(monoBadgeChip('📅 ' + fmtRD(sc.rev) + '/mo est.', true));
+    r3.appendChild(monoBadgeChip(fmtRD(sc.totalRev) + ' total', true));
+    if (sc.rev != null) r3.appendChild(monoBadgeChip(fmtRD(sc.rev) + '/mo est.', true));
   }
 
   if (sc._outlierTier && sc._outlierTier.label) {
@@ -3293,7 +3321,7 @@ function makeBadge(views, sc) {
   return el;
 }
 
-// ── Data extraction ──────────────────────────────────────────────────────────
+// Data extraction 
 
 var _ytMap = null;
 function getYtMap() {
@@ -3397,7 +3425,7 @@ function parseViewsAgeFromText(text) {
   if (!raw) return null;
 
   var viewMatch = raw.match(/(\d[\d.,]*\s*(?:k|m|b|mil)?\s*(?:de\s+)?(?:views?|vistas?|visualizaciones?|reproducciones?))/i);
-  var ageMatch = raw.match(/((?:hace\s+)?\d+(?:[.,]\d+)?\s*(?:seconds?|secs?|segundos?|minutes?|mins?|minutos?|hours?|hrs?|horas?|days?|d[ií]as?|weeks?|wks?|semanas?|months?|mos?|meses?|years?|yrs?|a[ñn]os?|a\b)(?:\s+ago)?)/i);
+  var ageMatch = raw.match(NSP_AGE_PHRASE_RE);
 
   var views = viewMatch ? pViews(viewMatch[1]) : 0;
   var timeText = ageMatch ? ageMatch[1] : '';
@@ -3409,7 +3437,7 @@ function parseViewsAgeFromText(text) {
 function parseAgeFromText(text) {
   var raw = (text || '').replace(/\s+/g, ' ').trim();
   if (!raw) return null;
-  var ageMatch = raw.match(/((?:hace\s+)?\d+(?:[.,]\d+)?\s*(?:seconds?|secs?|segundos?|minutes?|mins?|minutos?|hours?|hrs?|horas?|days?|d[ií]as?|weeks?|wks?|semanas?|months?|mos?|meses?|years?|yrs?|a[ñn]os?|a\b)(?:\s+ago)?)/i);
+  var ageMatch = raw.match(NSP_AGE_PHRASE_RE);
   var timeText = ageMatch ? ageMatch[1] : '';
   var hoursOld = timeText ? pHours(timeText) : null;
   if (hoursOld == null || !isFinite(hoursOld)) return null;
@@ -3632,15 +3660,18 @@ function getDomSubs(card) {
   } catch(e) { return 0; }
 }
 
-// ── Session tracking (for popup) ─────────────────────────────────────────────
+// Session tracking (for popup) 
 
 var _session = { analyzed: 0, query: '', topVideos: [] };
 
 function trackVideo(vid, title, views, sc) {
   _session.analyzed++;
-  _session.topVideos.push({ videoId: vid, title: title, views: views, vph: sc.vph, tier: sc.tier.key, os: sc.os, rev: sc.rev, channelName: sc.channelName || '', outlierRatio: (sc._outlierRatio != null ? sc._outlierRatio : null) });
-  _session.topVideos.sort(function(a, b) { return b.os - a.os; });
-  if (_session.topVideos.length > 30) _session.topVideos.length = 30;
+  // The popup ranks this list by VPH and score, so an item with no readable date has no place in it.
+  if (sc.vph != null && sc.os != null) {
+    _session.topVideos.push({ videoId: vid, title: title, views: views, vph: sc.vph, tier: sc.tier.key, os: sc.os, rev: sc.rev, channelName: sc.channelName || '', outlierRatio: (sc._outlierRatio != null ? sc._outlierRatio : null) });
+    _session.topVideos.sort(function(a, b) { return b.os - a.os; });
+    if (_session.topVideos.length > 30) _session.topVideos.length = 30;
+  }
   try {
     localStorage.setItem('nsp_session', JSON.stringify({
       analyzed: _session.analyzed,
@@ -3650,7 +3681,7 @@ function trackVideo(vid, title, views, sc) {
   } catch(e) {}
 }
 
-// ── Channel Scout ─────────────────────────────────────────────────────────────
+// Channel Scout 
 
 var _channelMap = {};
 var _scoutTimer = null;
@@ -3693,15 +3724,19 @@ function updateChannelMap(chInfo, sc) {
     _channelMap[key] = {
       name: chInfo.name, channelUrl: chInfo.channelUrl || '', channelKey: chInfo.channelKey || '', avatarUrl: chInfo.avatarUrl || '',
       totalOS: 0, totalVPH: 0, totalViews: 0, vids: 0, topVPH: 0, topTier: 'SLOW', topViews: 0,
-      outlierCounts: { mega: 0, strong: 0, good: 0 },
+      outlierCounts: { mega: 0, strong: 0, good: 0 }, titles: [],
       rpm: sc.rpm, query: _session.query || '', detectedAt: Date.now(),
     };
   }
   var ch = _channelMap[key];
   if (chInfo.avatarUrl && !ch.avatarUrl) ch.avatarUrl = chInfo.avatarUrl;
-  ch.totalOS += sc.os; ch.totalVPH += sc.vph; ch.totalViews += (sc.views || 0); ch.vids++;
-  ch.avgOS = Math.round(ch.totalOS / ch.vids);
-  ch.avgVPH = Math.round(ch.totalVPH / ch.vids);
+  ch.totalViews += (sc.views || 0); ch.vids++;
+  // Items with no readable date carry no VPH and no score, so they are counted in views only and left out of both averages.
+  if (sc.os != null) { ch.totalOS += sc.os; ch.scoredVids = (ch.scoredVids || 0) + 1; }
+  if (sc.title && ch.titles && ch.titles.length < 12) ch.titles.push(String(sc.title).slice(0, 120));
+  if (sc.vph != null) { ch.totalVPH += sc.vph; ch.timedVids = (ch.timedVids || 0) + 1; }
+  ch.avgOS = ch.scoredVids ? Math.round(ch.totalOS / ch.scoredVids) : 0;
+  ch.avgVPH = ch.timedVids ? Math.round(ch.totalVPH / ch.timedVids) : 0;
   ch.avgViews = Math.round(ch.totalViews / ch.vids);
   if (sc.vph > ch.topVPH) { ch.topVPH = sc.vph; ch.topTier = sc.tier.key; }
   if ((sc.views || 0) > ch.topViews) ch.topViews = sc.views;
@@ -3722,11 +3757,11 @@ function updateChannelMap(chInfo, sc) {
 function getChannelOutlierTier(views, channelAvgViews) {
   if (!views || !channelAvgViews || channelAvgViews < 100) return null;
   var ratio = views / channelAvgViews;
-  if (ratio >= 100) return { ratio: ratio, tier: 'GIGA', label: '💎 100x', color: '#E040FF' };
-  if (ratio >= 20)  return { ratio: ratio, tier: 'MEGA', label: '💎 ' + Math.round(ratio) + 'x', color: '#E040FF' };
-  if (ratio >= 10)  return { ratio: ratio, tier: 'STRONG', label: '🔥 ' + Math.round(ratio) + 'x', color: '#FF6B35' };
-  if (ratio >= 5)   return { ratio: ratio, tier: 'GOOD', label: '⚡ ' + ratio.toFixed(1) + 'x', color: '#FFD700' };
-  if (ratio >= 2)   return { ratio: ratio, tier: 'ABOVE', label: '↑ ' + ratio.toFixed(1) + 'x', color: '#00DC82' };
+  if (ratio >= 100) return { ratio: ratio, tier: 'GIGA', label: '100x', color: '#E040FF' };
+  if (ratio >= 20)  return { ratio: ratio, tier: 'MEGA', label: Math.round(ratio) + 'x', color: '#E040FF' };
+  if (ratio >= 10)  return { ratio: ratio, tier: 'STRONG', label: Math.round(ratio) + 'x', color: '#FF6B35' };
+  if (ratio >= 5)   return { ratio: ratio, tier: 'GOOD', label: ratio.toFixed(1) + 'x', color: '#FFD700' };
+  if (ratio >= 2)   return { ratio: ratio, tier: 'ABOVE', label: ratio.toFixed(1) + 'x', color: '#00DC82' };
   return null; // do not show below 2x to avoid badge spam
 }
 
@@ -3749,6 +3784,26 @@ function getChannelOutlierStats(channelKey) {
   };
 }
 
+function scoutChannelQualifies(ch) {
+  if (!ch) return null;
+  var videosSeen = ch.vids || 0;
+  if (videosSeen < 3) return null;
+  var topVPH = ch.topVPH || 0;
+  if (topVPH < 50) return null;
+  var outliers = (ch.outlierCounts && (ch.outlierCounts.mega + ch.outlierCounts.strong + ch.outlierCounts.good)) || 0;
+  var avgVPH = ch.avgVPH || 0;
+  if (!outliers && avgVPH < 25) return null;
+  return { videosSeen: videosSeen, topVPH: topVPH, avgVPH: avgVPH, outliers: outliers };
+}
+
+function scoutNicheFromTitles(ch) {
+  var text = (ch.titles || []).join(' ');
+  if (!text) return detectNicheLabel(ch.name + ' ' + (ch.query || ''));
+  var label = detectNicheLabel(text);
+  if (label === 'General' || label === '🔮 General') label = detectNicheLabel(text + ' ' + (ch.query || ''));
+  return label;
+}
+
 function saveChannelScout() {
   try {
     var arr = [];
@@ -3756,21 +3811,27 @@ function saveChannelScout() {
     for (var i = 0; i < keys.length; i++) arr.push(_channelMap[keys[i]]);
     arr.sort(function(a, b) { return (b.avgOS || 0) - (a.avgOS || 0); });
     // Send all to background (which has chrome.storage access)
+    var kept = 0, skipped = 0;
     for (var s = 0; s < arr.length; s++) {
       var sc = arr[s];
+      var evidence = scoutChannelQualifies(sc);
+      if (!evidence) { skipped++; continue; }
+      kept++;
       saveToAllChannels({
         channelUrl: sc.channelUrl, channelId: '',
         name: sc.name, avatarUrl: sc.avatarUrl || '',
         subs: 0, revMonth: sc.rpm ? Math.round((sc.avgVPH || 0) * 24 * 30 * sc.rpm / 1000) : 0,
         avgOS: sc.avgOS || 0, topVPH: sc.topVPH || 0, topTier: sc.topTier || 'SLOW',
-        niche: detectNicheLabel(sc.name + ' ' + (sc.query || '')),
+        videosSeen: evidence.videosSeen, outliers: evidence.outliers, avgVPH: evidence.avgVPH,
+        niche: scoutNicheFromTitles(sc),
         source: 'scout', savedAt: sc.lastSeen || Date.now(),
       });
     }
+    if (kept || skipped) console.log('[NSP] scout kept ' + kept + ' channel(s), skipped ' + skipped + ' below the bar');
   } catch(e) {}
 }
 
-// ── Injection ────────────────────────────────────────────────────────────────
+// Injection 
 
 var _seen = {};
 
@@ -4161,6 +4222,7 @@ function sanitizeAshlyVNichoEntry(entry) {
     language: cleanText(entry.language || 'unknown', 40),
     channelUrl: /^https:\/\/(www\.)?youtube\.com\//i.test(String(entry.channelUrl || '')) ? String(entry.channelUrl).slice(0, 500) : '',
     channelId: cleanText(entry.channelId, 120),
+    channelName: cleanText(entry.channelName || entry.name, 160),
     vidId: cleanText(entry.vidId, 40),
     thumbUrl: /^https:\/\/i\.ytimg\.com\//i.test(String(entry.thumbUrl || '')) ? String(entry.thumbUrl).slice(0, 500) : '',
     subs: cleanNum(entry.subs, 0, 1000000000),
@@ -4284,7 +4346,7 @@ function postAshlyVBridgeSaveOpen(entry, openPage, channelQuery, urlQuery) {
 
 function saveAshlyVNichoSecure(nichoEntry, openPage, channelQuery, urlQuery) {
   var entry = sanitizeAshlyVNichoEntry(nichoEntry);
-  // ── FAST PATH (MAIN world) ────────────────────────────────────────────────
+ // FAST PATH (MAIN world) 
   // In MAIN world there is no chrome.runtime, so the bridge is the only channel: one message saves and opens the dashboard at once.
   if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
     var bridgedNow = postAshlyVBridgeSaveOpen(entry, !!openPage, channelQuery, urlQuery);
@@ -4370,6 +4432,7 @@ function saveAshlyVAlertLead(leadEntry) {
       language: leadEntry.language || 'unknown',
       channelUrl: leadEntry.channelUrl || '',
       channelId: leadEntry.channelId || '',
+      channelName: leadEntry.channelName || '',
       vidId: leadEntry.vidId || '',
       thumbUrl: leadEntry.thumbUrl || '',
       subs: leadEntry.subs || 0,
@@ -4582,7 +4645,7 @@ function maybeEmitAshlyVLiveAlerts(force) {
   }).catch(function() {});
 }
 
-// ── Master SCAN Button & Report ─────────────────────────────────────────────
+// Master SCAN Button & Report 
 
 
 
@@ -4706,7 +4769,7 @@ function saveNicheToWatchlist(key) {
   } catch(e) {}
 }
 
-// ── ASHLYV: highlight the top 10 thumbnails with a neon border ──────────────
+// ASHLYV: highlight the top 10 thumbnails with a neon border 
 var _ashlyv_highlights = [];
 var _ashlyv_scan_in_progress = false;
 var _ashlyv_prepare_timer = null;
@@ -6002,7 +6065,7 @@ function isAshlyVFeedHardUnsafeCandidate(item) {
   if (/national geographic|nat geo|terra\s*x|arte|dw\s*(?:documentary|doku|deutsch)?|zdf|ard|bbc|history\s+channel|discovery\s+channel|reportage|reportero|reporter|noticiero|news network/i.test(text + ' ' + channel)) return true;
   if (/podcast|podcasts|interview|entrevista|reaction|reacting|reacci[oó]n|vlog|daily vlog|storytime|grwm|get ready|livestream|live stream|en vivo|directo|transmitido|transmitted|streaming|gameplay|walkthrough|playthrough|streamer|face.?cam|talking head|presentador|presenter|hosted by|host\b/i.test(text)) return true;
   if (/music video|video oficial|official music video|lyrics|lyric video|vevo|m[uú]sica|canci[oó]n|mix\b|playlist|lofi|lo-fi|sleep|dormir|rain|lluvia|white noise|ruido blanco|asmr|relax|relajant|relaxing|meditation|meditaci[oó]n|ocean sounds?|waves|olas|soundscape|ambient|ambience|\b4k\b|\b8k\b|ultra.?hd|experience/i.test(text)) return true;
-  if (/⚽|🏀|🏈|⚾|🎾|🏐|🏆|sports?|deportes|f[uú]tbol|football|soccer|bal[oó]n|partido|marcador|goles?|liga\b|champions|premier league|laliga|nba|nfl|mlb|ufc|wwe|tennis|b[aá]squet|basket|news|noticias|noti.?nerd|noticiero|breaking|última hora|ultima hora|urgente|trump|biden|milei|petro|sheinbaum|bukele|gobierno|pol[ií]tica|politics|sanciones|eeuu|usa|rusia|ukraine|ucrania|israel|gaza/i.test(text)) return true;
+ if (/|||||||sports?|deportes|f[uú]tbol|football|soccer|bal[oó]n|partido|marcador|goles?|liga\b|champions|premier league|laliga|nba|nfl|mlb|ufc|wwe|tennis|b[aá]squet|basket|news|noticias|noti.?nerd|noticiero|breaking|última hora|ultima hora|urgente|trump|biden|milei|petro|sheinbaum|bukele|gobierno|pol[ií]tica|politics|sanciones|eeuu|usa|rusia|ukraine|ucrania|israel|gaza/i.test(text)) return true;
   if (/trailer|teaser|episode|episodio|cap[ií]tulo|pel[ií]cula completa|full movie/i.test(text)) return true;
   if (/tener casa|comprar casa|casa propia|real estate|bienes ra[ií]ces|inmobiliari|hipoteca|mortgage/i.test(text)) return true;
   if (/probando|taste test|hamburguesas?|burger|carne\b|comida\b|food\b|receta|recipe|cooking|cocina|traditional cooking|village life|remote village|country life|mukbang|eating challenge/i.test(text)) return true;
@@ -7245,10 +7308,12 @@ function runAshlyVScanNoFilter() {
 }
 
 
-// ── ASHLYV Faceless Detector via YouTube Data API ────────────────────────────
+// ASHLYV Faceless Detector via YouTube Data API 
 // The API key is never hardcoded: it is read from storage and empty by default, so channel validation and comments fall back to heuristics until the user adds their own key in Options.
-var YT_API_KEY = (function () { try { return localStorage.getItem('nsp_yt_data_api_key') || ''; } catch (e) { return ''; } })();
+var YT_API_KEY = '';
 var _channelFacelessCache = {};
+// Channel ids whose score is a local fallback, not a YouTube Data API answer. Read before reporting how many channels were validated.
+var _channelFacelessUnverified = {};
 
 var PERSON_NAME_PATTERNS = /^(el |la |los |las |the |mr\.?|mrs\.?|dr\.?|coach |pastor |prof\.?)?(([A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,}\s){1,2}[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{2,})(\s(oficial|official|tv|yt|canal|channel))?$/i;
 
@@ -7271,7 +7336,7 @@ function analyzeFacelessScore(channelData) {
   // === DESCRIPTION (peso ±35) ===
   if (/faceless|no face|sin mostrar|sin cara|ia generada|ai[\s\-]?generated|ai[\s\-]?narrated|ai\s+voice|narrated|narrador|voiceover|voice[\s\-]?over|text[\s\-]?to[\s\-]?speech|tts|stock footage|b-roll|animated channel|automated|automatización/i.test(desc)) score += 25;
   if (/doctor|dr\.|m[ée]dico|coach|profesor|teacher|maestro|presentador|presenter|host|founder|ceo|consulta|consultorio|pacientes|patient|especialista|specialist|licensed|certified|join me|my journey|mi canal personal|hi i'?m|hola soy|soy\s+[a-z]+/i.test(desc)) score -= 35;
-  // GAMING / STREAMER channel description → strong reject
+ // GAMING / STREAMER channel description strong reject
   if (/apex\s+legends|fortnite|valorant|warzone|call\s+of\s+duty|cod\s+|league\s+of\s+legends|overwatch|minecraft|roblox|gta\b|grand\s+theft|streamer|twitch|esports?|gamer|pro\s+player|tournament|ranked|gameplay|playthrough|let'?s\s+play/i.test(desc)) score -= 50;
   // Live streaming / commentary
   if (/live\s+stream|live\s+commentary|reaction\s+channel|reacciones|mukbang|asmr/i.test(desc)) score -= 30;
@@ -7322,6 +7387,7 @@ function nspLoadChannelCache() {
           if (cache[k] && (now - cache[k].ts) < NSP_CHANNEL_CACHE_TTL) {
             clean[k] = cache[k];
             _channelFacelessCache[k] = cache[k].score;
+            if (cache[k].unverified) _channelFacelessUnverified[k] = 1;
           }
         });
         _nspChannelCacheLoaded = true;
@@ -7336,7 +7402,7 @@ function nspSaveChannelCache() {
     var now = Date.now();
     var toStore = {};
     Object.keys(_channelFacelessCache).forEach(function(k) {
-      toStore[k] = { score: _channelFacelessCache[k], ts: now };
+      toStore[k] = { score: _channelFacelessCache[k], ts: now, unverified: _channelFacelessUnverified[k] ? 1 : 0 };
     });
     var payload = {};
     payload[NSP_CHANNEL_CACHE_KEY] = toStore;
@@ -7363,9 +7429,17 @@ function getChannelFacelessScoreBatch(channelIds, callback) {
     }
   });
 
+  function nspFacelessBatchMeta() {
+    var verified = 0;
+    ids.forEach(function(id) {
+      if (result[id] !== undefined && !_channelFacelessUnverified[id]) verified++;
+    });
+    return { requested: ids.length, validated: verified, unchecked: Math.max(0, ids.length - verified) };
+  }
+
   if (!toFetch.length) {
     console.log('[NSP API] All', ids.length, 'channels in cache, no fetch');
-    callback(result);
+    callback(result, nspFacelessBatchMeta());
     return;
   }
 
@@ -7426,12 +7500,14 @@ function getChannelFacelessScoreBatch(channelIds, callback) {
           });
           found[cid] = score;
           _channelFacelessCache[cid] = score;
+          delete _channelFacelessUnverified[cid];
           result[cid] = score;
         });
-        // A channel the API did not return is deleted or invalid, so it scores 0.
+        // A channel the API did not return is deleted or invalid, so it scores 0. That 0 is not a measurement, so the id is marked unverified.
         batch.forEach(function(cid) {
           if (found[cid] === undefined) {
             _channelFacelessCache[cid] = 0;
+            _channelFacelessUnverified[cid] = 1;
             result[cid] = 0;
           }
         });
@@ -7439,10 +7515,11 @@ function getChannelFacelessScoreBatch(channelIds, callback) {
       })
       .catch(function(err) {
         console.warn('[NSP API] batch fetch failed:', err && err.message);
-        // If the API fails, a neutral 50 keeps the items in play.
+        // If the API fails, a neutral 50 keeps the items in play. It is a fallback, not an API answer, so the id is marked unverified.
         batch.forEach(function(cid) {
           if (result[cid] === undefined) {
             _channelFacelessCache[cid] = 50;
+            _channelFacelessUnverified[cid] = 1;
             result[cid] = 50;
           }
         });
@@ -7452,8 +7529,9 @@ function getChannelFacelessScoreBatch(channelIds, callback) {
 
   Promise.all(batchPromises).then(function() {
     nspSaveChannelCache();
-    console.log('[NSP API] Batch fetch done. Cached:', Object.keys(result).length, 'channels');
-    callback(result);
+    var meta = nspFacelessBatchMeta();
+    console.log('[NSP API] Batch done. Answered by the API:', meta.validated, 'of', meta.requested, 'channels');
+    callback(result, meta);
   });
 }
 
@@ -7466,7 +7544,7 @@ function getChannelFacelessScore(channelId, callback) {
 
 try { nspLoadChannelCache(); } catch(e) {}
 
-// ── ASHLYV Alerts, RPM stats, thumbnail AI, phases, and debug UI ─────────────
+// ASHLYV Alerts, RPM stats, thumbnail AI, phases, and debug UI 
 var ASHLYV_RPM_BASELINES_KEY = 'ashlyv_rpm_baselines';
 var ASHLYV_ALERT_HISTORY_KEY = 'ashlyv_alert_history';
 var ASHLYV_ALERTS_UNREAD_KEY = 'ashlyv_alerts_unread';
@@ -7565,7 +7643,7 @@ function getAshlyVNicheTitle(item) {
     label = detectNicheLabel((sc.title || '') + ' ' + (_session.query || ''));
   }
   if (!label || label === '🔮 General') label = (sc.title || 'Faceless niche').slice(0, 70);
-  return String(label).replace(/^🔮\s*/, '').trim();
+ return String(label).replace(/^\s*/,'').trim();
 }
 
 function getAshlyVNicheId(item) {
@@ -7616,11 +7694,11 @@ function updateAshlyVNicheStats(results, baselines, history) {
       var title = getAshlyVNicheTitle(item);
       var rpm = getAshlyVRpm(item);
       if (!title || !rpm) return;
-      var prev = stats[title] || { avgRpm: 0, bestRpm: 0, timesSeen: 0, lastSeen: 0, trend: '→', rpmHistory: [] };
+ var prev = stats[title] || { avgRpm: 0, bestRpm: 0, timesSeen: 0, lastSeen: 0, trend:'', rpmHistory: [] };
       var oldAvg = Number(prev.avgRpm || 0);
       var times = Number(prev.timesSeen || 0) + 1;
       var avg = oldAvg ? ((oldAvg * (times - 1)) + rpm) / times : rpm;
-      var trend = oldAvg ? (avg > oldAvg * 1.03 ? '↑' : (avg < oldAvg * 0.97 ? '↓' : '→')) : '→';
+ var trend = oldAvg ? (avg >oldAvg * 1.03 ?'': (avg < oldAvg * 0.97 ?'':'')) :'';
       var rpmHistory = (prev.rpmHistory || []).slice(-4);
       rpmHistory.push(Number(rpm.toFixed(2)));
       stats[title] = {
@@ -7636,13 +7714,13 @@ function updateAshlyVNicheStats(results, baselines, history) {
       var title = alert && alert.nicheTitle;
       if (!title || stats[title]) return;
       var rpm = Number(alert.rpmAfter || alert.rpmBefore || 0);
-      stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: alert.timestamp || Date.now(), trend: '→', rpmHistory: rpm ? [rpm] : [] };
+ stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: alert.timestamp || Date.now(), trend:'', rpmHistory: rpm ? [rpm] : [] };
     });
     Object.keys(baselines || {}).forEach(function(id) {
       var title = id.replace(/-/g, ' ');
       if (stats[title]) return;
       var rpm = Number(baselines[id] || 0);
-      if (rpm) stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: 0, trend: '→', rpmHistory: [rpm] };
+ if (rpm) stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: 0, trend:'', rpmHistory: [rpm] };
     });
     var payload = {};
     payload[ASHLYV_NICHE_STATS_KEY] = stats;
@@ -7678,7 +7756,7 @@ function checkAshlyVNicheAlerts(results) {
           alertType: 'rpm_increase',
           timestamp: Date.now(),
           facelessScore: getAshlyVFacelessScore(item),
-          vph: Math.round(sc.vph || 0)
+          vph: (sc.vph == null ? null : Math.round(sc.vph))
         };
         fireAshlyVNotification('Niche on the rise: ' + nicheTitle, 'RPM went from $' + alert.rpmBefore + ' to $' + alert.rpmAfter + ', this niche is paying more');
       } else if (!before && rpm >= 8) {
@@ -7689,9 +7767,9 @@ function checkAshlyVNicheAlerts(results) {
           alertType: 'new_high_rpm',
           timestamp: Date.now(),
           facelessScore: getAshlyVFacelessScore(item),
-          vph: Math.round(sc.vph || 0)
+          vph: (sc.vph == null ? null : Math.round(sc.vph))
         };
-        fireAshlyVNotification('New niche detected: ' + nicheTitle, 'Estimated RPM: $' + alert.rpmAfter + ' | VPH: ' + alert.vph + ' | first time seen');
+        fireAshlyVNotification('New niche detected: ' + nicheTitle, 'Estimated RPM: $' + alert.rpmAfter + (alert.vph == null ? '' : ' | VPH: ' + alert.vph) + ' | first time seen');
       }
       if (alert) alerts.push(alert);
       baselines[nicheId] = before ? Number(((before * 0.75) + (rpm * 0.25)).toFixed(2)) : Number(rpm.toFixed(2));
@@ -7720,10 +7798,10 @@ window.AshlyVAlerts = {
 };
 
 function getAshlyVPageTypeBadgeText() {
-  if (isHomeFeedPage && isHomeFeedPage()) return '🏠 HOME';
-  if (isSearchPage && isSearchPage()) return '🔍 SEARCH';
-  if (/^\/@|^\/channel\/|^\/c\/|^\/user\//.test(String(location.pathname || ''))) return '📺 CHANNEL';
-  return '📺 CHANNEL';
+ if (isHomeFeedPage && isHomeFeedPage()) return'HOME';
+ if (isSearchPage && isSearchPage()) return'SEARCH';
+ if (/^\/@|^\/channel\/|^\/c\/|^\/user\//.test(String(location.pathname ||''))) return'CHANNEL';
+ return'CHANNEL';
 }
 
 /* Creates a reusable dark-theme AshlyV button. */
@@ -8316,16 +8394,16 @@ function showAshlyVRPMLeaderboardModal() {
       var title = alert.nicheTitle;
       if (!title) return;
       var rpm = Number(alert.rpmAfter || alert.rpmBefore || 0);
-      if (!stats[title]) stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: alert.timestamp || 0, trend: '→' };
+ if (!stats[title]) stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: alert.timestamp || 0, trend:''};
     });
     Object.keys(baselines).forEach(function(id) {
       var title = id.replace(/-/g, ' ');
-      if (!stats[title]) stats[title] = { avgRpm: Number(baselines[id] || 0), bestRpm: Number(baselines[id] || 0), timesSeen: 1, lastSeen: 0, trend: '→' };
+ if (!stats[title]) stats[title] = { avgRpm: Number(baselines[id] || 0), bestRpm: Number(baselines[id] || 0), timesSeen: 1, lastSeen: 0, trend:''};
     });
     function rows() {
       return Object.keys(stats).map(function(title) {
         var s = stats[title] || {};
-        return { title: title, avgRpm: Number(s.avgRpm || 0), bestRpm: Number(s.bestRpm || 0), timesSeen: Number(s.timesSeen || 0), trend: s.trend || '→', rpmHistory: s.rpmHistory || [] };
+ return { title: title, avgRpm: Number(s.avgRpm || 0), bestRpm: Number(s.bestRpm || 0), timesSeen: Number(s.timesSeen || 0), trend: s.trend ||'', rpmHistory: s.rpmHistory || [] };
       }).filter(function(r) {
         if (filter === 'high') return r.avgRpm >= 15;
         if (filter === 'mid') return r.avgRpm >= 8 && r.avgRpm < 15;
@@ -8371,7 +8449,7 @@ function showAshlyVRPMLeaderboardModal() {
       var exportBtn = ashlyVThemeButton('EXPORT CSV');
       exportBtn.onclick = function() {
         var csvRows = ['Niche,Average RPM,Best RPM,Times seen,Trend'].concat(rows().map(function(r) {
-          var trend = r.bestRpm > r.avgRpm * 1.1 ? '↑' : (r.bestRpm < r.avgRpm * 0.9 ? '↓' : '→');
+ var trend = r.bestRpm >r.avgRpm * 1.1 ?'': (r.bestRpm < r.avgRpm * 0.9 ?'':'');
           return ['"' + String(r.title).replace(/"/g, '""') + '"', r.avgRpm, r.bestRpm, r.timesSeen, trend].join(',');
         }));
         var blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8' });
@@ -8392,7 +8470,7 @@ function showAshlyVRPMLeaderboardModal() {
       table.appendChild(head);
       rows().forEach(function(r, i) {
         var c = r.avgRpm >= 15 ? 'rgba(0,220,130,0.4)' : (r.avgRpm >= 8 ? 'rgba(255,200,0,0.3)' : 'rgba(255,255,255,.16)');
-        var trend = r.bestRpm > r.avgRpm * 1.1 ? '↑' : (r.bestRpm < r.avgRpm * 0.9 ? '↓' : '→');
+ var trend = r.bestRpm >r.avgRpm * 1.1 ?'': (r.bestRpm < r.avgRpm * 0.9 ?'':'');
         var row = document.createElement('div');
         row.style.cssText = 'display:grid;grid-template-columns:50px 1fr 90px 90px 90px 90px;gap:8px;align-items:center;padding:10px 8px;border:1px solid ' + c + ';border-radius:12px;margin-bottom:8px;background:#0b0e1a;box-shadow:' + (r.avgRpm >= 15 ? '0 0 18px rgba(0,220,130,.14)' : 'none') + ';font-size:11px;';
         appendAshlyVText(row, 'b', '#' + (i + 1));
@@ -8400,7 +8478,7 @@ function showAshlyVRPMLeaderboardModal() {
         appendAshlyVText(row, 'b', '$' + r.avgRpm.toFixed(2));
         appendAshlyVText(row, 'span', '$' + r.bestRpm.toFixed(2));
         appendAshlyVText(row, 'span', r.timesSeen);
-        appendAshlyVText(row, 'b', trend, 'color:' + (trend === '↑' ? '#00DC82' : (trend === '↓' ? '#FF4D6D' : 'rgba(234,240,255,.55)')) + ';');
+ appendAshlyVText(row,'b', trend,'color:'+ (trend ===''?'#00DC82': (trend ===''?'#FF4D6D':'rgba(234,240,255,.55)')) +';');
         table.appendChild(row);
       });
       body.appendChild(table);
@@ -8531,9 +8609,9 @@ function showAshlyVDebugOverlay() {
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 // Clean scan: the negative filter always applies, only the positive signal relaxes per pass.
-// ═══════════════════════════════════════════════════════════════════════════════
+// 
 
 var NSP_CLEAN_NEGATIVE = /\b(nba|nfl|mlb|mls|ufc|wnba|nhl|fifa|copa america|copa mundial|world cup|premier league|champions league|la liga|serie a|bundesliga|europa league|formula 1|f1|grand prix|nascar|olympics?|olimpiadas?|highlights|partido|partidos|match|matches|game \d|juego \d|jornada|goal\b|gol\b|gols|goles|touchdown|home run|knockout|boxing|boxeo|wrestling|lucha libre|soccer|football|f[uú]tbol|basketball|baloncesto|b[eé]isbol|baseball|cricket|tennis|tenis|golf|aaron judge|messi|cristiano|neymar|mbappe|lebron|kobe|jordan)\b|\b(official video|music video|video oficial|videoclip|vevo|lyric video|lyrics video|audio oficial|official audio|concert|concierto|en concierto|tour 202\d|festival 202\d|live performance|en vivo|livestream|live stream)\b|\b(with ai|using ai|with chatgpt|using chatgpt|with claude|using claude|i made .* with ai|ganar (?:dinero )?con ia|gana con ia|monetizar con ia|ai prompts?|prompts? para|how i made \$|cómo gané \$|how i earned \$|i earned \$|how i automated|automated my|viralizar|crece tu canal|grow your channel|hack the algorithm|algorithm hack|eleven ?labs|11 ?labs)\b|\b(vlog|vlogger|storytime|story time|grwm|get ready with me|day in (?:my|the) life|mi día|un día (?:en|con)|mi rutina|daily routine|night routine|morning routine|q&a\b|qna\b|preguntas y respuestas|haul|unboxing)\b|\b(i tried|prob[eé]|i went to|fui a|we built|we made|we tried|we went|i bought|compr[eé]|i visited|visit[eé]|i stayed|me qued[eé] en|i ate|com[ií]|comimos|i lived|viv[ií])\b|\b(domina el arte|el arte de la|secretos para conquistar|c[oó]mo dejar de|cambia tu vida|self.?improvement|superaci[oó]n personal|life coach|coach de|coaching|mentor[ií]a|mentorship|7 h[aá]bitos|7 habits|stop doing|deja de hacer|cómo ser exitoso|how to be successful)\b|\b(trump|biden|harris|milei|petro|sheinbaum|amlo|bukele|maduro|putin|zelensky|elections?|elecciones|congress|congreso|gobierno|government|breaking news|último momento|noticias hoy|news today)\b|\b(reaction to|reacci[oó]n a|reacciono a|react to|reacting to|reactions)\b|\b(podcast|episode \d|ep\. \d|ep \d)\b|\b(gameplay|walkthrough|speedrun|playthrough|let'?s play|jugando|stream|streamer|twitch|minecraft|fortnite|gta|roblox|valorant|league of legends|csgo|warzone|apex legends|free fire)\b|\b(review|reviewing|reseña|reseñando|crítica de|tier ranking my|ranking my|my favorite|mis favoritos|my top|mi top|i ranked)\b|\b(iphone \d|samsung|tesla|cybertruck|macbook|apple|airpods|playstation|xbox|nintendo switch|tech tip|unboxing my|building my|installing|setup tour|room tour|house tour|apartment tour|car tour|tour de mi|gira de mi)\b|\b(challenge|reto|desafío|24 hours|24 horas|i spent|gast[eé]|pasé)\b|\b(trailer|tr[aá]iler|teaser|behind the scenes|making of|bts\b|coming soon|pr[oó]ximamente)\b|\b(announcement|anuncio importante|big news|noticias importantes|important update|actualizaci[oó]n importante)\b|\b(my (?:new|first|last|best|favorite) (?:car|house|phone|game|video|girlfriend|family|trip|book|story|memory)|mi (?:nuevo|primer|último|mejor|favorito) (?:carro|casa|tel[eé]fono|juego|video))\b/i;
 
@@ -8591,19 +8669,28 @@ function nspCleanScanFilter(allItems, targetMin, targetMax) {
     var sc = (item && item.sc) || {};
     if (!sc.title) return { ok: false, why: 'no-title' };
     if (Number(sc.views || 0) < 10000) return { ok: false, why: 'views<10k' };
-	    if (Number(sc.hoursOld || 0) > 24 * ASHLYV_MAX_AGE_DAYS) return { ok: false, why: 'age>' + ASHLYV_MAX_AGE_DAYS + 'd' };
+    // Resolved once per item because this filter runs twice over the same pool and the fallback walks the card DOM.
+    if (item && item._nspBasicAgeHours === undefined) item._nspBasicAgeHours = getAshlyVAgeHours(item);
+    var basicAgeHours = item ? item._nspBasicAgeHours : getAshlyVAgeHours(item);
+    // An unreadable date used to read as zero hours old and pass the age rule, which let dead videos through.
+    if (basicAgeHours == null) return { ok: false, why: 'age-unknown' };
+    if (basicAgeHours > 24 * ASHLYV_MAX_AGE_DAYS) return { ok: false, why: 'age>' + ASHLYV_MAX_AGE_DAYS + 'd' };
     if (Number(sc.durationSecs || 0) > 0 && Number(sc.durationSecs || 0) < 60 * 4) return { ok: false, why: 'dur<4min' };
     if (String(sc.source || '').toLowerCase().indexOf('mix') === 0) return { ok: false, why: 'mix' };
     return { ok: true };
   }
 
   function applyFilter(items, positiveRegex, label) {
-    var counters = { input: items.length, noBasic: 0, negative: 0, noPositive: 0, noFacelessFormat: 0, kept: 0 };
+    var counters = { input: items.length, noBasic: 0, noAge: 0, negative: 0, noPositive: 0, noFacelessFormat: 0, kept: 0 };
     var rejectExamples = { negative: [], noPositive: [], noFacelessFormat: [] };
     var kept = items.filter(function(item) {
       var sc = (item && item.sc) || {};
       var basic = basicValid(item);
-      if (!basic.ok) { counters.noBasic++; return false; }
+      if (!basic.ok) {
+        counters.noBasic++;
+        if (basic.why === 'age-unknown') counters.noAge++;
+        return false;
+      }
       var title = String(sc.title || '');
       var channel = String(sc.channelName || sc.channelHandle || '');
       var text = (title + ' ' + channel).toLowerCase();
@@ -8643,14 +8730,14 @@ function nspCleanScanFilter(allItems, targetMin, targetMax) {
   var pass1 = applyFilter(allItems, NSP_CLEAN_POSITIVE_STRICT, 'PASS1-strict');
   if (pass1.length >= targetMin) {
     var out1 = sortByVPH(pass1).slice(0, targetMax);
-    console.log('[NSP CLEAN] ✓ Pass 1 (strict) sufficient. Returning ' + out1.length + ' items.');
+ console.log('[NSP CLEAN] Pass 1 (strict) sufficient. Returning'+ out1.length +'items.');
     return out1;
   }
 
   var pass2 = applyFilter(allItems, NSP_CLEAN_POSITIVE_MED, 'PASS2-med');
   if (pass2.length >= targetMin) {
     var out2 = sortByVPH(pass2).slice(0, targetMax);
-    console.log('[NSP CLEAN] ✓ Pass 2 (medium) sufficient. Returning ' + out2.length + ' items.');
+ console.log('[NSP CLEAN] Pass 2 (medium) sufficient. Returning'+ out2.length +'items.');
     return out2;
   }
 
@@ -8846,7 +8933,7 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
         console.log('[NSP API DEBUG] extracted channelIds:', channelIds.length, 'of', topResults.length, 'sample:', channelIds.slice(0, 3));
 
         if (!channelIds.length) {
-          console.log('[NSP API] ⚠ No valid channelIds extracted from any item — skipping API validation. Items will use local filters only.');
+ console.log('[NSP API] No valid channelIds extracted from any item — skipping API validation. Items will use local filters only.');
           try { nspHideApiToast(false, { msg: 'No channel ids available, items were not validated' }); } catch(e) {}
           nspApplyFaceApiFilter(topResults).then(function(filtered) {
             topResults = filtered;
@@ -8857,7 +8944,7 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
 
         console.log('[NSP API] validating', channelIds.length, 'channels through the YouTube Data API');
         try { nspShowApiToast('Validating ' + channelIds.length + ' channels through the YouTube API'); } catch(e) {}
-        getChannelFacelessScoreBatch(channelIds, function(scores) {
+        getChannelFacelessScoreBatch(channelIds, function(scores, apiMeta) {
           // Annotate items with the API score, using the same id extraction as above.
           topResults.forEach(function(item) {
             var sc = (item && item.sc) || {};
@@ -8904,18 +8991,23 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
           var afterApi = topResults.length;
           console.log('[NSP API] After validation: ' + beforeApi + ' -> ' + afterApi +
             ' (rejected score<50: ' + lowScore.length + ', kept score>=50)');
+          // Only channels the YouTube Data API actually answered for are reported as validated; the rest carry a local fallback score.
+          var _validated = (apiMeta && apiMeta.validated) || 0;
+          var _unchecked = (apiMeta && apiMeta.unchecked != null) ? apiMeta.unchecked : Math.max(0, channelIds.length - _validated);
           try {
             var _swAvail = !!(typeof chrome !== 'undefined' && chrome && chrome.runtime && chrome.runtime.sendMessage);
-            var _validated = Object.keys(scores || {}).length;
             console.log('[PIPELINE 5/6] after API filter: ' + afterApi + ' items', JSON.stringify({
               sw_available: _swAvail,
               channels_requested: channelIds.length,
               channels_validated_api: _validated,
-              channels_fallback_no_api: channelIds.length - _validated,
+              channels_fallback_no_api: _unchecked,
               rejected_score_lt_50: lowScore.length
             }));
           } catch(eCp5) { console.warn('[PIPELINE 5/6] log error:', eCp5 && eCp5.message); }
-          try { nspHideApiToast(true, { count: Object.keys(scores || {}).length }); } catch(e) {}
+          try {
+            if (_validated > 0) nspHideApiToast(true, { count: _validated, unchecked: _unchecked });
+            else nspHideApiToast(false, { msg: 'no channel was validated, local filters only' });
+          } catch(e) {}
           if (lowScore.length > 0) {
             console.log('[NSP API] Rejected by API (channel score < 50):',
               lowScore.map(function(it) {
@@ -9658,13 +9750,13 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         item._momentumScore = getAshlyVMomentumScore(item);
       });
 
-      // ═══════════════════════════════════════════════════════════════════
+ // 
       // TOP FACELESS NICHES: niche group selection engine v2
-      // ═══════════════════════════════════════════════════════════════════
+ // 
       var ASHLYV_MIN_FACELESS_RESULTS = 10;
       var ageStats = { tooOld: 0, staleNoVPH: 0, fresh: 0, recent: 0, older: 0 };
 
-      // ── Session-level recent shown keys (persists across page reloads via sessionStorage) ──
+ // Session-level recent shown keys (persists across page reloads via sessionStorage) 
       var recentShownKeys = [];
       try {
         recentShownKeys = JSON.parse(sessionStorage.getItem('ashlyv_recent_shown_keys') || '[]');
@@ -9672,7 +9764,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
       } catch(e) { recentShownKeys = []; }
       if (recentShownKeys.length > 50) recentShownKeys.splice(50);
 
-      // ── Hard reject regex — NEVER allow these even if they match faceless patterns ──
+ // Hard reject regex — NEVER allow these even if they match faceless patterns 
       var STRICT_GARBAGE_REJECT = new RegExp(
         'espn|sports?|f[uú]tbol|football|soccer|automovilismo|autom[oó]vil|' +
         'car\\s*show|sal[oó]n\\s+del\\s+auto|motor\\s*show|racing|nascar|' +
@@ -9713,7 +9805,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         'official\\b|trailer|teaser|episode(?:s)?|complete\\s+episodes?|full\\s+episode|biblia|bible|iglesia|church|cat[oó]lic|sermon|predicaci[oó]n|worship|prayer'
       , 'i');
 
-      // ── ALLOWLIST: Only these topics qualify as faceless niche ideas ──
+ // ALLOWLIST: Only these topics qualify as faceless niche ideas 
       var FACELESS_ALLOWLIST = new RegExp(
         'supervivencia|survival|bushcraft|prepper|off.?grid|wilderness|refugio|shelter|' +
         '(?:^|[^a-z])history|(?:^|[^a-záéíóúñ])historia|historia\\s+militar|urss|sovi[eé]tic|guerra|batalla|' +
@@ -9760,7 +9852,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         'infographic|infograf[ií]a|states?|estado|climate|clima|weather|suelo|soil|anatom[ií]a|pancreas|p[aá]ncreas|[aá]tomo|vida|life'
       , 'i');
 
-      // ── Step 1: Build clean pool — ALLOWLIST approach ──
+ // Step 1: Build clean pool — ALLOWLIST approach 
       // A video must MATCH faceless patterns AND NOT match garbage patterns
       var cleanPool = [];
       var rejectStats = { total: candidateResults.length, hardReject: 0, badDuration: 0, notAutomation: 0, nonMonetizable: 0, notFaceless: 0, valid: 0 };
@@ -9835,7 +9927,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
 
       console.log('[ASHLYV] Clean pool:', rejectStats);
 
-      // ── Step 2: Classify each candidate into a nicheGroupKey ──
+ // Step 2: Classify each candidate into a nicheGroupKey 
       cleanPool.forEach(function(item) {
         var sc = item.sc || {};
         var niche = item._nicheLabel || 'General';
@@ -9844,7 +9936,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         item._nicheGroupKey = getAshlyVUserNicheDiversityKey(item) || (niche + '::' + (topicKey || 'general')).toLowerCase().trim();
       });
 
-      // ── Step 3: Deduplicate within the pool ──
+ // Step 3: Deduplicate within the pool 
       var seenVids = {};
       var seenNormTitles = {};
       var seenChNiche = {};
@@ -9866,7 +9958,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         deduped.push(item);
       });
 
-      // ── Step 4: Group by nicheGroupKey ──
+ // Step 4: Group by nicheGroupKey 
       var cascadeStep60 = deduped.filter(function(item) { return isAshlyVStrictFacelessCandidate(item, 60); });
       var cascadeStep50 = deduped.filter(function(item) { return isAshlyVStrictFacelessCandidate(item, 50); });
       var cascadeStep40 = deduped.filter(function(item) { return isAshlyVStrictFacelessCandidate(item, 40); });
@@ -9880,7 +9972,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         nicheGroups[gk].push(item);
       });
 
-      // ── Step 5: From each group, pick the best + rank by FACELESS priority ──
+ // Step 5: From each group, pick the best + rank by FACELESS priority 
       // Faceless-positive patterns (boost ranking)
       var FACELESS_BOOST_PATTERNS = /history|histori|historia militar|urss|sovi[eé]tic|guerra|batalla|mitolog|mythology|animation|animad|animaci|ai\s+stor|science|ciencia|space|espacio|mystery|misterio|survival|supervi|bushcraft|prepper|off.?grid|educational|educat|horror|terror|true\s*crime|crimen|stoic|estoic|philosophy|filosof|psychology|psicolog|finance|finanz|crypto|wealth|riqueza|tech|tecnolog|quantum|universe|universo|ancient|legend|forbidden|prohibid|curiosit|narrat|explain|explicad|facts?|datos|top\s*\d+|tutorial|how\s*to|como\s+hacer|secret|secreto|hidden|oculto|unknown|desconocido|creepy|aterrador|dark\s*web|deep\s*web|iceberg|tierlist|ranking|countdown|conteo|timeline|cronolog|evolution|evoluci|comparison|comparaci|what\s*if|que\s*pasar|case\s+study|caso\s+de\s+estudio|origin|origen|jes[uú]s|cristo|dios|biblia|b[ií]blic|angel|[aá]ngel|infierno|concilio|papas?|emperador/i;
       var NON_MONETIZABLE_FACELESS_PENALTY = /ambient|ambience|sleep|dormir|relax|asmr|lofi|lo-fi|rain|lluvia|ocean|waves|meditation|meditaci|white\s*noise|ruido\s*blanco|soundscape|atmosphere|4k\s+(?:nature|wildlife|scenic)|scenic|nature\s+film|vida\s+salvaje|wildlife|best\s+moments?|greatest\s+moments?|highlights?|clips?|montage|launch(?:es|ing)?|press\s+conference|official\b|trailer|teaser|episode(?:s)?|biblia|bible|iglesia|church|cat[oó]lic|sermon|predicaci[oó]n/i;
@@ -10016,7 +10108,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         return true;
       }
 
-      // ── Step 6: Remove recently shown (session dedup) ──
+ // Step 6: Remove recently shown (session dedup) 
       function getItemKey(item) {
         var sc = item.sc || {};
         return (sc.videoId || sc.vidId || (sc.title || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 60) || '').trim();
@@ -10042,7 +10134,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         console.log('[ASHLYV] Fresh pool below minimum; keeping only unseen qualified items:', freshPicks.length);
       }
 
-      // ── Step 7: Build final top10 with DIVERSITY enforcement ──
+ // Step 7: Build final top10 with DIVERSITY enforcement 
       // Broad category detection — max 2 results per broad category
       var BROAD_CATEGORIES = [
         { key: 'history', pat: /history|historia|ancient|antiguo|civilizaci|egypt|egipto|roma|greek|viking|aztec|medieval/i },
@@ -10715,7 +10807,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         console.log('[ASHLYV] Rescue rejects: duration=' + rescueStats.badDuration + ' | automation=' + rescueStats.notAutomation);
       }
 
-      // ── Step 8: Record shown keys for session memory ──
+ // Step 8: Record shown keys for session memory 
       if (false && top10.length < ASHLYV_MIN_USABLE_RESULTS) {
         var finalUsedKeys = {};
         top10.forEach(function(item) { var k = getItemKey(item); if (k) finalUsedKeys[k] = true; });
@@ -10899,7 +10991,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
         if (recentShownKeys.length > 50) recentShownKeys.splice(50);
         try { sessionStorage.setItem('ashlyv_recent_shown_keys', JSON.stringify(recentShownKeys)); } catch(e) {}
 
-        // ── Final logging ──
+ // Final logging 
         console.log('[ASHLYV] Niche Groups: ' + groupKeys.length + ' | Picks: ' + pickedPrimary.length + ' | Final: ' + finalTop10.length);
         console.log('[ASHLYV] Primary rejects: duration=' + rejectStats.badDuration + ' | automation=' + rejectStats.notAutomation + ' | nonMonetizable=' + rejectStats.nonMonetizable + ' | notFaceless=' + rejectStats.notFaceless);
         console.log('[ASHLYV] Age rejects: tooOld=' + ageStats.tooOld + ' | staleNoVPH=' + ageStats.staleNoVPH);
@@ -11070,7 +11162,7 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
 }
 
 
-// ── ASHLYV Scan Memory — Phase 2 ─────────────────────────────────────────────
+// ASHLYV Scan Memory — Phase 2 
 var AshlyVMemory = (function() {
   var LEGACY_STORAGE_KEY = 'ashlyv_scan_memory';
   var MAX_SEEN = 2500;
@@ -11358,7 +11450,7 @@ var AshlyVMemory = (function() {
 })();
 
 
-// ── ASHLYV Faceless Scoring System — Phase 3 ─────────────────────────────────
+// ASHLYV Faceless Scoring System — Phase 3 
 // Score-based system. NOT a blacklist. Hard rejects only for obvious cases.
 var AshlyVRecentRuns = (function() {
   var KEY = 'ashlyv_recent_scan_runs_v1';
@@ -11470,7 +11562,7 @@ var AshlyVFaceless = (function() {
 
   // HARD REJECT — only the most obvious non-faceless content
   // Keep this SHORT. Less is more.
-  var HARD_REJECT = /\bnba\b|\bnfl\b|\bnhl\b|\bmlb\b|\bufc\b|\bwwe\b|\bespn\b|\bvevo\b|\bnba highlights|nfl highlights|breaking news|última hora|urgente|🔴 en vivo|🚨 alerta|noticiero|telediario|partido de fútbol|goles del|resumen del partido|\bvs\b.*\bfc\b|\bfc\b.*\bvs\b|real madrid vs|barcelona vs|champions league final|superbowl|formula 1 race|nascar race|official music video|music video oficial|lyrics video|lyric video|video oficial|vevo|grammy performance|oscar ceremony|película completa|full movie online|serie completa|capítulo \d+ completo|novela completa|live stream ahora|transmisión en vivo ahora|inauguración|acto de gobierno|discurso de|conferencia de prensa de|best moments?|greatest moments?|launch(?:es|ing)?|mission update|official trailer|teaser|iglesia|church|cat[oó]lic|serm[oó]n|predicaci[oó]n/i;
+ var HARD_REJECT = /\bnba\b|\bnfl\b|\bnhl\b|\bmlb\b|\bufc\b|\bwwe\b|\bespn\b|\bvevo\b|\bnba highlights|nfl highlights|breaking news|última hora|urgente| en vivo| alerta|noticiero|telediario|partido de fútbol|goles del|resumen del partido|\bvs\b.*\bfc\b|\bfc\b.*\bvs\b|real madrid vs|barcelona vs|champions league final|superbowl|formula 1 race|nascar race|official music video|music video oficial|lyrics video|lyric video|video oficial|vevo|grammy performance|oscar ceremony|película completa|full movie online|serie completa|capítulo \d+ completo|novela completa|live stream ahora|transmisión en vivo ahora|inauguración|acto de gobierno|discurso de|conferencia de prensa de|best moments?|greatest moments?|launch(?:es|ing)?|mission update|official trailer|teaser|iglesia|church|cat[oó]lic|serm[oó]n|predicaci[oó]n/i;
 
   // POSITIVE signals — these boost faceless score
   var POS_FORMAT = /narrat|explained|facts|top \d|\d+ facts|\d+ things|\d+ reasons|\d+ ways|the truth|dark history|untold|hidden|forbidden|classified|secret|unsolved|mystery|conspiracy|ancient|lost city|rise and fall|the real story|the story of|what happened|why did|the science|survival|prepper|wilderness|history|human history|missing|era of|age of|breakdown|analyzed|ranked|ranking|comparison|compared|science of|psychology of|philosophy of|evolution of|origin of|story of|history of|who were|historia|misterio|explicado|hechos|datos|lista|ranking|conteo|true crime|crimen|tech|tecnologia|finance|finanzas|psychology|psicologia|religion|biblia|b[ií]blic|jes[uú]s|cristo|dios|angel|[aá]ngel|infierno|supervivencia/i;
@@ -11557,7 +11649,7 @@ var AshlyVFaceless = (function() {
   }
 
   // Explicit hard reject: news, politics, sports and music.
-  var OBVIOUS_REJECT = /shakira|bad bunny|j balvin|maluma|ozuna|karol g|rosalia|daddy yankee|anuel|nicky jam|rauw|myke towers|farruko|arcangel|reggaeton|trap latino|corrido|narco|cartel|regional mexicano|grupero|cumbia|vallenato|merengue|nba|nfl|nhl|mlb|fifa|uefa|laliga|premier league|champions|wwe|ufc|espn|fox news|cnn|bbc|telemundo|univision|caracol|televisa|latinus|trump|biden|putin|zelensky|petro|sheinbaum|milei|maduro|bukele|lula|modi|macron|netanyahu|obrador|amlo|iran|irán|ormuz|palestin|hamas|hezbollah|gaza|israel|misil|missile|ultimatum|abre fuego|dispara|amenaza terrorista|amenaza nuclear|ataque militar|ataque terrorista|ataque aéreo|buque de guerra|ejército de|🚨|🔴|en vivo|live stream|transmisión en vivo|breaking|última hora|urgente|alerta máxima|noticiero|telediario|noticias de|partido de|goles del|resumen de|highlights|resultado final|marcador|segundo tiempo|primer tiempo|liga mx|selección|mundial|copa america|eurocopa|formula 1|nascar|superbowl|olimpiadas|tour de france|official music video|music video|video oficial|lyrics|lyric video|vevo|grammy|oscar|emmy|concierto|concert|tour|en vivo con|live at|ft\.|feat\.|\(official|videoclip|clip oficial|estreno|nuevo sencillo|nuevo album|nueva canción|telenovela|novela|serie completa|pelicula completa|full movie|capítulo completo|episodio completo|misa de|culto cristiano|sermón|predicación|pastor |iglesia |evangelio|dios dice|señor jesús|testigos de jehov|estafa de|me timaron|me robaron|vlog|daily vlog|mi día|my day|grwm|get ready|storytime|q&a|unboxing|haul|reaction|reacción|reacting|mi rutina|my routine|me fui a|llegué a|primer día|mi nueva|mi nuevo|compré|renté|probando comida|mukbang|asmr eating|stand.?up|show de|programa de|episodio \d|temporada \d|capítulo \d|segunda emisión|primera emisión|transmitiendo|streaming ahora|minecraft|roblox|fortnite|gameplay|walkthrough|playthrough|speedrun|podcast|podcasts|mix\b|mixes|playlist|study music|sleep music|white noise|river sound|waterfall|thunderstorm|lluvia para dormir|sonido de lluvia|relaxing music|deep sleep|ocean sounds/i;
+ var OBVIOUS_REJECT = /shakira|bad bunny|j balvin|maluma|ozuna|karol g|rosalia|daddy yankee|anuel|nicky jam|rauw|myke towers|farruko|arcangel|reggaeton|trap latino|corrido|narco|cartel|regional mexicano|grupero|cumbia|vallenato|merengue|nba|nfl|nhl|mlb|fifa|uefa|laliga|premier league|champions|wwe|ufc|espn|fox news|cnn|bbc|telemundo|univision|caracol|televisa|latinus|trump|biden|putin|zelensky|petro|sheinbaum|milei|maduro|bukele|lula|modi|macron|netanyahu|obrador|amlo|iran|irán|ormuz|palestin|hamas|hezbollah|gaza|israel|misil|missile|ultimatum|abre fuego|dispara|amenaza terrorista|amenaza nuclear|ataque militar|ataque terrorista|ataque aéreo|buque de guerra|ejército de|||en vivo|live stream|transmisión en vivo|breaking|última hora|urgente|alerta máxima|noticiero|telediario|noticias de|partido de|goles del|resumen de|highlights|resultado final|marcador|segundo tiempo|primer tiempo|liga mx|selección|mundial|copa america|eurocopa|formula 1|nascar|superbowl|olimpiadas|tour de france|official music video|music video|video oficial|lyrics|lyric video|vevo|grammy|oscar|emmy|concierto|concert|tour|en vivo con|live at|ft\.|feat\.|\(official|videoclip|clip oficial|estreno|nuevo sencillo|nuevo album|nueva canción|telenovela|novela|serie completa|pelicula completa|full movie|capítulo completo|episodio completo|misa de|culto cristiano|sermón|predicación|pastor |iglesia |evangelio|dios dice|señor jesús|testigos de jehov|estafa de|me timaron|me robaron|vlog|daily vlog|mi día|my day|grwm|get ready|storytime|q&a|unboxing|haul|reaction|reacción|reacting|mi rutina|my routine|me fui a|llegué a|primer día|mi nueva|mi nuevo|compré|renté|probando comida|mukbang|asmr eating|stand.?up|show de|programa de|episodio \d|temporada \d|capítulo \d|segunda emisión|primera emisión|transmitiendo|streaming ahora|minecraft|roblox|fortnite|gameplay|walkthrough|playthrough|speedrun|podcast|podcasts|mix\b|mixes|playlist|study music|sleep music|white noise|river sound|waterfall|thunderstorm|lluvia para dormir|sonido de lluvia|relaxing music|deep sleep|ocean sounds/i;
 
   var FEED_GENERIC_REJECT = /podcast|podcasts|interview|entrevista|music|música|musica|piano|orchestra|orquesta|chopin|mozart|beethoven|playlist|mix\b|mixes|sports?|deportes|baseball|basketball|football|soccer|fútbol|tennis|golf|boxing|mma|ufc|banana ball|finals?|game\b|match\b|highlights|best moments?|greatest moments?|launch(?:es|ing)?|mission update|press conference|official\b|trailer|teaser|biblia|bible|iglesia|church|cat[oó]lic|serm[oó]n|predicaci[oó]n|sabiduría|sabiduria|quotes|frases|affirmations|afirmaciones|production line|manufacturing|assembly line|factory tour|car manufacturing/i;
 
@@ -11788,7 +11880,7 @@ function runAshlyVScan() {
 
       console.log('[NSP v3] Total:', allResults.length, '| Candidate pool:', scanCandidatePool.length, '| After scoring:', replicableResults.length);
 
-      // ── PIPELINE INSTRUMENTATION (CHECKPOINTS 2 + 3) ──
+ // PIPELINE INSTRUMENTATION (CHECKPOINTS 2 + 3) 
       try {
         var _rejStats = (window._ashlyv_debug_stats && window._ashlyv_debug_stats.rejectionCounts) || {};
         console.log('[PIPELINE 2/6] after basic filters: ' + replicableResults.length + ' items (from ' + allResults.length + ')');
@@ -11817,17 +11909,17 @@ function runAshlyVScan() {
 
       var candidateResults = replicableResults.slice();
 
-      var totalOS = 0, nicheCounts = {}, totalRpm = 0, bestVideo = null;
+      var totalOS = 0, scoredCount = 0, nicheCounts = {}, totalRpm = 0, bestVideo = null;
       for (var j = 0; j < _allScored.length; j++) {
         var v = _allScored[j];
-        totalOS += v.os;
+        if (v.os != null) { totalOS += v.os; scoredCount++; }
         totalRpm += v.rpm || 0;
         var nLabel = detectNicheLabel(v.title + ' ' + (_session.query || ''));
         nicheCounts[nLabel] = (nicheCounts[nLabel] || 0) + 1;
-        if (!bestVideo || v.os > bestVideo.os) bestVideo = v;
+        if (v.os != null && (!bestVideo || v.os > bestVideo.os)) bestVideo = v;
       }
 
-      var avgOS = _allScored.length ? Math.round(totalOS / _allScored.length) : 0;
+      var avgOS = scoredCount ? Math.round(totalOS / scoredCount) : 0;
       var avgRpm = _allScored.length ? (totalRpm / _allScored.length).toFixed(2) : '0';
       var topNiche = '🔮 General', maxC = 0;
       for (var k in nicheCounts) {
@@ -11911,7 +12003,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
     var dbg = document.getElementById('nsp-dbg-greenbox');
     if (dbg) dbg.remove();
 
-    // ── Shadow DOM host ─────────────────────────────────────────────────────
+ // Shadow DOM host 
     // This is 100% immune to YouTube's CSS
     var host = document.createElement('div');
     host.id = 'nsp-shadow-host';
@@ -11960,7 +12052,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
     panel.id = 'panel';
     shadow.appendChild(panel);
 
-    // ── Header ─────────────────────────────────────────────────────────────
+ // Header 
     var hdr = document.createElement('div');
     hdr.id = 'hdr';
     var hL = document.createElement('div');
@@ -11968,12 +12060,12 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
     var memSt = AshlyVMemory.getStats();
     var t2 = document.createElement('div'); t2.id = 'hdr-sub'; t2.textContent = 'DRAG TO MOVE • ' + topResults.length + ' TOPS • ' + memSt.seenTitles + ' SAVED';
     hL.appendChild(t1); hL.appendChild(t2);
-    var closeBtn = document.createElement('button'); closeBtn.id = 'close-btn'; closeBtn.textContent = '✕';
+ var closeBtn = document.createElement('button'); closeBtn.id ='close-btn'; closeBtn.textContent ='';
     closeBtn.onclick = function() { host.remove(); if(btnTxt) btnTxt.textContent = 'SCAN'; };
     hdr.appendChild(hL); hdr.appendChild(closeBtn);
     panel.appendChild(hdr);
 
-    // ── Draggable ───────────────────────────────────────────────────────────
+ // Draggable 
     var isDragging = false, dx = 0, dy = 0;
     hdr.onmousedown = function(e) {
       if (e.target === closeBtn) return;
@@ -11990,7 +12082,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
     });
     document.addEventListener('mouseup', function() { isDragging = false; });
 
-    // ── Stats ──────────────────────────────────────────────────────────────
+ // Stats 
     var statsEl = document.createElement('div'); statsEl.id = 'stats';
     function makeStat(val, lbl, col) {
       var s = document.createElement('div'); s.className = 'stat';
@@ -12003,7 +12095,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
     statsEl.appendChild(makeStat('$' + (avgRpm || '0.00'), 'avg rpm', '#fff'));
     panel.appendChild(statsEl);
 
-    // ── Video list ─────────────────────────────────────────────────────────
+ // Video list 
     var listEl = document.createElement('div'); listEl.id = 'list';
     if (!topResults.length) {
       var emptyEl = document.createElement('div');
@@ -12026,7 +12118,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
       var rank = document.createElement('div'); rank.className = 'rank'; rank.style.color = color; rank.textContent = '#' + (idx + 1);
       var info = document.createElement('div'); info.className = 'info';
       var titleEl = document.createElement('div'); titleEl.className = 'title'; titleEl.textContent = (sc.title || '').slice(0, 46);
-      var vphFmt = sc.vph >= 1000 ? (sc.vph / 1000).toFixed(1) + 'K' : Math.round(sc.vph);
+      var vphFmt = sc.vph == null ? '—' : (sc.vph >= 1000 ? (sc.vph / 1000).toFixed(1) + 'K' : Math.round(sc.vph));
       var metaEl = document.createElement('div'); metaEl.className = 'meta'; metaEl.textContent = vphFmt + '/h · $' + (sc.totalRev || 0).toLocaleString();
       info.appendChild(titleEl); info.appendChild(metaEl);
 
@@ -12059,6 +12151,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
           // Channel
           channelUrl: sc.channelUrl || '',
           channelId: item._channelId || '',
+          channelName: sc.channelName || sc.channelHandle || '',
           // Video
           vidId: item.sc.vidId || '',
           thumbUrl: item.sc.vidId ? 'https://i.ytimg.com/vi/' + item.sc.vidId + '/hqdefault.jpg' : '',
@@ -12093,7 +12186,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
     });
     panel.appendChild(listEl);
 
-    // ── Footer ─────────────────────────────────────────────────────────────
+ // Footer 
     if (bestVideo) {
       var footerEl = document.createElement('div'); footerEl.id = 'footer';
       
@@ -12120,7 +12213,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
       freshBtn.textContent = 'NEW SCAN (FRESH RESULTS)';
       freshBtn.onclick = function() {
         // 1. MARK current top results as SEEN (so next scan won't repeat them).
-        //    Memory is PERSISTED → next scan excludes these videos/channels/topics.
+ // Memory is PERSISTED next scan excludes these videos/channels/topics.
         try {
           if (AshlyVMemory && AshlyVMemory.markTopResultsSeen) {
             AshlyVMemory.markTopResultsSeen(topResults);
@@ -12143,10 +12236,10 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
       panel.appendChild(footerEl);
     }
 
-    // ── Highlight + auto-scroll ────────────────────────────────────────────
+ // Highlight + auto-scroll 
     highlightTopVideos(topResults);
 
-    if (btnTxt) btnTxt.textContent = ' SCAN ✓';
+ if (btnTxt) btnTxt.textContent ='SCAN';
     setTimeout(function() { if (btnTxt) btnTxt.textContent = ' SCAN'; }, 3000);
 
     if (topResults.length > 0) {
@@ -12212,7 +12305,7 @@ function updateAshlyVScanningOverlayStatus(message) {
   } catch(e) {}
 }
 
-// ── NSP POST-RENDER FACELESS FILTER ──
+// NSP POST-RENDER FACELESS FILTER 
 // Surgical filter that runs at the entry of the render. Rejects ONLY the
 // patterns the user has reported in this session. Does NOT touch the
 // AshlyVFaceless module or any other logic. To disable: comment out the call.
@@ -12430,7 +12523,7 @@ function nspRunVisionPass(topResults, listEl) {
         badge.textContent = conf + '% FACELESS';
         badge.style.cssText = 'border:1px solid rgba(0,255,150,0.55); background:rgba(0,255,150,0.10); color:#0f9;';
       } else {
-        badge.textContent = '⚠ ' + String(v.type || 'no-faceless').slice(0, 14);
+        badge.textContent = String(v.type || 'no-faceless').slice(0, 14);
         badge.style.cssText = 'border:1px solid rgba(255,90,90,0.55); background:rgba(255,90,90,0.10); color:#f88;';
         row.style.opacity = '0.45';
         try { listEl.appendChild(row); } catch (e) {}
@@ -12475,7 +12568,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
     }
   } catch (eIx) {}
   try {
-    // ── PIPELINE INSTRUMENTATION (CHECKPOINT FINAL) ──
+ // PIPELINE INSTRUMENTATION (CHECKPOINT FINAL) 
     try {
       console.log('[PIPELINE FINAL] ' + ((topResults && topResults.length) || 0) + ' items shown to the user');
       (topResults || []).forEach(function(item, idx) {
@@ -12692,12 +12785,12 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
     };
     panel.appendChild(qualityEl);
 
-    // ── Hint when zero results + strict market filter is active ──
+ // Hint when zero results + strict market filter is active 
     try {
       if (topResults.length === 0 && hasStrictUserScanPreferences() && totalVideos > 0) {
         var prefsHint = NspScanPrefs.get();
         var metaHint = NSP_MARKET_META[prefsHint.market] || {};
-        var flagHint = metaHint.flag || '🌐';
+ var flagHint = metaHint.flag ||'';
         var marketName = metaHint.label || 'your market';
         var hint = document.createElement('div');
         hint.id = 'nsp-zero-hint';
@@ -13071,7 +13164,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
       var titleEl = document.createElement('div');
       titleEl.className = 'title';
       titleEl.textContent = (sc.title || '').slice(0, 46);
-      var vphFmt = sc.vph >= 1000 ? (sc.vph / 1000).toFixed(1) + 'K' : Math.round(sc.vph);
+      var vphFmt = sc.vph == null ? '—' : (sc.vph >= 1000 ? (sc.vph / 1000).toFixed(1) + 'K' : Math.round(sc.vph));
       var metaEl = document.createElement('div');
       metaEl.className = 'meta';
       metaEl.textContent = 'VPH ' + vphFmt + '/h | $' + (sc.totalRev || 0).toLocaleString();
@@ -13104,6 +13197,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           nicheType: aiSaveProfile.category || facelessAnalysis.classification || 'faceless_ai',
           channelUrl: sc.channelUrl || '',
           channelId: item._channelId || '',
+          channelName: sc.channelName || sc.channelHandle || '',
           vidId: item.sc.vidId || '',
           thumbUrl: item.sc.vidId ? 'https://i.ytimg.com/vi/' + item.sc.vidId + '/hqdefault.jpg' : '',
           subs: sc.subs || 0,
@@ -13574,7 +13668,7 @@ function isSearchPage() {
   return location.pathname === '/results' || location.search.indexOf('search_query') !== -1;
 }
 
-// ── Filter Bar ───────────────────────────────────────────────────────────────
+// Filter Bar 
 
 var _filterTier = 'ALL';
 var _filterMinVPH = 0;
@@ -13645,7 +13739,7 @@ function injectFilterBar() {
   var sortBtn = document.createElement('button');
   sortBtn.style.cssText = 'padding:3px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.15);'
     + 'background:rgba(255,255,255,.06);color:rgba(234,240,255,.7);font-size:10.5px;font-weight:600;';
-  sortBtn.textContent = '↑ SCORE';
+ sortBtn.textContent ='SCORE';
   sortBtn.addEventListener('click', sortByScore);
   bar.appendChild(sortBtn);
 
@@ -13677,8 +13771,10 @@ function applyFilters() {
     var badge = card.querySelector('.nsp-badge');
     if (!badge) { card.style.opacity = ''; card.style.pointerEvents = ''; return; }
     var tier = badge.dataset.tier || 'SLOW';
-    var vph = parseFloat(badge.dataset.vph) || 0;
-    var show = (tierOrder[tier] || 0) >= minIdx && vph >= _filterMinVPH;
+    var vphAttr = badge.dataset.vph;
+    // An item with no measured VPH cannot satisfy a VPH minimum, but it is not hidden when no minimum is set.
+    var vphOk = (vphAttr === '' || vphAttr == null) ? (_filterMinVPH <= 0) : ((parseFloat(vphAttr) || 0) >= _filterMinVPH);
+    var show = (tierOrder[tier] || 0) >= minIdx && vphOk;
     card.style.opacity = show ? '' : '0.12';
     card.style.pointerEvents = show ? '' : 'none';
   });
@@ -13695,10 +13791,12 @@ function sortByScore() {
   cards.forEach(function(c) { target.appendChild(c); });
 }
 
-// ── Niche Signal Radar ─────────────────────────────────────────────────────────
+// Niche Signal Radar 
 
 function calcNicheSignals(scored) {
-  if (!scored || scored.length < 3) return null;
+  // Every signal below rests on velocity, so a video with no readable date is not part of the sample instead of entering it as a zero.
+  scored = (scored || []).filter(function(s) { return s && s.vph != null && s.os != null; });
+  if (scored.length < 3) return null;
   var total = scored.length;
 
   // 1. Demand: share of videos at RISING or better.
@@ -13877,7 +13975,7 @@ function injectCompetitionMeter() {
   }
 }
 
-// ── Channel Page ─────────────────────────────────────────────────────────────
+// Channel Page 
 
 function isChannelPage() {
   return /^\/((@|channel\/|c\/|user\/).*)/.test(location.pathname);
@@ -14014,7 +14112,7 @@ function extractChannelData() {
   } catch(e) { console.log('[NSP] extractChannelData err:', e); return null; }
 }
 
-// ── 💎 NEW & EXPLODING badge — injected NEXT TO YouTube's native Subscribe button ──
+// NEW & EXPLODING badge — injected NEXT TO YouTube's native Subscribe button 
 // Survives YouTube DOM re-renders via MutationObserver.
 var _nspExplodingMO = null;
 var _nspExplodingState = null; // { ch, avgVPH } — re-inject after navigation
@@ -14164,7 +14262,7 @@ function injectExplodingBadgeNearSubscribe(ch, avgVPH) {
 // Fetch channel age + total views + video count from /about page (async)
 // Called when extractChannelData() couldn't find joinedDate in ytInitialData.
 // Updates the overlay pill when data arrives.
-var _channelAgeCache = {}; // channelUrl → { joinedDate, channelAgeDays, totalViews, videoCount, ts }
+var _channelAgeCache = {}; // channelUrl { joinedDate, channelAgeDays, totalViews, videoCount, ts }
 var _CHANNEL_AGE_TTL = 24 * 60 * 60 * 1000; // 24h
 
 function fetchChannelAgeFromAbout(channelUrl, callback) {
@@ -14258,26 +14356,26 @@ function isNewAndExploding(ch, avgVPH) {
   // Without this, a brand new channel with one fresh video showed a spike of VPH (13 views in an hour) and was marked exploding.
   if (avgViewsPerVideo < 3000 && subsPerMonth < 1000 && subs < 1000) return false;
 
-  // ── Path 1: classic NEXLEV (<6 months + <50K subs + traction)
+ // Path 1: classic NEXLEV (<6 months + <50K subs + traction)
   if (ch.channelAgeDays <= 180 && subs <= 50000 && subs > 0) {
     if (avgVPH >= 50 && avgViewsPerVideo >= 2000) return true;
     if (avgViewsPerVideo >= 50000) return true;
   }
 
-  // ── Path 2: insane subs velocity (>5K subs/month for young channel)
+ // Path 2: insane subs velocity (>5K subs/month for young channel)
   // Catches the "51K subs in 4 months" case: 51000/4 = 12.7K/mo
   if (ch.channelAgeDays <= 300 && subsPerMonth >= 5000) {
     return true;
   }
 
-  // ── Path 3: very young (<3 months) with any meaningful traction
+ // Path 3: very young (<3 months) with any meaningful traction
   if (ch.channelAgeDays <= 90 && subs >= 100) {
     if (avgVPH >= 30) return true;
     if (avgViewsPerVideo >= 20000) return true;
     if (subs >= 1000) return true; // 1K subs in 3 months = strong
   }
 
-  // ── Path 4: young (<6 months) + very high avg views per video
+ // Path 4: young (<6 months) + very high avg views per video
   // Catches: small-sub channels with viral content
   if (ch.channelAgeDays <= 180 && avgViewsPerVideo >= 100000) {
     return true;
@@ -14286,7 +14384,7 @@ function isNewAndExploding(ch, avgVPH) {
   return false;
 }
 
-// ── TRACKING PANEL — black/neon green, draggable, packed with features ──────
+// TRACKING PANEL — black/neon green, draggable, packed with features 
 function openTrackingPanel(ch, subGrowthMonth) {
   console.log('[NSP] openTrackingPanel CALLED');
   if (!ch) ch = { name: '', channelUrl: '', channelId: '', subs: 0 };
@@ -14323,14 +14421,14 @@ function openTrackingPanel(ch, subGrowthMonth) {
     'padding:0;line-height:1.4;text-transform:none;'
   );
 
-  // ───── HEADER (with drag handle + close) ─────
+ // HEADER (with drag handle + close) 
   var hdr = document.createElement('div');
   hdr.setAttribute('style', 'padding:14px 16px;border-bottom:1px solid rgba(0,255,136,0.3);display:flex;align-items:center;gap:10px;cursor:move;user-select:none;');
 
   // Drag handle icon (4-direction arrows)
   var dragHandle = document.createElement('div');
   dragHandle.setAttribute('style', 'width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:' + NEON + ';flex-shrink:0;font-size:14px;line-height:1;');
-  dragHandle.textContent = '✥';
+ dragHandle.textContent ='';
   dragHandle.title = 'Drag to move';
   hdr.appendChild(dragHandle);
 
@@ -14338,7 +14436,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
   hLeft.setAttribute('style', 'flex:1;min-width:0;');
   var hT = document.createElement('div');
   hT.setAttribute('style', 'font-size:13px;font-weight:900;letter-spacing:0.14em;color:' + NEON + ';text-shadow:0 0 8px rgba(0,255,136,0.5);');
-  hT.textContent = '◆ TRACKING';
+ hT.textContent ='TRACKING';
   var hS = document.createElement('div');
   hS.setAttribute('style', 'font-size:10px;color:' + DIM + ';margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;');
   hS.textContent = String(ch.name || 'channel').slice(0, 40);
@@ -14347,13 +14445,13 @@ function openTrackingPanel(ch, subGrowthMonth) {
   hdr.appendChild(hLeft);
 
   var hX = document.createElement('button');
-  hX.textContent = '✕';
+ hX.textContent ='';
   hX.setAttribute('style', 'width:30px;height:30px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:' + FG + ';cursor:pointer;font-size:14px;font-family:inherit;flex-shrink:0;');
   hX.onclick = function() { panel.remove(); };
   hdr.appendChild(hX);
   panel.appendChild(hdr);
 
-  // ───── DRAG IMPLEMENTATION ─────
+ // DRAG IMPLEMENTATION 
   (function() {
     var dragging = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
     hdr.addEventListener('mousedown', function(e) {
@@ -14387,7 +14485,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
     });
   })();
 
-  // ───── BODY ─────
+ // BODY 
   var body = document.createElement('div');
   body.setAttribute('style', 'padding:16px;display:flex;flex-direction:column;gap:14px;');
   panel.appendChild(body);
@@ -14403,10 +14501,10 @@ function openTrackingPanel(ch, subGrowthMonth) {
     return t;
   }
 
-  // ───── STATS ROW (3 boxes) ─────
+ // STATS ROW (3 boxes) 
   try {
     var subs7d = null;
-    try { subs7d = getSubGrowth7d(ch.channelId, ch.subs); } catch(e) {}
+    try { subs7d = getSubGrowth7d(ch.channelId, ch.subs, ch.channelUrl); } catch(e) {}
 
     function statBox(label, value, posSign) {
       var b = document.createElement('div');
@@ -14431,15 +14529,17 @@ function openTrackingPanel(ch, subGrowthMonth) {
       (subGrowthMonth !== null && subGrowthMonth !== undefined) ? ((subGrowthMonth >= 0 ? '+' : '') + fmtN(subGrowthMonth)) : '—',
       subGrowthMonth > 0 ? true : subGrowthMonth < 0 ? false : null));
     body.appendChild(row);
+    if (subs7d === null || subGrowthMonth === null || subGrowthMonth === undefined) {
+      var noWindow = document.createElement('div');
+      noWindow.setAttribute('style', 'font-size:9.5px;color:' + DIM + ';line-height:1.5;');
+      noWindow.textContent = 'A dash means there is no saved reading from that far back yet. Use Save snapshot now and come back after the window has passed.';
+      body.appendChild(noWindow);
+    }
   } catch(e) { console.warn('[NSP] stats err:', e); }
 
-  // ───── STATUS + VELOCITY + PROJECTION ─────
+ // STATUS + VELOCITY + PROJECTION 
   try {
-    var history = [];
-    try {
-      var raw = JSON.parse(localStorage.getItem('nsp_sub_history') || '{}');
-      history = raw[ch.channelId] || raw[ch.channelUrl] || [];
-    } catch(e) {}
+    var history = nspSubHistoryRead(ch.channelId, ch.channelUrl).records;
 
     var statusBox = document.createElement('div');
     statusBox.setAttribute('style', 'padding:14px;border-radius:8px;background:rgba(0,255,136,0.05);border:1px solid rgba(0,255,136,0.25);');
@@ -14490,12 +14590,12 @@ function openTrackingPanel(ch, subGrowthMonth) {
     body.appendChild(statusBox);
   } catch(e) { console.warn('[NSP] status err:', e); }
 
-  // ───── OUTLIER ALERTS ─────
+ // OUTLIER ALERTS 
   try {
     var hasStorage = true;
     var watchBox = document.createElement('div');
     watchBox.setAttribute('style', 'padding:14px;border-radius:8px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);');
-    var wt = sectionTitle('◆ OUTLIER ALERTS');
+ var wt = sectionTitle('OUTLIER ALERTS');
     wt.style.marginTop = '0';
     watchBox.appendChild(wt);
     var watchSub = document.createElement('div');
@@ -14518,7 +14618,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
           nspStore.get('nsp_watching').then(function(res) {
             var w = (res && res.nsp_watching) || {};
             var on = !!w[ch.channelUrl];
-            watchBtn.textContent = on ? '✓ ON' : '+ TURN ON ALERTS';
+ watchBtn.textContent = on ?'ON':'+ TURN ON ALERTS';
             watchBtn.style.background = on ? NEON : 'transparent';
             watchBtn.style.color = on ? '#000' : NEON;
           });
@@ -14548,9 +14648,9 @@ function openTrackingPanel(ch, subGrowthMonth) {
     body.appendChild(watchBox);
   } catch(e) { console.warn('[NSP] watch err:', e); }
 
-  // ───── QUICK ACTIONS GRID (4 buttons) ─────
+ // QUICK ACTIONS GRID (4 buttons) 
   try {
-    body.appendChild(sectionTitle('◆ QUICK ACTIONS'));
+ body.appendChild(sectionTitle('QUICK ACTIONS'));
     var grid = document.createElement('div');
     grid.setAttribute('style', 'display:grid;grid-template-columns:1fr 1fr;gap:6px;');
 
@@ -14607,8 +14707,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
     // Export CSV (history)
     grid.appendChild(quickBtn('', 'Export CSV', function() {
       try {
-        var raw = JSON.parse(localStorage.getItem('nsp_sub_history') || '{}');
-        var h = raw[ch.channelId] || raw[ch.channelUrl] || [];
+        var h = nspSubHistoryRead(ch.channelId, ch.channelUrl).records;
         if (!h.length) {
           var t = document.createElement('div');
           t.setAttribute('style', 'position:fixed;bottom:30px;left:50%;transform:translateX(-50%);z-index:2147483647;padding:10px 18px;background:#FF4488;color:#000;border-radius:8px;font-family:ui-monospace;font-size:11px;font-weight:800;');
@@ -14669,18 +14768,24 @@ function openTrackingPanel(ch, subGrowthMonth) {
     setTimeout(function() { t.remove(); }, 1800);
   }
 
-  // ───── SNAPSHOT NOW (full width) ─────
+ // SNAPSHOT NOW (full width) 
   try {
     var snap = document.createElement('button');
     snap.setAttribute('style', 'padding:10px 14px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:' + FG + ';font-weight:700;font-size:11px;letter-spacing:0.08em;cursor:pointer;font-family:inherit;width:100%;');
     snap.textContent = 'Save snapshot now (' + fmtN(ch.subs || 0) + ')';
     snap.onclick = function() {
       try {
-        var rawS = JSON.parse(localStorage.getItem('nsp_sub_history') || '{}');
-        var cid = ch.channelId || ch.channelUrl || 'unknown';
-        if (!rawS[cid]) rawS[cid] = [];
-        rawS[cid].push({ subs: ch.subs || 0, ts: Date.now() });
-        localStorage.setItem('nsp_sub_history', JSON.stringify(rawS));
+        var snapRead = nspSubHistoryRead(ch.channelId, ch.channelUrl);
+        if (!snapRead.key) {
+          snap.textContent = 'No channel id or URL, snapshot not saved';
+          return;
+        }
+        var snapRecords = snapRead.records;
+        snapRecords.push({ subs: ch.subs || 0, ts: Date.now() });
+        if (!nspSubHistorySave(ch.channelId, ch.channelUrl, snapRecords)) {
+          snap.textContent = 'Snapshot not saved, storage refused it';
+          return;
+        }
         snap.textContent = 'Snapshot saved';
         snap.style.color = NEON;
         snap.style.borderColor = NEON;
@@ -14694,9 +14799,9 @@ function openTrackingPanel(ch, subGrowthMonth) {
     body.appendChild(snap);
   } catch(e) { console.warn('[NSP] snap err:', e); }
 
-  // ───── CHANNEL NOTES ─────
+ // CHANNEL NOTES 
   try {
-    body.appendChild(sectionTitle('◆ NOTES'));
+ body.appendChild(sectionTitle('NOTES'));
     var noteArea = document.createElement('textarea');
     noteArea.setAttribute('style', 'width:100%;min-height:60px;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.02);color:' + FG + ';font-family:inherit;font-size:11px;resize:vertical;box-sizing:border-box;');
     noteArea.placeholder = 'Your note on this channel: strategy, ideas, what you noticed';
@@ -14712,12 +14817,11 @@ function openTrackingPanel(ch, subGrowthMonth) {
     body.appendChild(noteArea);
   } catch(e) { console.warn('[NSP] notes err:', e); }
 
-  // ───── HISTORY LIST ─────
+ // HISTORY LIST 
   try {
-    var rawH = JSON.parse(localStorage.getItem('nsp_sub_history') || '{}');
-    var histList = rawH[ch.channelId] || rawH[ch.channelUrl] || [];
+    var histList = nspSubHistoryRead(ch.channelId, ch.channelUrl).records;
 
-    body.appendChild(sectionTitle('◆ HISTORY (' + histList.length + ')'));
+ body.appendChild(sectionTitle('HISTORY ('+ histList.length +')'));
 
     if (!histList.length) {
       var em = document.createElement('div');
@@ -14763,53 +14867,73 @@ function openTrackingPanel(ch, subGrowthMonth) {
 
 
 
-function getSubGrowth(channelId, currentSubs) {
-  if (!channelId || !currentSubs) return null;
+// One key per channel in nsp_sub_history: the channel id when it is known, the channel URL otherwise. The old 'unknown' bucket is never read, it can hold several channels' readings mixed together.
+function nspSubHistoryKey(channelId, channelUrl) {
+  var id = String(channelId || '').trim();
+  if (id) return id;
+  return String(channelUrl || '').trim();
+}
+
+function nspSubHistoryRead(channelId, channelUrl) {
+  var all = {};
+  try { all = JSON.parse(localStorage.getItem('nsp_sub_history') || '{}') || {}; } catch(e) { all = {}; }
+  var key = nspSubHistoryKey(channelId, channelUrl);
+  if (!key) return { key: '', all: all, records: [] };
+  var records = Array.isArray(all[key]) ? all[key].slice() : [];
+  var urlKey = String(channelUrl || '').trim();
+  // Readings taken before the channel id was resolved sit under the URL, so they are folded in instead of being lost.
+  if (urlKey && urlKey !== key && Array.isArray(all[urlKey])) records = records.concat(all[urlKey]);
+  records = records.filter(function(r) { return r && isFinite(Number(r.subs)) && isFinite(Number(r.ts)); });
+  records.sort(function(a, b) { return a.ts - b.ts; });
+  return { key: key, all: all, records: records };
+}
+
+function nspSubHistorySave(channelId, channelUrl, records) {
+  var read = nspSubHistoryRead(channelId, channelUrl);
+  if (!read.key) return false;
+  var all = read.all || {};
+  var now = Date.now();
+  all[read.key] = (records || []).filter(function(r) { return now - r.ts < 90 * 24 * 3600000; });
+  var urlKey = String(channelUrl || '').trim();
+  if (urlKey && urlKey !== read.key && all[urlKey]) delete all[urlKey];
+  try { localStorage.setItem('nsp_sub_history', JSON.stringify(all)); return true; } catch(e) { return false; }
+}
+
+// Reports a subscriber delta only when a reading exists near the window being reported. Stretching half a day into seven invents the number, and YouTube's counts are rounded to the nearest thousand.
+function nspSubGrowthOverWindow(channelId, channelUrl, currentSubs, windowDays, minDays, maxDays) {
+  if (!currentSubs) return null;
+  var read = nspSubHistoryRead(channelId, channelUrl);
+  if (read.records.length < 2) return null;
+  var now = Date.now();
+  var target = now - windowDays * 24 * 3600000;
+  var best = null, bestDiff = Infinity;
+  for (var i = 0; i < read.records.length; i++) {
+    var diff = Math.abs(read.records[i].ts - target);
+    if (diff < bestDiff) { bestDiff = diff; best = read.records[i]; }
+  }
+  if (!best) return null;
+  var ageDays = (now - best.ts) / (24 * 3600000);
+  if (ageDays < minDays || ageDays > maxDays) return null;
+  return Math.round((currentSubs - best.subs) * (windowDays / ageDays));
+}
+
+function getSubGrowth(channelId, currentSubs, channelUrl) {
   try {
-    var history = JSON.parse(localStorage.getItem('nsp_sub_history') || '{}');
-    var records = history[channelId] || [];
+    var read = nspSubHistoryRead(channelId, channelUrl);
+    if (!read.key || !currentSubs) return null;
+    var records = read.records;
     var now = Date.now();
-    // Add new record only if last one is >1h old
     if (!records.length || now - records[records.length - 1].ts > 3600000) {
       records.push({ subs: currentSubs, ts: now });
+      nspSubHistorySave(channelId, channelUrl, records);
     }
-    // Keep 90 days
-    records = records.filter(function(r) { return now - r.ts < 90 * 24 * 3600000; });
-    history[channelId] = records;
-    try { localStorage.setItem('nsp_sub_history', JSON.stringify(history)); } catch(e) {}
-
-    if (records.length < 2) return null;
-    // Find record closest to 30d ago
-    var target = now - 30 * 24 * 3600000;
-    var best = null, bestDiff = Infinity;
-    for (var i = 0; i < records.length - 1; i++) {
-      var diff = Math.abs(records[i].ts - target);
-      if (diff < bestDiff) { bestDiff = diff; best = records[i]; }
-    }
-    if (!best) return null;
-    var ageDays = (now - best.ts) / (24 * 3600000);
-    if (ageDays < 1) return null;
-    return Math.round((currentSubs - best.subs) * (30 / ageDays));
+    return nspSubGrowthOverWindow(channelId, channelUrl, currentSubs, 30, 20, 45);
   } catch(e) { return null; }
 }
 
-function getSubGrowth7d(channelId, currentSubs) {
-  if (!channelId || !currentSubs) return null;
+function getSubGrowth7d(channelId, currentSubs, channelUrl) {
   try {
-    var history = JSON.parse(localStorage.getItem('nsp_sub_history') || '{}');
-    var records = history[channelId] || [];
-    if (records.length < 2) return null;
-    var now = Date.now();
-    var target = now - 7 * 24 * 3600000;
-    var best = null, bestDiff = Infinity;
-    for (var i = 0; i < records.length - 1; i++) {
-      var diff = Math.abs(records[i].ts - target);
-      if (diff < bestDiff) { bestDiff = diff; best = records[i]; }
-    }
-    if (!best) return null;
-    var ageDays = (now - best.ts) / (24 * 3600000);
-    if (ageDays < 0.5) return null;
-    return Math.round((currentSubs - best.subs) * (7 / ageDays));
+    return nspSubGrowthOverWindow(channelId, channelUrl, currentSubs, 7, 5, 10);
   } catch(e) { return null; }
 }
 
@@ -15126,6 +15250,7 @@ function saveChannelAndOpenAshlyV(ch, subGrowth, revMonth) {
     language: languageCode,
     channelUrl: ch.channelUrl || '',
     channelId: ch.channelId || '',
+    channelName: ch.name || '',
     subs: ch.subs || 0,
     revMonth: revMonth || 0,
     vph: 0,
@@ -15151,7 +15276,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
     + 'box-shadow:0 20px 60px rgba(0,0,0,.7),0 0 0 1px rgba(123,92,255,.1);'
     + 'font-family:ui-monospace,monospace;overflow:hidden;';
 
-  // ── Header ──
+ // Header 
   var hdr = document.createElement('div');
   hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;'
     + 'padding:14px 20px;background:rgba(123,92,255,.08);border-bottom:1px solid rgba(123,92,255,.2);';
@@ -15179,7 +15304,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   hdr.appendChild(hdrLeft);
 
   var closeBtn = document.createElement('button');
-  closeBtn.textContent = '✕';
+ closeBtn.textContent ='';
   closeBtn.style.cssText = 'background:none;border:1px solid rgba(255,255,255,.12);border-radius:8px;'
     + 'color:rgba(234,240,255,.4);font-size:13px;padding:4px 9px;cursor:pointer;'
     + 'font-family:ui-monospace,monospace;transition:all .15s;';
@@ -15257,21 +15382,22 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
     panel.appendChild(noVidWarn);
   }
 
-  // ── Calc metrics ──
-  var subs7d = getSubGrowth7d(ch.channelId, ch.subs);
+ // Calc metrics 
+  var subs7d = getSubGrowth7d(ch.channelId, ch.subs, ch.channelUrl);
   var avgLen = calcAvgDuration(scored);
   var uploadFreqDays = calcUploadFreq(scored);
   var detectedRpm = 4;
   for (var i = 0; i < scored.length; i++) { if (scored[i].rpm > detectedRpm) detectedRpm = scored[i].rpm; }
 
-  // Channel-level aggregates
-  var totalVPH = 0, totalOS = 0, totalRevMonth = 0, counted = 0;
+  // Channel-level aggregates. Videos with no readable date are left out of the VPH, score and revenue averages instead of entering them as zero.
+  var totalVPH = 0, totalOS = 0, totalRevMonth = 0, timed = 0;
   for (var j = 0; j < scored.length; j++) {
-    totalVPH += scored[j].vph; totalOS += scored[j].os; totalRevMonth += scored[j].rev || 0; counted++;
+    if (scored[j].vph == null || scored[j].os == null) continue;
+    totalVPH += scored[j].vph; totalOS += scored[j].os; totalRevMonth += scored[j].rev || 0; timed++;
   }
-  var avgVPH = counted ? totalVPH / counted : 0;
-  var avgOS  = counted ? Math.round(totalOS / counted) : 0;
-  var avgRevPerVid = counted ? Math.round(totalRevMonth / counted) : 0;
+  var avgVPH = timed ? totalVPH / timed : 0;
+  var avgOS  = timed ? Math.round(totalOS / timed) : 0;
+  var avgRevPerVid = timed ? Math.round(totalRevMonth / timed) : 0;
   var vidsPerMonth = uploadFreqDays ? Math.max(1, Math.round(30 / uploadFreqDays)) : null;
   var replicaMonthly = vidsPerMonth ? vidsPerMonth * avgRevPerVid : null;
 
@@ -15298,8 +15424,14 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
     verdictGrad = 'linear-gradient(135deg,rgba(80,80,80,.15),rgba(50,50,50,.1))';
     verdictBorder = 'rgba(100,100,100,.3)';
   }
+  if (!timed) {
+    verdict = 'NOT MEASURED';
+    verdictSub = 'None of the videos in view carried a readable published date, so views per hour cannot be measured.';
+    verdictGrad = 'linear-gradient(135deg,rgba(80,80,80,.15),rgba(50,50,50,.1))';
+    verdictBorder = 'rgba(100,100,100,.3)';
+  }
 
-  // ── Verdict banner ──
+ // Verdict banner 
   var verdictBanner = document.createElement('div');
   verdictBanner.style.cssText = 'display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;'
     + 'padding:14px 20px;background:' + verdictGrad + ';border-bottom:1px solid ' + verdictBorder + ';';
@@ -15317,7 +15449,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   vRight.style.cssText = 'display:flex;flex-direction:column;align-items:flex-end;gap:3px;';
   var vOS = document.createElement('span');
   vOS.style.cssText = 'font-size:22px;font-weight:900;color:#A88FFF;line-height:1;';
-  vOS.textContent = 'OS:' + avgOS;
+  vOS.textContent = 'OS:' + (timed ? avgOS : '—');
   var vOSLabel = document.createElement('span');
   vOSLabel.style.cssText = 'font-size:9px;color:rgba(234,240,255,.35);letter-spacing:.06em;text-transform:uppercase;';
   vOSLabel.textContent = 'Average channel score';
@@ -15327,7 +15459,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   verdictBanner.appendChild(vRight);
   panel.appendChild(verdictBanner);
 
-  // ── Big stats row ──
+ // Big stats row 
   var statsRow = document.createElement('div');
   statsRow.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid rgba(255,255,255,.06);';
 
@@ -15365,7 +15497,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
 
   panel.appendChild(statsRow);
 
-  // ── Detail row ──
+ // Detail row 
   var detail = document.createElement('div');
   detail.style.cssText = 'display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:12px 20px;'
     + 'border-bottom:1px solid rgba(255,255,255,.06);';
@@ -15399,7 +15531,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
 
   panel.appendChild(detail);
 
-  // ── Replication projection ──
+ // Replication projection 
   var repRow = document.createElement('div');
   repRow.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:0;'
     + 'border-bottom:1px solid rgba(255,255,255,.06);background:rgba(123,92,255,.04);';
@@ -15442,7 +15574,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   repRow.appendChild(repCell('', projStr, 'Projected revenue', avgRevStr + ' on average', '#00DC82', true));
   panel.appendChild(repRow);
 
-  // ── Top videos ──
+ // Top videos 
   var topScored = scored.slice().sort(function(a, b) { return b.os - a.os; }).slice(0, 3);
   if (topScored.length > 0) {
     var topHdr = document.createElement('div');
@@ -15470,7 +15602,7 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
       tvph.textContent = fmtVPH(ts2.vph) + ' VPH';
       var tos = document.createElement('span');
       tos.style.cssText = 'color:#A88FFF;font-size:10px;font-weight:700;flex-shrink:0;';
-      tos.textContent = 'OS:' + ts2.os;
+      tos.textContent = 'OS:' + (ts2.os == null ? '—' : ts2.os);
       var trev = document.createElement('span');
       trev.style.cssText = 'color:#00DC82;font-size:10px;font-weight:700;flex-shrink:0;';
       var tr = ts2.totalRev || ts2.rev || 0;
@@ -15542,28 +15674,29 @@ buildChannelStatsPanel = function(ch, scored, subGrowth, revMonth) {
     titleWrap.appendChild(title);
     titleWrap.appendChild(el('div', 'font-size:10px;color:rgba(255,255,255,.46);margin-top:5px;font-family:' + NSP_FONT_MONO + ';', 'VISIBLE SAMPLE'));
     row.appendChild(titleWrap);
-    row.appendChild(el('div', 'font-size:11px;font-weight:800;color:#fff;font-family:' + NSP_FONT_MONO + ';white-space:nowrap;', fmtVPH(ts.vph || 0) + ' VPH'));
-    row.appendChild(el('div', 'font-size:11px;font-weight:800;color:#fff;font-family:' + NSP_FONT_MONO + ';white-space:nowrap;', 'OS ' + (ts.os || 0)));
+    row.appendChild(el('div', 'font-size:11px;font-weight:800;color:#fff;font-family:' + NSP_FONT_MONO + ';white-space:nowrap;', ts.vph == null ? 'VPH —' : (fmtVPH(ts.vph) + ' VPH')));
+    row.appendChild(el('div', 'font-size:11px;font-weight:800;color:#fff;font-family:' + NSP_FONT_MONO + ';white-space:nowrap;', 'OS ' + (ts.os == null ? '—' : ts.os)));
     row.appendChild(el('div', 'font-size:11px;font-weight:800;color:#fff;font-family:' + NSP_FONT_MONO + ';white-space:nowrap;', fmtMoney(ts.totalRev || ts.rev || 0)));
     return row;
   }
 
-  var subs7d = getSubGrowth7d(ch.channelId, ch.subs);
+  var subs7d = getSubGrowth7d(ch.channelId, ch.subs, ch.channelUrl);
   var avgLen = calcAvgDuration(scored);
   var uploadFreqDays = calcUploadFreq(scored);
   var detectedRpm = 4;
   for (var i = 0; i < scored.length; i++) { if (scored[i].rpm > detectedRpm) detectedRpm = scored[i].rpm; }
 
-  var totalVPH = 0, totalOS = 0, totalRevMonth = 0, counted = 0;
+  var totalVPH = 0, totalOS = 0, totalRevMonth = 0, timed = 0;
   for (var j = 0; j < scored.length; j++) {
+    if (scored[j].vph == null || scored[j].os == null) continue;
     totalVPH += scored[j].vph;
     totalOS += scored[j].os;
     totalRevMonth += scored[j].rev || 0;
-    counted++;
+    timed++;
   }
-  var avgVPH = counted ? totalVPH / counted : 0;
-  var avgOS = counted ? Math.round(totalOS / counted) : 0;
-  var avgRevPerVid = counted ? Math.round(totalRevMonth / counted) : 0;
+  var avgVPH = timed ? totalVPH / timed : 0;
+  var avgOS = timed ? Math.round(totalOS / timed) : 0;
+  var avgRevPerVid = timed ? Math.round(totalRevMonth / timed) : 0;
   var vidsPerMonth = uploadFreqDays ? Math.max(1, Math.round(30 / uploadFreqDays)) : null;
   var replicaMonthly = vidsPerMonth ? vidsPerMonth * avgRevPerVid : null;
 
@@ -15581,6 +15714,10 @@ buildChannelStatsPanel = function(ch, scored, subGrowth, revMonth) {
   } else if (avgVPH >= 10) {
     verdict = 'STEADY NICHE';
     verdictSub = 'Moves steadily. It can work with a system and patience.';
+  }
+  if (!timed) {
+    verdict = 'NOT MEASURED';
+    verdictSub = 'None of the videos in view carried a readable published date, so views per hour cannot be measured.';
   }
 
   var hdr = el('div', 'padding:18px 20px 14px;display:flex;align-items:center;justify-content:space-between;gap:16px;'
@@ -15652,7 +15789,7 @@ buildChannelStatsPanel = function(ch, scored, subGrowth, revMonth) {
     body.appendChild(list);
   }
 
-  // ── NET PROFIT CALCULATOR ──────────────────────────────────────────────────
+ // NET PROFIT CALCULATOR 
   try {
     body.appendChild(el('div', 'font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_MONO + ';margin:24px 2px 10px;', 'Net profit calculator'));
     body.appendChild(buildNetProfitCalculator(ch, scored, avgRevPerVid, vidsPerMonth, replicaMonthly));
@@ -15666,7 +15803,7 @@ buildChannelStatsPanel = function(ch, scored, subGrowth, revMonth) {
   return panel;
 };
 
-// ── Net Profit Calculator widget ─────────────────────────────────────────────
+// Net Profit Calculator widget 
 function buildNetProfitCalculator(ch, scored, avgRevPerVid, vidsPerMonth, replicaMonthly) {
   var box = document.createElement('div');
   box.style.cssText = 'padding:16px;border-radius:18px;border:1px solid rgba(0,220,130,.2);'
@@ -15789,7 +15926,7 @@ function guessDefaultCosts(ch) {
 
 var _channelOverlayDone = false;
 
-// ── Channel videos fetch + score (for the VIEW STATS panel when not on /videos) ───
+// Channel videos fetch + score (for the VIEW STATS panel when not on /videos) 
 function parseRelativeTimeToHours(text) {
   if (!text) return null;
   var t = String(text).toLowerCase();
@@ -15900,7 +16037,7 @@ function openChannelStatsWithLoader(ch, channelScored, subGrowth, revMonth, rang
     + 'font-family:ui-monospace,monospace;color:#eaf0ff;text-align:center;';
   var titleEl = document.createElement('div');
   titleEl.style.cssText = 'font-size:14px;font-weight:900;letter-spacing:.14em;color:#A88FFF;margin-bottom:8px;';
-  titleEl.textContent = '⚡ ANALYZING CHANNEL';
+ titleEl.textContent ='ANALYZING CHANNEL';
   var subEl = document.createElement('div');
   subEl.style.cssText = 'font-size:11px;color:rgba(234,240,255,.55);margin-bottom:18px;line-height:1.5;';
   subEl.textContent = 'Fetching recent videos from ' + (ch.name || 'this channel') + ', about 3 seconds';
@@ -15970,10 +16107,10 @@ function openChannelStatsWithLoader(ch, channelScored, subGrowth, revMonth, rang
   });
 }
 
-// ── Monetization Verifier REAL ───────────────────────────────────────────────
+// Monetization Verifier REAL 
 // Combines ad-placement probe (youtubei/v1/player) + DOM signals + thresholds.
 var YT_WEB_INNERTUBE_KEY = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
-var _monetCache = {}; // key channelKey/Url → { ts, result }
+var _monetCache = {}; // key channelKey/Url { ts, result }
 var MONET_CACHE_TTL = 60 * 60 * 1000; // 1h
 
 function getRecentChannelVideoIds(ch, max) {
@@ -16078,7 +16215,7 @@ function detectChannelDomMonetSignals() {
       if (/\b(shop|store|tienda|productos|merch)\b/.test(txt)) { signals.shopTab = true; break; }
     }
 
-    // ── Verified badge ──
+ // Verified badge 
     if (document.querySelector('ytd-channel-name [aria-label*="Verified"], ytd-channel-name [aria-label*="Verificado"], yt-icon[aria-label*="Verified"], .badge-style-type-verified')) signals.verified = true;
   } catch(e) {}
   return signals;
@@ -16174,7 +16311,7 @@ function verifyChannelMonetizationReal(ch, cb) {
   });
 }
 
-// ── Claude API helpers (client-side, requires user API key) ──────────────────
+// Claude API helpers (client-side, requires user API key) 
 function nspAskModel(prompt, opts) {
   opts = opts || {};
   return sendRuntimeMessage({
@@ -16193,17 +16330,9 @@ function nspAskModel(prompt, opts) {
 }
 
 function getClaudeApiKey() {
-  return new Promise(function(resolve) {
-    try {
-      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) { resolve(''); return; }
-      nspStore.get('ashlyv_api_key').then(function(res) {
-        var k = res && res.ashlyv_api_key;
-        if (typeof k === 'string' && /^sk-ant-[a-zA-Z0-9\-_]{20,180}$/.test(k)) resolve(k);
-        else resolve('');
-      });
-    } catch(e) { resolve(''); }
-  });
+  return Promise.resolve('');
 }
+
 
 function callClaudeMessages(opts) {
   // opts: { apiKey, model, system, userText, maxTokens }
@@ -16231,7 +16360,7 @@ function callClaudeMessages(opts) {
   });
 }
 
-// ── Thumbnail Lab: analyze + niche gallery + A/B compare ─────────────────────
+// Thumbnail Lab: analyze + niche gallery + A/B compare 
 function getNicheThumbnailGallery(label, limit) {
   limit = limit || 12;
   // Use _allScored filtered by niche, top by VPH
@@ -16377,7 +16506,7 @@ function showThumbLabPanel(ch) {
     preview.style.cssText = 'margin:10px 0;';
     body.appendChild(preview);
     var btn = document.createElement('button');
-    btn.textContent = '🎯 ANALYZE WITH AI';
+ btn.textContent ='ANALYZE WITH AI';
     btn.style.cssText = 'width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;letter-spacing:.12em;';
     body.appendChild(btn);
     var out = document.createElement('div');
@@ -16399,7 +16528,7 @@ function showThumbLabPanel(ch) {
     btn.addEventListener('click', function() {
       if (!dataUrl) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Upload a thumbnail first.</div>'); return; }
       btn.disabled = true; btn.style.opacity = '.6';
-      nspSetHTML(out, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Local analysis and Claude Vision</div>');
+ nspSetHTML(out,'<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">Local analysis and Claude Vision</div>');
 
       Promise.all([dataUrlToImage(dataUrl), getClaudeApiKey()]).then(function(arr) {
         var img = arr[0], apiKey = arr[1];
@@ -16408,12 +16537,12 @@ function showThumbLabPanel(ch) {
           var localBlock = '<div style="padding:10px;background:rgba(255,255,255,.025);border-radius:10px;margin-bottom:10px;">'
             + '<div style="font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">LOCAL ANALYSIS</div>'
             + '<div style="font-size:11px;line-height:1.6;">'
-            + '👥 Faces detected: <b>' + (faces.supported ? faces.count : 'not supported') + '</b><br/>'
-            + '🌗 Contrast: <b>' + (canvasStats ? canvasStats.contrast : '?') + '/255</b> ' + (canvasStats && canvasStats.contrast >= 180 ? '✅' : canvasStats && canvasStats.contrast >= 120 ? '🟡' : '⚠') + '<br/>'
-            + '💡 Average brightness: <b>' + (canvasStats ? canvasStats.brightness : '?') + '/255</b>'
+ +'Faces detected: <b>'+ (faces.supported ? faces.count :'not supported') +'</b><br/>'
+ +'Contrast: <b>'+ (canvasStats ? canvasStats.contrast :'?') +'/255</b>'+ (canvasStats && canvasStats.contrast >= 180 ?'': canvasStats && canvasStats.contrast >= 120 ?'':'') +'<br/>'
+ +'Average brightness: <b>'+ (canvasStats ? canvasStats.brightness :'?') +'/255</b>'
             + '</div></div>';
           if (!apiKey) { nspSetHTML(out, localBlock + '<div style="padding:10px;color:rgba(255,217,61,.9);font-size:11px;">Paste your API key under ASHLYV, API Key, to run Claude Vision.</div>'); btn.disabled = false; btn.style.opacity = ''; return; }
-          nspSetHTML(out, localBlock + '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Claude Vision...</div>');
+ nspSetHTML(out, localBlock +'<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">Claude Vision...</div>');
 
           // Build Claude Vision request with references
           var gallery = getNicheThumbnailGallery(niche.label, 3);
@@ -16457,15 +16586,15 @@ function showThumbLabPanel(ch) {
             ['strengths', 'weaknesses', 'improvements'].forEach(function(key) {
               var arr = parsed[key];
               if (!arr || !arr.length) return;
-              var ttl = { strengths: '✅ STRENGTHS', weaknesses: '⚠ WEAKNESSES', improvements: '💡 IMPROVEMENTS' }[key];
+ var ttl = { strengths:'STRENGTHS', weaknesses:'WEAKNESSES', improvements:'IMPROVEMENTS'}[key];
               html += '<div style="font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin:10px 0 5px;">' + ttl + '</div>';
               arr.forEach(function(it) { html += '<div style="padding:6px 9px;margin:3px 0;border-radius:7px;background:rgba(255,255,255,.04);font-size:11px;">' + String(it).replace(/[<>]/g, '') + '</div>'; });
             });
             html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:12px;font-size:10.5px;">'
-              + '<div>😮 Emotion: <b>' + (parsed.emotion || 0) + '/10</b></div>'
-              + '<div>📖 Readability: <b>' + (parsed.readability || 0) + '/10</b></div>'
-              + '<div>🌗 Contrast: <b>' + (parsed.contrast || 0) + '/10</b></div>'
-              + '<div>🎯 Curiosity: <b>' + (parsed.curiosity || 0) + '/10</b></div>'
+ +'<div>Emotion: <b>'+ (parsed.emotion || 0) +'/10</b></div>'
+ +'<div>Readability: <b>'+ (parsed.readability || 0) +'/10</b></div>'
+ +'<div>Contrast: <b>'+ (parsed.contrast || 0) +'/10</b></div>'
+ +'<div>Curiosity: <b>'+ (parsed.curiosity || 0) +'/10</b></div>'
               + '</div></div>';
             nspSetHTML(out, html);
           }).catch(function(err) {
@@ -16507,7 +16636,7 @@ function showThumbLabPanel(ch) {
       nspSetHTML(card, '<img src="' + g.thumbUrl + '" style="width:100%;display:block;aspect-ratio:16/9;object-fit:cover;"/>'
         + '<div style="padding:8px 10px;">'
         + '<div style="font-size:10.5px;font-weight:700;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (g.title || '').replace(/[<>]/g, '') + '</div>'
-        + '<div style="font-size:9px;color:rgba(255,255,255,.55);margin-top:4px;">⚡ ' + fmtVPH(g.vph) + '/h · 👁 ' + fmtN(g.views) + '</div>'
+ +'<div style="font-size:9px;color:rgba(255,255,255,.55);margin-top:4px;">'+ fmtVPH(g.vph) +'/h ·'+ fmtN(g.views) +'</div>'
         + '</div>');
       grid.appendChild(card);
     });
@@ -16529,7 +16658,7 @@ function showThumbLabPanel(ch) {
     thumbs.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px;';
     body.appendChild(thumbs);
     var btn = document.createElement('button');
-    btn.textContent = '🆚 COMPARE WITH AI';
+ btn.textContent ='COMPARE WITH AI';
     btn.style.cssText = 'width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;letter-spacing:.12em;';
     body.appendChild(btn);
     var out = document.createElement('div');
@@ -16556,7 +16685,7 @@ function showThumbLabPanel(ch) {
     btn.addEventListener('click', function() {
       if (dataUrls.length < 2) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Upload at least 2 thumbnails.</div>'); return; }
       btn.disabled = true; btn.style.opacity = '.6';
-      nspSetHTML(out, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Comparing ' + dataUrls.length + ' variants</div>');
+ nspSetHTML(out,'<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">Comparing'+ dataUrls.length +'variants</div>');
       getClaudeApiKey().then(function(apiKey) {
         if (!apiKey) { nspSetHTML(out, '<div style="color:rgba(255,217,61,.9);font-size:11px;padding:10px;">No AI provider configured. Add a key in Options and pick a modelng in ASHLYV.</div>'); btn.disabled = false; btn.style.opacity = ''; return; }
         var content = [{
@@ -16581,7 +16710,7 @@ function showThumbLabPanel(ch) {
         nspSetHTML(out, '');
         var head = document.createElement('div');
         head.style.cssText = 'padding:12px;margin-bottom:10px;border-radius:12px;background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.14);';
-        nspSetHTML(head, '<div style="font-size:24px;font-weight:900;">🏆 WINNER: ' + parsed.winner + '</div><div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:6px;line-height:1.5;">' + (parsed.why || '').replace(/[<>]/g, '') + '</div>');
+ nspSetHTML(head,'<div style="font-size:24px;font-weight:900;">WINNER:'+ parsed.winner +'</div><div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:6px;line-height:1.5;">'+ (parsed.why ||'').replace(/[<>]/g,'') +'</div>');
         out.appendChild(head);
         (parsed.ranked || []).forEach(function(r) {
           var col = r.score >= 75 ? '#00DC82' : r.score >= 55 ? '#FFD93D' : '#FF6B6B';
@@ -16601,7 +16730,7 @@ function showThumbLabPanel(ch) {
   renderAnalyzeTab();
 }
 
-// ── Title Lab: detect niche + rank user title variants ───────────────────────
+// Title Lab: detect niche + rank user title variants 
 function detectActiveNiche(ch) {
   // Combine channel name + recent video titles to infer niche
   var texts = [];
@@ -16701,7 +16830,7 @@ function showTitleLabPanel(ch) {
   var actions = document.createElement('div');
   actions.style.cssText = 'display:flex;gap:8px;margin-top:12px;';
   var rankBtn = document.createElement('button');
-  rankBtn.textContent = '🎯 RANK WITH AI';
+ rankBtn.textContent ='RANK WITH AI';
   rankBtn.style.cssText = 'flex:1;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;letter-spacing:.12em;';
   actions.appendChild(rankBtn);
   body.appendChild(actions);
@@ -16733,7 +16862,7 @@ function showTitleLabPanel(ch) {
     if (!raw) { nspSetHTML(result, '<div style="color:rgba(255,107,107,.85);font-size:11px;">Paste at least one title.</div>'); return; }
     var variants = raw.split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean).slice(0, 12);
     if (!variants.length) return;
-    nspSetHTML(result, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">⏳ Asking Claude about ' + variants.length + ' variants</div>');
+ nspSetHTML(result,'<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">Asking Claude about'+ variants.length +'variants</div>');
     rankBtn.disabled = true; rankBtn.style.opacity = '.6';
 
     Promise.all([getClaudeApiKey(), getOutlierTitlesForNiche(niche.label, 6)]).then(function(arr) {
@@ -16790,7 +16919,7 @@ function showTitleLabPanel(ch) {
   };
 }
 
-// ── Transcript 1-click ───────────────────────────────────────────────────────
+// Transcript 1-click 
 function fetchVideoTranscript(videoId) {
   if (!videoId) return Promise.reject(new Error('no_video_id'));
   var body = {
@@ -16861,7 +16990,7 @@ function showTranscriptPanel(videoId) {
 
   var search = document.createElement('input');
   search.type = 'text';
-  search.placeholder = '🔍 Search the transcript';
+ search.placeholder ='Search the transcript';
   search.style.cssText = 'margin:10px 14px 6px;padding:7px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;font-family:inherit;font-size:11px;outline:none;';
   panel.appendChild(search);
 
@@ -16933,14 +17062,14 @@ function showTranscriptPanel(videoId) {
         var mm = Math.floor(c.start / 60), ss = c.start % 60;
         return '[' + mm + ':' + (ss < 10 ? '0' : '') + ss + '] ' + c.text;
       }).join('\n');
-      try { navigator.clipboard.writeText(txt); copyBtn.textContent = '✓ COPIED'; setTimeout(function() { copyBtn.textContent = 'COPY'; }, 1400); } catch(e) {}
+ try { navigator.clipboard.writeText(txt); copyBtn.textContent ='COPIED'; setTimeout(function() { copyBtn.textContent ='COPY'; }, 1400); } catch(e) {}
     };
   }).catch(function(err) {
     loading.textContent = 'Error: ' + (err && err.message === 'no_captions' ? 'no captions' : (err && err.message || 'unknown'));
   });
 }
 
-// ── Comment Sentiment + Themes ───────────────────────────────────────────────
+// Comment Sentiment + Themes 
 function fetchVideoComments(videoId, max) {
   max = max || 50;
   if (!videoId) return Promise.reject(new Error('no_video_id'));
@@ -17001,7 +17130,7 @@ function showCommentsPanel(videoId) {
         + '<div style="text-align:left;margin-top:8px;">' + comments.slice(0, 5).map(function(c, i) { return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:10.5px;line-height:1.5;">' + (i + 1) + '. ' + (c.text || '').slice(0, 200).replace(/[<>]/g, '') + ' <span style="color:rgba(255,255,255,.4);">(' + c.likes + ' likes)</span></div>'; }).join('') + '</div>');
       return;
     }
-    loading.textContent = '⏳ Analyzing ' + comments.length + ' comments with Claude';
+ loading.textContent ='Analyzing'+ comments.length +'comments with Claude';
     var system = 'You are a YouTube audience analyst. Analyze the comments and return ONLY JSON, no markdown.';
     var userText = 'Analyze these ' + comments.length + ' comments. Return JSON:\n{"sentiment":{"positive":N,"neutral":N,"negative":N},"themes":[{"label":"...","count":N,"sentiment":"+/-/="}],"painPoints":["..."],"requests":["..."],"summary":"1-2 sentences"}\n\nCOMMENTS:\n'
       + comments.slice(0, 50).map(function(c, i) { return (i + 1) + '. [' + c.likes + ' likes] ' + c.text.slice(0, 300); }).join('\n');
@@ -17054,9 +17183,9 @@ function showCommentsPanel(videoId) {
       });
       body.appendChild(sec);
     }
-    section('🎯 TOPICS', parsed.themes || []);
-    section('⚠ PAIN POINTS', parsed.painPoints || [], 'rgba(255,107,107,.08)');
-    section('💡 REQUESTS', parsed.requests || [], 'rgba(0,220,130,.06)');
+ section('TOPICS', parsed.themes || []);
+ section('PAIN POINTS', parsed.painPoints || [],'rgba(255,107,107,.08)');
+ section('REQUESTS', parsed.requests || [],'rgba(0,220,130,.06)');
   }).catch(function(err) {
     nspSetHTML(loading, '<div style="color:#FF6B6B;font-size:11px;">Error: ' + (err && err.message || 'unknown') + '</div>');
   });
@@ -17072,7 +17201,7 @@ function injectCommentsButton() {
   if (document.getElementById('nsp-comments-btn-floating')) return;
   var btn = document.createElement('button');
   btn.id = 'nsp-comments-btn-floating';
-  btn.textContent = '💬 COMMENTS AI';
+ btn.textContent ='COMMENTS AI';
   btn.style.cssText = 'position:fixed;bottom:60px;right:18px;z-index:9999;padding:10px 14px;border-radius:14px;'
     + 'border:1px solid rgba(255,255,255,.22);background:linear-gradient(135deg,#0a0a0a,#1a1a2e);color:#fff;'
     + 'font-family:ui-monospace,monospace;font-size:10px;font-weight:900;cursor:pointer;letter-spacing:.12em;'
@@ -17097,7 +17226,7 @@ function injectTranscriptButton() {
 
   var btn = document.createElement('button');
   btn.id = 'nsp-transcript-btn-floating';
-  btn.textContent = '📜 TRANSCRIPT';
+ btn.textContent ='TRANSCRIPT';
   btn.style.cssText = 'position:fixed;bottom:18px;right:18px;z-index:9999;padding:10px 14px;border-radius:14px;'
     + 'border:1px solid rgba(255,255,255,.22);background:linear-gradient(135deg,#0a0a0a,#1a1a2e);color:#fff;'
     + 'font-family:ui-monospace,monospace;font-size:10px;font-weight:900;cursor:pointer;letter-spacing:.12em;'
@@ -17111,7 +17240,7 @@ function injectTranscriptButton() {
   document.body.appendChild(btn);
 }
 
-// ── Competitor Discovery (similar channels) ──────────────────────────────────
+// Competitor Discovery (similar channels) 
 function _findChannelRenderersDeep(obj, out, depth) {
   depth = depth || 0;
   if (depth > 30 || !obj || typeof obj !== 'object') return out;
@@ -17189,7 +17318,7 @@ function fetchWatchNextRelatedChannels(videoId) {
       var data = _extractYtInitialFromHtml(html);
       if (!data) return [];
       var out = [];
-      // Find compactVideoRenderer entries → extract their channels
+ // Find compactVideoRenderer entries extract their channels
       function walk(o, d) {
         if (d > 25 || !o || typeof o !== 'object') return;
         if (Array.isArray(o)) { for (var i = 0; i < o.length; i++) walk(o[i], d + 1); return; }
@@ -17678,7 +17807,7 @@ function findSimilarChannels(ch) {
   if (!ch || !ch.channelUrl) return Promise.resolve([]);
   // Strategy: find competitors BY NICHE, not by name similarity.
   // Sources (in priority order):
-  //  1. Top videos of the niche → unique channels (best signal)
+ // 1. Top videos of the niche unique channels (best signal)
   //  2. YouTube channel-filtered search by niche keywords
   //  3. Watch-next related channels from channel's own videos
   //  4. Channel's "Featured channels" tab (often empty on newer channels)
@@ -17753,7 +17882,7 @@ function findSimilarChannels(ch) {
       });
       var list = Object.keys(merged).map(function(k) { return merged[k]; });
       list.sort(function(a, b) {
-        // Prioritize: high hits (mentioned by multiple sources) → niche-video → subs → videoViews
+ // Prioritize: high hits (mentioned by multiple sources) niche-video subs videoViews
         if ((b.hits || 0) !== (a.hits || 0)) return (b.hits || 0) - (a.hits || 0);
         var rankOf = function(s) {
           return s === 'niche-video' ? 4 : s === 'niche-channel' ? 3
@@ -17774,7 +17903,7 @@ function findSimilarChannels(ch) {
         if ((c.videoViews || 0) >= 10000) return true;
         // Featured channels are curated by the channel owner = trust
         if (c.source === 'featured') return true;
-        // Otherwise: single-source, no stats, no traction → drop
+ // Otherwise: single-source, no stats, no traction drop
         return false;
       });
 
@@ -17911,7 +18040,7 @@ function showSimilarChannelsPanel(ch) {
   // Trusted Types: YouTube blocks innerHTML here.
   var loadingTitle = document.createElement('div');
   loadingTitle.style.cssText = 'font-size:13px;font-weight:800;color:#A88FFF;margin-bottom:8px;';
-  loadingTitle.textContent = '🎯 Detecting niche';
+ loadingTitle.textContent ='Detecting niche';
   loading.appendChild(loadingTitle);
   var loadingSteps = ['1. Pulling keywords from the channel', '2. Searching top videos in the niche', '3. Filtering for channels with real traction'];
   loadingSteps.forEach(function(step) {
@@ -17938,7 +18067,7 @@ function showSimilarChannelsPanel(ch) {
     if (nicheQ) {
       var totalFound = list._totalFound || 0;
       var totalKept = list._totalKept || list.length;
-      hS.textContent = mktTag + '🎯 ' + nicheQ.slice(0, 42) + ' · ' + totalKept + '/' + totalFound + ' with traction';
+ hS.textContent = mktTag +''+ nicheQ.slice(0, 42) +'·'+ totalKept +'/'+ totalFound +'with traction';
       hS.title = 'Detected market, niche keywords, channels with real stats out of total';
     } else {
       hS.textContent = mktTag + (ch.name || 'channel').slice(0, 30);
@@ -17978,32 +18107,32 @@ function showSimilarChannelsPanel(ch) {
       var meta = document.createElement('div');
       meta.style.cssText = 'font-size:9.5px;color:rgba(255,255,255,.55);margin-top:3px;';
       var bits = [];
-      if (c.subs) bits.push('👥 ' + fmtN(c.subs));
-      if (c.videoCount) bits.push('📹 ' + c.videoCount);
-      else if (c.videoViews) bits.push('▶️ ' + fmtN(c.videoViews) + ' v');
+ if (c.subs) bits.push(''+ fmtN(c.subs));
+ if (c.videoCount) bits.push(''+ c.videoCount);
+ else if (c.videoViews) bits.push(''+ fmtN(c.videoViews) +'v');
       // Monetization badge — only show positive signals (clutter-free)
-      if (c.monetized === 'yes') bits.push('💰 Monet.');
-      else if (c.monetized === 'likely') bits.push('🟡 Likely');
+ if (c.monetized ==='yes') bits.push('Monet.');
+ else if (c.monetized ==='likely') bits.push('Likely');
       // Source last
-      if (c.source === 'niche-video') bits.push('🎯 Niche');
-      else if (c.source === 'niche-channel') bits.push('🔎 Channel');
-      else if (c.source === 'featured') bits.push('⭐ Feat.');
-      else if (c.source === 'watch-next') bits.push('🔗 Next');
+ if (c.source ==='niche-video') bits.push('Niche');
+ else if (c.source ==='niche-channel') bits.push('Channel');
+ else if (c.source ==='featured') bits.push('Feat.');
+ else if (c.source ==='watch-next') bits.push('Next');
       if ((c.hits || 0) > 1) bits.push('×' + c.hits);
-      if (c._lowTraction) bits.push('🌱 small');
-      if (c._faceless === true) bits.push('🎭 faceless');
-      else if (c._faceless === false) bits.push('🙂 face');
+ if (c._lowTraction) bits.push('small');
+ if (c._faceless === true) bits.push('faceless');
+ else if (c._faceless === false) bits.push('face');
       meta.textContent = bits.join(' · ');
       info.appendChild(nm); info.appendChild(meta);
       row.appendChild(info);
 
       var saveBtn = document.createElement('button');
-      saveBtn.textContent = '💾';
+ saveBtn.textContent ='';
       saveBtn.title = 'Save channel';
       saveBtn.style.cssText = 'width:30px;height:30px;border-radius:6px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;cursor:pointer;flex-shrink:0;font-size:14px;';
       saveBtn.onclick = function(ev) {
         ev.stopPropagation();
-        saveBtn.textContent = '✓';
+ saveBtn.textContent ='';
         saveBtn.disabled = true;
         try {
           saveToAllChannels({
@@ -18029,7 +18158,7 @@ function injectChannelOverlay() {
   try {
     return _injectChannelOverlay_inner();
   } catch(eFatal) {
-    console.error('[NSP] ⚠️ OVERLAY FATAL ERROR:', eFatal && eFatal.stack || eFatal);
+ console.error('[NSP] OVERLAY FATAL ERROR:', eFatal && eFatal.stack || eFatal);
     // Show visible error alert (user can't always see console)
     try {
       var existingAlert = document.getElementById('nsp-fatal-alert');
@@ -18040,7 +18169,7 @@ function injectChannelOverlay() {
         + 'padding:14px 22px;background:rgba(255,80,80,.95);color:#fff;border-radius:14px;'
         + 'font-family:ui-monospace,monospace;font-size:12px;font-weight:700;'
         + 'box-shadow:0 12px 32px rgba(255,80,80,.4);text-align:left;';
-      nspSetHTML(a, '<div style="font-size:13px;font-weight:900;margin-bottom:6px;">⚠️ NSP overlay error</div>'
+ nspSetHTML(a,'<div style="font-size:13px;font-weight:900;margin-bottom:6px;">NSP overlay error</div>'
         + '<div style="font-size:11px;font-weight:500;line-height:1.5;opacity:.95;">'
         + String((eFatal && eFatal.message) || eFatal).slice(0, 300)
         + '</div><div style="font-size:9.5px;margin-top:8px;opacity:.7;">Copy this message into the chat so it can be fixed.</div>');
@@ -18066,7 +18195,7 @@ function _injectChannelOverlay_inner() {
     return;
   }
 
-  var subGrowth = getSubGrowth(ch.channelId, ch.subs);
+  var subGrowth = getSubGrowth(ch.channelId, ch.subs, ch.channelUrl);
   var channelScored = getChannelOverlayScoredItems(ch);
   var revMonth = estimateChannelMonthlyRevenue(channelScored);
 
@@ -18079,7 +18208,7 @@ function _injectChannelOverlay_inner() {
       var prevRev = parseInt(firstOverlay.dataset.revMonth || '0', 10) || 0;
       var prevChannelId = firstOverlay.dataset.channelId || '';
       var nextCount = channelScored.length;
-      // Same channel + no new data → keep first
+ // Same channel + no new data keep first
       if (allOverlays.length === 1 && prevChannelId === (ch.channelId || '') && nextCount <= prevCount && revMonth <= prevRev) {
         _channelOverlayDone = prevCount > 0 || prevRev > 0;
         return;
@@ -18147,24 +18276,24 @@ function _injectChannelOverlay_inner() {
   var infoSec = document.createElement('div');
   infoSec.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;min-width:0;';
 
-  infoSec.appendChild(sp('⚡ NSP', 'color:#7B5CFF;font-weight:800;font-size:11px;letter-spacing:.1em;flex-shrink:0'));
+ infoSec.appendChild(sp('NSP','color:#7B5CFF;font-weight:800;font-size:11px;letter-spacing:.1em;flex-shrink:0'));
   infoSec.appendChild(dv());
-  infoSec.appendChild(sp('👥 ' + fmtN(ch.subs), 'color:#2EE9FF;font-weight:700;font-size:11px;flex-shrink:0'));
+ infoSec.appendChild(sp(''+ fmtN(ch.subs),'color:#2EE9FF;font-weight:700;font-size:11px;flex-shrink:0'));
 
   if (subGrowth != null) {
     var gc = subGrowth >= 0 ? '#00DC82' : '#FF6B6B';
     infoSec.appendChild(sp((subGrowth >= 0 ? '+' : '') + fmtN(subGrowth) + '/mo', 'color:' + gc + ';font-size:10.5px;font-weight:700;flex-shrink:0'));
   } else {
-    infoSec.appendChild(sp('📊 tracking', 'color:rgba(234,240,255,.3);font-size:10px;flex-shrink:0'));
+ infoSec.appendChild(sp('tracking','color:rgba(234,240,255,.3);font-size:10px;flex-shrink:0'));
   }
 
   infoSec.appendChild(dv());
 
   var monLabel, monColor;
-  if (ch.monetized === 'yes')         { monLabel = '✅ Monetized';         monColor = '#00DC82'; }
-  else if (ch.monetized === 'likely') { monLabel = '🟡 Likely monetized'; monColor = '#FFD700'; }
-  else if (ch.monetized === 'no')     { monLabel = '❌ Not monetized';     monColor = '#FF6B6B'; }
-  else                                { monLabel = '❓ Unknown';           monColor = 'rgba(234,240,255,.4)'; }
+ if (ch.monetized ==='yes') { monLabel ='Monetized'; monColor ='#00DC82'; }
+ else if (ch.monetized ==='likely') { monLabel ='Likely monetized'; monColor ='#FFD700'; }
+ else if (ch.monetized ==='no') { monLabel ='Not monetized'; monColor ='#FF6B6B'; }
+ else { monLabel ='Unknown'; monColor ='rgba(234,240,255,.4)'; }
   infoSec.appendChild(sp(monLabel, 'color:' + monColor + ';font-size:10.5px;font-weight:700;flex-shrink:0'));
 
   if (revMonth > 0) {
@@ -18179,11 +18308,11 @@ function _injectChannelOverlay_inner() {
     for (var bv = 0; bv < _allScored.length; bv++) barAvgVPH += _allScored[bv].vph;
     barAvgVPH /= _allScored.length;
     var barVerdict, barCol, barBg, barBd;
-    if (barAvgVPH >= 1000)     { barVerdict = '🔴 VIRAL'; barCol='#E040FF'; barBg='rgba(200,0,255,.15)'; barBd='rgba(200,0,255,.4)'; }
-    else if (barAvgVPH >= 200) { barVerdict = '🔥 HOT'; barCol='#FF6B35'; barBg='rgba(255,80,0,.12)'; barBd='rgba(255,80,0,.35)'; }
-    else if (barAvgVPH >= 50)  { barVerdict = '⚡ MOVING'; barCol='#FFD700'; barBg='rgba(255,200,0,.1)'; barBd='rgba(255,200,0,.3)'; }
-    else if (barAvgVPH >= 10)  { barVerdict = '✅ STABLE'; barCol='#00DC82'; barBg='rgba(0,220,130,.08)'; barBd='rgba(0,220,130,.25)'; }
-    else                       { barVerdict = '😴 SLOW'; barCol='#888'; barBg='rgba(80,80,80,.1)'; barBd='rgba(80,80,80,.2)'; }
+ if (barAvgVPH >= 1000) { barVerdict ='VIRAL'; barCol='#E040FF'; barBg='rgba(200,0,255,.15)'; barBd='rgba(200,0,255,.4)'; }
+ else if (barAvgVPH >= 200) { barVerdict ='HOT'; barCol='#FF6B35'; barBg='rgba(255,80,0,.12)'; barBd='rgba(255,80,0,.35)'; }
+ else if (barAvgVPH >= 50) { barVerdict ='MOVING'; barCol='#FFD700'; barBg='rgba(255,200,0,.1)'; barBd='rgba(255,200,0,.3)'; }
+ else if (barAvgVPH >= 10) { barVerdict ='STABLE'; barCol='#00DC82'; barBg='rgba(0,220,130,.08)'; barBd='rgba(0,220,130,.25)'; }
+ else { barVerdict ='SLOW'; barCol='#888'; barBg='rgba(80,80,80,.1)'; barBd='rgba(80,80,80,.2)'; }
     infoSec.appendChild(dv());
     var vc = document.createElement('span');
     vc.style.cssText = 'display:inline-flex;align-items:center;padding:3px 9px;border-radius:4px;'
@@ -18245,7 +18374,7 @@ function _injectChannelOverlay_inner() {
           + 'padding:10px 18px;background:rgba(46,233,255,.95);color:#000;border-radius:10px;'
           + 'font-family:ui-monospace,monospace;font-size:12px;font-weight:800;'
           + 'box-shadow:0 12px 32px rgba(46,233,255,.4);';
-        feedback.textContent = '📊 Opening TRACKING';
+ feedback.textContent ='Opening TRACKING';
         document.body.appendChild(feedback);
         setTimeout(function() { feedback.remove(); }, 1500);
 
@@ -18259,7 +18388,7 @@ function _injectChannelOverlay_inner() {
         a.style.cssText = 'position:fixed;top:160px;left:50%;transform:translateX(-50%);z-index:99999;'
           + 'padding:14px 22px;background:rgba(255,80,80,.95);color:#fff;border-radius:10px;'
           + 'font-family:ui-monospace,monospace;font-size:12px;font-weight:700;max-width:480px;';
-        nspSetHTML(a, '<div style="font-weight:900;margin-bottom:6px;">⚠️ TRACKING error</div>'
+ nspSetHTML(a,'<div style="font-weight:900;margin-bottom:6px;">TRACKING error</div>'
           + '<div style="font-size:10.5px;">' + String(err && err.message || err).slice(0, 200) + '</div>');
         document.body.appendChild(a);
         setTimeout(function() { a.remove(); }, 6000);
@@ -18276,7 +18405,7 @@ function _injectChannelOverlay_inner() {
     console.log('[NSP] TRACKING pill created with', allChildren.length, 'children disabled for events');
   } catch(eTrack) { console.warn('[NSP] tracking pill setup error:', eTrack); }
   // Neutral placeholder while the ad check runs, so the pill does not show a subscriber based guess and then jump to another value.
-  var monetPill = createNSPInteractiveMetricPill('⏳ CHECKING ADS', monetValue, 'money', false);
+ var monetPill = createNSPInteractiveMetricPill('CHECKING ADS', monetValue,'money', false);
   monetPill.dataset.monetPlaceholder = '1';
   infoSec.appendChild(monetPill);
 
@@ -18287,21 +18416,21 @@ function _injectChannelOverlay_inner() {
       var label, sub;
       if (res.verdict === 'monetized') {
         // Green only comes from Join or Shop, direct proof of YPP, never from ads alone.
-        label = '✅ MONETIZED';
+ label ='MONETIZED';
         sub = res.joinButton ? 'Join button active, YPP confirmed'
             : (res.shopTab ? 'Shop tab active, YPP confirmed' : 'YPP confirmed');
       }
       else if (res.verdict === 'ads_unconfirmed') {
-        label = "🟡 CAN'T CHECK";
+ label = " CAN'T CHECK";
         sub = 'serves ads but no direct YPP proof, ' + res.adsFound + '/' + res.probeCount + ' videos with ads, possibly Content-ID';
       }
       else if (res.verdict === 'demonetized') {
-        label = '❌ NOT MONETIZED';
+ label ='NOT MONETIZED';
         sub = (res.reasons && res.reasons.indexOf('below_ypp_threshold') !== -1)
           ? 'under 1000 subs, below the YPP minimum'
           : 'NO ADS in ' + res.probeCount + ' video' + (res.probeCount === 1 ? '' : 's') + ' checked';
       }
-      else { label = "⚠️ CAN'T CHECK"; sub = (res.reasons && res.reasons.indexOf('probe_unavailable') !== -1) ? 'YouTube blocked the ad check' : 'no direct YPP proof, no Join and no Shop'; }
+ else { label = " CAN'T CHECK"; sub = (res.reasons && res.reasons.indexOf('probe_unavailable') !== -1) ?'YouTube blocked the ad check':'no direct YPP proof, no Join and no Shop'; }
       var fresh = createNSPInteractiveMetricPill(label, sub, 'money', res.verdict === 'monetized');
       fresh.dataset.monetVerdict = res.verdict;
       try {
@@ -18325,7 +18454,7 @@ function _injectChannelOverlay_inner() {
     }
   } catch(e) {}
 
-  // ── Channel Age pill (in overlay) + 💎 NEW & EXPLODING badge (next to Subscribe button) ──
+ // Channel Age pill (in overlay) + NEW & EXPLODING badge (next to Subscribe button) 
   try {
     function renderAgePill(ageDays, joinedDateStr, opts) {
       opts = opts || {};
@@ -18350,13 +18479,15 @@ function _injectChannelOverlay_inner() {
       if (isYoung) agePill.style.color = '#FFD93D';
       infoSec.appendChild(agePill);
 
-      // 💎 NEW & EXPLODING — now injected NEXT TO Subscribe button, not in overlay
+ // NEW & EXPLODING — now injected NEXT TO Subscribe button, not in overlay
       var chWithAge = Object.assign({}, ch, { channelAgeDays: ageDays });
-      var avgVPH = 0;
-      if (_allScored.length > 0) {
-        for (var nE = 0; nE < _allScored.length; nE++) avgVPH += _allScored[nE].vph;
-        avgVPH /= _allScored.length;
+      var avgVPH = 0, timedVPH = 0;
+      for (var nE = 0; nE < _allScored.length; nE++) {
+        if (_allScored[nE].vph == null) continue;
+        avgVPH += _allScored[nE].vph;
+        timedVPH++;
       }
+      avgVPH = timedVPH ? (avgVPH / timedVPH) : 0;
       try { injectExplodingBadgeNearSubscribe(chWithAge, avgVPH); } catch(eExp) { console.warn('[NSP] exploding badge error:', eExp); }
     }
 
@@ -18389,7 +18520,7 @@ function _injectChannelOverlay_inner() {
   var analyzeBtn = document.createElement('button');
   analyzeBtn.id = 'nsp-analyze-btn';
   styleNSPMonoButton(analyzeBtn, { compact: true, active: false });
-  analyzeBtn.textContent = 'ANALYZE ▾';
+ analyzeBtn.textContent ='ANALYZE';
   analyzeBtn.title = 'Stats and competitors';
 
   var menu = document.createElement('div');
@@ -18413,7 +18544,7 @@ function _injectChannelOverlay_inner() {
     it.addEventListener('click', function() {
       menu.style.display = 'none';
       setNSPMonoButtonActive(analyzeBtn, false);
-      analyzeBtn.textContent = 'ANALYZE ▾';
+ analyzeBtn.textContent ='ANALYZE';
       onClick();
     });
     return it;
@@ -18438,7 +18569,7 @@ function _injectChannelOverlay_inner() {
         + 'padding:14px 22px;background:rgba(255,80,80,.95);color:#fff;border-radius:10px;'
         + 'font-family:ui-monospace,monospace;font-size:12px;font-weight:700;'
         + 'box-shadow:0 12px 32px rgba(255,80,80,.4);max-width:480px;text-align:left;';
-      nspSetHTML(alertDiv, '<div style="font-size:13px;font-weight:900;margin-bottom:6px;">⚠️ VIEW STATS error</div>'
+ nspSetHTML(alertDiv,'<div style="font-size:13px;font-weight:900;margin-bottom:6px;">VIEW STATS error</div>'
         + '<div style="font-size:10.5px;font-weight:500;line-height:1.5;opacity:.95;">'
         + String(err && err.message || err).slice(0, 200)
         + '</div><div style="font-size:9px;margin-top:8px;opacity:.7;">Open the console (F12) for the full stack.</div>');
@@ -18459,13 +18590,13 @@ function _injectChannelOverlay_inner() {
     var open = menu.style.display === 'block';
     menu.style.display = open ? 'none' : 'block';
     setNSPMonoButtonActive(analyzeBtn, !open);
-    analyzeBtn.textContent = open ? 'ANALYZE ▾' : 'ANALYZE ▴';
+ analyzeBtn.textContent = open ?'ANALYZE':'ANALYZE';
   });
   document.addEventListener('click', function(ev) {
     if (menu.style.display === 'block' && !menu.contains(ev.target) && ev.target !== analyzeBtn) {
       menu.style.display = 'none';
       setNSPMonoButtonActive(analyzeBtn, false);
-      analyzeBtn.textContent = 'ANALYZE ▾';
+ analyzeBtn.textContent ='ANALYZE';
     }
   });
 
@@ -18529,9 +18660,9 @@ function _injectChannelOverlay_inner() {
     return;
   }
   _channelOverlayDone = true;
-  console.log('[NSP] channel overlay injected ✓');
+ console.log('[NSP] channel overlay injected');
 
-  // ── Pending action from Dashboard (ThumbLab / TitleLab triggered remotely)
+ // Pending action from Dashboard (ThumbLab / TitleLab triggered remotely)
   try { handleNSPPendingChannelAction(ch); } catch(ePend) {}
 }
 
@@ -18597,7 +18728,7 @@ function nspMaybeReopenStatsPanel() {
 }
 try { setTimeout(nspMaybeReopenStatsPanel, 2600); } catch(e) {}
 
-// ── Navigation / mutation ────────────────────────────────────────────────────
+// Navigation / mutation 
 
 document.addEventListener('yt-navigate-finish', function() {
   cancelAshlyVPreparedScan();
@@ -18686,7 +18817,7 @@ window.addEventListener('beforeunload', function() {
   try { if (_ashlyv_integrity_timer) clearInterval(_ashlyv_integrity_timer); } catch(e3) {}
 });
 
-// ── Batman button ────────────────────────────────────────────────────────────
+// Batman button 
 
 function createBatmanScanIcon(width, height) {
   var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -19110,7 +19241,7 @@ function nspShowFacelessVerdict() {
   head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;';
   var ht = document.createElement('div');
   ht.style.cssText = 'font-size:11px;font-weight:900;letter-spacing:.14em;color:#fff;text-shadow:0 0 8px rgba(255,255,255,.5);';
-  ht.textContent = '🦇 FACELESS VERDICT';
+ ht.textContent ='FACELESS VERDICT';
   var hx = document.createElement('button');
   hx.textContent = '×';
   hx.style.cssText = 'background:none;border:none;color:rgba(255,255,255,.6);font-size:18px;cursor:pointer;line-height:1;';
@@ -19123,13 +19254,13 @@ function nspShowFacelessVerdict() {
   panel.appendChild(big);
   function setVerdict(state, extra) {
     if (state === 'yes') {
-      big.textContent = '✓ FACELESS REPLICABLE' + (extra || '');
+ big.textContent ='FACELESS REPLICABLE'+ (extra ||'');
       big.style.color = '#00FF88'; big.style.borderColor = 'rgba(0,255,136,.55)'; big.style.background = 'rgba(0,255,136,.08)'; big.style.textShadow = '0 0 10px rgba(0,255,136,.5)';
     } else if (state === 'no') {
-      big.textContent = '✕ NO FACELESS' + (extra || '');
+ big.textContent ='NO FACELESS'+ (extra ||'');
       big.style.color = '#FF6B6B'; big.style.borderColor = 'rgba(255,107,107,.55)'; big.style.background = 'rgba(255,107,107,.08)';
     } else {
-      big.textContent = '⚠ DOUBTFUL' + (extra || '');
+ big.textContent ='DOUBTFUL'+ (extra ||'');
       big.style.color = '#FFD93D'; big.style.borderColor = 'rgba(255,217,61,.5)'; big.style.background = 'rgba(255,217,61,.07)';
     }
   }
@@ -19158,10 +19289,10 @@ function nspShowFacelessVerdict() {
     nspDetectFaceInThumbnail(item).then(function(f) {
       if (!f || f.unknown || !f.supported) { visRow.textContent = 'not measurable'; visRow.style.color = 'rgba(255,255,255,.5)'; return; }
       if (f.hasFace && Number(f.faceArea || 0) >= 0.008) {
-        visRow.textContent = '✕ REAL FACE detected'; visRow.style.color = '#FF6B6B';
+ visRow.textContent ='REAL FACE detected'; visRow.style.color ='#FF6B6B';
         setVerdict('no', ' (face in thumbnail)');
       } else {
-        visRow.textContent = '✓ no face'; visRow.style.color = '#00FF88';
+ visRow.textContent ='no face'; visRow.style.color ='#00FF88';
         if (isFacelessCls && fScore >= 44) setVerdict('yes', ' (text and visual)');
       }
     }).catch(function() { visRow.textContent = 'not measurable'; visRow.style.color = 'rgba(255,255,255,.5)'; });
@@ -19507,7 +19638,7 @@ function renderGlobeDropdown(panel, summaryEl) {
   var act = document.createElement('div');
   act.style.cssText = 'padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;flex-direction:column;gap:8px;';
   var scanNowBtn = document.createElement('button');
-  scanNowBtn.textContent = '🦇 SCAN NOW WITH THIS SETUP';
+ scanNowBtn.textContent ='SCAN NOW WITH THIS SETUP';
   scanNowBtn.style.cssText = 'width:100%;padding:11px 12px;border-radius:10px;border:1px solid rgba(0,255,136,.5);background:linear-gradient(135deg,rgba(0,255,136,.16),rgba(0,0,0,.9));color:#00FF88;font-size:11px;font-weight:900;letter-spacing:.08em;cursor:pointer;font-family:' + NSP_FONT_DISPLAY + ';box-shadow:0 0 18px rgba(0,255,136,.15);';
   scanNowBtn.onclick = function(e) {
     e.preventDefault();
@@ -19572,7 +19703,7 @@ function renderGlobeDropdown(panel, summaryEl) {
   }
 
   section('Language', 'Hard filter: only videos detected in the chosen language show up in the scan.', [
-    { label:'🌍 Auto', value:'auto' },
+ { label:'Auto', value:'auto'},
     { label:'English', value:'en' },
     { label:'Spanish', value:'es' },
     { label:'German', value:'de' },
@@ -19640,7 +19771,7 @@ function injectGlobeButton() {
   wrap.appendChild(btn);
   wrap.appendChild(panel);
 
-  // ── STATUS BADGE (floating below the globe button) ──
+ // STATUS BADGE (floating below the globe button) 
   var badge = document.createElement('div');
   badge.id = 'nsp-globe-badge';
   badge.style.cssText = 'position:absolute;top:46px;right:0;display:inline-flex;align-items:center;gap:5px;'
@@ -19667,7 +19798,7 @@ function injectGlobeButton() {
         ? (marketMeta.lang || 'auto')
         : prefs.language;
       var depthLabel = (NSP_DEPTH_META[prefs.depth] || {}).label || prefs.depth;
-      var marketFlag = marketMeta.flag || '🌍';
+ var marketFlag = marketMeta.flag ||'';
       var marketCode = marketMeta.gl || 'GL';
       var filtered = (typeof NSP_LAST_FILTERED_COUNT === 'number') ? NSP_LAST_FILTERED_COUNT : 0;
       badge.textContent = marketFlag + ' ' + marketCode + ' · ' + langCode + ' · ' + depthLabel + ' · ' + filtered + ' filt';
@@ -19716,7 +19847,7 @@ function refreshGlobeBadgeIfReady() {
 //   1) IMMEDIATELY save flag to localStorage (synchronous — no race)
 //   2) Set cookie via SW (async, fire-and-forget)
 //   3) Reload to /feed/trending of that country (immediate)
-//   4) After reload, bundle reads localStorage flag → auto-triggers SCAN
+// 4) After reload, bundle reads localStorage flag auto-triggers SCAN
 //
 // localStorage is used instead of chrome.storage because chrome.storage is
 // async and would cause race conditions with location.href.
@@ -19732,7 +19863,7 @@ function syncYouTubePrefCookieFromPrefs() {
     // Fire-and-forget cookie set (background)
     try { sendRuntimeMessage({ type: 'NSP_SET_YT_COOKIE', gl: gl, hl: hl }).catch(function() {}); } catch(e) {}
 
-    // Global picked → just clean badge, no reload/scan
+ // Global picked just clean badge, no reload/scan
     if (!gl || !hl) {
       refreshGlobeBadgeIfReady();
       try { localStorage.removeItem('nsp_auto_scan_pending'); } catch(e) {}
@@ -19774,7 +19905,7 @@ function showMarketSwitchToast(meta) {
       + 'background:#000;border:1px solid #00FF88;'
       + 'box-shadow:0 14px 36px rgba(0,0,0,.6),0 0 22px rgba(0,255,136,.3);'
       + 'font-family:ui-monospace,monospace;color:#fff;font-size:12px;max-width:400px;';
-    var flag = (meta && meta.flag) || '🌍';
+ var flag = (meta && meta.flag) ||'';
     var name = (meta && meta.label) || 'Global';
     var line1 = document.createElement('div');
     line1.style.cssText = 'font-weight:900;font-size:12px;color:#00FF88;letter-spacing:.05em;margin-bottom:3px;';
@@ -19908,7 +20039,7 @@ function showAutoScanStartingToast(flag) {
       + 'box-shadow:0 12px 32px rgba(0,0,0,.5),0 0 18px rgba(0,255,136,.3);'
       + 'font-family:ui-monospace,monospace;color:#00FF88;font-size:11px;font-weight:800;letter-spacing:.05em;'
       + 'max-width:380px;line-height:1.5;';
-    nspSetHTML(t, '🚀 Stealth scan for ' + (meta.flag || '🌍') + ' ' + (meta.label || flag.market)
+ nspSetHTML(t,'Stealth scan for'+ (meta.flag ||'') +''+ (meta.label || flag.market)
       + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.65);font-weight:600;">Scanning about 300 videos, then expanding by keywords</span>');
     document.body.appendChild(t);
     setTimeout(function() { if (t.parentNode) t.remove(); }, 8000);
@@ -19916,7 +20047,7 @@ function showAutoScanStartingToast(flag) {
 }
 
 // Updates the stealth toast as the flow progresses (phase: 'scan', 'expand', 'done')
-// ── NSP API validation toast ──
+// NSP API validation toast 
 function nspShowApiToast(text) {
   try {
     var existing = document.getElementById('nsp-api-toast');
@@ -19924,7 +20055,7 @@ function nspShowApiToast(text) {
     var t = document.createElement('div');
     t.id = 'nsp-api-toast';
     t.style.cssText = 'position:fixed;top:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.95);border:1.5px solid #00DC82;border-radius:8px;color:#00DC82;padding:10px 16px;font-family:ui-monospace,monospace;font-size:11px;font-weight:900;letter-spacing:0.08em;z-index:2147483647;box-shadow:0 4px 20px rgba(0,220,130,0.3);';
-    t.textContent = text || '⚙ Validating channels through the YouTube API';
+    t.textContent = text || 'Validating channels through the YouTube API';
     document.body.appendChild(t);
     return t;
   } catch(e) { return null; }
@@ -19936,11 +20067,13 @@ function nspHideApiToast(success, info) {
     if (success === false) {
       t.style.borderColor = '#FF4488';
       t.style.color = '#FF4488';
-      t.textContent = '⚠ API: ' + ((info && info.msg) || 'error, using local filters');
+      t.textContent = 'API: ' + ((info && info.msg) || 'error, using local filters');
       setTimeout(function() { if (t.parentNode) t.remove(); }, 4000);
     } else {
       t.style.borderColor = '#00FF88';
-      t.textContent = '✓ API validated ' + ((info && info.count) || 0) + ' channels';
+      var unchecked = (info && info.unchecked) || 0;
+      t.textContent = 'API validated ' + ((info && info.count) || 0) + ' channels'
+        + (unchecked ? ', ' + unchecked + ' could not be checked' : '');
       setTimeout(function() { if (t.parentNode) t.remove(); }, 2000);
     }
   } catch(e) {}
@@ -19951,17 +20084,17 @@ function updateStealthToast(phase, info) {
     var t = document.getElementById('nsp-stealth-scan-toast');
     if (!t) return;
     if (phase === 'expand') {
-      nspSetHTML(t, '🔎 Stealth scan, expanding by keywords'
+ nspSetHTML(t,'Stealth scan, expanding by keywords'
         + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.65);font-weight:600;">Searching ' + (info && info.keywords ? '"' + info.keywords + '"' : 'top keywords') + ' on YouTube ' + (info && info.gl || '') + '</span>');
     } else if (phase === 'done') {
       t.style.borderColor = '#00FF88';
-      nspSetHTML(t, '✓ Stealth scan complete'
+ nspSetHTML(t,'Stealth scan complete'
         + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.75);font-weight:600;">' + (info && info.count ? info.count + ' final niches' : 'done') + '</span>');
       setTimeout(function() { if (t.parentNode) t.remove(); }, 3000);
     } else if (phase === 'error') {
       t.style.borderColor = '#FF4488';
       t.style.color = '#FF4488';
-      nspSetHTML(t, '⚠ Stealth scan: ' + ((info && info.msg) || 'error'));
+ nspSetHTML(t,'Stealth scan:'+ ((info && info.msg) ||'error'));
       setTimeout(function() { if (t.parentNode) t.remove(); }, 5000);
     }
   } catch(e) {}
@@ -19978,7 +20111,7 @@ function showOpeningCountryDashboardToast(meta) {
       + 'background:#000;border:1px solid #00FF88;'
       + 'box-shadow:0 14px 36px rgba(0,0,0,.6),0 0 22px rgba(0,255,136,.3);'
       + 'font-family:ui-monospace,monospace;color:#fff;font-size:12px;max-width:400px;';
-    var flag = (meta && meta.flag) || '🌍';
+ var flag = (meta && meta.flag) ||'';
     var name = (meta && meta.label) || 'Global';
     var line1 = document.createElement('div');
     line1.style.cssText = 'font-weight:900;font-size:12px;color:#00FF88;letter-spacing:.05em;margin-bottom:3px;';
@@ -20043,7 +20176,7 @@ function injectFacelessButton() {
   start.appendChild(btn);
 }
 
-// ── Analyze niche ─────────────────────────────────────────────────────────────
+// Analyze niche 
 
 var NICHE_SEARCHES = {
   'sleep':      { es: 'psicologia oscura', en: 'dark psychology facts' },
@@ -20090,7 +20223,7 @@ function showNichePanel(ch, scored) {
   };
 
   var topVideo = null;
-  scored.forEach(function(s) { if (!topVideo || s.vph > topVideo.vph) topVideo = s; });
+  scored.forEach(function(s) { if (s.vph == null) return; if (!topVideo || s.vph > topVideo.vph) topVideo = s; });
 
   var viralTitle = topVideo ? (topVideo.title || '').replace(/gastaron millones|ocultando esto|para siempre|nunca te lo dir[aá]n|\$[\d.,]+/gi,'').replace(/\s+/g,' ').trim().slice(0,55) : '';
 
@@ -20141,7 +20274,7 @@ function showNichePanel(ch, scored) {
     var info = el('div');
     info.appendChild(el('div','font-size:11px;color:rgba(255,255,255,0.8);font-weight:700;',label));
     info.appendChild(el('div','font-size:9px;color:rgba(255,255,255,0.25);margin-top:1px;',q));
-    var btn = el('span','font-size:9px;color:'+(color||'#7B5CFF')+';font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid '+(color||'#7B5CFF')+'44;background:'+(color||'#7B5CFF')+'15;white-space:nowrap;margin-left:8px;','→');
+ var btn = el('span','font-size:9px;color:'+(color||'#7B5CFF')+';font-weight:800;padding:3px 8px;border-radius:6px;border:1px solid'+(color||'#7B5CFF')+'44;background:'+(color||'#7B5CFF')+'15;white-space:nowrap;margin-left:8px;','');
     r.appendChild(info); r.appendChild(btn);
     r.onclick = function() { openLocalizedYouTubeSearch(q, forcedLang); };
     return r;
@@ -20156,19 +20289,19 @@ function showNichePanel(ch, scored) {
   // Header
   var hdr = el('div','padding:14px 16px;background:rgba(0,0,0,0.8);border-bottom:1px solid rgba(255,255,255,0.08);border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1;');
   var hl = el('div');
-  hl.appendChild(el('div','font-size:12px;font-weight:900;color:#fff;letter-spacing:0.08em;','🦇 NICHE COMPETITOR RADAR'));
+ hl.appendChild(el('div','font-size:12px;font-weight:900;color:#fff;letter-spacing:0.08em;','NICHE COMPETITOR RADAR'));
   hl.appendChild(el('div','font-size:9px;color:rgba(255,255,255,0.4);margin-top:2px;',ch.name + ' · RPM $' + avgRpm));
-  var cl = el('button','background:none;border:1px solid rgba(255,255,255,.12);border-radius:6px;color:rgba(255,255,255,.4);font-size:12px;padding:3px 7px;cursor:pointer;','✕');
+ var cl = el('button','background:none;border:1px solid rgba(255,255,255,.12);border-radius:6px;color:rgba(255,255,255,.4);font-size:12px;padding:3px 7px;cursor:pointer;','');
   cl.onclick = function() { p.remove(); };
   hdr.appendChild(hl); hdr.appendChild(cl);
   p.appendChild(hdr);
 
   if (topVideo && viralTitle) {
     var vs = el('div','padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(0,220,130,0.04);');
-    vs.appendChild(el('div','font-size:9px;color:rgba(0,220,130,0.6);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:5px;','🔥 Most viral video on the channel'));
+ vs.appendChild(el('div','font-size:9px;color:rgba(0,220,130,0.6);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:5px;','Most viral video on the channel'));
     vs.appendChild(el('div','font-size:11px;color:#eaf0ff;font-weight:700;line-height:1.4;margin-bottom:6px;',topVideo.title||''));
     var vphFmt = topVideo.vph>=1000?(topVideo.vph/1000).toFixed(1)+'K':Math.round(topVideo.vph);
-    vs.appendChild(el('div','font-size:9px;color:rgba(255,255,255,0.35);margin-bottom:8px;','⚡ '+vphFmt+' VPH · $'+(topVideo.totalRev||0).toLocaleString()+' estimated total'));
+ vs.appendChild(el('div','font-size:9px;color:rgba(255,255,255,0.35);margin-bottom:8px;',''+vphFmt+'VPH · $'+(topVideo.totalRev||0).toLocaleString()+'estimated total'));
     var btns = el('div','display:flex;gap:6px;flex-wrap:wrap;');
     function sb(label, q, col, forcedLang) {
       var b = el('button','padding:4px 10px;border-radius:6px;border:1px solid '+col+'44;background:'+col+'15;color:'+col+';font-size:9.5px;font-weight:800;cursor:pointer;font-family:inherit;',label);
@@ -20178,9 +20311,9 @@ function showNichePanel(ch, scored) {
     btns.appendChild(sb('🇪🇸 Search ES', viralTitle, '#00DC82', 'es'));
     btns.appendChild(sb('🇺🇸 Search EN', viralEN, '#2EE9FF', 'en'));
     
-    var ashmBtn = el('button','padding:4px 10px;border-radius:6px;border:1px solid #FF990044;background:#FF990015;color:#FF9900;font-size:9.5px;font-weight:800;cursor:pointer;font-family:inherit;','🦇 ASHLYV');
+ var ashmBtn = el('button','padding:4px 10px;border-radius:6px;border:1px solid #FF990044;background:#FF990015;color:#FF9900;font-size:9.5px;font-weight:800;cursor:pointer;font-family:inherit;','ASHLYV');
     ashmBtn.onclick = function() {
-      ashmBtn.textContent = '✅ Opening';
+ ashmBtn.textContent ='Opening';
       var nichoEntry = {
         title: topVideo.title || ch.name,
         niche: nicheKey,
@@ -20188,6 +20321,7 @@ function showNichePanel(ch, scored) {
         language: detectTextLanguage([topVideo.title || '', ch.name || ''].join(' ')) || 'unknown',
         channelUrl: ch.channelUrl || '',
         channelId: ch.channelId || '',
+        channelName: ch.name || '',
         vidId: topVideo.vidId || '',
         thumbUrl: topVideo.vidId ? 'https://i.ytimg.com/vi/' + topVideo.vidId + '/hqdefault.jpg' : '',
         subs: ch.subs || 0,
@@ -20201,7 +20335,7 @@ function showNichePanel(ch, scored) {
       
       saveAshlyVNichoSecure(nichoEntry, true, topVideo.title || ch.name || '', ch.channelUrl || '');
 
-      setTimeout(function(){ ashmBtn.textContent = '🦇 ASHLYV'; }, 2000);
+ setTimeout(function(){ ashmBtn.textContent ='ASHLYV'; }, 2000);
     };
     btns.appendChild(ashmBtn);
     
@@ -20210,20 +20344,20 @@ function showNichePanel(ch, scored) {
   }
 
   section('🇪🇸 Spanish competition', [
-    row('🎯 Direct competition', searches.es, '#00DC82', 'es'),
-    row('📈 Growing niche', searches.es + ' 2025', '#FFD700', 'es'),
-    row('🔮 Unexplored', searches.es + ' nuevo canal', '#A88FFF', 'es'),
+ row('Direct competition', searches.es,'#00DC82','es'),
+ row('Growing niche', searches.es +'2025','#FFD700','es'),
+ row('Unexplored', searches.es +'nuevo canal','#A88FFF','es'),
   ]);
   section('🇺🇸 English market, higher RPM', [
-    row('🌍 Direct competition EN', searches.en, '#2EE9FF', 'en'),
-    row('💰 High RPM, same niche', viralEN + ' faceless', '#00DC82', 'en'),
+ row('Direct competition EN', searches.en,'#2EE9FF','en'),
+ row('High RPM, same niche', viralEN +'faceless','#00DC82','en'),
   ]);
 
   document.body.appendChild(p);
   makeDraggable(p, hdr);
 }
 
-// ── Analyze Niche button, injected into the channel overlay ─────────────────
+// Analyze Niche button, injected into the channel overlay 
 var CHANNEL_ANALYSIS_STOPWORDS = {
   the:1,a:1,an:1,and:1,for:1,with:1,from:1,that:1,this:1,into:1,your:1,about:1,what:1,when:1,where:1,
   el:1,la:1,los:1,las:1,una:1,uno:1,con:1,para:1,como:1,que:1,del:1,por:1,sobre:1,desde:1,hasta:1
@@ -20593,7 +20727,7 @@ function analyzeChannelDeep(ch, scored) {
   var copyabilityScore = Math.max(20, Math.min(99, Math.round(repeatabilityScore * 0.58 + facelessScore * 0.28 + (/unknown/.test(thumbnailPattern) ? 6 : 14))));
   var monetization = estimateDeepMonetization(niche, scored, description);
   var topVideo = null;
-  (scored || []).forEach(function(s) { if (!topVideo || s.vph > topVideo.vph) topVideo = s; });
+  (scored || []).forEach(function(s) { if (s.vph == null) return; if (!topVideo || s.vph > topVideo.vph) topVideo = s; });
   return {
     channel: { name: ch.name || 'unknown', handle: meta.handle || 'unknown', description: description || 'unknown', subsText: ch.subs ? fmtN(ch.subs) : 'unknown', videoCountText: meta.videoCountText || 'unknown', sampleCount: (scored || []).length },
     niche: niche || 'General',
@@ -20805,7 +20939,7 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
 
   var hdr = el('div', 'padding:16px 16px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;');
   var hLeft = el('div', 'display:flex;flex-direction:column;gap:5px;min-width:0;');
-  hLeft.appendChild(el('div', 'font-size:12px;font-weight:900;color:#fff;letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_DISPLAY + ';', '🧬 Emulate channel'));
+ hLeft.appendChild(el('div','font-size:12px;font-weight:900;color:#fff;letter-spacing:.16em;text-transform:uppercase;font-family:'+ NSP_FONT_DISPLAY +';','Emulate channel'));
   hLeft.appendChild(el('div', 'font-size:9px;color:rgba(255,255,255,.48);line-height:1.5;', shortText(analysis.channel.name, 32) + ' | ' + (analysis.channel.handle || 'unknown') + ' | ' + analysis.channel.sampleCount + ' videos'));
   var closeBtn = el('button', 'width:34px;height:34px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.02);'
     + 'color:rgba(255,255,255,.65);font-size:12px;cursor:pointer;font-family:' + NSP_FONT_DISPLAY + ';'
@@ -20841,7 +20975,7 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
       + 'background:rgba(255,255,255,.03);box-shadow:inset 0 1px 0 rgba(255,255,255,.04);');
     topBox.appendChild(el('div', 'font-size:8px;color:rgba(255,255,255,.4);letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px;font-family:' + NSP_FONT_MONO + ';', 'Strongest video'));
     topBox.appendChild(el('div', 'font-size:12px;color:#fff;font-weight:900;line-height:1.5;font-family:' + NSP_FONT_DISPLAY + ';', shortText(analysis.topVideo.title || 'unknown', 108)));
-    topBox.appendChild(el('div', 'font-size:9px;color:rgba(255,255,255,.52);margin-top:8px;font-family:' + NSP_FONT_MONO + ';', 'VPH ' + fmtVPH(analysis.topVideo.vph || 0) + '/h | OS ' + (analysis.topVideo.os || 0) + ' | $' + ((analysis.topVideo.totalRev || 0).toLocaleString())));
+    topBox.appendChild(el('div', 'font-size:9px;color:rgba(255,255,255,.52);margin-top:8px;font-family:' + NSP_FONT_MONO + ';', 'VPH ' + fmtVPH(analysis.topVideo.vph) + '/h | OS ' + (analysis.topVideo.os == null ? '—' : analysis.topVideo.os) + ' | $' + ((analysis.topVideo.totalRev || 0).toLocaleString())));
     body.appendChild(topBox);
   }
 
@@ -20849,7 +20983,7 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
 
   var actions = el('div', 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;');
 
-  var emularBtn = actionButton('🎬 EMULATE, CREATE VIDEO', true);
+ var emularBtn = actionButton('EMULATE, CREATE VIDEO', true);
   emularBtn.style.gridColumn = '1 / -1';
   emularBtn.onclick = function() {
     try {
@@ -20858,14 +20992,14 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
         + '\n\nPaste this into your writing tool as the base script and produce the video in this style.'
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(kit).then(function() {
-          flashButton(emularBtn, '✓ KIT COPIED, OPEN STUDIO', '🎬 EMULATE, CREATE VIDEO');
+ flashButton(emularBtn,'KIT COPIED, OPEN STUDIO','EMULATE, CREATE VIDEO');
         }).catch(function() {});
       }
     } catch (e) {}
   };
   actions.appendChild(emularBtn);
 
-  var masterBtn = actionButton('🎨 THUMB LAB', true);
+ var masterBtn = actionButton('THUMB LAB', true);
   masterBtn.style.gridColumn = '1 / -1';
   masterBtn.onclick = function() {
     try {
@@ -20949,7 +21083,7 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
 
 async function runDeepChannelAnalysis(ch, btn) {
   var originalText = btn ? btn.textContent : '';
-  var subGrowth = getSubGrowth(ch && ch.channelId, ch && ch.subs);
+  var subGrowth = getSubGrowth(ch && ch.channelId, ch && ch.subs, ch && ch.channelUrl);
   var revMonth = estimateChannelMonthlyRevenue();
   if (btn) {
     btn.disabled = true;
@@ -20985,7 +21119,7 @@ async function runDeepChannelAnalysis(ch, btn) {
     if (btn) {
       setTimeout(function() {
         btn.disabled = false;
-        btn.textContent = originalText || '🧬 EMULATE';
+ btn.textContent = originalText ||'EMULATE';
         setNSPMonoButtonActive(btn, !!document.getElementById('nsp-niche-panel'));
       }, 1200);
     }
@@ -21003,7 +21137,7 @@ injectChannelOverlay = function() {
     if (!ch) return;
     var nb = document.createElement('button');
     nb.id = 'nsp-niche-btn';
-    nb.textContent = '🧬 EMULATE';
+ nb.textContent ='EMULATE';
     styleNSPMonoButton(nb, { compact: true, active: false });
     nb.onclick = function() { runDeepChannelAnalysis(ch, nb); };
     btnSec.insertBefore(nb, btnSec.firstChild);
@@ -21119,7 +21253,7 @@ function nspCoachPersistCurrentSession() {
 function nspCoachSendApi(messages, systemPrompt, includeTools) {
   return new Promise(function(resolve, reject) {
     var reqId = nspCoachReqId();
-    console.log('[NSP COACH] sendApi → reqId:', reqId, 'msgs:', messages.length, 'tools:', !!includeTools);
+ console.log('[NSP COACH] sendApi reqId:', reqId,'msgs:', messages.length,'tools:', !!includeTools);
     // 120s, because a rate limited provider can hold the request for a full minute.
     var timeout = setTimeout(function() {
       delete _nspCoachPendingResponses[reqId];
@@ -21499,10 +21633,23 @@ function nspCorpusCollectFromScan(items) {
       if (seen[key]) return;
       seen[key] = 1;
       var niche = zerackDetectNiche(title);
+      // A record with no measured VPH carries e:1 and no v, so the merge that keeps the higher VPH can never let it displace a measured record.
+      if (sc.vph == null || !isFinite(sc.vph)) {
+        records.push({
+          t: title.slice(0, 160),
+          n: niche.label,
+          e: 1,
+          w: Number(sc.views || 0),
+          th: String(sc.thumbnail || sc.thumbUrl || '').slice(0, 300),
+          c: String(sc.channelName || '').slice(0, 60),
+          ts: Date.now()
+        });
+        return;
+      }
       records.push({
         t: title.slice(0, 160),
         n: niche.label,
-        v: Math.round(Number(sc.vph || 0)),
+        v: Math.round(Number(sc.vph)),
         w: Number(sc.views || 0),
         th: String(sc.thumbnail || sc.thumbUrl || '').slice(0, 300),
         c: String(sc.channelName || '').slice(0, 60),
@@ -21541,8 +21688,13 @@ function nspIngestMarketVideos(videos) {
   var records = videos.map(function(v) {
     var niche = zerackDetectNiche(String(v.title || ''));
     var views = Number(v.views || 0);
-    // Approximate VPH: with no age available, views over 720 hours is a conservative proxy.
-    return { t: String(v.title || '').slice(0, 160), n: niche.label, v: Math.round(views / 720), w: views, th: String(v.thumbnail || '').slice(0, 300), c: String(v.channelName || '').slice(0, 60), ts: Date.now() };
+    var hours = pHours(v.publishedText || v.publishedTimeText || '');
+    var measured = (hours != null && isFinite(hours) && hours > 0 && views > 0);
+    // Search results without a readable date are stored as estimates (e:1, no v) instead of views over an assumed 720 hours, which used to outrank every measured record.
+    var rec = { t: String(v.title || '').slice(0, 160), n: niche.label, w: views, th: String(v.thumbnail || '').slice(0, 300), c: String(v.channelName || '').slice(0, 60), ts: Date.now() };
+    if (measured) rec.v = Math.round(views / hours);
+    else rec.e = 1;
+    return rec;
   }).filter(function(r) { return r.t && r.t.length >= 8; });
   if (!records.length) return Promise.resolve(0);
   return new Promise(function(resolve) {
@@ -21600,7 +21752,7 @@ function zerackRunPrediction(inTitle, nicheHint) {
     pred.marketData = {
       corpusTotal: q.corpusTotal,
       nicheTitlesInCorpus: q.total,
-      topWinners: (q.winners || []).slice(0, 8).map(function(w) { return { title: w.t, vph: w.v, views: w.w }; }),
+      topWinners: (q.winners || []).slice(0, 8).map(function(w) { return { title: w.t, vph: (w.e ? null : w.v), views: w.w, estimated: !!w.e }; }),
       comparison: cmp
     };
     if (q.total < 4) {
@@ -21632,7 +21784,7 @@ function zerackRunPrediction(inTitle, nicheHint) {
   });
 }
 
-// ════════════════════════════════════════════════════════════════════════════
+// 
 // ZERACK predictor panel: a standalone UI where a pasted title returns a visual score, a breakdown, the real niche winners and a publish or improve verdict. Built with createElement for Trusted Types.
 function _zHexToRgba(hex, a) {
   try {
@@ -21690,7 +21842,7 @@ function _zScoreThumbnailFromImage(img) {
     }
     var edgeAvg = edgeCount ? edgeSum / edgeCount : 0;
 
-    // ── SCORING ──
+ // SCORING 
     var cl = function(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); };
     var sContrast = Math.round(cl(stdL / 55 * 30, 0, 30));
     var sSat = Math.round(cl(meanSat / 0.5 * 22, 0, 22));
@@ -21736,7 +21888,7 @@ function _zRenderThumbResult(container, img, scored) {
   if (!scored) return;
   if (scored.error) {
     var er = document.createElement('div');
-    er.textContent = '⚠ ' + scored.error;
+ er.textContent =''+ scored.error;
     er.style.cssText = 'color:#FFD93D;font-size:12px;line-height:1.5;padding:8px 0;';
     container.appendChild(er);
     return;
@@ -21775,13 +21927,13 @@ function _zRenderThumbResult(container, img, scored) {
 
   // Tips
   var tipsHdr = document.createElement('div');
-  tipsHdr.textContent = '🔧 HOW TO RAISE CTR';
+ tipsHdr.textContent ='HOW TO RAISE CTR';
   tipsHdr.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:rgba(255,255,255,0.55);margin:10px 0 7px;';
   container.appendChild(tipsHdr);
   (scored.tips || []).forEach(function(tip) {
     var t = document.createElement('div');
     t.style.cssText = 'display:flex;gap:8px;font-size:11.5px;color:rgba(255,255,255,0.82);line-height:1.45;margin-bottom:6px;';
-    var dot = document.createElement('span'); dot.textContent = '→'; dot.style.cssText = 'color:#00DC82;flex:0 0 auto;font-weight:900;';
+ var dot = document.createElement('span'); dot.textContent =''; dot.style.cssText ='color:#00DC82;flex:0 0 auto;font-weight:900;';
     var tx = document.createElement('span'); tx.textContent = tip;
     t.appendChild(dot); t.appendChild(tx);
     container.appendChild(t);
@@ -21796,7 +21948,7 @@ function _zBuildThumbView(container) {
 
   var dropZone = document.createElement('label');
   dropZone.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:22px;border:1.5px dashed rgba(0,220,130,0.4);border-radius:12px;background:rgba(0,220,130,0.04);cursor:pointer;text-align:center;';
-  var dzIcon = document.createElement('div'); dzIcon.textContent = '🖼'; dzIcon.style.cssText = 'font-size:26px;';
+ var dzIcon = document.createElement('div'); dzIcon.textContent =''; dzIcon.style.cssText ='font-size:26px;';
   var dzText = document.createElement('div'); dzText.textContent = 'Upload your thumbnail (PNG or JPG)'; dzText.style.cssText = 'font-size:12px;font-weight:700;color:#00DC82;';
   var dzHint = document.createElement('div'); dzHint.textContent = 'click here, or drag the file in'; dzHint.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);';
   var fileInput = document.createElement('input');
@@ -21811,7 +21963,7 @@ function _zBuildThumbView(container) {
   urlInput.style.cssText = 'width:100%;box-sizing:border-box;background:#11151a;border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#fff;padding:9px 13px;font-size:12px;font-family:inherit;outline:none;';
   container.appendChild(urlInput);
   var urlBtn = document.createElement('button');
-  urlBtn.textContent = '🖼 ANALYZE THUMBNAIL';
+ urlBtn.textContent ='ANALYZE THUMBNAIL';
   urlBtn.style.cssText = 'width:100%;margin-top:11px;padding:12px;border:none;border-radius:11px;background:linear-gradient(135deg,#00DC82,#00b86b);color:#04140d;font-weight:900;font-size:12.5px;letter-spacing:0.04em;cursor:pointer;font-family:inherit;';
   container.appendChild(urlBtn);
 
@@ -21831,7 +21983,7 @@ function _zBuildThumbView(container) {
     img.onload = function() { analyzeImg(img); };
     img.onerror = function() {
       while (result.firstChild) result.removeChild(result.firstChild);
-      var e = document.createElement('div'); e.textContent = '⚠ Could not load the image. Try uploading the file.'; e.style.cssText = 'color:#FFD93D;font-size:12px;';
+ var e = document.createElement('div'); e.textContent ='Could not load the image. Try uploading the file.'; e.style.cssText ='color:#FFD93D;font-size:12px;';
       result.appendChild(e);
     };
     img.src = src;
@@ -21893,7 +22045,7 @@ function _zRenderPredictionResult(container, pred) {
   nicheLine.textContent = 'Niche: ' + pred.niche + '  ·  RPM ~$' + pred.nicheRpm;
   nicheLine.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);margin-top:5px;';
   var moneyLine = document.createElement('div');
-  moneyLine.textContent = '💰 Money index: ' + pred.moneyPotentialIndex + '  (score x RPM)';
+ moneyLine.textContent ='Money index:'+ pred.moneyPotentialIndex +'(score x RPM)';
   moneyLine.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);margin-top:2px;';
   heroTxt.appendChild(verdict); heroTxt.appendChild(nicheLine); heroTxt.appendChild(moneyLine);
   hero.appendChild(ring); hero.appendChild(heroTxt);
@@ -21939,7 +22091,7 @@ function _zRenderPredictionResult(container, pred) {
   var rec = document.createElement('div');
   rec.style.cssText = 'margin-top:8px;margin-bottom:13px;padding:12px 13px;border-radius:11px;background:' + _zHexToRgba(recColor, 0.09) + ';border:1px solid ' + _zHexToRgba(recColor, 0.42) + ';';
   var recTitle = document.createElement('div');
-  recTitle.textContent = st === 'publish' ? '✅ READY TO PUBLISH' : st === 'improve' ? '🔧 IMPROVE BEFORE PUBLISHING' : st === 'lowdata' ? 'ℹ LOW MARKET DATA' : '➜ VERDICT';
+ recTitle.textContent = st ==='publish'?'READY TO PUBLISH': st ==='improve'?'IMPROVE BEFORE PUBLISHING': st ==='lowdata'?'ℹ LOW MARKET DATA':'VERDICT';
   recTitle.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:' + recColor + ';margin-bottom:5px;';
   var recText = document.createElement('div');
   recText.textContent = pred.recommendation || '';
@@ -21951,7 +22103,7 @@ function _zRenderPredictionResult(container, pred) {
   var winners = md.topWinners || [];
   if (winners.length) {
     var wHdr = document.createElement('div');
-    wHdr.textContent = '🏆 REAL NICHE WINNERS (' + (md.nicheTitlesInCorpus || winners.length) + ' in your market corpus)';
+ wHdr.textContent ='REAL NICHE WINNERS ('+ (md.nicheTitlesInCorpus || winners.length) +'in your market corpus)';
     wHdr.style.cssText = 'font-size:10px;font-weight:800;letter-spacing:0.04em;color:rgba(255,255,255,0.55);margin:4px 0 6px;';
     container.appendChild(wHdr);
     winners.slice(0, 6).forEach(function(w) {
@@ -21961,7 +22113,7 @@ function _zRenderPredictionResult(container, pred) {
       wt.textContent = w.title;
       wt.style.cssText = 'flex:1;font-size:11px;color:rgba(255,255,255,0.8);line-height:1.35;';
       var wv = document.createElement('div');
-      wv.textContent = w.vph ? (_zFmtNum(w.vph) + ' VPH') : (w.views ? (_zFmtNum(w.views) + ' v') : '');
+      wv.textContent = w.vph ? (_zFmtNum(w.vph) + ' VPH') : (w.views ? (_zFmtNum(w.views) + ' views, no VPH') : '');
       wv.style.cssText = 'flex:0 0 auto;font-size:10px;font-weight:700;color:#00DC82;white-space:nowrap;';
       wr.appendChild(wt); wr.appendChild(wv);
       container.appendChild(wr);
@@ -21970,7 +22122,7 @@ function _zRenderPredictionResult(container, pred) {
 
   // Hand off to the ZERACK chat.
   var chatBtn = document.createElement('button');
-  chatBtn.textContent = '💬 Ask ZERACK to rewrite my title';
+ chatBtn.textContent ='Ask ZERACK to rewrite my title';
   chatBtn.style.cssText = 'width:100%;margin-top:15px;padding:11px;border:1px solid rgba(0,220,130,0.4);border-radius:10px;background:rgba(0,220,130,0.08);color:#00DC82;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;';
   chatBtn.onclick = function() {
     try {
@@ -21998,10 +22150,10 @@ function openZerackPredictorPanel(prefillTitle) {
     var hdr = document.createElement('div');
     hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid rgba(255,255,255,0.07);position:sticky;top:0;background:#0a0c0f;z-index:2;';
     var hTitle = document.createElement('div');
-    hTitle.textContent = '🔮 VIRALITY PREDICTOR';
+ hTitle.textContent ='VIRALITY PREDICTOR';
     hTitle.style.cssText = 'font-weight:900;font-size:14px;letter-spacing:0.07em;color:#00DC82;';
     var closeBtn = document.createElement('button');
-    closeBtn.textContent = '✕';
+ closeBtn.textContent ='';
     closeBtn.style.cssText = 'background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:18px;cursor:pointer;line-height:1;padding:2px 6px;';
     closeBtn.onclick = function() { overlay.remove(); };
     hdr.appendChild(hTitle); hdr.appendChild(closeBtn);
@@ -22015,8 +22167,8 @@ function openZerackPredictorPanel(prefillTitle) {
     var thumbView = document.createElement('div');
     var tabBar = document.createElement('div');
     tabBar.style.cssText = 'display:flex;gap:6px;margin-bottom:15px;';
-    var tabTitle = document.createElement('button'); tabTitle.textContent = '📝 TITLE';
-    var tabThumb = document.createElement('button'); tabThumb.textContent = '🖼 THUMBNAIL';
+ var tabTitle = document.createElement('button'); tabTitle.textContent ='TITLE';
+ var tabThumb = document.createElement('button'); tabThumb.textContent ='THUMBNAIL';
     var _tabBase = 'flex:1;padding:9px;border-radius:9px;border:1px solid;font-weight:800;font-size:11px;cursor:pointer;font-family:inherit;letter-spacing:0.03em;';
     function _zActivateTab(which) {
       var on = 'background:rgba(0,220,130,0.14);border-color:rgba(0,220,130,0.5);color:#00DC82;';
@@ -22051,7 +22203,7 @@ function openZerackPredictorPanel(prefillTitle) {
     titleView.appendChild(nicheInput);
 
     var predictBtn = document.createElement('button');
-    predictBtn.textContent = '⚡ PREDICT VIRALITY';
+ predictBtn.textContent ='PREDICT VIRALITY';
     predictBtn.style.cssText = 'width:100%;margin-top:13px;padding:13px;border:none;border-radius:11px;background:linear-gradient(135deg,#00DC82,#00b86b);color:#04140d;font-weight:900;font-size:13px;letter-spacing:0.05em;cursor:pointer;font-family:inherit;';
     titleView.appendChild(predictBtn);
 
@@ -22081,7 +22233,7 @@ function openZerackPredictorPanel(prefillTitle) {
         return;
       }
       predictBtn.disabled = true;
-      predictBtn.textContent = '🔎 Analyzing the market';
+ predictBtn.textContent ='Analyzing the market';
       predictBtn.style.opacity = '0.7';
       var loading = document.createElement('div');
       loading.textContent = 'Reading your market corpus and searching YouTube for niche winners';
@@ -22089,16 +22241,16 @@ function openZerackPredictorPanel(prefillTitle) {
       result.appendChild(loading);
       zerackRunPrediction(title, String(nicheInput.value || '')).then(function(pred) {
         predictBtn.disabled = false;
-        predictBtn.textContent = '⚡ PREDICT AGAIN';
+ predictBtn.textContent ='PREDICT AGAIN';
         predictBtn.style.opacity = '1';
         _zRenderPredictionResult(result, pred);
       }).catch(function(err) {
         predictBtn.disabled = false;
-        predictBtn.textContent = '⚡ PREDICT VIRALITY';
+ predictBtn.textContent ='PREDICT VIRALITY';
         predictBtn.style.opacity = '1';
         while (result.firstChild) result.removeChild(result.firstChild);
         var e = document.createElement('div');
-        e.textContent = '❌ Error: ' + (err && err.message || err);
+ e.textContent ='Error:'+ (err && err.message || err);
         e.style.cssText = 'color:#FF6B6B;font-size:12px;';
         result.appendChild(e);
       });
@@ -22143,7 +22295,7 @@ function nspCoachExecuteTool(toolName, args) {
           channelName: String(sc.channelName || '').slice(0, 100),
           channelUrl: String(sc.channelUrl || '').slice(0, 200),
           vidId: String(sc.vidId || '').slice(0, 40),
-          vph: Math.round(sc.vph || 0),
+          vph: (sc.vph == null ? null : Math.round(sc.vph)),
           views: Number(sc.views || 0),
           niche: String(sc.niche || '').slice(0, 60)
         };
@@ -22318,7 +22470,7 @@ function nspCoachExecuteTool(toolName, args) {
         host: String(window.location.hostname || '')
       });
     }
-    // ─── v3.9.0 GOD-TIER TOOLS ───────────────────────────────────────
+ // v3.9.0 GOD-TIER TOOLS 
     if (toolName === 'nspGetChannelStats') {
       var statsUrl = String(args.channelUrl || '');
       if (!/youtube\.com/i.test(statsUrl)) return Promise.resolve({ ok: false, error: 'channelUrl must be a youtube.com URL' });
@@ -22397,7 +22549,7 @@ function nspCoachGetToolDefinitions() {
       { name: 'nspWaitForElement', description: 'Waits until an element appears in the DOM, 5 seconds by default.', parameters: { type:'object', properties:{ selector:{type:'string'}, timeoutMs:{type:'number'} }, required:['selector'] } },
       // FETCH WEB
       { name: 'nspFetchUrl', description: 'GET on any https:// URL. Returns up to 8000 characters of the body as text, so a page can be read without navigating.', parameters: { type:'object', properties:{ url:{type:'string'} }, required:['url'] } },
-      // ─── v3.9.0 GOD-TIER ───
+ // v3.9.0 GOD-TIER 
       { name: 'nspGetChannelStats', description: 'Real stats for a YouTube channel: subscribers, total videos, creation date, country and description, read from the /about page. Use it instead of estimating.', parameters: { type:'object', properties:{ channelUrl:{type:'string', description:'Channel URL, https://youtube.com/@handle or /channel/UC...'} }, required:['channelUrl'] } },
       { name: 'nspGetChannelVideos', description: 'Lists a channel recent uploads, useful for reading its content strategy, cadence and titles.', parameters: { type:'object', properties:{ channelUrl:{type:'string'} }, required:['channelUrl'] } },
       { name: 'nspExtractVisibleVideos', description: 'Extracts the videos on screen right now (title, channel, views, URL). Use it when asked to look at the screen, or what is in my feed.', parameters: { type:'object', properties:{}, required:[] } },
@@ -22420,7 +22572,7 @@ function nspCoachCleanMarkdown(text) {
   t = t.replace(/\*\*(.+?)\*\*/g, '$1');
   t = t.replace(/(?<![*\w])\*(?!\s)([^*\n]+?)\*(?!\w)/g, '$1');
   t = t.replace(/__(.+?)__/g, '$1');
-  t = t.replace(/^[\s]*[-*]\s+/gm, '→ ');
+ t = t.replace(/^[\s]*[-*]\s+/gm,'');
   t = t.replace(/^(\d+)\.\s+/gm, '$1) ');
   t = t.replace(/```[a-z]*\n?/g, '');
   t = t.replace(/```/g, '');
@@ -22448,7 +22600,7 @@ function injectNspCoachButton() {
   // Trusted Types: no innerHTML.
   var btnIcon = document.createElement('span');
   btnIcon.style.cssText = 'font-size:14px;line-height:1;';
-  btnIcon.textContent = '💬';
+ btnIcon.textContent ='';
   var btnLabel = document.createElement('span');
   btnLabel.textContent = 'COACH';
   btn.appendChild(btnIcon);
@@ -22551,7 +22703,7 @@ function openNspCoachChat() {
   var hdr = document.createElement('div');
   hdr.id = 'hdr';
   var hL = document.createElement('div');
-  var t1 = document.createElement('div'); t1.id = 'hdr-title'; t1.textContent = '⚡ ZERACK';
+ var t1 = document.createElement('div'); t1.id ='hdr-title'; t1.textContent ='ZERACK';
   var t2 = document.createElement('div'); t2.id = 'hdr-sub'; t2.textContent = 'YOUR MENTOR · DETECTING PROVIDER';
   // Updates the header with the provider actually configured, read from storage.
   (function detectProvider() {
@@ -22565,14 +22717,14 @@ function openNspCoachChat() {
       delete _nspCoachPendingResponses[reqId];
       var cfg = (data && data.providerConfig) || {};
       var parts = [];
-      if (cfg.hasGroq) parts.push('🚀 GROQ');
-      if (cfg.hasOllama) parts.push('🦙 OLLAMA');
-      if (cfg.hasGemini) parts.push('🔵 GEMINI');
+ if (cfg.hasGroq) parts.push('GROQ');
+ if (cfg.hasOllama) parts.push('OLLAMA');
+ if (cfg.hasGemini) parts.push('GEMINI');
       if (!parts.length) {
-        t2.textContent = '⚠ NO PROVIDER · SET ONE UP IN OPTIONS';
+ t2.textContent ='NO PROVIDER · SET ONE UP IN OPTIONS';
         t2.style.color = '#FF6B6B';
       } else {
-        t2.textContent = parts.join(' → ') + ' · 17 TOOLS';
+ t2.textContent = parts.join('') +'· 17 TOOLS';
       }
     };
     window.postMessage({ type: 'NSP_COACH_PROVIDER_CHECK', requestId: reqId }, window.location.origin);
@@ -22620,7 +22772,7 @@ function openNspCoachChat() {
   hpTitle.textContent = 'HISTORY';
   var hpClose = document.createElement('button');
   hpClose.className = 'hdr-action-btn';
-  hpClose.textContent = '← BACK';
+ hpClose.textContent ='BACK';
   hpClose.onclick = function() {
     historyPanel.classList.remove('open');
     _nspCoachState.historyPanelOpen = false;
@@ -22660,7 +22812,7 @@ function openNspCoachChat() {
       if (lastMsg && lastMsg.content) {
         var preview = document.createElement('div');
         preview.className = 'hist-preview';
-        var prefix = lastMsg.role === 'user' ? '› ' : '✦ ';
+ var prefix = lastMsg.role ==='user'?'›':'';
         preview.textContent = prefix + String(lastMsg.content).replace(/\s+/g, ' ').slice(0, 80);
         item.appendChild(preview);
       }
@@ -22669,7 +22821,7 @@ function openNspCoachChat() {
       actionsRow.style.cssText = 'display:flex;justify-content:flex-end;margin-top:2px;';
       var delBtn = document.createElement('button');
       delBtn.className = 'hist-del-btn';
-      delBtn.textContent = '🗑 Delete';
+ delBtn.textContent ='Delete';
       delBtn.onclick = function(ev) {
         ev.stopPropagation();
         if (!confirm('Delete this conversation?')) return;
@@ -22684,7 +22836,7 @@ function openNspCoachChat() {
       };
       actionsRow.appendChild(delBtn);
       item.appendChild(actionsRow);
-      // click anywhere on item (except del btn) → load session
+ // click anywhere on item (except del btn) load session
       item.onclick = function() {
         _nspCoachState.currentSessionId = sess.id;
         _nspCoachState.messages = (sess.messages || []).slice();
@@ -22717,7 +22869,7 @@ function openNspCoachChat() {
   var typingEl = document.createElement('div');
   typingEl.id = 'typing';
   typingEl.style.display = 'none';
-  typingEl.textContent = '✦ Coach is thinking';
+ typingEl.textContent ='Coach is thinking';
   panel.appendChild(typingEl);
 
   // Quick action chips, always visible, scrolling horizontally.
@@ -22725,12 +22877,12 @@ function openNspCoachChat() {
   quickBar.id = 'quick-bar';
   quickBar.style.cssText = 'display:flex;gap:6px;padding:8px 12px 4px;overflow-x:auto;flex-shrink:0;background:#050505;scrollbar-width:none;';
   var quickActions = [
-    ['📊 Read my scan', 'Which niche in the last scan has the most potential, and why? Be specific.'],
-    ['✍️ Give me 5 titles', 'Write 5 viral titles for niche 1 of the scan, in faceless YouTube automation style.'],
-    ['🎬 60s script', 'Write a 60 second faceless script (hook, body, call to action) for niche 1 of the scan.'],
-    ['🔍 Look at my screen', 'Extract the videos on screen right now and tell me which faceless niches you see.'],
-    ['📈 Channel stats', 'Analyze the real stats of the channel behind niche 1 of the scan: subs, videos, age.'],
-    ['💾 Export niches', 'Export my saved niches to CSV.']
+ ['Read my scan','Which niche in the last scan has the most potential, and why? Be specific.'],
+ ['Give me 5 titles','Write 5 viral titles for niche 1 of the scan, in faceless YouTube automation style.'],
+ ['60s script','Write a 60 second faceless script (hook, body, call to action) for niche 1 of the scan.'],
+ ['Look at my screen','Extract the videos on screen right now and tell me which faceless niches you see.'],
+ ['Channel stats','Analyze the real stats of the channel behind niche 1 of the scan: subs, videos, age.'],
+ ['Export niches','Export my saved niches to CSV.']
   ];
   quickActions.forEach(function(qa) {
     var chip = document.createElement('button');
@@ -22768,7 +22920,7 @@ function openNspCoachChat() {
     sendBtn.style.display = '';
     stopBtn.style.display = 'none';
     typingEl.style.display = 'none';
-    _nspCoachState.messages.push({ role: 'error', content: '⏹ Cancelled.' });
+ _nspCoachState.messages.push({ role:'error', content:'Cancelled.'});
     renderMessages();
   };
   inputWrap.appendChild(input);
@@ -22861,7 +23013,7 @@ function openNspCoachChat() {
   var footerInfo = document.createElement('span');
   footerInfo.textContent = 'persistent memory · sessions in HISTORY';
   var clearAllBtn = document.createElement('button');
-  clearAllBtn.textContent = '🗑 Delete all';
+ clearAllBtn.textContent ='Delete all';
   clearAllBtn.title = 'Delete every saved conversation';
   clearAllBtn.onclick = function() {
     if (!confirm('Delete every saved conversation? This cannot be undone.')) return;
@@ -22884,7 +23036,7 @@ function openNspCoachChat() {
       hint.id = 'empty-hint';
       var hintTitle = document.createElement('div');
       hintTitle.className = 'ehl-title';
-      hintTitle.textContent = '⚡ ZERACK, your mentor';
+ hintTitle.textContent ='ZERACK, your mentor';
       var hintSub = document.createElement('div');
       hintSub.textContent = 'Your partner for building faceless channels at scale. Start here:';
       hint.appendChild(hintTitle);
@@ -22983,12 +23135,12 @@ function openNspCoachChat() {
       iteration++;
       if (iteration > maxIterations) {
         _finishTurn();
-        _nspCoachState.messages.push({ role: 'error', content: '❌ The agent went past ' + maxIterations + ' steps. The loop was stopped as a safeguard.' });
+ _nspCoachState.messages.push({ role:'error', content:'The agent went past'+ maxIterations +'steps. The loop was stopped as a safeguard.'});
         renderMessages();
         return;
       }
 
-      typingEl.textContent = iteration === 1 ? '✦ Coach is thinking' : '⚙ Step ' + iteration;
+ typingEl.textContent = iteration === 1 ?'Coach is thinking':'Step'+ iteration;
 
       nspCoachSendApi(apiMessages, systemPrompt, true).then(function(response) {
         if (_nspCoachState.cancelled) { return; }
@@ -23014,7 +23166,7 @@ function openNspCoachChat() {
         }
 
         // Run the function calls in parallel.
-        var toolBubble = '⚙ Running: ' + calls.map(function(c) { return c.name; }).join(', ');
+ var toolBubble ='Running:'+ calls.map(function(c) { return c.name; }).join(',');
         _nspCoachState.messages.push({ role: 'tool', content: toolBubble });
         renderMessages();
 
@@ -23027,7 +23179,7 @@ function openNspCoachChat() {
         Promise.all(promises).then(function(results) {
           var toolResultBubble = results.map(function(r) {
             var ok = r.result && r.result.ok !== false;
-            var symbol = ok ? '✓' : '✗';
+ var symbol = ok ?'':'';
             var detail = '';
             if (r.name === 'nspGetScanData' && ok) detail = ' (' + (r.result.count || 0) + ' niches)';
             else if (r.name === 'nspRunNewScan' && ok) detail = ' (scan started)';
@@ -23046,7 +23198,7 @@ function openNspCoachChat() {
           // Build the next turn: a user message carrying the tool results, a workaround for models that ignore functionResponse in longer multi turn exchanges.
           var toolSummary = 'Results of the tools you just called:\n\n';
           results.forEach(function(r) {
-            toolSummary += '→ ' + r.name + '(' + JSON.stringify(r.args || {}) + ')\n';
+ toolSummary +=''+ r.name +'('+ JSON.stringify(r.args || {}) +')\n';
             toolSummary += '  Result: ' + JSON.stringify(r.result).slice(0, 1500) + '\n\n';
           });
           toolSummary += 'Now answer with an analysis based on these results, or call another tool if you need one.';
@@ -23061,13 +23213,13 @@ function openNspCoachChat() {
         if (/no_provider_configured/i.test(errMsg)) {
           errMsg = 'ZERACK needs an AI provider.\n\nFastest option, Groq, free:\n1) console.groq.com/keys, create an API key (gsk_...)\n2) Options, GROQ section, paste the key, save\n\nOr Gemini: aistudio.google.com/apikey (AIza...), then Options. Both are free, no card needed.';
         } else if (/all_busy/i.test(errMsg) || /rate_limited/i.test(errMsg) || /RESOURCE_EXHAUSTED/i.test(errMsg) || /quota/i.test(errMsg)) {
-          errMsg = '⏱ Your providers are saturated for a moment. Try again in about 15 seconds. ZERACK already tried switching between Groq and Gemini. Set up both in Options so you never run out of turns.';
+ errMsg ='Your providers are saturated for a moment. Try again in about 15 seconds. ZERACK already tried switching between Groq and Gemini. Set up both in Options so you never run out of turns.';
         } else if (/all_providers_failed|all_models_failed/i.test(errMsg)) {
-          errMsg = '❌ No provider could answer. In Options, use Test connection to check that your Groq or Gemini key is valid.';
+ errMsg ='No provider could answer. In Options, use Test connection to check that your Groq or Gemini key is valid.';
         } else if (/missing_or_invalid_gemini_key/i.test(errMsg)) {
           errMsg = 'Gemini API key missing. Open Options and set it up, free at aistudio.google.com/apikey.';
         }
-        _nspCoachState.messages.push({ role: 'error', content: '❌ ' + errMsg });
+ _nspCoachState.messages.push({ role:'error', content:''+ errMsg });
         renderMessages();
       });
     }
@@ -23090,7 +23242,7 @@ function openNspCoachChat() {
       } else if (/missing_or_invalid_api_key/i.test(errMsg)) {
         errMsg = 'No API key set. Open Options and paste your Gemini API key, free at aistudio.google.com/apikey.';
       }
-      _nspCoachState.messages.push({ role: 'error', content: '❌ ' + errMsg });
+ _nspCoachState.messages.push({ role:'error', content:''+ errMsg });
       renderMessages();
     });
   }
@@ -23119,7 +23271,7 @@ function openNspCoachChat() {
       // Trusted Types: no innerHTML.
       var bannerStrong = document.createElement('strong');
       bannerStrong.textContent = ' The bridge is not responding.';
-      banner.appendChild(document.createTextNode('⚠'));
+ banner.appendChild(document.createTextNode(''));
       banner.appendChild(bannerStrong);
       banner.appendChild(document.createTextNode(' Check that chrome://extensions has the right extension folder loaded, then reload the extension and refresh YouTube.'));
       msgList.parentNode.insertBefore(banner, msgList);
@@ -23676,7 +23828,7 @@ function buildProPanelHTML() {
     + '<button id="nsp-pro-collapse-toggle" type="button" title="Collapse or expand" style="position:absolute;left:-18px;top:78px;width:28px;height:42px;border-radius:12px 0 0 12px;border:1px solid rgba(255,255,255,.28);border-right:0;background:#050505;color:#fff;font-size:15px;font-weight:950;cursor:pointer;box-shadow:0 0 18px rgba(255,255,255,.14);z-index:2;">›</button>'
     + '<div style="padding:14px 14px 12px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;gap:12px;">'
     +   '<div style="font-size:15px;font-weight:950;letter-spacing:.12em;color:#fff;">QUICK INTEL PANEL</div>'
-    +   '<button id="nsp-pro-close" type="button" style="width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#fff;font-size:16px;line-height:1;cursor:pointer;">✕</button>'
+ +'<button id="nsp-pro-close" type="button" style="width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#fff;font-size:16px;line-height:1;cursor:pointer;"></button>'
     + '</div>'
     + '<div id="nsp-pro-intel-shell" style="padding:12px 14px 0;">'
     +   '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">'
@@ -24104,7 +24256,7 @@ function attachProPanelListeners(root) {
   }
 
   function loading(id) {
-    setResult(id, '<div style="color:#FFD93D;font-weight:800;">⏳ Loading...</div>');
+ setResult(id,'<div style="color:#FFD93D;font-weight:800;">Loading...</div>');
   }
 
   function showError(id, err) {
@@ -24143,7 +24295,7 @@ function attachProPanelListeners(root) {
       var pass = !!firstPresent(data, ['pass', 'passes', 'isPass', 'ok'], false);
       var months = firstPresent(data, ['monthsOld', 'ageMonths', 'months'], 'n/a');
       var created = firstPresent(data, ['createdDate', 'createdAt', 'publishedAt'], 'n/a');
-      setResult('pro-age-result', '<div style="font-weight:900;color:' + (pass ? '#00DC82' : '#FF6B6B') + ';">' + (pass ? '✅' : '❌') + ' ' + months + ' months old · ' + esc(created) + ' · ' + (pass ? 'PASS' : 'FAIL') + '</div>');
+ setResult('pro-age-result','<div style="font-weight:900;color:'+ (pass ?'#00DC82':'#FF6B6B') +';">'+ (pass ?'':'') +''+ months +'months old ·'+ esc(created) +'·'+ (pass ?'PASS':'FAIL') +'</div>');
     } catch(err) { showError('pro-age-result', err); }
   };
 

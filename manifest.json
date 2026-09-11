@@ -28,9 +28,6 @@
     "https://api.groq.com/*",
     "https://i.ytimg.com/*",
     "https://img.youtube.com/*",
-    "https://image.pollinations.ai/*",
-    "https://*.pollinations.ai/*",
-    "https://api.openverse.org/*",
     "http://localhost/*",
     "http://127.0.0.1/*"
   ],

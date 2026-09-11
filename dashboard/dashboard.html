@@ -40,11 +40,17 @@
   <div class="filter-group">
     <span class="filter-label">SORT:</span>
     <button class="pill sort active" data-sort="savedAt">Recent</button>
+    <button class="pill sort" data-sort="subs">Most subs</button>
     <button class="pill sort" data-sort="avgOS">Best OS</button>
     <button class="pill sort" data-sort="topVPH">Top VPH</button>
     <button class="pill sort" data-sort="revMonth">Revenue</button>
     <button class="pill sort" data-sort="channelAgeDays">Youngest</button>
     <button class="pill sort" data-sort="growth">Fastest growing</button>
+  </div>
+  <div class="filter-group">
+    <span class="filter-label">VIEW:</span>
+    <button class="pill view active" data-view="cards" title="One card per channel">Cards</button>
+    <button class="pill view" data-view="table" title="One row per channel, for comparing many at once">Table</button>
   </div>
   <div class="filter-group">
     <input id="search-input" class="search-box" placeholder="Search channel or niche" type="text"/>
@@ -54,41 +60,45 @@
 <section class="portfolio" id="portfolio">
   <div class="pf-card">
     <div class="pf-n" id="pf-channels">0</div>
-    <div class="pf-l">channels tracked</div>
+    <div class="pf-l">channels in view</div>
+    <div class="pf-m" id="pf-channels-meta"></div>
   </div>
   <div class="pf-card">
-    <div class="pf-n" id="pf-vph">0</div>
+    <div class="pf-n" id="pf-subs">not measured</div>
+    <div class="pf-l">median subscribers</div>
+    <div class="pf-m" id="pf-subs-meta"></div>
+  </div>
+  <div class="pf-card">
+    <div class="pf-n" id="pf-vph">not measured</div>
     <div class="pf-l">median top VPH</div>
+    <div class="pf-m" id="pf-vph-meta"></div>
   </div>
   <div class="pf-card">
-    <div class="pf-n" id="pf-rev">$0</div>
-    <div class="pf-l">est. monthly revenue</div>
+    <div class="pf-n small" id="pf-growth">not measured</div>
+    <div class="pf-l">median measured growth</div>
+    <div class="pf-m" id="pf-growth-meta"></div>
   </div>
   <div class="pf-card">
     <div class="pf-n" id="pf-exploding">0</div>
     <div class="pf-l">new and exploding</div>
+    <div class="pf-m" id="pf-exploding-meta"></div>
   </div>
   <div class="pf-card">
-    <div class="pf-n" id="pf-growth">measure twice to see it</div>
-    <div class="pf-l">median measured growth</div>
+    <div class="pf-n" id="pf-rev">no estimate</div>
+    <div class="pf-l">est. revenue per month</div>
+    <div class="pf-m" id="pf-rev-meta"></div>
   </div>
   <div class="pf-card wide">
-    <div class="pf-n" id="pf-niche">n/a</div>
-    <div class="pf-l">strongest niche by median opportunity</div>
+    <div class="pf-n small" id="pf-niche">not enough scores</div>
+    <div class="pf-l">strongest niche by median score</div>
+    <div class="pf-m" id="pf-niche-meta"></div>
   </div>
 </section>
 
-<div id="empty-state" class="empty-state" style="display:none">
-  <div class="empty-icon"></div>
-  <div class="empty-title">No channels yet</div>
-  <div class="empty-desc">
-    Open a channel on YouTube and hit <strong>Save</strong> in the ZERACK bar.<br>
-    Or browse searches and the scanner collects them as you go.
-  </div>
-  <a href="https://www.youtube.com" target="_blank" class="cta-btn">Go to YouTube</a>
-</div>
+<div id="empty-state" class="empty-state" style="display:none"></div>
 
 <div id="grid" class="grid"></div>
+<div id="table-view" class="table-view" style="display:none"></div>
 
 <script src="dashboard.js"></script>
 </body>

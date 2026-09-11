@@ -38,6 +38,8 @@
   #results-count { font-size: 10.5px; color: var(--ok); font-weight: 800; white-space: nowrap; }
   #progress { height: 3px; background: rgba(255,255,255,.08); border-radius: 3px; overflow: hidden; margin-bottom: 14px; }
   #progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #00DC82, #00FF88); box-shadow: 0 0 12px rgba(0,255,136,.5); transition: width .3s; }
+  #window-note { font-size: 11px; color: var(--warn); line-height: 1.5; margin-bottom: 10px; }
+  #window-note:empty { display: none; }
   #results-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   th { text-align: left; padding: 11px 12px; font-size: 10px; font-family: var(--display); letter-spacing: .1em; text-transform: uppercase; color: var(--mut); border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; white-space: nowrap; position: sticky; top: 0; background: #0a0a0a; }
@@ -66,7 +68,7 @@
     </div>
     <div class="actions">
       <button id="btn-export">Export CSV</button>
-      <button id="btn-cache">Fresh data</button>
+      <button id="btn-cache" title="Scan again and ignore the 15 minute cache">Fresh data</button>
     </div>
   </header>
   <div id="controls">
@@ -98,6 +100,7 @@
     <div id="results-count"></div>
   </div>
   <div id="progress"><div id="progress-fill"></div></div>
+  <div id="window-note"></div>
   <div id="results-wrap"></div>
   <div id="foot">Click a column to sort. A faceless score of 60 or more is a strong signal. Results also feed your niche index when you scan from YouTube.</div>
 </div>

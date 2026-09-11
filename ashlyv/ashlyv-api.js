@@ -52,20 +52,28 @@ window.AshlyVAPI = (function() {
   }
 
   function getLocalStatus() {
-    return sendToSW({ type: 'ASHLYV_OLLAMA_HEALTH' }, 7000).catch(function() {
-      return { success: false, available: false, provider: 'ollama' };
+    return new Promise(function (resolve) {
+      chrome.storage.local.get(['nsp_groq_api_key', 'nsp_gemini_api_key', 'nsp_ollama_enabled', 'nsp_selected_model'], function (r) {
+        var hasGroq = !!(r && typeof r.nsp_groq_api_key === 'string' && /^gsk_/.test(r.nsp_groq_api_key));
+        var hasGemini = !!(r && typeof r.nsp_gemini_api_key === 'string' && /^AIza/.test(r.nsp_gemini_api_key));
+        var hasOllama = !!(r && r.nsp_ollama_enabled === true);
+        resolve({
+          success: hasGroq || hasGemini || hasOllama,
+          available: hasGroq || hasGemini || hasOllama,
+          provider: (r && r.nsp_selected_model) || 'auto',
+          models: []
+        });
+      });
     });
   }
 
   function getProviderStatus() {
-    return Promise.all([getLocalStatus(), getApiKey()]).then(function(values) {
-      var local = values[0] || {};
-      var key = values[1];
+    return getLocalStatus().then(function (local) {
       return {
-        localAvailable: !!(local && local.success && local.available),
-        localModels: local && local.models ? local.models : [],
-        anthropicKeyConfigured: !!key,
-        preferred: local && local.success && local.available ? 'ollama' : (key ? 'anthropic' : 'none')
+        localAvailable: !!(local && local.available),
+        localModels: [],
+        anthropicKeyConfigured: false,
+        preferred: local && local.available ? local.provider : 'none'
       };
     });
   }
@@ -81,10 +89,7 @@ window.AshlyVAPI = (function() {
           model: OLLAMA_TEXT_MODEL
         };
       }
-      return sendToSW({
-        type: 'ASHLYV_ANTHROPIC_VALIDATE',
-        apiKey: apiKey
-      }, 15000);
+      return { success: false, valid: false, error: 'No provider is configured. Add a Groq or Gemini key in Options and pick a model.' };
     });
   }
 
@@ -121,7 +126,7 @@ window.AshlyVAPI = (function() {
 
       if (provider.localAvailable) {
         return sendToSW({
-          type: 'ASHLYV_OLLAMA_VISION',
+          type: 'ASHLYV_VISION_JUDGE',
           model: OLLAMA_VISION_MODEL,
           imageBase64: imageBase64,
           mediaType: mediaType || 'image/jpeg',
@@ -139,7 +144,7 @@ window.AshlyVAPI = (function() {
 
       return getApiKey().then(function(apiKey) {
         return sendToSW({
-          type: 'ASHLYV_ANTHROPIC_VISION',
+          type: 'ASHLYV_VISION_JUDGE',
           apiKey: apiKey,
           imageBase64: imageBase64,
           mediaType: mediaType || 'image/jpeg',
@@ -167,7 +172,7 @@ window.AshlyVAPI = (function() {
 
       if (provider.localAvailable) {
         return sendToSW({
-          type: 'ASHLYV_OLLAMA_CHAT',
+          type: 'ASHLYV_CHAT_REQUEST',
           model: OLLAMA_TEXT_MODEL,
           systemPrompt: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }]
@@ -183,7 +188,7 @@ window.AshlyVAPI = (function() {
 
       return getApiKey().then(function(apiKey) {
         return sendToSW({
-          type: 'ASHLYV_ANTHROPIC_CHAT',
+          type: 'ASHLYV_CHAT_REQUEST',
           apiKey: apiKey,
           systemPrompt: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
@@ -202,7 +207,7 @@ window.AshlyVAPI = (function() {
 
       if (provider.localAvailable) {
         return sendToSW({
-          type: 'ASHLYV_OLLAMA_CHAT',
+          type: 'ASHLYV_CHAT_REQUEST',
           model: OLLAMA_TEXT_MODEL,
           systemPrompt: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }]
@@ -218,7 +223,7 @@ window.AshlyVAPI = (function() {
 
       return getApiKey().then(function(apiKey) {
         return sendToSW({
-          type: 'ASHLYV_ANTHROPIC_CHAT',
+          type: 'ASHLYV_CHAT_REQUEST',
           apiKey: apiKey,
           systemPrompt: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],

@@ -7,8 +7,8 @@
   // The opened searches must force gl/hl, otherwise YouTube answers in the browser region and ignores the chosen market.
   var MARKET_LOCALE = {
     'español': { gl: 'ES', hl: 'es' },
-    'inglés (US)': { gl: 'US', hl: 'en' },
-    'portugués (BR)': { gl: 'BR', hl: 'pt' },
+    'English (US)': { gl: 'US', hl: 'en' },
+    'Portuguese (BR)': { gl: 'BR', hl: 'pt' },
     'alemán': { gl: 'DE', hl: 'de' },
     'francés': { gl: 'FR', hl: 'fr' }
   };

@@ -1844,7 +1844,7 @@ function showAshlyVToolComingSoon(toolUrl) {
   ov.addEventListener('click', function (e) { if (e.target === ov) ov.parentNode.removeChild(ov); });
   var box = document.createElement('div');
   box.style.cssText = 'width:min(440px,92vw);background:#0d1014;border:1px solid rgba(255,255,255,0.18);border-radius:16px;padding:26px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.6);';
-  var ic = document.createElement('div'); ic.textContent = '🚧'; ic.style.cssText = 'font-size:40px;margin-bottom:10px;';
+ var ic = document.createElement('div'); ic.textContent =''; ic.style.cssText ='font-size:40px;margin-bottom:10px;';
   var t = document.createElement('div'); t.textContent = 'Could not open that tool'; t.style.cssText = 'font-size:16px;font-weight:900;color:#00DC82;margin-bottom:9px;';
   var d = document.createElement('div'); d.textContent = 'If you just updated, reload the extension in chrome://extensions and try again.'; d.style.cssText = 'font-size:12px;color:rgba(255,255,255,0.62);line-height:1.55;margin-bottom:16px;';
   var c = document.createElement('button'); c.textContent = 'Close'; c.style.cssText = 'display:block;margin:12px auto 0;background:transparent;border:none;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;font-family:inherit;';
@@ -5065,17 +5065,17 @@ async function callGroqScan(handle, lang) {
   scanSetLoadMsg('Generating intelligence with AI');
 
   var titlesCtx = (real.videoTitles && real.videoTitles.length > 0)
-    ? '\nTítulos recientes del canal (para análisis de patrones):\n' +
+    ? '\nRecent titles from this channel, for pattern analysis:\n' +
       real.videoTitles.map(function(t, i){ return (i+1) + '. ' + t; }).join('\n') + '\n'
     : '';
 
   var chanCtx = real.info
-    ? '\n\n=== DATOS REALES DEL CANAL (extraídos de YouTube) ===\n' +
+    ? '\n\n=== CHANNEL DATA READ FROM YOUTUBE ===\n' +
       'Canal: @' + handle + '\n' +
       'Nombre: ' + real.info.name + '\n' +
       (real.info.subs ? 'Suscriptores: ' + real.info.subs + '\n' : '') +
       (real.info.vids ? 'Videos publicados: ' + real.info.vids + '\n' : '') +
-      (real.info.desc ? 'Descripción: ' + real.info.desc.slice(0, 500) + '\n' : '') +
+      (real.info.desc ? 'Description: ' + real.info.desc.slice(0, 500) + '\n' : '') +
       (real.info.kwds ? 'Keywords: ' + real.info.kwds.slice(0, 300) + '\n' : '') +
       titlesCtx
     : '\nCanal: @' + handle + '\n';
@@ -5092,19 +5092,19 @@ async function callGroqScan(handle, lang) {
           '\n   PERFORMANCE: ' + c.performanceScore +
           '\n   RECENCY: ' + c.recencyScore +
           '\n   STRATEGIC_VALUE: ' + c.strategicValueScore +
-          '\n   ACTIVIDAD: ultimo video hace ' + c.lastVideoDays + ' dias, ' + c.recentVideos.length + ' videos recientes, avg views ' + compactNumber(c.avgRecentViews) +
-          '\n   FORMATO_DETECTADO: ' + (c.formats || []).join(' + ') +
+          '\n   ACTIVITY: last video ' + c.lastVideoDays + ' days ago, ' + c.recentVideos.length + ' recent videos, average views ' + compactNumber(c.avgRecentViews) +
+          '\n   DETECTED_FORMAT: ' + (c.formats || []).join(' + ') +
           '\n   STEAL_POTENTIAL: ' + c.stealPotential +
-          (c.desc ? '\n   DESCRIPCION: "' + c.desc + '"' : '') +
-          (c.recentVideos && c.recentVideos.length ? '\n   TITULOS_RECIENTES: ' + c.recentVideos.slice(0, 4).map(function(v) { return '"' + v.title + '"'; }).join(' | ') : '');
+          (c.desc ? '\n   DESCRIPTION: "' + c.desc + '"' : '') +
+          (c.recentVideos && c.recentVideos.length ? '\n   RECENT_TITLES: ' + c.recentVideos.slice(0, 4).map(function(v) { return '"' + v.title + '"'; }).join(' | ') : '');
       }).join('\n') +
-      '\n\nREGLA ABSOLUTA - COMPETIDORES: usa UNICAMENTE estos canales como competidores verificados. Respeta SCORE_FINAL, TIPO y handle exacto. NO inventes handles adicionales. NO subas la similitud por encima del dato provisto.\n'
-    : '\n\nCOMPETIDORES: No se encontraron competidores verificados fuertes despues de filtros duros. Escribe: "No encontramos competidores verificados fuertes, pero detectamos estos espacios cercanos..." y usa solo espacios estimados, no handles inventados.\n';
+      '\n\nRule: use only these channels as verified competitors. Keep the exact score, type and handle. Do not invent handles.'
+    : '\n\nCOMPETITORS: no strong verified competitor survived the filters. Write: no strong verified competitor was found, but here is what the space looks like.'
 
   if ((!real.competitors || !real.competitors.length) && real.estimatedCompetitors && real.estimatedCompetitors.length) {
-    compCtx += '\nESPACIOS CERCANOS ESTIMADOS (NO VERIFICADOS COMO COMPETENCIA DIRECTA):\n' +
+    compCtx += '\nNearby spaces, estimated, not verified as direct competitors:\n' +
       real.estimatedCompetitors.map(function(c, i) {
-        return (i + 1) + '. ' + c.name + ' | similitud ' + (c.nicheSimilarity || 0) + ' | ' + (c.whyMatters || '');
+        return (i + 1) + '. ' + c.name + ' | similarity ' + (c.nicheSimilarity || 0) + ' | ' + (c.whyMatters || '');
       }).join('\n') + '\n';
   }
   var prompt = 'You are ZERACK channel intelligence. Surgical precision, no filler. Every answer is specific, actionable and grounded in the data you were given.' +
@@ -5809,7 +5809,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }, 120);
 });
 
-// ── Advanced Panel Logic (refactor 2025-05) ─────────────────────────
+// Advanced Panel Logic (refactor 2025-05) 
 
 function renderQuickFilters(quickFilters) {
   if (!quickFilters) return '';
@@ -5820,16 +5820,16 @@ function renderQuickFilters(quickFilters) {
   return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0;padding:10px;background:rgba(0,0,0,0.2);border-radius:10px;border:1px solid ' + verdictColor + '33;">'
     // Verdict badge
     + '<div style="padding:6px 14px;border-radius:8px;background:' + verdictColor + '22;border:1px solid ' + verdictColor + ';font-weight:800;font-size:14px;color:' + verdictColor + ';">'
-    + (v === 'ATTACK' ? '🎯' : v === 'WATCH' ? '👀' : '⛔') + ' ' + v + '</div>'
+ + (v ==='ATTACK'?'': v ==='WATCH'?'':'') +''+ v +'</div>'
     // Age badge
     + '<div style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.05);font-size:11px;color:' + (quickFilters.isNewChannel ? '#00DC82' : 'rgba(255,255,255,0.5)') + ';">'
-    + '🕐 ' + (quickFilters.monthsOld !== null ? quickFilters.monthsOld + 'mo' : '?') + (quickFilters.isNewChannel ? ' ✓ NEW' : '') + '</div>'
+ +''+ (quickFilters.monthsOld !== null ? quickFilters.monthsOld +'mo':'?') + (quickFilters.isNewChannel ?'NEW':'') +'</div>'
     // Viral count badge
     + '<div style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.05);font-size:11px;color:' + (quickFilters.hasEnoughVirals ? '#FF6B6B' : 'rgba(255,255,255,0.5)') + ';">'
-    + '🔥 ' + quickFilters.viralVideoCount + ' viral' + (quickFilters.hasEnoughVirals ? ' ✓' : '') + '</div>'
+ +''+ quickFilters.viralVideoCount +'viral'+ (quickFilters.hasEnoughVirals ?'':'') +'</div>'
     // Velocity badge
     + '<div style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.05);font-size:11px;color:#2EE9FF;">'
-    + '📈 ' + quickFilters.velocityTier + '</div>'
+ +''+ quickFilters.velocityTier +'</div>'
     + '</div>';
 }
 
@@ -5989,14 +5989,14 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     var maxMonths = parseInt(document.getElementById('adv-max-months').value, 10);
     var resultEl = document.getElementById('adv-age-result');
     if (!channel) { resultEl.textContent = 'Enter a channel'; return; }
-    resultEl.innerHTML = '<span style="color:#FFD93D;">⏳ Checking...</span>';
+ resultEl.innerHTML ='<span style="color:#FFD93D;">Checking...</span>';
     try {
       var data = await API.apiChannelAge(channel, maxMonths);
       var pass = data.passesFilter;
       var months = data.monthsOld;
       var created = data.createdDate || 'unknown';
       var color = pass ? '#00DC82' : '#FF6B6B';
-      var icon = pass ? '✅' : '❌';
+ var icon = pass ?'':'';
       resultEl.innerHTML = '<span style="color:' + color + ';">' + icon + ' Channel is <b>' + months + ' months old</b> (created ' + created + '). '
         + (pass ? 'PASSES filter (≤' + maxMonths + 'mo)' : 'FAILS filter (>' + maxMonths + 'mo)') + '</span>'
         + (data.rawText ? '<br><span style="opacity:0.5;font-size:11px;">Raw: ' + data.rawText + '</span>' : '');
@@ -6011,7 +6011,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     var threshold = parseInt(document.getElementById('adv-viral-threshold').value, 10) || 100000;
     var resultEl = document.getElementById('adv-viral-result');
     if (!channel) { resultEl.textContent = 'Enter a channel'; return; }
-    resultEl.innerHTML = '<span style="color:#FFD93D;">⏳ Analyzing viral metrics...</span>';
+ resultEl.innerHTML ='<span style="color:#FFD93D;">Analyzing viral metrics...</span>';
     try {
       var data = await API.apiViralMetrics(channel, { viralThreshold: threshold });
       var m = data.viralMetrics;
@@ -6044,7 +6044,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     var sortBy = document.getElementById('adv-title-sort').value;
     var resultEl = document.getElementById('adv-title-result');
     if (!keywords) { resultEl.textContent = 'Enter keywords'; return; }
-    resultEl.innerHTML = '<span style="color:#FFD93D;">⏳ Searching titles...</span>';
+ resultEl.innerHTML ='<span style="color:#FFD93D;">Searching titles...</span>';
     try {
       var data = await API.apiSearchTitles(keywords, { sortBy: sortBy });
       var html = '<div style="margin-bottom:8px;opacity:0.6;">' + data.totalResults + ' results | Niche: ' + data.subNiche + ' | RPM: $' + data.estimatedRpm + '</div>';
@@ -6077,7 +6077,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     var channel = advChannelText() || null;
     var resultEl = document.getElementById('adv-subniche-result');
     if (!niche) { resultEl.textContent = 'Enter a niche'; return; }
-    resultEl.innerHTML = '<span style="color:#FFD93D;">⏳ Generating sub-niches with AI... (this may take 15-30s)</span>';
+ resultEl.innerHTML ='<span style="color:#FFD93D;">Generating sub-niches with AI... (this may take 15-30s)</span>';
     try {
       var data = await API.apiGenerateSubniches(niche, { channel: channel });
       var html = '';
@@ -6099,15 +6099,15 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
         html += '<div style="font-size:12px;font-weight:700;color:#FFD93D;margin:12px 0 6px;">Replication Ideas:</div>';
         data.replicationIdeas.forEach(function(ri) {
           html += '<div style="padding:8px;margin:4px 0;background:rgba(255,217,61,0.08);border-radius:8px;font-size:11px;">'
-            + '<b>' + ri.originalConcept + '</b> → ' + ri.yourTwist
+ +'<b>'+ ri.originalConcept +'</b>'+ ri.yourTwist
             + '<br><span style="opacity:0.5;">Example: ' + ri.exampleTitle + '</span></div>';
         });
       }
       if (data.avoidList && data.avoidList.length) {
-        html += '<div style="font-size:11px;color:#FF6B6B;margin-top:10px;opacity:0.6;">⚠️ Avoid: ' + data.avoidList.join(' | ') + '</div>';
+ html +='<div style="font-size:11px;color:#FF6B6B;margin-top:10px;opacity:0.6;">Avoid:'+ data.avoidList.join('|') +'</div>';
       }
       if (data.marketTiming) {
-        html += '<div style="font-size:11px;color:#00DC82;margin-top:6px;opacity:0.7;">📊 Timing: ' + data.marketTiming + '</div>';
+ html +='<div style="font-size:11px;color:#00DC82;margin-top:6px;opacity:0.7;">Timing:'+ data.marketTiming +'</div>';
       }
       resultEl.innerHTML = html || '<span style="opacity:0.5;">No results generated</span>';
     } catch (err) {
@@ -6120,7 +6120,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     var niche = advNichoText();
     var resultEl = document.getElementById('adv-global-score-result');
     if (!niche) { resultEl.textContent = 'Enter a niche'; return; }
-    resultEl.innerHTML = '<span style="color:#FFD93D;">⏳ Scoring across 15 languages... (this may take 30-60s)</span>';
+ resultEl.innerHTML ='<span style="color:#FFD93D;">Scoring across 15 languages... (this may take 30-60s)</span>';
     try {
       var data = await API.apiScoreByLanguage(niche);
       var html = '<div style="margin-bottom:10px;padding:10px;background:rgba(255,217,61,0.1);border-radius:8px;">'
@@ -6137,7 +6137,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
           + '<div style="font-size:10px;opacity:0.5;">RPM $' + r.adjustedRpm + '</div>'
           + '<div style="display:flex;gap:2px;margin-top:4px;flex-wrap:wrap;">';
         var dims = r.dimensions;
-        var dimLabels = {rpm:'💰',demand:'📊',saturation:'🏷️',competition:'⚔️',faceless:'👤',repeatability:'🔄',languageGap:'🌐'};
+ var dimLabels = {rpm:'',demand:'',saturation:'',competition:'',faceless:'',repeatability:'',languageGap:''};
         Object.keys(dims).forEach(function(k) {
           var val = dims[k];
           var c = val >= 7 ? '#00DC82' : val >= 4 ? '#FFD93D' : '#FF6B6B';
@@ -6163,7 +6163,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     var channels = raw.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
     if (channels.length > 20) { resultEl.textContent = 'Maximum 20 channels'; return; }
 
-    resultEl.innerHTML = '<span style="color:#FFD93D;">⏳ Scanning ' + channels.length + ' channels... this may take ' + (channels.length * 15) + '-' + (channels.length * 30) + ' seconds</span>';
+ resultEl.innerHTML ='<span style="color:#FFD93D;">Scanning'+ channels.length +'channels... this may take'+ (channels.length * 15) +'-'+ (channels.length * 30) +'seconds</span>';
 
     try {
       var data = await API.apiBatchScan(channels, {
@@ -6187,9 +6187,9 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
             + '<div style="font-weight:700;font-size:13px;">' + (i+1) + '. ' + r.channel + '</div>'
             + '<div style="font-size:10px;opacity:0.5;">' + r.handle + ' | ' + r.subscribers + ' subs | ' + (r.monthsOld !== null ? r.monthsOld + 'mo' : '?') + '</div></div>'
             + '<div style="display:flex;gap:6px;align-items:center;">'
-            + '<span style="font-size:10px;color:#FF6B6B;">🔥' + r.viralVideoCount + '</span>'
-            + '<span style="font-size:10px;color:#2EE9FF;">📈' + r.velocityTier + '</span>'
-            + '<span style="font-size:10px;color:rgba(255,255,255,0.5);">👤' + Math.round(r.facelessAvg) + '%</span>'
+ +'<span style="font-size:10px;color:#FF6B6B;">'+ r.viralVideoCount +'</span>'
+ +'<span style="font-size:10px;color:#2EE9FF;">'+ r.velocityTier +'</span>'
+ +'<span style="font-size:10px;color:rgba(255,255,255,0.5);">'+ Math.round(r.facelessAvg) +'%</span>'
             + '<div style="padding:4px 10px;border-radius:6px;background:' + color + '22;color:' + color + ';font-weight:800;font-size:13px;">'
             + r.opportunityScore + ' ' + r.verdict + '</div></div></div>';
         });
@@ -6207,7 +6207,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
   });
 })();
 
-// ── Mode Switcher + Replicator Logic (refactor 2025-05) ─────────────
+// Mode Switcher + Replicator Logic (refactor 2025-05) 
 
 function switchAshlyvMode(mode) {
   var scanTabs = document.querySelector('.scan-tabs-bar') || document.getElementById('scan-tabs-bar');

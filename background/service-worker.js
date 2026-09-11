@@ -1,56 +1,60 @@
 // Classic service worker, so importScripts runs at initial evaluation. Order matters: NSPPolicy needs NSPText.
-try { importScripts('../lib/nsp-text.js', '../nsp-policy.js'); } catch (eNspText) { console.warn('[NSP SW] importScripts policy engine:', eNspText && eNspText.message); }
+try { importScripts('../lib/nsp-text.js', '../nsp-policy.js', '../lib/nsp-models.js'); } catch (eNspText) { console.warn('[NSP SW] importScripts policy engine:', eNspText && eNspText.message); }
 
-// Sliding window under the Gemini free tier of 15 requests per minute, so a 429 never happens client side.
-var _nspGeminiCallTimes = [];
 var NSP_GEMINI_LIMIT_PER_MIN = 14;
+var NSP_GROQ_LIMIT_PER_MIN = 28;
+// A bare timer is not extension activity, so a wait longer than this can be killed with the worker and the caller never gets an answer.
+var NSP_MAX_SLEEP_MS = 5000;
 
-function nspGeminiWaitForRateLimit() {
-  return new Promise(function(resolve) {
-    var now = Date.now();
-    _nspGeminiCallTimes = _nspGeminiCallTimes.filter(function(t) { return (now - t) < 60000; });
-    if (_nspGeminiCallTimes.length < NSP_GEMINI_LIMIT_PER_MIN) {
-      _nspGeminiCallTimes.push(now);
-      resolve(0);
-      return;
-    }
-    var oldest = _nspGeminiCallTimes[0];
-    var waitMs = (oldest + 60000) - now + 100;
-    if (waitMs < 0) waitMs = 0;
-    console.log('[NSP rate-limiter Gemini] ' + _nspGeminiCallTimes.length + '/' + NSP_GEMINI_LIMIT_PER_MIN + ' used, waiting ' + Math.ceil(waitMs / 1000) + 's');
-    setTimeout(function() {
-      var now2 = Date.now();
-      _nspGeminiCallTimes = _nspGeminiCallTimes.filter(function(t) { return (now2 - t) < 60000; });
-      _nspGeminiCallTimes.push(now2);
-      resolve(waitMs);
-    }, waitMs);
-  });
+// The window has to outlive the worker: MV3 tears it down after about 30s idle, and an in-memory array would reset the count on every restart.
+function nspRateStore() {
+  return (chrome.storage && chrome.storage.session) ? chrome.storage.session : chrome.storage.local;
 }
 
-// Groq gets its own limiter: its official cap is 30 requests per minute, buffered to 28.
-var _nspGroqCallTimes = [];
-var NSP_GROQ_LIMIT_PER_MIN = 28;
+var _nspRateQueue = Promise.resolve();
+
+function nspRateReserve(bucket, limitPerMin) {
+  var key = 'nsp_rate_' + bucket;
+  _nspRateQueue = _nspRateQueue.then(function() {
+    return new Promise(function(resolve) {
+      var store = nspRateStore();
+      store.get(key, function(r) {
+        var now = Date.now();
+        var times = ((r && Array.isArray(r[key])) ? r[key] : []).filter(function(t) { return typeof t === 'number' && (now - t) < 60000; });
+        var granted = times.length < limitPerMin;
+        if (granted) times.push(now);
+        var payload = {};
+        payload[key] = times;
+        store.set(payload, function() {
+          if (granted) { resolve({ granted: true, waitMs: 0, used: times.length }); return; }
+          var waitMs = (times[0] + 60000) - now + 100;
+          resolve({ granted: false, waitMs: waitMs > 0 ? waitMs : 0, used: times.length });
+        });
+      });
+    });
+  }).catch(function() { return { granted: true, waitMs: 0, used: 0 }; });
+  return _nspRateQueue;
+}
+
+async function nspRateLimitGate(bucket, limitPerMin) {
+  var res = await nspRateReserve(bucket, limitPerMin);
+  if (res.granted) return { ok: true };
+  console.log('[NSP rate-limiter ' + bucket + '] ' + res.used + '/' + limitPerMin + ' used in the last minute, ' + Math.ceil(res.waitMs / 1000) + 's to free a slot');
+  if (res.waitMs <= NSP_MAX_SLEEP_MS) {
+    await new Promise(function(r) { setTimeout(r, res.waitMs); });
+    var again = await nspRateReserve(bucket, limitPerMin);
+    if (again.granted) return { ok: true };
+    return { ok: false, retryAfter: Math.ceil(again.waitMs / 1000) };
+  }
+  return { ok: false, retryAfter: Math.ceil(res.waitMs / 1000) };
+}
+
+function nspGeminiWaitForRateLimit() {
+  return nspRateLimitGate('gemini', NSP_GEMINI_LIMIT_PER_MIN);
+}
 
 function nspGroqWaitForRateLimit() {
-  return new Promise(function(resolve) {
-    var now = Date.now();
-    _nspGroqCallTimes = _nspGroqCallTimes.filter(function(t) { return (now - t) < 60000; });
-    if (_nspGroqCallTimes.length < NSP_GROQ_LIMIT_PER_MIN) {
-      _nspGroqCallTimes.push(now);
-      resolve(0);
-      return;
-    }
-    var oldest = _nspGroqCallTimes[0];
-    var waitMs = (oldest + 60000) - now + 100;
-    if (waitMs < 0) waitMs = 0;
-    console.log('[NSP rate-limiter Groq] ' + _nspGroqCallTimes.length + '/' + NSP_GROQ_LIMIT_PER_MIN + ' used, waiting ' + Math.ceil(waitMs / 1000) + 's');
-    setTimeout(function() {
-      var now2 = Date.now();
-      _nspGroqCallTimes = _nspGroqCallTimes.filter(function(t) { return (now2 - t) < 60000; });
-      _nspGroqCallTimes.push(now2);
-      resolve(waitMs);
-    }, waitMs);
-  });
+  return nspRateLimitGate('groq', NSP_GROQ_LIMIT_PER_MIN);
 }
 
 // Groq and Ollama speak the OpenAI format, Gemini does not; these helpers normalize both to {ok, text, functionCalls}.
@@ -120,7 +124,10 @@ function nspFetchTimeout(url, opts, ms) {
 
 // The Groq free tier has a low tokens-per-minute cap, so the system prompt is cut to about 9000 characters to keep one turn under it.
 async function nspCallGroq(apiKey, model, payload, messages) {
-  await nspGroqWaitForRateLimit();
+  var gate = await nspGroqWaitForRateLimit();
+  if (!gate.ok) {
+    return { ok: false, error: NSP_GROQ_LIMIT_PER_MIN + ' requests already sent in the last minute, ' + gate.retryAfter + 's to a free slot', rateLimited: true, retryAfter: gate.retryAfter };
+  }
   var openAIMessages = nspMessagesToOpenAI(messages);
   if (payload.system) openAIMessages.unshift({ role: 'system', content: String(payload.system).slice(0, 9000) });
   var body = {
@@ -177,7 +184,7 @@ async function nspCallGroqWithRetry(apiKey, model, payload, messages) {
   while (true) {
     var res = await nspCallGroq(apiKey, model, payload, messages);
     if (res.ok) return res;
-    if (res.rateLimited && res.retryAfter > 0 && res.retryAfter <= 10 && attempts < 1) {
+    if (res.rateLimited && res.retryAfter > 0 && ((res.retryAfter + 0.5) * 1000) <= NSP_MAX_SLEEP_MS && attempts < 1) {
       console.log('[NSP SW] Groq rate limit, waiting ' + res.retryAfter + 's before retrying');
       await new Promise(function(r) { setTimeout(r, (res.retryAfter + 0.5) * 1000); });
       attempts++;
@@ -290,7 +297,10 @@ async function nspCallGemini(geminiKey, cachedModel, payload, messages) {
 
     while (!modelDone && retryCount <= maxRetries) {
       try {
-        await nspGeminiWaitForRateLimit();
+        var gate = await nspGeminiWaitForRateLimit();
+        if (!gate.ok) {
+          return { ok: false, error: NSP_GEMINI_LIMIT_PER_MIN + ' requests already sent in the last minute, ' + gate.retryAfter + 's to a free slot', triedModels: triedLog, rateLimited: true, retryAfter: gate.retryAfter };
+        }
         var resp = await nspFetchTimeout(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -319,7 +329,7 @@ async function nspCallGemini(geminiKey, cachedModel, payload, messages) {
               }
             } catch(eRd) {}
 
-            if (retryDelaySec > 0 && retryDelaySec <= 30 && retryCount < maxRetries) {
+            if (retryDelaySec > 0 && ((retryDelaySec + 1) * 1000) <= NSP_MAX_SLEEP_MS && retryCount < maxRetries) {
               console.log('[NSP SW] Rate limit on ' + modelName + ', waiting ' + retryDelaySec + 's');
               await new Promise(function(res) { setTimeout(res, (retryDelaySec + 1) * 1000); });
               retryCount++;
@@ -344,9 +354,10 @@ async function nspCallGemini(geminiKey, cachedModel, payload, messages) {
 
         var text = '';
         var functionCalls = [];
+        var cand = null;
         try {
           if (data && Array.isArray(data.candidates) && data.candidates.length) {
-            var cand = data.candidates[0];
+            cand = data.candidates[0];
             if (cand && cand.content && Array.isArray(cand.content.parts)) {
               for (var i = 0; i < cand.content.parts.length; i++) {
                 var part = cand.content.parts[i];
@@ -354,15 +365,24 @@ async function nspCallGemini(geminiKey, cachedModel, payload, messages) {
                 if (part && part.functionCall) functionCalls.push(part.functionCall);
               }
             }
-            if (!text && !functionCalls.length && cand && cand.finishReason && cand.finishReason !== 'STOP') {
-              triedLog.push(modelName + ' → finishReason=' + cand.finishReason);
-              lastError = 'gemini_finished_' + cand.finishReason;
-              lastDetail = cand;
-              modelDone = true;
-              break;
-            }
           }
         } catch(e) {}
+        // A block at prompt level answers 200 with no candidates at all, so nothing here can be treated as a success.
+        if (!text && !functionCalls.length) {
+          var blockReason = '';
+          try { blockReason = (data && data.promptFeedback && data.promptFeedback.blockReason) || ''; } catch (eBlock) {}
+          // A block at prompt level is not about the model, so walking the rest of the chain would spend quota on the same refusal.
+          if (blockReason) {
+            triedLog.push(modelName + ' → blocked ' + blockReason);
+            return { ok: false, error: 'gemini_blocked_' + blockReason, detail: data.promptFeedback, triedModels: triedLog, rateLimited: false };
+          }
+          var emptyWhy = (cand && cand.finishReason) ? ('gemini_finished_' + cand.finishReason) : 'gemini_empty_answer';
+          triedLog.push(modelName + ' → ' + emptyWhy);
+          lastError = emptyWhy;
+          lastDetail = cand || null;
+          modelDone = true;
+          break;
+        }
         chrome.storage.local.set({ nsp_gemini_working_model: modelName });
         console.log('[NSP SW] Gemini model OK:', modelName, '(after trying:', triedLog, ')',
           functionCalls.length ? '+ ' + functionCalls.length + ' function calls' : '');
@@ -413,7 +433,10 @@ async function nspCallGeminiVision(geminiKey, cachedModel, images, prompt, syste
     var modelName = modelChain[idx];
     var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(modelName) + ':generateContent?key=' + encodeURIComponent(geminiKey);
     try {
-      await nspGeminiWaitForRateLimit();
+      var visionGate = await nspGeminiWaitForRateLimit();
+      if (!visionGate.ok) {
+        return { ok: false, error: NSP_GEMINI_LIMIT_PER_MIN + ' requests already sent in the last minute, ' + visionGate.retryAfter + 's to a free slot', rateLimited: true, retryAfter: visionGate.retryAfter };
+      }
       var resp = await nspFetchTimeout(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, 45000);
       var data = await resp.json();
       if (data && data.error) {
@@ -469,8 +492,10 @@ async function runTrendCheck() {
       var res = await checkChannelForNewOutliers(w);
       if (res && res.newOutliers && res.newOutliers.length) {
         alerts.push({ channel: w, outliers: res.newOutliers });
-        // Update knownVideoIds
-        w.knownVideoIds = (w.knownVideoIds || []).concat(res.newOutliers.map(function(o) { return o.vidId; })).slice(-100);
+      }
+      // Every video seen on this pass is recorded, or an upload that was not an outlier today alerts weeks later as if it were new.
+      if (res && res.seenVideoIds && res.seenVideoIds.length) {
+        w.knownVideoIds = uniqueSlice(res.seenVideoIds.concat(w.knownVideoIds || []), 200);
       }
       w.lastChecked = Date.now();
       // Throttle to avoid YouTube rate-limit
@@ -502,72 +527,119 @@ async function runTrendCheck() {
   console.log('[NSP SW] trend-check done, alerts:', alerts.length);
 }
 
+var NSP_OUTLIER_MAX_AGE_HOURS = 168;
+
+function nspExtractYtInitialData(html) {
+  var s = String(html || '');
+  var m = s.match(/var ytInitialData\s*=\s*(\{[\s\S]*?\});\s*<\/script>/);
+  if (!m) m = s.match(/window\["ytInitialData"\]\s*=\s*(\{[\s\S]*?\});/);
+  if (!m) return null;
+  try { return JSON.parse(m[1]); } catch(e) { return null; }
+}
+
 async function checkChannelForNewOutliers(w) {
   var url = w.channelUrl.replace(/\/+$/, '').split('?')[0] + '/videos';
-  var resp = await fetch(url, { method: 'GET', credentials: 'omit' });
+  var resp = await nspFetchTimeout(url, { method: 'GET', credentials: 'omit' }, 20000);
   var html = await resp.text();
-  if (!html) return null;
-  var m = html.match(/var ytInitialData\s*=\s*(\{[\s\S]*?\});\s*<\/script>/);
-  if (!m) m = html.match(/window\["ytInitialData"\]\s*=\s*(\{[\s\S]*?\});/);
-  if (!m) return null;
-  var data;
-  try { data = JSON.parse(m[1]); } catch(e) { return null; }
+  var data = nspExtractYtInitialData(html);
+  if (!data) return null;
 
-  var videos = [];
-  function walk(o, depth) {
-    if (depth > 25 || !o || typeof o !== 'object') return;
-    if (Array.isArray(o)) { for (var i = 0; i < o.length; i++) walk(o[i], depth + 1); return; }
-    var v = o.videoRenderer || o.gridVideoRenderer;
-    if (v && v.videoId) {
-      try {
-        var title = (v.title && (v.title.simpleText || (v.title.runs && v.title.runs[0] && v.title.runs[0].text))) || '';
-        var viewsTxt = (v.viewCountText && (v.viewCountText.simpleText || (v.viewCountText.runs && v.viewCountText.runs[0] && v.viewCountText.runs[0].text))) || '';
-        if (!viewsTxt && v.shortViewCountText) viewsTxt = v.shortViewCountText.simpleText || (v.shortViewCountText.runs && v.shortViewCountText.runs[0] && v.shortViewCountText.runs[0].text) || '';
-        var pubTxt = (v.publishedTimeText && (v.publishedTimeText.simpleText || (v.publishedTimeText.runs && v.publishedTimeText.runs[0] && v.publishedTimeText.runs[0].text))) || '';
-        if (title) videos.push({
-          vidId: v.videoId,
-          title: title,
-          views: parseViews(viewsTxt),
-          hoursOld: parseRelHours(pubTxt)
-        });
-      } catch(e) {}
-    }
-    var keys = Object.keys(o);
-    for (var k = 0; k < keys.length; k++) {
-      if (keys[k] === 'videoRenderer' || keys[k] === 'gridVideoRenderer') continue;
-      walk(o[keys[k]], depth + 1);
-    }
-  }
-  walk(data, 0);
+  var videos = (extractVideosFromInnertube(data) || []).map(function(v) {
+    return {
+      vidId: v.videoId,
+      title: v.title,
+      views: parseViews(v.viewsText),
+      hoursOld: parseRelHours(v.publishedText)
+    };
+  });
+  if (!videos.length) return null;
+  var seenVideoIds = videos.map(function(v) { return v.vidId; });
 
-  // Filter: new videos (not in knownVideoIds) + outlier criteria (VPH >= 100 OR >50K views in <72h)
+  // First pass only baselines, or every upload already on the channel would alert at once.
   var known = w.knownVideoIds || [];
+  if (!known.length) return { newOutliers: [], seenVideoIds: seenVideoIds };
+
   var threshold_vph = 100;
   var newOutliers = videos.filter(function(v) {
     if (known.indexOf(v.vidId) !== -1) return false;
     if (!v.views || !v.hoursOld || v.hoursOld < 0.5) return false;
+    if (v.hoursOld > NSP_OUTLIER_MAX_AGE_HOURS) return false;
     var vph = v.views / v.hoursOld;
     if (vph >= threshold_vph) return true;
     if (v.hoursOld < 72 && v.views >= 50000) return true;
     return false;
   });
 
-  // If first time checking (knownVideoIds empty), don't fire — just baseline
-  if (!known.length) {
-    w.knownVideoIds = videos.map(function(v) { return v.vidId; }).slice(0, 50);
-    return { newOutliers: [] };
-  }
-
-  return { newOutliers: newOutliers.slice(0, 5) };
+  return { newOutliers: newOutliers.slice(0, 5), seenVideoIds: seenVideoIds };
 }
 
-function parseViews(t) {
+// Magnitude words as YouTube writes them per market. Matched tokens, not UI copy.
+var NSP_VIEW_MAGNITUDES = {
+  k: 1e3, tsd: 1e3, mil: 1e3, mila: 1e3, tys: 1e3, bin: 1e3, rb: 1e3, ribu: 1e3, thousand: 1e3,
+  m: 1e6, mn: 1e6, mi: 1e6, mio: 1e6, mln: 1e6, jt: 1e6, juta: 1e6, milyon: 1e6,
+  million: 1e6, millions: 1e6, millionen: 1e6, millon: 1e6, millones: 1e6,
+  milhao: 1e6, milhoes: 1e6, milione: 1e6, milioni: 1e6,
+  b: 1e9, bn: 1e9, md: 1e9, mld: 1e9, mrd: 1e9, milyar: 1e9, miliar: 1e9,
+  billion: 1e9, billions: 1e9, milliarde: 1e9, milliarden: 1e9,
+  bilhao: 1e9, bilhoes: 1e9, miliardo: 1e9, miliardi: 1e9
+};
+
+// Languages that write one point two as 1,2. Data, not UI copy.
+var NSP_COMMA_DECIMAL_LANGS = ['af','az','be','bg','bs','ca','cs','da','de','el','es','et','eu','fi','fr','gl','hr','hu','hy','id','is','it','ka','kk','lt','lv','mk','nb','nl','no','pl','pt','ro','ru','sk','sl','sq','sr','sv','tr','uk','vi'];
+
+function nspDecimalSeparator(hl) {
+  var lang = String(hl || '').toLowerCase().split(/[-_]/)[0];
+  return NSP_COMMA_DECIMAL_LANGS.indexOf(lang) !== -1 ? ',' : '.';
+}
+
+function nspStripAccents(s) {
+  try { return String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) { return String(s); }
+}
+
+function nspViewMagnitude(tail) {
+  var words = nspStripAccents(String(tail || '').toLowerCase()).match(/[a-z]+/g) || [];
+  var first = words[0] || '';
+  var second = words[1] || '';
+  // Spanish and Portuguese build a billion out of two words: mil millones, mil milhoes, mil M.
+  if ((first === 'mil' || first === 'mila') && NSP_VIEW_MAGNITUDES[second] === 1e6) return 1e9;
+  return NSP_VIEW_MAGNITUDES[first] || 1;
+}
+
+function nspParseGroupedNumber(token, hl, hasMagnitude) {
+  var s = String(token).replace(/[\s\u00a0\u202f']/g, '');
+  var dots = (s.match(/\./g) || []).length;
+  var commas = (s.match(/,/g) || []).length;
+  var decSep = '';
+  if (dots && commas) {
+    decSep = s.lastIndexOf('.') > s.lastIndexOf(',') ? '.' : ',';
+  } else if ((dots + commas) === 1) {
+    var sep = dots ? '.' : ',';
+    var digitsAfter = s.length - 1 - s.lastIndexOf(sep);
+    // Three digits behind one separator is a thousands group; YouTube never prints more than one decimal digit.
+    if (digitsAfter === 3) decSep = (hasMagnitude && sep === nspDecimalSeparator(hl)) ? sep : '';
+    else decSep = sep;
+  }
+  var cleaned;
+  if (decSep) {
+    var at = s.lastIndexOf(decSep);
+    cleaned = s.slice(0, at).replace(/[.,]/g, '') + '.' + s.slice(at + 1).replace(/[.,]/g, '');
+  } else {
+    cleaned = s.replace(/[.,]/g, '');
+  }
+  var n = parseFloat(cleaned);
+  return isFinite(n) ? n : NaN;
+}
+
+function parseViews(t, hl) {
   if (!t) return 0;
-  t = String(t).replace(/[^\d.kKmMbB]/g, '');
-  if (/k$/i.test(t)) return Math.round(parseFloat(t) * 1000);
-  if (/m$/i.test(t)) return Math.round(parseFloat(t) * 1000000);
-  if (/b$/i.test(t)) return Math.round(parseFloat(t) * 1000000000);
-  return parseInt(t.replace(/[.,]/g, ''), 10) || 0;
+  var raw = String(t);
+  var numMatch = raw.match(/\d[\d.,\u00a0\u202f' ]*\d|\d/);
+  if (!numMatch) return 0;
+  var tail = raw.slice(numMatch.index + numMatch[0].length);
+  var mult = nspViewMagnitude(tail);
+  var n = nspParseGroupedNumber(numMatch[0], hl, mult > 1);
+  if (!isFinite(n)) return 0;
+  return Math.round(n * mult);
 }
 
 function parseRelHours(text) {
@@ -654,6 +726,40 @@ function storageSet(payload) {
   });
 }
 
+function nspParsePrefCookie(value) {
+  var pairs = {};
+  String(value || '').split('&').forEach(function(part) {
+    if (!part) return;
+    var eq = part.indexOf('=');
+    var k = eq > 0 ? part.slice(0, eq) : part;
+    var v = eq > 0 ? part.slice(eq + 1) : '';
+    if (k) pairs[k] = v;
+  });
+  return pairs;
+}
+
+function nspWritePrefCookie(existing, pairs, done) {
+  var value = Object.keys(pairs).map(function(k) { return k + '=' + pairs[k]; }).join('&');
+  var details = {
+    url: 'https://www.youtube.com/',
+    name: 'PREF',
+    value: value,
+    path: (existing && existing.path) || '/',
+    secure: existing ? !!existing.secure : true
+  };
+  if (!existing || !existing.hostOnly) details.domain = (existing && existing.domain) || '.youtube.com';
+  if (existing && existing.sameSite && existing.sameSite !== 'unspecified') details.sameSite = existing.sameSite;
+  else if (!existing) details.sameSite = 'no_restriction';
+  // A session cookie stays a session cookie: adding an expiry would outlive the browsing session the user chose.
+  if (!existing || !existing.session) {
+    details.expirationDate = (existing && existing.expirationDate) || (Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 180);
+  }
+  chrome.cookies.set(details, function(cookie) {
+    var err = chrome.runtime && chrome.runtime.lastError;
+    done(cookie || null, err ? err.message : '');
+  });
+}
+
 function uniqueSlice(list, max) {
   var seen = {};
   var out = [];
@@ -727,6 +833,9 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         if ((entry.topVPH || 0) > (prev.topVPH || 0)) { prev.topVPH = entry.topVPH; prev.topTier = entry.topTier; }
         if (entry.niche && entry.niche !== '🔮 General') prev.niche = entry.niche;
         if (entry.channelAgeDays != null) prev.channelAgeDays = entry.channelAgeDays;
+        if ((entry.videosSeen || 0) > (prev.videosSeen || 0)) prev.videosSeen = entry.videosSeen;
+        if ((entry.outliers || 0) > (prev.outliers || 0)) prev.outliers = entry.outliers;
+        if ((entry.avgVPH || 0) > (prev.avgVPH || 0)) prev.avgVPH = entry.avgVPH;
         if (entry.joinedDate) prev.joinedDate = entry.joinedDate;
         if ((entry.totalViews || 0) > (prev.totalViews || 0)) prev.totalViews = entry.totalViews;
         if ((entry.videoCount || 0) > (prev.videoCount || 0)) prev.videoCount = entry.videoCount;
@@ -808,7 +917,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  // — Set YouTube PREF cookie to force gl/hl for the user's session.
+  // — Merge gl/hl into the YouTube PREF cookie for the user's session.
   //   Pages loaded after this call pick up the new locale; pages already open need a reload.
   if (msg.type === 'NSP_SET_YT_COOKIE') {
     var gl = String(msg.gl || '').trim();
@@ -817,37 +926,28 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       sendResponse({ ok: false, error: 'chrome.cookies API not available' });
       return false;
     }
-    // gl/hl empty -> CLEAR the cookie (reverting to YT default for global market)
-    if (!gl && !hl) {
-      chrome.cookies.remove({
-        url: 'https://www.youtube.com/',
-        name: 'PREF'
-      }, function(removed) {
-        var err = chrome.runtime && chrome.runtime.lastError;
-        if (err) sendResponse({ ok: false, error: err.message });
-        else sendResponse({ ok: true, cleared: !!removed });
-      });
-      return true;
-    }
-    // YouTube PREF cookie format: f6=400 (enable persist) + hl + gl
-    var prefValue = 'f6=400&hl=' + encodeURIComponent(hl) + '&gl=' + encodeURIComponent(gl);
-    var expiration = Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 180; // 180d
-    chrome.cookies.set({
-      url: 'https://www.youtube.com/',
-      domain: '.youtube.com',
-      name: 'PREF',
-      value: prefValue,
-      path: '/',
-      secure: true,
-      sameSite: 'no_restriction',
-      expirationDate: expiration
-    }, function(cookie) {
-      var err = chrome.runtime && chrome.runtime.lastError;
-      if (err) {
-        sendResponse({ ok: false, error: err.message });
-        return;
+    // PREF also holds theme, playback and autoplay settings, so the current value is read and only hl and gl are touched.
+    chrome.cookies.get({ url: 'https://www.youtube.com/', name: 'PREF' }, function(existing) {
+      var pairs = nspParsePrefCookie(existing && existing.value);
+      if (!gl && !hl) {
+        delete pairs.hl;
+        delete pairs.gl;
+        if (!Object.keys(pairs).length) {
+          chrome.cookies.remove({ url: 'https://www.youtube.com/', name: 'PREF' }, function(removed) {
+            var errRm = chrome.runtime && chrome.runtime.lastError;
+            if (errRm) sendResponse({ ok: false, error: errRm.message });
+            else sendResponse({ ok: true, cleared: !!removed });
+          });
+          return;
+        }
+      } else {
+        if (hl) pairs.hl = encodeURIComponent(hl); else delete pairs.hl;
+        if (gl) pairs.gl = encodeURIComponent(gl); else delete pairs.gl;
       }
-      sendResponse({ ok: true, cookie: cookie ? { value: cookie.value, gl: gl, hl: hl } : null });
+      nspWritePrefCookie(existing, pairs, function(cookie, errSet) {
+        if (errSet) { sendResponse({ ok: false, error: errSet }); return; }
+        sendResponse({ ok: true, cookie: cookie ? { value: cookie.value, gl: gl, hl: hl } : null });
+      });
     });
     return true;
   }
@@ -863,24 +963,31 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     var queries = Array.isArray(msg.queries) ? msg.queries.slice(0, 18) : [];
     var force = !!msg.force; // bypass cache
     var maxAgeHours = Number(msg.maxAgeHours) || 0;
-    var cacheKey = 'nsp_country_feed_' + gl + '_' + hl + '_' + (nspRecencyParams(maxAgeHours) || 'any');
+    var cacheKey = nspCountryFeedCacheKey(gl, hl, maxAgeHours, queries);
     var TTL = 15 * 60 * 1000; // 15 min
 
     function returnCached(cached, source) {
       sendResponse({ ok: true, videos: cached.videos || [], cached: true, ts: cached.ts, source: source });
     }
     function returnFresh(videos) {
-      try {
-        var payload = { videos: videos, ts: Date.now(), gl: gl, hl: hl };
-        var setObj = {}; setObj[cacheKey] = payload;
-        chrome.storage.local.set(setObj);
-      } catch(e) {}
+      // An empty answer is not cached: caching it would hand the same empty list back for 15 minutes without asking YouTube again.
+      if (videos && videos.length) {
+        try {
+          var payload = { videos: videos, ts: Date.now(), gl: gl, hl: hl, queries: queries };
+          var setObj = {}; setObj[cacheKey] = payload;
+          chrome.storage.local.set(setObj, function() {
+            var errSet = chrome.runtime && chrome.runtime.lastError;
+            if (errSet) console.warn('[NSP SW] country feed cache not written:', errSet.message);
+          });
+        } catch(e) {}
+      }
       sendResponse({ ok: true, videos: videos, cached: false, ts: Date.now() });
     }
 
     chrome.storage.local.get(cacheKey, function(r) {
       var cached = r && r[cacheKey];
-      if (!force && cached && cached.videos && (Date.now() - cached.ts) < TTL) {
+      var usable = !!(cached && Array.isArray(cached.videos) && cached.videos.length);
+      if (!force && usable && (Date.now() - cached.ts) < TTL) {
         returnCached(cached, 'cache-fresh');
         return;
       }
@@ -889,11 +996,25 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         .then(returnFresh)
         .catch(function(err) {
           console.warn('[NSP SW] InnerTube fetch error:', err && err.message);
-          if (cached && cached.videos) returnCached(cached, 'cache-stale-fallback');
+          if (usable) returnCached(cached, 'cache-stale-fallback');
           else sendResponse({ ok: false, error: String(err && err.message || err), videos: [] });
         });
     });
     return true; // async
+  }
+
+  // Clearing must build the key the same way the writer does, or it removes nothing and still reports success.
+  if (msg.type === 'NSP_COUNTRY_FEED_CACHE_CLEAR') {
+    chrome.storage.local.get(null, function(all) {
+      var keys = Object.keys(all || {}).filter(function(k) { return k.indexOf(NSP_COUNTRY_FEED_PREFIX) === 0; });
+      if (!keys.length) { sendResponse({ ok: true, removed: 0 }); return; }
+      chrome.storage.local.remove(keys, function() {
+        var err = chrome.runtime && chrome.runtime.lastError;
+        if (err) sendResponse({ ok: false, error: err.message, removed: 0 });
+        else sendResponse({ ok: true, removed: keys.length });
+      });
+    });
+    return true;
   }
 
   // — Scan memory (cross-session dedup)
@@ -1035,49 +1156,11 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  // — Anthropic proxy (server-side, uses stored API key)
-  if (msg.type === 'ASHLYV_ANTHROPIC_REQUEST') {
-    chrome.storage.local.get('ashlyv_api_key', async function(r) {
-      var apiKey = r && typeof r.ashlyv_api_key === 'string' ? r.ashlyv_api_key : '';
-      if (!apiKey || !/^sk-ant-[a-zA-Z0-9\-_]{20,180}$/.test(apiKey)) {
-        sendResponse({ ok: false, error: 'missing_or_invalid_api_key' });
-        return;
-      }
-      var payload = msg.payload || {};
-      try {
-        var body = {
-          model: payload.model || 'claude-sonnet-4-20250514',
-          max_tokens: 1500,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Analyze this YouTube thumbnail. Return strict JSON: {"ctrScore":0-100,"overallScore":0-100,"verdict":"VIRAL POTENTIAL|GOOD|NEEDS WORK|POOR","strengths":["..."],"weaknesses":["..."],"improvements":["..."],"facelessCompatible":true,"emotionScore":0-10,"textReadability":0-10,"colorContrast":0-10,"curiosityHook":0-10}' },
-              { type: 'image', source: { type: 'base64', media_type: payload.mediaType || 'image/png', data: payload.imageBase64 || '' } }
-            ]
-          }]
-        };
-        var resp = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'anthropic-version': '2023-06-01',
-            'x-api-key': apiKey
-          },
-          body: JSON.stringify(body)
-        });
-        var data = await resp.json();
-        if (data && data.error) sendResponse({ ok: false, error: data.error.message });
-        else sendResponse({ ok: true, data: data });
-      } catch (e) {
-        sendResponse({ ok: false, error: String(e && e.message || e) });
-      }
-    });
-    return true;
-  }
-
   if (msg.type === 'ASHLYV_VISION_JUDGE') {
-    chrome.storage.local.get(['nsp_gemini_api_key', 'nsp_gemini_working_model'], async function (r) {
+    chrome.storage.local.get(['nsp_gemini_api_key', 'nsp_gemini_working_model', 'nsp_vision_allowed'], async function (r) {
       try {
+        // Reading thumbnails costs Gemini quota, so the stored opt in is checked here too and not only in the page that asks.
+        if (!(r && r.nsp_vision_allowed === true)) { sendResponse({ ok: false, error: 'vision_not_allowed' }); return; }
         var geminiKey = r && typeof r.nsp_gemini_api_key === 'string' ? r.nsp_gemini_api_key.trim() : '';
         if (!geminiKey || !/^AIza[a-zA-Z0-9\-_]{30,50}$/.test(geminiKey)) { sendResponse({ ok: false, error: 'missing_or_invalid_gemini_key' }); return; }
         var cachedModel = r && typeof r.nsp_gemini_working_model === 'string' ? r.nsp_gemini_working_model : '';
@@ -1130,9 +1213,13 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
       var chosen = String((r && r.nsp_selected_model) || 'auto');
       var chosenProvider = '', chosenModel = '';
       if (chosen && chosen !== 'auto') {
+        // The model name comes from the catalog, not from the id: the local entry carries no model on purpose and the id half reads 'local'.
+        var catalogEntry = null;
+        try { catalogEntry = (typeof NSP_MODELS !== 'undefined' && NSP_MODELS.byId) ? NSP_MODELS.byId(chosen) : null; } catch (eCat) {}
+        if (!catalogEntry || catalogEntry.id !== chosen) catalogEntry = null;
         var cut = chosen.indexOf(':');
-        chosenProvider = cut > 0 ? chosen.slice(0, cut) : chosen;
-        chosenModel = cut > 0 ? chosen.slice(cut + 1) : '';
+        chosenProvider = catalogEntry ? catalogEntry.provider : (cut > 0 ? chosen.slice(0, cut) : chosen);
+        chosenModel = catalogEntry ? String(catalogEntry.model || '') : (cut > 0 ? chosen.slice(cut + 1) : '');
         if (chosenProvider === 'groq' && chosenModel) groqModel = chosenModel;
       }
 
@@ -1243,22 +1330,14 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.type === 'NSP_AGENT_SEARCH_MARKET') {
     var mq = String(msg.query || '').slice(0, 120);
     if (!mq) { sendResponse({ ok: false, error: 'no_query' }); return false; }
+    var mHl = String(msg.hl || 'en');
     try {
-      innertubeFetch('search', { query: mq }, { gl: msg.gl || 'US', hl: msg.hl || 'en' })
+      innertubeFetch('search', { query: mq }, { gl: msg.gl || 'US', hl: mHl })
         .then(function(data) {
           var vids = (extractVideosFromInnertube(data) || []).slice(0, 45);
           var parsed = vids.map(function(v) {
             var viewsNum = 0;
-            try {
-              var vt = String(v.viewsText || '').replace(/[^0-9.,KMBkmb]/g, '');
-              var mult = /M/i.test(vt) ? 1e6 : /B/i.test(vt) ? 1e9 : /K/i.test(vt) ? 1e3 : 1;
-              var nRaw = vt.replace(/[KMBkmb]/g, '');
-              var decimalComma = mult > 1 && /,\d{1,2}$/.test(nRaw) && nRaw.indexOf('.') === -1;
-              var parsedNum = decimalComma
-                ? parseFloat(nRaw.replace(',', '.').replace(/[^0-9.]/g, ''))
-                : parseFloat(nRaw.replace(/,/g, '').replace(/[^0-9.]/g, ''));
-              viewsNum = Math.round((parsedNum || 0) * mult);
-            } catch(e) {}
+            try { viewsNum = parseViews(v.viewsText, mHl); } catch(e) {}
             return {
               videoId: v.videoId,
               vidId: v.videoId,
@@ -1339,7 +1418,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     if (!nspFetchUrlAllowed(fUrl, sender)) { sendResponse({ ok: false, error: 'host_not_allowed' }); return false; }
     (async function() {
       try {
-        var resp = await fetch(fUrl, { method: 'GET', credentials: 'omit' });
+        var resp = await nspFetchTimeout(fUrl, { method: 'GET', credentials: 'omit' }, 20000);
         var text = await resp.text();
         sendResponse({ ok: true, status: resp.status, text: String(text || '').slice(0, 8000), truncated: text.length > 8000 });
       } catch (e) {
@@ -1368,7 +1447,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         var track = tracks[0], url = String(track.baseUrl || '');
         if (!url) { sendResponse({ ok: false, error: 'no_track_url', title: title, author: author }); return; }
         if (url.indexOf('fmt=') < 0) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'fmt=json3';
-        var r = await fetch(url, { method: 'GET', credentials: 'omit', cache: 'no-store' });
+        var r = await nspFetchTimeout(url, { method: 'GET', credentials: 'omit', cache: 'no-store' }, 20000);
         var segments = [], full = '';
         if (r.ok) {
           var j = null; try { j = await r.json(); } catch (e) {}
@@ -1423,7 +1502,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         var chUrl = String(msg.channelUrl || '').split('?')[0].replace(/\/$/, '');
         if (!/youtube\.com/i.test(chUrl)) { sendResponse({ ok: false, error: 'invalid_channel_url' }); return; }
         var aboutUrl = chUrl + '/about';
-        var resp = await fetch(aboutUrl, { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'es,en' } });
+        var resp = await nspFetchTimeout(aboutUrl, { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'es,en' } }, 20000);
         var html = await resp.text();
         function extractNum(re) { var m = html.match(re); return m ? m[1] : ''; }
         var subsRaw = extractNum(/"subscriberCountText":\{"(?:simpleText|accessibility)"[^}]*?"(?:simpleText"?:?\s*")?([\d.,]+ ?[KMB]?)[^"]*?(?:subscriber|suscriptor)/i)
@@ -1466,32 +1545,22 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         var cvUrl = String(msg.channelUrl || '').split('?')[0].replace(/\/$/, '');
         if (!/youtube\.com/i.test(cvUrl)) { sendResponse({ ok: false, error: 'invalid_channel_url' }); return; }
         var videosUrl = cvUrl + '/videos';
-        var resp = await fetch(videosUrl, { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'es,en' } });
+        var resp = await nspFetchTimeout(videosUrl, { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'es,en' } }, 20000);
         var html = await resp.text();
-        var videos = [];
-        var re = /"videoRenderer":\{"videoId":"([^"]+)"[^}]*?"title":\{"runs":\[\{"text":"([^"]+)"\}\][^}]*?(?:"viewCountText":\{"simpleText":"([^"]*)"\})?[^}]*?(?:"publishedTimeText":\{"simpleText":"([^"]*)"\})?/g;
-        var m, guard = 0;
-        while ((m = re.exec(html)) !== null && guard < 20) {
-          guard++;
-          videos.push({
-            videoId: m[1],
-            title: (m[2] || '').replace(/\\u0026/g, '&').slice(0, 200),
-            views: m[3] || '',
-            published: m[4] || '',
-            url: 'https://www.youtube.com/watch?v=' + m[1]
-          });
-        }
-        if (!videos.length) {
-          var reSimple = /"videoId":"([^"]+)"[^}]{0,400}?"text":"([^"]{4,120})"/g;
-          var m2, g2 = 0, seen = {};
-          while ((m2 = reSimple.exec(html)) !== null && g2 < 30) {
-            g2++;
-            if (seen[m2[1]]) continue; seen[m2[1]] = 1;
-            videos.push({ videoId: m2[1], title: (m2[2] || '').slice(0, 200), url: 'https://www.youtube.com/watch?v=' + m2[1] });
-            if (videos.length >= 15) break;
-          }
-        }
-        sendResponse({ ok: true, channelUrl: cvUrl, count: videos.length, videos: videos.slice(0, 15) });
+        // Read the embedded JSON: the thumbnail block sits between videoId and title, so no flat regex over the HTML can pair them.
+        var initial = nspExtractYtInitialData(html);
+        if (!initial) { sendResponse({ ok: false, error: 'ytinitialdata_not_found', channelUrl: cvUrl }); return; }
+        var videos = (extractVideosFromInnertube(initial) || []).slice(0, 15).map(function(v) {
+          return {
+            videoId: v.videoId,
+            title: String(v.title || '').slice(0, 200),
+            views: v.viewsText || '',
+            published: v.publishedText || '',
+            url: 'https://www.youtube.com/watch?v=' + v.videoId
+          };
+        });
+        if (!videos.length) { sendResponse({ ok: false, error: 'no_videos_parsed', channelUrl: cvUrl }); return; }
+        sendResponse({ ok: true, channelUrl: cvUrl, count: videos.length, videos: videos });
       } catch (e) {
         sendResponse({ ok: false, error: String(e && e.message || e) });
       }
@@ -1548,15 +1617,19 @@ function innertubeFetch(endpoint, body, opts) {
     context: buildInnertubeContext(opts.gl, opts.hl)
   });
   // In an MV3 service worker Origin, Referer and X-YouTube-* are forbidden headers and the request fails, so only Content-Type is sent; gl and hl travel inside context.
-  return fetch(url, {
+  return nspFetchTimeout(url, {
     method: 'POST',
     credentials: 'omit', // CRITICAL: no user cookies → no personalization
     cache: 'no-store',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fullBody)
-  }).then(function(r) {
+  }, 20000).then(function(r) {
     if (!r.ok) throw new Error('InnerTube HTTP ' + r.status);
     return r.json();
+  }).catch(function(e) {
+    // One stalled search out of eighteen would keep Promise.all pending and the scan would never answer.
+    if (e && e.name === 'AbortError') throw new Error('InnerTube timed out after 20s');
+    throw e;
   });
 }
 
@@ -1610,6 +1683,66 @@ function extractVideosFromInnertube(data) {
       source: source || 'innertube'
     });
   }
+  // Channel pages ship this shape instead of videoRenderer, so without it a channel reads as zero videos.
+  function pushFromLockup(lockup, source) {
+    if (!lockup || String(lockup.contentType || '') !== 'LOCKUP_CONTENT_TYPE_VIDEO') return;
+    var videoId = String(lockup.contentId || '');
+    if (!videoId || seen[videoId]) return;
+    var md = (lockup.metadata && lockup.metadata.lockupMetadataViewModel) || {};
+    var title = '';
+    try { title = String((md.title && (md.title.content || md.title.simpleText)) || ''); } catch(e) {}
+    if (!title) return;
+    seen[videoId] = true;
+    var viewsTxt = '';
+    var pubTxt = '';
+    try {
+      var rows = (md.metadata && md.metadata.contentMetadataViewModel && md.metadata.contentMetadataViewModel.metadataRows) || [];
+      for (var ri = 0; ri < rows.length && !pubTxt; ri++) {
+        var texts = ((rows[ri] && rows[ri].metadataParts) || []).map(function(part) {
+          return String((part && part.text && (part.text.content || part.text.simpleText)) || '');
+        }).filter(Boolean);
+        var ageIdx = -1;
+        for (var ti = 0; ti < texts.length; ti++) { if (parseRelHours(texts[ti]) !== null) { ageIdx = ti; break; } }
+        if (ageIdx === -1) continue;
+        pubTxt = texts[ageIdx];
+        // Views and age sit in the same row, so the sibling part is the view count and no other part has to be guessed at.
+        for (var vi = 0; vi < texts.length; vi++) { if (vi !== ageIdx && /\d/.test(texts[vi])) { viewsTxt = texts[vi]; break; } }
+      }
+    } catch(e) {}
+    var lenTxt = '';
+    try {
+      var overlays = lockup.contentImage.thumbnailViewModel.overlays || [];
+      overlays.forEach(function(ov) {
+        var badges = (ov && ov.thumbnailBottomOverlayViewModel && ov.thumbnailBottomOverlayViewModel.badges) || [];
+        badges.forEach(function(bd) {
+          var t = String((bd && bd.thumbnailBadgeViewModel && bd.thumbnailBadgeViewModel.text) || '');
+          if (!lenTxt && /^\d+(:\d\d)+$/.test(t)) lenTxt = t;
+        });
+      });
+    } catch(e) {}
+    var thumb = '';
+    try {
+      var sources = lockup.contentImage.thumbnailViewModel.image.sources || [];
+      thumb = (sources.length ? (sources[sources.length - 1].url || sources[0].url) : '') || '';
+    } catch(e) {}
+    var channelId = '';
+    try {
+      var cmd = lockup.rendererContext.commandContext;
+      channelId = (cmd && cmd.browseEndpoint && cmd.browseEndpoint.browseId) || '';
+    } catch(e) {}
+    out.push({
+      videoId: videoId,
+      title: title,
+      viewsText: viewsTxt,
+      publishedText: pubTxt,
+      lengthText: lenTxt,
+      channelName: '',
+      channelId: channelId,
+      channelUrl: channelId ? ('https://www.youtube.com/channel/' + channelId) : '',
+      thumbnail: thumb,
+      source: source || 'innertube'
+    });
+  }
   function walk(o, depth, source) {
     if (depth > 25 || !o || typeof o !== 'object') return;
     if (Array.isArray(o)) {
@@ -1619,13 +1752,15 @@ function extractVideosFromInnertube(data) {
     if (o.videoRenderer) pushFromRenderer(o.videoRenderer, source);
     if (o.gridVideoRenderer) pushFromRenderer(o.gridVideoRenderer, source);
     if (o.compactVideoRenderer) pushFromRenderer(o.compactVideoRenderer, source);
-    if (o.richItemRenderer && o.richItemRenderer.content && o.richItemRenderer.content.videoRenderer) {
-      pushFromRenderer(o.richItemRenderer.content.videoRenderer, source);
+    if (o.lockupViewModel) pushFromLockup(o.lockupViewModel, source);
+    if (o.richItemRenderer && o.richItemRenderer.content) {
+      if (o.richItemRenderer.content.videoRenderer) pushFromRenderer(o.richItemRenderer.content.videoRenderer, source);
+      if (o.richItemRenderer.content.lockupViewModel) pushFromLockup(o.richItemRenderer.content.lockupViewModel, source);
     }
     var keys = Object.keys(o);
     for (var k = 0; k < keys.length; k++) {
       var key = keys[k];
-      if (key === 'videoRenderer' || key === 'gridVideoRenderer' || key === 'compactVideoRenderer' || key === 'richItemRenderer') continue;
+      if (key === 'videoRenderer' || key === 'gridVideoRenderer' || key === 'compactVideoRenderer' || key === 'lockupViewModel' || key === 'richItemRenderer') continue;
       walk(o[key], depth + 1, source);
     }
   }
@@ -1652,6 +1787,29 @@ var NSP_RECENCY_PARAMS = [
   { maxHours: 720, params: 'EgQIBBAB' },
   { maxHours: 8760, params: 'EgQIBRAB' }
 ];
+
+var NSP_COUNTRY_FEED_PREFIX = 'nsp_country_feed_';
+
+function nspHashQueries(queries) {
+  var norm = (Array.isArray(queries) ? queries : [])
+    .map(function(q) { return String(q || '').trim().toLowerCase(); })
+    .filter(Boolean)
+    .sort()
+    .join('|');
+  if (!norm) return 'noq';
+  var h = 2166136261;
+  for (var i = 0; i < norm.length; i++) {
+    h ^= norm.charCodeAt(i);
+    h = Math.imul(h, 16777619) >>> 0;
+  }
+  return h.toString(36);
+}
+
+// The searches are part of the key: the same market scanned with a different query list is a different answer, not a cache hit.
+function nspCountryFeedCacheKey(gl, hl, maxAgeHours, queries) {
+  return NSP_COUNTRY_FEED_PREFIX + String(gl || '').toUpperCase() + '_' + String(hl || '').toLowerCase() + '_' +
+    (nspRecencyParams(maxAgeHours) || 'any') + '_' + nspHashQueries(queries);
+}
 
 function nspRecencyParams(maxAgeHours) {
   var h = Number(maxAgeHours) || 0;
