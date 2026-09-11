@@ -4,7 +4,7 @@
 
 ```
 git clone <this repo>
-cd cashcow-radar
+cd cashcow-radar-agent
 ```
 
 `chrome://extensions`, **Developer mode** on, **Load unpacked**, pick this folder. Nothing to build, nothing to install, no dependencies. After an edit press the reload arrow on the extension card, then reload the YouTube tab: a content script does not re-inject on its own.

@@ -327,12 +327,12 @@ function load() {
         { ts: t1, v: 1500 }, { ts: t1, v: 1300 }, { ts: t1, v: 1900 },
         { ts: t2, v: 2400 }, { ts: t2, v: 2100 }, { ts: t2, v: 3000 }
       ] },
-      'space mystery': { n: 'space mystery', vids: 6, vphSum: 4170, vphMax: 1000, best: 'What NASA found and never explained', ch: { 'Void Files': 4 }, mkts: { global: 6 }, first: t0, last: t2, hist: [
+      'space mystery': { n: 'space mystery', vids: 6, vphSum: 4170, vphMax: 1000, best: 'What NASA found and never explained', ch: { 'Signal Lost': 4 }, mkts: { global: 6 }, first: t0, last: t2, hist: [
         { ts: t0, v: 900 }, { ts: t0, v: 1000 },
         { ts: t1, v: 700 }, { ts: t1, v: 640 },
         { ts: t2, v: 500 }, { ts: t2, v: 430 }
       ] },
-      'sleep frequencies': { n: 'sleep frequencies', vids: 3, vphSum: 840, vphMax: 300, best: 'Eight hours of deep sleep tones', ch: { 'Pulse Sleep': 3 }, mkts: { global: 3 }, first: t2, last: t2, hist: [
+      'sleep tones': { n: 'sleep tones', vids: 3, vphSum: 840, vphMax: 300, best: 'Eight hours of deep sleep tones', ch: { 'Quiet Hours': 3 }, mkts: { global: 3 }, first: t2, last: t2, hist: [
         { ts: t2, v: 300 }, { ts: t2, v: 280 }, { ts: t2, v: 260 }
       ] }
     } };

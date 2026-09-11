@@ -24181,11 +24181,8 @@ function attachProPanelListeners(root) {
     };
   }
 
-  async function proPost(path, body) {
-    var res = await fetch('http://127.0.0.1:8000' + path, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-    if (!res.ok) throw new Error('API ' + res.status);
-    var data = await res.json();
-    return data.ok ? data.data : data;
+  async function proPost() {
+    throw new Error('This panel needs a local server that does not ship with the extension.');
   }
 
   function esc(v) {

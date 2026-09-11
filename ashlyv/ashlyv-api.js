@@ -7,7 +7,7 @@ window.AshlyVAPI = (function() {
   var SW_TIMEOUT_MS = 30000;
   var OLLAMA_TEXT_MODEL = 'qwen2.5:7b';
   var OLLAMA_VISION_MODEL = 'qwen2.5vl:7b';
-  var BACKEND_BASE_URL = 'http://127.0.0.1:8000';
+  var BACKEND_BASE_URL = '';
 
   function keepAlive() {
     chrome.runtime.sendMessage({ type: 'ASHLYV_PING' }, function() {
@@ -257,6 +257,10 @@ window.AshlyVAPI = (function() {
           try { controller.abort(); } catch (e) {}
           reject(new Error('Backend timed out on ' + path));
         }, timeoutMs || 90000);
+      }
+      if (!BACKEND_BASE_URL) {
+        reject(new Error('This feature needs a local server that does not ship with the extension.'));
+        return;
       }
       fetch(BACKEND_BASE_URL + path, {
         method: 'POST',

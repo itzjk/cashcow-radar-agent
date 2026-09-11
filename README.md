@@ -1,4 +1,4 @@
-# cashcow-radar
+# cashcow-radar-agent
 
 ZERACK is a Chrome extension (Manifest V3) that reads YouTube the way a channel owner needs it read: what is actually moving, whether the format is one you can reproduce without a camera, and whether the script you are about to publish will get the channel demonetized.
 
@@ -20,7 +20,7 @@ It runs in your browser. No server, no account, no telemetry. Every AI panel is 
 
 ```
 git clone <this repo>
-cd cashcow-radar
+cd cashcow-radar-agent
 ```
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and pick this folder. That is all: the scanner, the scan, the policy engine, the country radar and every panel work from a plain checkout.
