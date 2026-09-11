@@ -326,6 +326,7 @@ function saveWatchlist() {
 //  Footer 
 function bindFooter() {
   document.getElementById('btn-export').addEventListener('click', exportCSV);
+  openOnClick('btn-setup', 'setup/setup.html');
   openOnClick('btn-country-feed', 'country-feed/country-feed.html');
   document.getElementById('btn-open-yt').addEventListener('click', () => {
     chrome.tabs.create({ url: 'https://www.youtube.com' });

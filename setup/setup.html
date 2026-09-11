@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ZERACK · Setup</title>
+  <link rel="stylesheet" href="setup.css"/>
+</head>
+<body>
+
+<div class="head">
+  <div class="brand">ZERACK</div>
+  <div class="sub">Setup</div>
+</div>
+
+<div class="wrap">
+
+  <p class="lead">
+    Everything here is free. Pick one of the three and the assistant starts working.
+    You only need one, and you can change it later from the model picker in the chat.
+  </p>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Run a model on your own machine</h2>
+      <span class="tag" id="ollama-state">checking</span>
+    </div>
+    <p class="note">
+      Nothing leaves your computer and there is no key and no quota. It needs Ollama, which is a free program.
+    </p>
+
+    <div id="ollama-missing" class="panel" hidden>
+      <p>Ollama is not answering on this machine. Install it, leave it running, and press check again.</p>
+      <div class="cmd"><code id="ollama-cmd">curl -fsSL https://ollama.com/install.sh | sh</code><button class="copy" data-copy="ollama-cmd">Copy</button></div>
+      <p class="note">On macOS and Windows you can also download the installer from ollama.com. Once it runs, it listens on 127.0.0.1:11434.</p>
+      <button class="btn" id="btn-recheck">Check again</button>
+    </div>
+
+    <div id="ollama-ready" hidden>
+      <div class="models" id="model-list"></div>
+      <p class="note" id="ollama-hint"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Use a free cloud key</h2>
+      <span class="tag" id="cloud-state">no key yet</span>
+    </div>
+    <p class="note">
+      Faster than a local model and it costs nothing on the free tier. The key is stored on this machine and is sent only to the provider you paste it for.
+    </p>
+
+    <div class="field">
+      <label for="groq-key">Groq key, starts with gsk_</label>
+      <div class="row">
+        <input id="groq-key" type="text" placeholder="gsk_..." autocomplete="off" spellcheck="false"/>
+        <button class="btn" id="save-groq">Save</button>
+      </div>
+      <p class="note">Get one at <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a>. Sign in, create a key, copy it here. Groq is the fastest of the three.</p>
+      <p class="status" id="groq-status"></p>
+    </div>
+
+    <div class="field">
+      <label for="gemini-key">Google Gemini key, starts with AIza</label>
+      <div class="row">
+        <input id="gemini-key" type="text" placeholder="AIza..." autocomplete="off" spellcheck="false"/>
+        <button class="btn" id="save-gemini">Save</button>
+      </div>
+      <p class="note">Get one at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. This is the only one that can read images, so the thumbnail features need it.</p>
+      <p class="status" id="gemini-status"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Local files for the offline features</h2>
+      <span class="tag" id="assets-state">optional</span>
+    </div>
+    <p class="note">
+      Face detection on thumbnails already works out of the box. Local transcription needs three model files that are not stored in the repository, because they are large. A page cannot write into the extension folder, so this one is a command.
+    </p>
+    <div class="cmd"><code id="assets-cmd">./scripts/fetch-assets.sh</code><button class="copy" data-copy="assets-cmd">Copy</button></div>
+    <p class="note">Run it inside the folder you loaded in chrome://extensions. Each file is checked against a known hash before it is kept.</p>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Which one should you pick</h2></div>
+    <table class="cmp">
+      <thead><tr><th>Option</th><th>Cost</th><th>Speed</th><th>Reads images</th><th>Leaves your machine</th></tr></thead>
+      <tbody>
+        <tr><td>Local model</td><td>Free, no limit</td><td>Depends on your machine</td><td>No</td><td>No</td></tr>
+        <tr><td>Groq</td><td>Free tier</td><td>Fastest</td><td>No</td><td>Yes, to Groq</td></tr>
+        <tr><td>Gemini</td><td>Free tier</td><td>Fast</td><td>Yes</td><td>Yes, to Google</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+</div>
+
+<script src="../lib/nsp-models.js"></script>
+<script src="setup.js"></script>
+</body>
+</html>

@@ -98,7 +98,9 @@
         "lib/face-api/*",
         "lib/mobilenet/*",
         "lib/whisper/*",
-        "lib/whisper/models/*"
+        "lib/whisper/models/*",
+        "setup/setup.html",
+        "setup/*"
       ],
       "matches": [
         "<all_urls>"
