@@ -90,7 +90,7 @@ Three content scripts. The heavy one runs in the **MAIN** world, the page's own 
 | `https://api.groq.com/*` | Groq, when you have pasted a Groq key |
 | `https://translate.googleapis.com/*` | translating a foreign-language title before scoring it |
 | `https://i.ytimg.com/*`, `https://img.youtube.com/*` | reading thumbnail pixels for the face and contrast checks |
-| `http://localhost/*`, `http://127.0.0.1/*` | Ollama, and the optional local backend at `127.0.0.1:8000` |
+| `http://localhost/*`, `http://127.0.0.1/*` | Ollama running on your own machine, if you enable it |
 | `https://image.pollinations.ai/*`, `https://*.pollinations.ai/*`, `https://api.openverse.org/*` | declared and not called by any file in this repo. Drop them before publishing |
 
 `AIzaSyAO_FJ2…` in `background/service-worker.js:1593` and `content/nsp-bundle.js:16085` is the public InnerTube WEB key that YouTube itself ships in every page it serves. It is not a credential and it is not ours.
@@ -104,11 +104,8 @@ Run `node smoke.mjs` for the machine-checkable list. These are the ones a checke
 - **The YouTube Data API key has no opt-in and no home.** `content/nsp-bundle.js:7286` reads `nsp_yt_data_api_key` out of `localStorage` on youtube.com, where any script on the page can read it, Options has no field to set it, and the three call sites that use it spend quota with no gate. Leave it empty until that is rebuilt.
 - **The popup's tier counters and its *Analyzed* number have different denominators.** `Analyzed` counts every card scored; `RISING+` and `VIRAL` are counted over the session's top 20, so they stop climbing at 20.
 - **Five of the nine tool pages have no link.** `autopilot`, `brandforge`, `competitorfinder`, `help` and `nichemaster` under `ashlyv/tools/` only open if you type the address.
-- **Six controls in the ZERACK hub do nothing.** `ashlyv/ashlyv-api.js` sends `ASHLYV_OLLAMA_HEALTH`, `ASHLYV_OLLAMA_CHAT`, `ASHLYV_OLLAMA_VISION`, `ASHLYV_ANTHROPIC_VALIDATE`, `ASHLYV_ANTHROPIC_CHAT` and `ASHLYV_ANTHROPIC_VISION`, and no handler exists for any of them. It also points at a local backend at `http://127.0.0.1:8000` that is not part of this repo.
 - **Strings are not all English yet.** `node smoke.mjs` names every file with Spanish or emoji left in a string the user reads. Spanish inside search queries, YouTube DOM matchers and language detection tables is data and stays; the smoke exempts those tables by name.
-- **`lib/whisper/` is dead weight.** Nothing imports it, and the manifest still exposes it as a web accessible resource.
-- **`ZERACK-FUNCIONES.md` and `docs/` are in Spanish**, and `docs/SYSTEM.md` describes the tree before the rename.
-- **`icons/generate-icons.html` and `icons/make-icons.js`** are one-shot dev tools, not part of the extension.
+- **`lib/whisper/` ships for a transcription path that no screen reaches today.** It stays because the model files are already vendored, but nothing in the interface calls it yet.
 
 ## License
 
