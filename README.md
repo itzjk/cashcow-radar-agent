@@ -109,6 +109,6 @@ Run `node smoke.mjs` for the machine-checkable list. These are the ones a checke
 
 ## License
 
-MIT. See `LICENSE`. Copyright (c) 2026 By Itzael.
+MIT. See `LICENSE`. Copyright (c) 2026 ZERACK.
 
 Not affiliated with, endorsed by, or connected to YouTube or Google. "YouTube" is a trademark of Google LLC. Use it on your own account, at your own risk, within YouTube's Terms of Service.
