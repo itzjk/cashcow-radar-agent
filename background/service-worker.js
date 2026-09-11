@@ -248,15 +248,29 @@ async function nspPingOllama(url) {
   }
 }
 
+function nspLeanMessagesForLocal(messages) {
+  if (!Array.isArray(messages)) return messages;
+  return messages.map(function (m) {
+    if (!m || m.role !== 'system' || typeof m.content !== 'string') return m;
+    var c = m.content;
+    if (c.length <= 3200) return m;
+    var head = c.slice(0, 1400);
+    var tail = c.slice(-1800);
+    return { role: 'system', content: head + '\n\n' + tail };
+  });
+}
+
 async function nspCallOllama(url, model, payload, messages) {
+  messages = nspLeanMessagesForLocal(messages);
   var openAIMessages = nspMessagesToOpenAI(messages);
-  if (payload.system) openAIMessages.unshift({ role: 'system', content: String(payload.system).slice(0, 24000) });
+  if (payload.system) openAIMessages.unshift(nspLeanMessagesForLocal([{ role: 'system', content: String(payload.system).slice(0, 24000) }])[0]);
   var body = {
     model: model,
     messages: openAIMessages,
     stream: false,
+    keep_alive: '30m',
     options: {
-      num_predict: Math.max(256, Math.min(8192, Number(payload.maxTokens) || 2048)),
+      num_predict: Math.max(96, Math.min(8192, Number(payload.maxTokens) || 700)),
       temperature: 0.7
     }
   };

@@ -21275,7 +21275,7 @@ function nspCoachSendApi(messages, systemPrompt, includeTools) {
         messages: messages,
         system: systemPrompt,
         model: 'gemini-1.5-flash',
-        maxTokens: 2048
+        maxTokens: 700
       };
       if (includeTools) payload.tools = nspCoachGetToolDefinitions();
       window.postMessage(payload, window.location.origin);
