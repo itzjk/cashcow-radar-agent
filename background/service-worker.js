@@ -194,6 +194,48 @@ async function nspCallGroqWithRetry(apiKey, model, payload, messages) {
   }
 }
 
+async function nspDetectLocalModels(url) {
+  try {
+    var ctrl = new AbortController();
+    var t = setTimeout(function () { ctrl.abort(); }, 2500);
+    var resp = await fetch(String(url).replace(/\/$/, '') + '/api/tags', { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!resp.ok) return [];
+    var data = await resp.json();
+    return (data && Array.isArray(data.models) ? data.models : []).map(function (m) { return m.name; }).filter(Boolean);
+  } catch (e) {
+    return [];
+  }
+}
+
+function nspPickLocalModel(names) {
+  var preferred = [/^qwen2\.5:7b/i, /^llama3\.1:8b/i, /^llama3\.2/i, /^qwen2\.5/i, /^llama3/i, /^mistral/i, /^gemma/i];
+  for (var i = 0; i < preferred.length; i++) {
+    for (var j = 0; j < names.length; j++) if (preferred[i].test(names[j])) return names[j];
+  }
+  return names[0] || '';
+}
+
+async function nspAutoEnableLocalProvider() {
+  var stored = await new Promise(function (resolve) {
+    chrome.storage.local.get(['nsp_ollama_url', 'nsp_ollama_enabled', 'nsp_ollama_model', 'nsp_ollama_optout'], resolve);
+  });
+  if (stored && stored.nsp_ollama_optout === true) return;
+  var url = (stored && stored.nsp_ollama_url) || 'http://localhost:11434';
+  var names = await nspDetectLocalModels(url);
+  if (!names.length) {
+    if (stored && stored.nsp_ollama_enabled === true && !stored.nsp_ollama_model) {
+      chrome.storage.local.set({ nsp_ollama_enabled: false });
+    }
+    return;
+  }
+  var keep = (stored && stored.nsp_ollama_model && names.indexOf(stored.nsp_ollama_model) !== -1)
+    ? stored.nsp_ollama_model
+    : nspPickLocalModel(names);
+  chrome.storage.local.set({ nsp_ollama_enabled: true, nsp_ollama_url: url, nsp_ollama_model: keep });
+  console.log('[NSP SW] local provider ready: ' + keep + ' of ' + names.length + ' installed');
+}
+
 async function nspPingOllama(url) {
   try {
     var ctrl = new AbortController();
@@ -711,6 +753,10 @@ function nspStorageUpdate(key, mutate) {
   }).catch(function() { return false; });
   return _nspStorageQueue;
 }
+
+chrome.runtime.onInstalled.addListener(function () { nspAutoEnableLocalProvider(); });
+try { chrome.runtime.onStartup.addListener(function () { nspAutoEnableLocalProvider(); }); } catch (eLp) {}
+nspAutoEnableLocalProvider();
 
 function storageGet(keys) {
   return new Promise(function(resolve) {
