@@ -101,7 +101,9 @@
         "lib/whisper/*",
         "lib/whisper/models/*",
         "setup/setup.html",
-        "setup/*"
+        "setup/*",
+        "academy/academy.html",
+        "academy/*"
       ],
       "matches": [
         "<all_urls>"

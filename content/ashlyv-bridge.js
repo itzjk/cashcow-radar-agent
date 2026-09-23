@@ -499,14 +499,15 @@ window.addEventListener('message', function(event) {
     });
   } else if (data.type === 'NSP_COACH_PROVIDER_CHECK') {
     // Reports which providers are configured without ever exposing the keys.
-    chrome.storage.local.get(['nsp_groq_api_key', 'nsp_ollama_enabled', 'nsp_gemini_api_key'], function(r) {
+    chrome.storage.local.get(['nsp_groq_api_key', 'nsp_ollama_enabled', 'nsp_gemini_api_key', 'nsp_openai_api_key'], function(r) {
+      var hasOpenai = !!(r && r.nsp_openai_api_key && /^sk-/.test(r.nsp_openai_api_key));
       var hasGroq = !!(r && r.nsp_groq_api_key && /^gsk_/.test(r.nsp_groq_api_key));
       var hasOllama = !!(r && r.nsp_ollama_enabled === true);
       var hasGemini = !!(r && r.nsp_gemini_api_key && /^AIza/.test(r.nsp_gemini_api_key));
       window.postMessage({
         type: 'NSP_COACH_STORAGE_RESULT',
         requestId: reqId,
-        providerConfig: { hasGroq: hasGroq, hasOllama: hasOllama, hasGemini: hasGemini }
+        providerConfig: { hasOpenai: hasOpenai, hasGroq: hasGroq, hasOllama: hasOllama, hasGemini: hasGemini }
       }, window.location.origin);
     });
   } else if (data.type === 'NSP_COACH_SESSIONS_GET') {

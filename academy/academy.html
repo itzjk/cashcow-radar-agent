@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ZERACK · Course</title>
+  <link rel="stylesheet" href="academy.css"/>
+</head>
+<body>
+
+<div class="head">
+  <div class="logo">
+    <svg viewBox="0 0 100 60" width="24" height="15" fill="#fff" style="vertical-align:middle;filter:drop-shadow(0 0 4px rgba(255,255,255,0.5))"><path d="M50 15 C45 5 30 2 18 8 C10 12 4 20 2 28 C8 24 16 22 22 26 C18 30 16 36 18 42 C22 36 28 32 34 33 C36 38 40 44 44 48 C46 44 48 38 50 35 C52 38 54 44 56 48 C60 44 64 38 66 33 C72 32 78 36 82 42 C84 36 82 30 78 26 C84 22 92 24 98 28 C96 20 90 12 82 8 C70 2 55 5 50 15 Z"/></svg>
+    ZERACK <span class="logo-sub" id="course-title">Course</span>
+  </div>
+  <div class="head-right">
+    <span id="progress-count" class="count-badge">Loading</span>
+    <div class="bar"><div class="bar-fill" id="progress-bar"></div></div>
+  </div>
+</div>
+
+<div id="notice" class="notice" hidden></div>
+
+<div class="page" id="page" hidden>
+  <main class="pane" id="lesson-pane"></main>
+  <nav class="rail" aria-label="Modules and lessons">
+    <div class="rail-head">Modules</div>
+    <div id="module-list"></div>
+  </nav>
+</div>
+
+<div class="state" id="state">
+  <h2>Loading the course</h2>
+  <p>Reading the lessons and your progress.</p>
+</div>
+
+<script src="curriculum.js"></script>
+<script src="academy.js"></script>
+</body>
+</html>

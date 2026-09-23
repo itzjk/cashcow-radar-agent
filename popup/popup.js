@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   openOnClick('btn-command-center', 'dashboard/dashboard.html');
   openOnClick('btn-niche-index', 'niche-index/niche-index.html');
+  openOnClick('btn-course', 'academy/academy.html');
 });
 
 function openOnClick(id, page) {
