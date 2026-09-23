@@ -1,6 +1,6 @@
 #!/bin/sh
 # Downloads the four binary files that are too large for the repo, into lib/whisper.
-# Nothing in the extension imports lib/whisper today, so the scanner, the scan, the policy
+# 
 # engine and every panel run without this script. Run it only to wire local transcription
 # back up.
 # Every file is checked against the SHA-256 of the build this code was released from.

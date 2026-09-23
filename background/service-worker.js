@@ -873,6 +873,241 @@ function uniqueSlice(list, max) {
   return out.slice(0, max || 2500);
 }
 
+function nspChatCascade(chatPayload, sendResponse) {
+  chrome.storage.local.get([
+    'nsp_gemini_api_key', 'nsp_gemini_working_model',
+    'nsp_groq_api_key', 'nsp_groq_model', 'nsp_selected_model', 'nsp_openai_api_key', 'nsp_openai_model',
+    'nsp_ollama_url', 'nsp_ollama_model', 'nsp_ollama_enabled',
+    'nsp_provider_priority',
+    'nsp_preferred_provider'
+  ], async function(r) {
+    // A throw inside this async callback would hang the message channel for good.
+    try {
+    var payload = chatPayload || {};
+    var messages = Array.isArray(payload.messages) ? payload.messages : [];
+    if (!messages.length) { sendResponse({ ok: false, error: 'no_messages' }); return; }
+
+    // Read all provider configs
+    var groqKey = r && typeof r.nsp_groq_api_key === 'string' ? r.nsp_groq_api_key.trim() : '';
+    var groqValid = groqKey && /^gsk_[A-Za-z0-9_\-]{30,}$/.test(groqKey);
+    var groqModel = (r && r.nsp_groq_model) || 'llama-3.3-70b-versatile';
+    var chosen = String((r && r.nsp_selected_model) || 'auto');
+    var chosenProvider = '', chosenModel = '';
+    if (chosen && chosen !== 'auto') {
+      // The model name comes from the catalog, not from the id: the local entry carries no model on purpose and the id half reads 'local'.
+      var catalogEntry = null;
+      try { catalogEntry = (typeof NSP_MODELS !== 'undefined' && NSP_MODELS.byId) ? NSP_MODELS.byId(chosen) : null; } catch (eCat) {}
+      if (!catalogEntry || catalogEntry.id !== chosen) catalogEntry = null;
+      var cut = chosen.indexOf(':');
+      chosenProvider = catalogEntry ? catalogEntry.provider : (cut > 0 ? chosen.slice(0, cut) : chosen);
+      chosenModel = catalogEntry ? String(catalogEntry.model || '') : (cut > 0 ? chosen.slice(cut + 1) : '');
+      if (chosenProvider === 'groq' && chosenModel) groqModel = chosenModel;
+    }
+
+    var openaiKey = r && typeof r.nsp_openai_api_key === 'string' ? r.nsp_openai_api_key.trim() : '';
+    var openaiValid = !!(openaiKey && /^sk-[A-Za-z0-9_\-]{20,}$/.test(openaiKey));
+    var openaiModel = (r && r.nsp_openai_model) || 'gpt-4o-mini';
+    if (chosenProvider === 'openai' && chosenModel) openaiModel = chosenModel;
+    var ollamaEnabled = r && r.nsp_ollama_enabled === true;
+    var ollamaUrl = (r && r.nsp_ollama_url) || 'http://localhost:11434';
+    var ollamaModel = (r && r.nsp_ollama_model) || 'llama3.2:3b';
+
+    var geminiKey = r && typeof r.nsp_gemini_api_key === 'string' ? r.nsp_gemini_api_key.trim() : '';
+    var geminiValid = geminiKey && /^AIza[a-zA-Z0-9\-_]{30,50}$/.test(geminiKey);
+
+    var cachedModel = r && typeof r.nsp_gemini_working_model === 'string' ? r.nsp_gemini_working_model : '';
+
+    // The preferred provider sets priority, not exclusivity: on a rate limit or a failure the next configured provider takes over.
+    var preferredProvider = chosenProvider || (r && r.nsp_preferred_provider) || 'auto';
+    if (chosenProvider === 'gemini' && chosenModel) cachedModel = chosenModel;
+    if (chosenProvider === 'ollama' && chosenModel) ollamaModel = chosenModel;
+    var order = [];
+    function pushProv(name) { if (order.indexOf(name) === -1) order.push(name); }
+    if (preferredProvider === 'openai' || preferredProvider === 'groq' || preferredProvider === 'ollama' || preferredProvider === 'gemini') {
+      pushProv(preferredProvider);
+    }
+    pushProv('openai'); pushProv('groq'); pushProv('ollama'); pushProv('gemini');
+    var queue = order.filter(function(p) {
+      if (p === 'openai') return !!openaiValid;
+      if (p === 'groq') return !!groqValid;
+      if (p === 'ollama') return !!ollamaEnabled;
+      if (p === 'gemini') return !!geminiValid;
+      return false;
+    });
+
+    if (!queue.length) {
+      sendResponse({ ok: false, error: 'no_provider_configured', detail: 'No AI provider is configured. Add your Groq or Gemini key in Options, or enable Ollama.' });
+      return;
+    }
+
+    var lastErr = '';
+    var anyAttempted = false;
+    var allRateLimited = true;
+
+    for (var qi = 0; qi < queue.length; qi++) {
+      var prov = queue[qi];
+      try {
+        if (prov === 'openai') {
+          anyAttempted = true;
+          console.log('[NSP SW] Provider -> openai', openaiModel);
+          var oa = await nspCallOpenAI(openaiKey, openaiModel, payload, messages);
+          if (oa.ok) { sendResponse(Object.assign({ provider: 'openai', modelUsed: openaiModel }, oa)); return; }
+          lastErr = 'OpenAI: ' + (oa.error || 'unknown');
+          if (!oa.rateLimited) allRateLimited = false;
+        } else if (prov === 'groq') {
+          anyAttempted = true;
+          console.log('[NSP SW] Provider → groq', groqModel);
+          var gr = await nspCallGroqWithRetry(groqKey, groqModel, payload, messages);
+          if (gr.ok) { sendResponse(Object.assign({ provider: 'groq', modelUsed: groqModel }, gr)); return; }
+          lastErr = 'Groq: ' + (gr.error || 'unknown');
+          if (!gr.rateLimited) allRateLimited = false;
+          console.warn('[NSP SW] Groq exhausted, falling through:', lastErr);
+        } else if (prov === 'ollama') {
+          var alive = await nspPingOllama(ollamaUrl);
+          if (!alive) {
+            lastErr = 'Ollama is not responding at ' + ollamaUrl;
+            allRateLimited = false;
+            console.warn('[NSP SW] Ollama not reachable, falling through');
+            continue;
+          }
+          anyAttempted = true;
+          console.log('[NSP SW] Provider → ollama', ollamaModel);
+          var orr = await nspCallOllama(ollamaUrl, ollamaModel, payload, messages);
+          if (orr.ok) { sendResponse(Object.assign({ provider: 'ollama', modelUsed: ollamaModel }, orr)); return; }
+          lastErr = 'Ollama: ' + (orr.error || 'unknown');
+          allRateLimited = false;
+          console.warn('[NSP SW] Ollama exhausted, falling through:', lastErr);
+        } else if (prov === 'gemini') {
+          anyAttempted = true;
+          console.log('[NSP SW] Provider → gemini');
+          var ge = await nspCallGemini(geminiKey, cachedModel, payload, messages);
+          if (ge.ok) { sendResponse(Object.assign({ provider: 'gemini' }, ge)); return; }
+          lastErr = 'Gemini: ' + (ge.error || 'unknown');
+          if (!ge.rateLimited) allRateLimited = false;
+          console.warn('[NSP SW] Gemini exhausted, falling through:', lastErr);
+        }
+      } catch (e) {
+        lastErr = prov + ' exception: ' + (e && e.message || e);
+        allRateLimited = false;
+        console.warn('[NSP SW] ' + prov + ' exception:', e);
+      }
+    }
+
+    if (anyAttempted && allRateLimited) {
+      sendResponse({ ok: false, error: 'all_busy', detail: 'All AI providers are busy right now. Wait a few seconds and try again.', lastError: lastErr });
+    } else {
+      sendResponse({ ok: false, error: 'all_providers_failed', detail: lastErr || 'No provider available' });
+    }
+    } catch (eChat) { try { sendResponse({ ok: false, error: 'chat_exception', detail: String(eChat && eChat.message || eChat) }); } catch (e2) {} }
+  });
+}
+
+var NSP_VOICE_TAB_WAIT_MS = 180000;
+var NSP_VOICE_ACK_MS = 8000;
+var NSP_VOICE_YOUTUBE = /^https:\/\/www\.youtube\.com\//;
+var NSP_VOICE_SYSTEM = 'You are ZERACK, an assistant for YouTube creators. The user asked this out loud and your reply will be read aloud, so answer in plain spoken sentences with no markdown, lists, links or emoji, in under 120 words unless they ask for more, and in the language they spoke. You are answering outside the browser, so you cannot see or act on any page. If they ask you to do something in the browser, tell them to open YouTube, reload the tab if it is already open, and ask again.';
+var _nspVoiceTurns = {};
+
+function nspVoiceFromExtensionPage(sender) {
+  var base = chrome.runtime.getURL('');
+  return !!(sender && sender.id === chrome.runtime.id && typeof sender.url === 'string' && sender.url.indexOf(base) === 0);
+}
+
+function nspVoiceByCascade(text, reason, sendResponse) {
+  console.log('[NSP SW] voice: the provider cascade answers, ' + reason);
+  nspChatCascade({ messages: [{ role: 'user', content: text }], system: NSP_VOICE_SYSTEM, maxTokens: 600 }, function(res) {
+    var answer = res && res.ok ? String(res.text || '').trim() : '';
+    if (answer) sendResponse({ ok: true, answer: answer, error: '', actedOnTab: false });
+    else sendResponse({ ok: false, answer: '', error: String((res && res.ok !== true && res.error) || 'empty_answer'), actedOnTab: false });
+  });
+}
+
+function nspVoiceEndTab(tabId, why) {
+  Object.keys(_nspVoiceTurns).forEach(function(id) {
+    var turn = _nspVoiceTurns[id];
+    if (turn && turn.tabId === tabId) turn.finish({ ok: false, answer: '', error: why, actedOnTab: true });
+  });
+}
+
+function nspVoiceTabClosed(tabId) {
+  nspVoiceEndTab(tabId, 'The YouTube tab was closed before the assistant answered.');
+}
+
+function nspVoiceTabChanged(tabId, info) {
+  if (info && typeof info.url === 'string' && !NSP_VOICE_YOUTUBE.test(info.url)) nspVoiceEndTab(tabId, 'The tab left YouTube before the assistant answered.');
+}
+
+// Watched only while a turn is open: a tabs.onUpdated listener registered for good would wake the worker on every tab change in the browser.
+function nspVoiceWatchTabs() {
+  var open = Object.keys(_nspVoiceTurns).length > 0;
+  var watching = chrome.tabs.onRemoved.hasListener(nspVoiceTabClosed);
+  if (open && !watching) {
+    chrome.tabs.onRemoved.addListener(nspVoiceTabClosed);
+    chrome.tabs.onUpdated.addListener(nspVoiceTabChanged);
+  } else if (!open && watching) {
+    chrome.tabs.onRemoved.removeListener(nspVoiceTabClosed);
+    chrome.tabs.onUpdated.removeListener(nspVoiceTabChanged);
+  }
+}
+
+function nspVoiceByTab(tabId, text, requestId, sendResponse) {
+  if (_nspVoiceTurns[requestId]) {
+    sendResponse({ ok: false, answer: '', error: 'This question is already being answered.', actedOnTab: true });
+    return;
+  }
+  var timer = null, beat = null, done = false;
+  function release() {
+    done = true;
+    clearTimeout(timer);
+    clearInterval(beat);
+    delete _nspVoiceTurns[requestId];
+    nspVoiceWatchTabs();
+  }
+  function finish(reply) {
+    if (done) return;
+    release();
+    console.log('[NSP SW] voice: the assistant in tab ' + tabId + ' answered, ok ' + reply.ok);
+    sendResponse(reply);
+  }
+  function fallBack(reason) {
+    if (done) return;
+    release();
+    nspVoiceByCascade(text, reason, sendResponse);
+  }
+  _nspVoiceTurns[requestId] = { tabId: tabId, finish: finish };
+  nspVoiceWatchTabs();
+  timer = setTimeout(function() { fallBack('the tab did not answer within ' + NSP_VOICE_ACK_MS + ' ms'); }, NSP_VOICE_ACK_MS);
+  var turn = { type: 'NSP_VOICE_TURN', requestId: requestId, text: text, waitMs: NSP_VOICE_TAB_WAIT_MS, acceptBefore: Date.now() + NSP_VOICE_ACK_MS - 1000 };
+  try {
+    chrome.tabs.sendMessage(tabId, turn, { frameId: 0 }, function(ack) {
+      var err = chrome.runtime.lastError;
+      if (done) return;
+      if (err || !ack) { fallBack('no content script answered in the tab' + (err ? ', ' + err.message : '')); return; }
+      if (ack.accepted !== true) {
+        if (ack.code === 'no_assistant') { fallBack('the assistant is not loaded in the tab'); return; }
+        finish({ ok: false, answer: '', error: 'The YouTube tab did not take the question (' + String(ack.code || 'refused') + ').', actedOnTab: true });
+        return;
+      }
+      clearTimeout(timer);
+      timer = setTimeout(function() {
+        finish({ ok: false, answer: '', error: 'The assistant is still working in the YouTube tab after ' + Math.round(NSP_VOICE_TAB_WAIT_MS / 1000) + ' seconds. Its answer will show there.', actedOnTab: true });
+      }, NSP_VOICE_TAB_WAIT_MS);
+      // A reply the worker is still holding is not activity, so without an API call now and then it is torn down mid turn and the panel hears nothing.
+      beat = setInterval(function() { chrome.runtime.getPlatformInfo(function() {}); }, 20000);
+    });
+  } catch (eSend) {
+    fallBack('sendMessage threw, ' + String((eSend && eSend.message) || eSend));
+  }
+}
+
+function nspVoiceAsk(text, requestId, sendResponse) {
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, function(tabs) {
+    var tab = !chrome.runtime.lastError && tabs && tabs[0];
+    if (!tab || !NSP_VOICE_YOUTUBE.test(String(tab.url || ''))) { nspVoiceByCascade(text, 'no YouTube tab in front', sendResponse); return; }
+    nspVoiceByTab(tab.id, text, requestId, sendResponse);
+  });
+}
+
 // ── Message router ──────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
@@ -1291,135 +1526,29 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  // Provider cascade: Groq first, then local Ollama, then Gemini.
   if (msg.type === 'ASHLYV_CHAT_REQUEST') {
-    chrome.storage.local.get([
-      'nsp_gemini_api_key', 'nsp_gemini_working_model',
-      'nsp_groq_api_key', 'nsp_groq_model', 'nsp_selected_model', 'nsp_openai_api_key', 'nsp_openai_model',
-      'nsp_ollama_url', 'nsp_ollama_model', 'nsp_ollama_enabled',
-      'nsp_provider_priority',
-      'nsp_preferred_provider'
-    ], async function(r) {
-      // A throw inside this async callback would hang the message channel for good.
-      try {
-      var payload = msg.payload || {};
-      var messages = Array.isArray(payload.messages) ? payload.messages : [];
-      if (!messages.length) { sendResponse({ ok: false, error: 'no_messages' }); return; }
-
-      // Read all provider configs
-      var groqKey = r && typeof r.nsp_groq_api_key === 'string' ? r.nsp_groq_api_key.trim() : '';
-      var groqValid = groqKey && /^gsk_[A-Za-z0-9_\-]{30,}$/.test(groqKey);
-      var groqModel = (r && r.nsp_groq_model) || 'llama-3.3-70b-versatile';
-      var chosen = String((r && r.nsp_selected_model) || 'auto');
-      var chosenProvider = '', chosenModel = '';
-      if (chosen && chosen !== 'auto') {
-        // The model name comes from the catalog, not from the id: the local entry carries no model on purpose and the id half reads 'local'.
-        var catalogEntry = null;
-        try { catalogEntry = (typeof NSP_MODELS !== 'undefined' && NSP_MODELS.byId) ? NSP_MODELS.byId(chosen) : null; } catch (eCat) {}
-        if (!catalogEntry || catalogEntry.id !== chosen) catalogEntry = null;
-        var cut = chosen.indexOf(':');
-        chosenProvider = catalogEntry ? catalogEntry.provider : (cut > 0 ? chosen.slice(0, cut) : chosen);
-        chosenModel = catalogEntry ? String(catalogEntry.model || '') : (cut > 0 ? chosen.slice(cut + 1) : '');
-        if (chosenProvider === 'groq' && chosenModel) groqModel = chosenModel;
-      }
-
-      var openaiKey = r && typeof r.nsp_openai_api_key === 'string' ? r.nsp_openai_api_key.trim() : '';
-      var openaiValid = !!(openaiKey && /^sk-[A-Za-z0-9_\-]{20,}$/.test(openaiKey));
-      var openaiModel = (r && r.nsp_openai_model) || 'gpt-4o-mini';
-      if (chosenProvider === 'openai' && chosenModel) openaiModel = chosenModel;
-      var ollamaEnabled = r && r.nsp_ollama_enabled === true;
-      var ollamaUrl = (r && r.nsp_ollama_url) || 'http://localhost:11434';
-      var ollamaModel = (r && r.nsp_ollama_model) || 'llama3.2:3b';
-
-      var geminiKey = r && typeof r.nsp_gemini_api_key === 'string' ? r.nsp_gemini_api_key.trim() : '';
-      var geminiValid = geminiKey && /^AIza[a-zA-Z0-9\-_]{30,50}$/.test(geminiKey);
-
-      var cachedModel = r && typeof r.nsp_gemini_working_model === 'string' ? r.nsp_gemini_working_model : '';
-
-      // The preferred provider sets priority, not exclusivity: on a rate limit or a failure the next configured provider takes over.
-      var preferredProvider = chosenProvider || (r && r.nsp_preferred_provider) || 'auto';
-      if (chosenProvider === 'gemini' && chosenModel) cachedModel = chosenModel;
-      if (chosenProvider === 'ollama' && chosenModel) ollamaModel = chosenModel;
-      var order = [];
-      function pushProv(name) { if (order.indexOf(name) === -1) order.push(name); }
-      if (preferredProvider === 'openai' || preferredProvider === 'groq' || preferredProvider === 'ollama' || preferredProvider === 'gemini') {
-        pushProv(preferredProvider);
-      }
-      pushProv('openai'); pushProv('groq'); pushProv('ollama'); pushProv('gemini');
-      var queue = order.filter(function(p) {
-        if (p === 'openai') return !!openaiValid;
-        if (p === 'groq') return !!groqValid;
-        if (p === 'ollama') return !!ollamaEnabled;
-        if (p === 'gemini') return !!geminiValid;
-        return false;
-      });
-
-      if (!queue.length) {
-        sendResponse({ ok: false, error: 'no_provider_configured', detail: 'No AI provider is configured. Add your Groq or Gemini key in Options, or enable Ollama.' });
-        return;
-      }
-
-      var lastErr = '';
-      var anyAttempted = false;
-      var allRateLimited = true;
-
-      for (var qi = 0; qi < queue.length; qi++) {
-        var prov = queue[qi];
-        try {
-          if (prov === 'openai') {
-            anyAttempted = true;
-            console.log('[NSP SW] Provider -> openai', openaiModel);
-            var oa = await nspCallOpenAI(openaiKey, openaiModel, payload, messages);
-            if (oa.ok) { sendResponse(Object.assign({ provider: 'openai', modelUsed: openaiModel }, oa)); return; }
-            lastErr = 'OpenAI: ' + (oa.error || 'unknown');
-            if (!oa.rateLimited) allRateLimited = false;
-          } else if (prov === 'groq') {
-            anyAttempted = true;
-            console.log('[NSP SW] Provider → groq', groqModel);
-            var gr = await nspCallGroqWithRetry(groqKey, groqModel, payload, messages);
-            if (gr.ok) { sendResponse(Object.assign({ provider: 'groq', modelUsed: groqModel }, gr)); return; }
-            lastErr = 'Groq: ' + (gr.error || 'unknown');
-            if (!gr.rateLimited) allRateLimited = false;
-            console.warn('[NSP SW] Groq exhausted, falling through:', lastErr);
-          } else if (prov === 'ollama') {
-            var alive = await nspPingOllama(ollamaUrl);
-            if (!alive) {
-              lastErr = 'Ollama is not responding at ' + ollamaUrl;
-              allRateLimited = false;
-              console.warn('[NSP SW] Ollama not reachable, falling through');
-              continue;
-            }
-            anyAttempted = true;
-            console.log('[NSP SW] Provider → ollama', ollamaModel);
-            var orr = await nspCallOllama(ollamaUrl, ollamaModel, payload, messages);
-            if (orr.ok) { sendResponse(Object.assign({ provider: 'ollama', modelUsed: ollamaModel }, orr)); return; }
-            lastErr = 'Ollama: ' + (orr.error || 'unknown');
-            allRateLimited = false;
-            console.warn('[NSP SW] Ollama exhausted, falling through:', lastErr);
-          } else if (prov === 'gemini') {
-            anyAttempted = true;
-            console.log('[NSP SW] Provider → gemini');
-            var ge = await nspCallGemini(geminiKey, cachedModel, payload, messages);
-            if (ge.ok) { sendResponse(Object.assign({ provider: 'gemini' }, ge)); return; }
-            lastErr = 'Gemini: ' + (ge.error || 'unknown');
-            if (!ge.rateLimited) allRateLimited = false;
-            console.warn('[NSP SW] Gemini exhausted, falling through:', lastErr);
-          }
-        } catch (e) {
-          lastErr = prov + ' exception: ' + (e && e.message || e);
-          allRateLimited = false;
-          console.warn('[NSP SW] ' + prov + ' exception:', e);
-        }
-      }
-
-      if (anyAttempted && allRateLimited) {
-        sendResponse({ ok: false, error: 'all_busy', detail: 'All AI providers are busy right now. Wait a few seconds and try again.', lastError: lastErr });
-      } else {
-        sendResponse({ ok: false, error: 'all_providers_failed', detail: lastErr || 'No provider available' });
-      }
-      } catch (eChat) { try { sendResponse({ ok: false, error: 'chat_exception', detail: String(eChat && eChat.message || eChat) }); } catch (e2) {} }
-    });
+    nspChatCascade(msg.payload, sendResponse);
     return true;
+  }
+
+  if (msg.type === 'NSP_VOICE_ASK') {
+    if (!nspVoiceFromExtensionPage(sender)) { sendResponse({ ok: false, answer: '', error: 'sender_not_allowed', actedOnTab: false }); return false; }
+    var voiceText = String(msg.text || '').trim().slice(0, 2000);
+    if (!voiceText) { sendResponse({ ok: false, answer: '', error: 'Nothing was heard.', actedOnTab: false }); return false; }
+    var voiceId = String(msg.requestId || '').slice(0, 80) || ('voice-' + Date.now() + '-' + Math.floor(Math.random() * 1e6));
+    nspVoiceAsk(voiceText, voiceId, sendResponse);
+    return true;
+  }
+
+  if (msg.type === 'NSP_VOICE_TURN_DONE') {
+    var voiceTurn = _nspVoiceTurns[String(msg.requestId || '')];
+    if (voiceTurn && sender && sender.tab && sender.tab.id === voiceTurn.tabId) {
+      var voiceAnswer = String(msg.answer || '').trim();
+      voiceTurn.finish(msg.ok === true && voiceAnswer
+        ? { ok: true, answer: voiceAnswer, error: '', actedOnTab: true }
+        : { ok: false, answer: '', error: String(msg.error || 'The assistant finished without an answer.'), actedOnTab: true });
+    }
+    return false;
   }
 
   // — NSP AGENT tools (v3.6.0) — chrome.tabs control ───────────────────────

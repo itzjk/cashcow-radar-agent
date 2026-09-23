@@ -22384,7 +22384,7 @@ function nspAgentNorm(s) {
 }
 
 function nspAgentWords(s) {
-  return ' ' + nspAgentNorm(s).replace(/[^a-z0-9#@ß-῿⁰-￿]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
+  return ' ' + nspAgentNorm(s).replace(/[^a-z0-9#@ß-῿⁰-\uFFFF]+/g, ' ').replace(/\s+/g, ' ').trim() + ' ';
 }
 
 function nspAgentClip(s, n) {
@@ -22845,7 +22845,7 @@ function nspAgentOnePress(el) {
     } catch (e) {}
   }
   for (var n = 0; n < names.length; n++) {
-    var nm = names[n].replace(/^[^a-z0-9ß-￿]+/, '');
+    var nm = names[n].replace(/^[^a-z0-9ß-\uFFFF]+/, '');
     if (!nm) continue;
     for (var k = 0; k < NSP_AGENT_ONE_PRESS.length; k++) {
       if (NSP_AGENT_ONE_PRESS[k].re.test(nm)) return { kind: NSP_AGENT_ONE_PRESS[k].kind };
@@ -24875,6 +24875,154 @@ window.addEventListener('message', function(event) {
     }, 2400);
   } catch(e) {}
 });
+
+var NSP_VOICE_MARK_KEY = 'nsp_voice_turn';
+var NSP_VOICE_POLL_MS = 300;
+var NSP_VOICE_OPEN_WAIT_MS = 10000;
+var _nspVoiceActive = '';
+
+function nspVoiceMarkRead() {
+  try {
+    var m = JSON.parse(window.sessionStorage.getItem(NSP_VOICE_MARK_KEY) || 'null');
+    return (m && m.requestId && m.text) ? m : null;
+  } catch (e) { return null; }
+}
+
+function nspVoiceMarkWrite(turn) {
+  try { window.sessionStorage.setItem(NSP_VOICE_MARK_KEY, JSON.stringify(turn)); } catch (e) {}
+}
+
+function nspVoiceMarkDrop(requestId) {
+  var m = nspVoiceMarkRead();
+  if (!m || m.requestId !== requestId) return;
+  try { window.sessionStorage.removeItem(NSP_VOICE_MARK_KEY); } catch (e) {}
+}
+
+function nspVoiceReply(turn, outcome) {
+  nspVoiceMarkDrop(turn.requestId);
+  window.postMessage({
+    type: 'NSP_VOICE_TURN_RESULT',
+    requestId: turn.requestId,
+    ok: outcome.ok === true,
+    answer: String(outcome.answer || '').slice(0, 6000),
+    error: String(outcome.error || '').slice(0, 600)
+  }, window.location.origin);
+}
+
+function nspVoiceUserIndex(text) {
+  var list = _nspCoachState.messages || [];
+  for (var i = list.length - 1; i >= 0; i--) {
+    if (list[i] && list[i].role === 'user' && list[i].content === text) return i;
+  }
+  return -1;
+}
+
+function nspVoiceOutcome(text) {
+  var list = _nspCoachState.messages || [];
+  var from = nspVoiceUserIndex(text);
+  for (var i = list.length - 1; from >= 0 && i > from; i--) {
+    var m = list[i];
+    if (m && m.role === 'assistant') return { ok: true, answer: String(m.content || '') };
+    if (m && m.role === 'error') return { ok: false, error: String(m.content || '') };
+  }
+  return { ok: false, error: from < 0 ? 'The conversation in the tab changed before the answer came.' : 'The assistant finished without an answer.' };
+}
+
+function nspVoiceBusy() {
+  if (_nspCoachState.pending) return true;
+  try { return !!window.sessionStorage.getItem(NSP_AGENT_CARRY_KEY); } catch (e) { return false; }
+}
+
+function nspVoiceFollow(turn) {
+  if (!_nspCoachState.pending) { nspVoiceReply(turn, nspVoiceOutcome(turn.text)); return; }
+  if (Date.now() > turn.until) { nspVoiceMarkDrop(turn.requestId); return; }
+  setTimeout(function() { nspVoiceFollow(turn); }, NSP_VOICE_POLL_MS);
+}
+
+function nspVoiceStart(turn) {
+  if (!(_nspCoachState.pending && nspVoiceUserIndex(turn.text) >= 0)) {
+    nspVoiceReply(turn, { ok: false, error: 'The assistant panel in the tab did not take the question.' });
+    return;
+  }
+  _nspVoiceActive = turn.requestId;
+  nspVoiceMarkWrite(turn);
+  nspVoiceFollow(turn);
+}
+
+function nspVoiceWhenSent(turn, t0) {
+  if (window._zerackPendingPrompt === turn.text && Date.now() - t0 < NSP_VOICE_OPEN_WAIT_MS) {
+    setTimeout(function() { nspVoiceWhenSent(turn, t0); }, NSP_VOICE_POLL_MS);
+    return;
+  }
+  if (window._zerackPendingPrompt === turn.text) window._zerackPendingPrompt = null;
+  nspVoiceStart(turn);
+}
+
+// A panel that is closed or still loading its history clears the chat when it finishes opening, so the text waits in the hand off the panel already reads then.
+function nspVoiceSubmit(turn) {
+  var host = document.getElementById('nsp-coach-host');
+  var root = host && host.shadowRoot;
+  var input = root && root.getElementById('input');
+  var send = root && root.getElementById('send-btn');
+  if (_nspCoachState.open && _nspCoachState.loaded && input && send) {
+    openNspCoachChat();
+    input.value = turn.text;
+    send.click();
+    nspVoiceStart(turn);
+    return;
+  }
+  window._zerackPendingPrompt = turn.text;
+  openNspCoachChat();
+  nspVoiceWhenSent(turn, Date.now());
+}
+
+window.addEventListener('message', function(event) {
+  if (!event || event.source !== window) return;
+  if (event.origin && event.origin !== window.location.origin) return;
+  var data = event.data;
+  if (!data || data.type !== 'NSP_VOICE_TURN') return;
+  var now = Date.now();
+  var turn = {
+    requestId: String(data.requestId || '').slice(0, 80),
+    text: String(data.text || '').replace(/\s+/g, ' ').trim().slice(0, 2000),
+    until: now + Math.max(0, Math.min(Number(data.waitMs) || 0, 600000)),
+    at: now,
+    carried: false
+  };
+  if (!turn.requestId || !turn.text) return;
+  if (nspVoiceBusy()) {
+    nspVoiceReply(turn, { ok: false, error: 'The assistant in this tab is still working on the last instruction. Wait for it to finish or press STOP, then ask again.' });
+    return;
+  }
+  try { nspVoiceSubmit(turn); } catch (e) {
+    nspVoiceReply(turn, { ok: false, error: 'The assistant panel did not open: ' + String((e && e.message) || e) });
+  }
+});
+try { document.documentElement.setAttribute('data-nsp-voice-hook', '1'); } catch (eHook) {}
+
+// The agent's own pagehide handler runs first, so carried already says whether the instruction survives this load.
+window.addEventListener('pagehide', function() {
+  var mark = nspVoiceMarkRead();
+  if (!mark || mark.requestId !== _nspVoiceActive) return;
+  mark.at = Date.now();
+  if (_nspCoachState.pending) mark.carried = _nspAgentState.carried === true;
+  else mark.outcome = nspVoiceOutcome(mark.text);
+  nspVoiceMarkWrite(mark);
+});
+
+setTimeout(function() {
+  var mark = nspVoiceMarkRead();
+  if (!mark) return;
+  if (!(Date.now() - Number(mark.at || 0) < NSP_AGENT_CARRY_TTL_MS)) { nspVoiceMarkDrop(mark.requestId); return; }
+  if (mark.outcome) { nspVoiceReply(mark, mark.outcome); return; }
+  if (!mark.carried) { nspVoiceReply(mark, { ok: false, error: 'The page changed before the assistant finished, so the instruction stopped.' }); return; }
+  var t0 = Date.now();
+  (function waitForResume() {
+    if (nspVoiceUserIndex(mark.text) >= 0) { _nspVoiceActive = mark.requestId; nspVoiceFollow(mark); return; }
+    if (Date.now() - t0 > NSP_VOICE_OPEN_WAIT_MS) { nspVoiceReply(mark, { ok: false, error: 'The page reloaded and the instruction did not carry on.' }); return; }
+    setTimeout(waitForResume, NSP_VOICE_POLL_MS);
+  })();
+}, 1000);
 
 // ASHLYV NSP-BUNDLE — ALL FEATURES ACTIVE
 

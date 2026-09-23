@@ -63,6 +63,23 @@ section("1. Syntax of every first party script");
   else ok(jsFiles.length + " js and mjs files parse");
 }
 
+section("1b. Chrome can read every script as UTF-8");
+{
+  const NONCHAR = /[\uFDD0-\uFDEF\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  let bad = 0;
+  for (const f of jsFiles) {
+    let text;
+    try { text = new TextDecoder("utf-8", { fatal: true }).decode(readFileSync(f)); }
+    catch (e) { bad++; fail(rel(f) + " is not valid UTF-8, and Chrome refuses to load the whole extension over one such file"); continue; }
+    const lines = text.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const m = NONCHAR.exec(lines[i]);
+      if (m) { bad++; fail(rel(f) + ":" + (i + 1) + " holds U+" + m[0].charCodeAt(0).toString(16).toUpperCase() + ", a Unicode noncharacter; Chrome reports the file as not UTF-8 and refuses the whole extension. Write it as an escape"); break; }
+    }
+  }
+  if (!bad) ok("the " + jsFiles.length + " scripts decode as strict UTF-8 with no noncharacters");
+}
+
 section("2. Manifest declares only files that exist");
 {
   if (!manifest) fail("manifest.json does not parse, every other manifest check is skipped");
@@ -75,6 +92,7 @@ section("2. Manifest declares only files that exist");
     if (manifest.background && manifest.background.service_worker) declared.push(manifest.background.service_worker);
     if (manifest.action && manifest.action.default_popup) declared.push(manifest.action.default_popup);
     if (manifest.options_ui && manifest.options_ui.page) declared.push(manifest.options_ui.page);
+    if (manifest.side_panel && manifest.side_panel.default_path) declared.push(manifest.side_panel.default_path);
     Object.values(manifest.icons || {}).forEach(v => declared.push(v));
     if (manifest.action && manifest.action.default_icon) {
       const di = manifest.action.default_icon;
@@ -496,6 +514,7 @@ section("14. Pages nobody can reach");
   if (manifest) {
     if (manifest.action && manifest.action.default_popup) entryPoints.add(manifest.action.default_popup.split("/").pop());
     if (manifest.options_ui && manifest.options_ui.page) entryPoints.add(manifest.options_ui.page.split("/").pop());
+    if (manifest.side_panel && manifest.side_panel.default_path) entryPoints.add(manifest.side_panel.default_path.split("/").pop());
   }
   const allSources = jsFiles.concat(htmlFiles);
   const unreachable = [];

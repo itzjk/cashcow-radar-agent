@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   openOnClick('btn-niche-index', 'niche-index/niche-index.html');
   openOnClick('btn-course', 'academy/academy.html');
   bindAgentSwitch();
+  bindVoiceButton();
 });
 
 function openOnClick(id, page) {
@@ -412,6 +413,28 @@ function paintAgentSwitch(on) {
       ? 'On. The assistant can click, type and navigate on YouTube. It still stops to ask before it publishes, deletes or sends anything.'
       : 'Off. The assistant only reads and answers.';
   }
+}
+
+// sidePanel.open only counts the click as a user gesture while it is still synchronous, so the window id is read before the click.
+function bindVoiceButton() {
+  const btn = document.getElementById('btn-voice');
+  const hint = document.getElementById('voice-hint');
+  if (!btn) return;
+  let windowId = null;
+  chrome.windows.getCurrent((w) => { if (w && typeof w.id === 'number') windowId = w.id; });
+  btn.addEventListener('click', () => {
+    if (!chrome.sidePanel || typeof chrome.sidePanel.open !== 'function') {
+      if (hint) hint.textContent = 'This Chrome has no side panel. Update Chrome to use voice.';
+      return;
+    }
+    if (windowId === null) {
+      if (hint) hint.textContent = 'Not ready yet. Click again.';
+      return;
+    }
+    chrome.sidePanel.open({ windowId }).then(() => window.close(), (err) => {
+      if (hint) hint.textContent = 'The voice panel did not open: ' + String((err && err.message) || err);
+    });
+  });
 }
 
 function bindAgentSwitch() {

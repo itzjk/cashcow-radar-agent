@@ -255,3 +255,68 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 });
+
+var ZERACK_DEFAULT_VOICE = 'b7db3acd5f3f40a1b143f4e1ea95db8c';
+
+function maskKey(raw) {
+  return raw.length > 12 ? raw.slice(0, 5) + '...' + raw.slice(-4) : '...';
+}
+
+function lockField(inputId, statusId, raw, message) {
+  var input = el(inputId);
+  input.value = maskKey(raw);
+  input.disabled = true;
+  var st = el(statusId);
+  st.textContent = message;
+  st.className = 'status good';
+}
+
+function saveFish() {
+  var raw = (el('fish-key').value || '').trim();
+  var voice = (el('fish-voice').value || '').trim() || ZERACK_DEFAULT_VOICE;
+  var st = el('fish-status');
+  if (!raw) { st.textContent = 'Paste the key first.'; st.className = 'status bad'; return; }
+  if (raw === voice) { st.textContent = 'That is the voice id, not the key. The key is under API Keys in Fish.'; st.className = 'status bad'; return; }
+  if (!/^[A-Za-z0-9_-]{20,}$/.test(raw)) { st.textContent = 'That does not look like a Fish Audio key.'; st.className = 'status bad'; return; }
+  if (!/^[a-f0-9]{32}$/.test(voice)) { st.textContent = 'The voice id should be 32 letters and numbers, from the voice page in Fish.'; st.className = 'status bad'; return; }
+  chrome.storage.local.set({ nsp_fish_api_key: raw, nsp_fish_voice_id: voice, nsp_voice_engine: 'fish' }, function () {
+    lockField('fish-key', 'fish-status', raw, 'Saved. The assistant will speak with this voice.');
+  });
+}
+
+function saveTypesafe() {
+  var raw = (el('typesafe-key').value || '').trim();
+  var st = el('typesafe-status');
+  if (!raw) { st.textContent = 'Paste the key first.'; st.className = 'status bad'; return; }
+  if (raw.length < 20 || /\s/.test(raw)) { st.textContent = 'That does not look like a TypeSafe key.'; st.className = 'status bad'; return; }
+  chrome.storage.local.set({ nsp_typesafe_api_key: raw }, function () {
+    lockField('typesafe-key', 'typesafe-status', raw, 'Saved. Commands will be routed through Jev.');
+  });
+}
+
+function saveGateway() {
+  var raw = (el('gateway-key').value || '').trim();
+  var st = el('gateway-status');
+  if (!raw) { st.textContent = 'Paste the key first.'; st.className = 'status bad'; return; }
+  if (raw.length < 20 || /\s/.test(raw)) { st.textContent = 'That does not look like a Vercel AI Gateway key.'; st.className = 'status bad'; return; }
+  chrome.storage.local.set({ nsp_ai_gateway_api_key: raw }, function () {
+    lockField('gateway-key', 'gateway-status', raw, 'Saved. Commands will be routed through Jev on Vercel.');
+  });
+}
+
+function loadExtraKeys() {
+  chrome.storage.local.get(['nsp_fish_api_key', 'nsp_fish_voice_id', 'nsp_typesafe_api_key', 'nsp_ai_gateway_api_key'], function (r) {
+    r = r || {};
+    el('fish-voice').value = r.nsp_fish_voice_id || ZERACK_DEFAULT_VOICE;
+    if (r.nsp_fish_api_key) lockField('fish-key', 'fish-status', r.nsp_fish_api_key, 'A key is already stored.');
+    if (r.nsp_typesafe_api_key) lockField('typesafe-key', 'typesafe-status', r.nsp_typesafe_api_key, 'A key is already stored.');
+    if (r.nsp_ai_gateway_api_key) lockField('gateway-key', 'gateway-status', r.nsp_ai_gateway_api_key, 'A key is already stored.');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  el('save-fish').addEventListener('click', saveFish);
+  el('save-typesafe').addEventListener('click', saveTypesafe);
+  el('save-gateway').addEventListener('click', saveGateway);
+  loadExtraKeys();
+});

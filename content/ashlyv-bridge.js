@@ -745,4 +745,37 @@ window.addEventListener('message', function(event) {
   nspRelayReply(reqId, { ok: false, error: 'bad_op' });
 });
 
+chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+  if (!msg || msg.type !== 'NSP_VOICE_TURN') return false;
+  if (!sender || sender.id !== chrome.runtime.id) return false;
+  var reqId = String(msg.requestId || '').slice(0, 80);
+  var text = String(msg.text || '').trim().slice(0, 2000);
+  if (!reqId || !text) { sendResponse({ accepted: false, code: 'bad_request' }); return false; }
+  // Past this moment the service worker has already answered through the provider cascade, so running the turn too would answer twice.
+  if (!(Date.now() < Number(msg.acceptBefore))) { sendResponse({ accepted: false, code: 'late' }); return false; }
+  if (document.documentElement.getAttribute('data-nsp-voice-hook') !== '1') { sendResponse({ accepted: false, code: 'no_assistant' }); return false; }
+  window.postMessage({ type: 'NSP_VOICE_TURN', requestId: reqId, text: text, waitMs: Number(msg.waitMs) || 0 }, window.location.origin);
+  sendResponse({ accepted: true });
+  return false;
+});
+
+window.addEventListener('message', function(event) {
+  if (event.source !== window) return;
+  if (event.origin && event.origin !== window.location.origin) return;
+  var data = event.data;
+  if (!data || data.type !== 'NSP_VOICE_TURN_RESULT') return;
+  if (typeof chrome === 'undefined' || !chrome.runtime) return;
+  var reqId = String(data.requestId || '').slice(0, 80);
+  if (!reqId) return;
+  try {
+    chrome.runtime.sendMessage({
+      type: 'NSP_VOICE_TURN_DONE',
+      requestId: reqId,
+      ok: data.ok === true,
+      answer: String(data.answer || '').slice(0, 6000),
+      error: String(data.error || '').slice(0, 600)
+    }, function() { void (chrome.runtime && chrome.runtime.lastError); });
+  } catch (eSend) {}
+});
+
 try { window.postMessage({ type: 'ASHLYV_BRIDGE_READY' }, window.location.origin); } catch (eReady) {}

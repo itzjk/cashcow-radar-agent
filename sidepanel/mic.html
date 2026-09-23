@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>ZERACK · Microphone</title>
+  <link rel="stylesheet" href="voice.css"/>
+</head>
+<body class="mic-page">
+
+<header class="head">
+  <div class="brand">ZERACK</div>
+  <div class="sub">Microphone</div>
+</header>
+
+<div class="wrap">
+  <section class="card">
+    <h1>The voice panel needs your microphone</h1>
+    <p>Chrome cannot always show its permission prompt inside a side panel, so it asks here, once. The permission belongs to the extension, so the voice panel can use it as soon as you allow it.</p>
+    <p>What you say is turned into text on this computer by a local Whisper model. The audio never leaves your machine.</p>
+    <p class="status" id="status" aria-live="polite">Asking Chrome...</p>
+    <div class="row">
+      <button class="btn" id="retry" type="button" hidden>Ask again</button>
+      <button class="btn" id="close" type="button">Close this tab</button>
+    </div>
+  </section>
+</div>
+
+<script src="mic.js"></script>
+</body>
+</html>
