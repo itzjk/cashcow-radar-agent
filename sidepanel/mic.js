@@ -20,7 +20,16 @@
   }
   function allowed(already) {
     retry.hidden = true;
-    show((already ? 'The microphone is already allowed.' : 'Allowed.') + ' Go back to the voice panel and hold the orb to talk. This tab closes in a moment.');
+    try { chrome.runtime.sendMessage({ type: 'NSP_VOICE_MIC_GRANTED' }, function () { void chrome.runtime.lastError; }); } catch (e) {}
+    var lead = (already ? 'The microphone is already allowed.' : 'Allowed.') + ' Tap the ZERACK button on YouTube';
+    var tail = ' to talk. This tab closes in a moment.';
+    show(lead + tail);
+    try {
+      chrome.commands.getAll(function (list) {
+        var talk = (list || []).filter(function (c) { return c.name === 'talk'; })[0];
+        if (talk && talk.shortcut) show(lead + ', or press ' + talk.shortcut + ' on any page,' + tail);
+      });
+    } catch (e) {}
     setTimeout(closeTab, CLOSE_AFTER_MS);
   }
   function failed(err) {

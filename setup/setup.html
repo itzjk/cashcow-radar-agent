@@ -82,26 +82,75 @@
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="voice-card">
     <div class="card-head">
-      <h2>Voice and instant decisions</h2>
-      <span class="tag" id="extra-state">optional</span>
+      <h2>Voice</h2>
+      <span class="tag" id="voice-state">free</span>
     </div>
     <p class="note">
-      Both are optional. The assistant works without them. Each key is stored on this machine and is sent only to its own provider.
+      Turn the voice on with the round ZERACK button on YouTube, the dot in the toolbar popup or Alt+Z, then just talk. The same button turns it off.
     </p>
 
     <div class="field">
-      <label for="fish-key">Fish Audio key, for the assistant's voice</label>
+      <label for="voice-engine">The voice it answers with</label>
+      <select id="voice-engine">
+        <option value="browser">Browser voice, free</option>
+        <option value="fish">ZERACK voice, paid, uses your Fish Audio key</option>
+        <option value="openai">OpenAI voice, paid, uses your OpenAI key</option>
+        <option value="local" hidden disabled>Local voice server</option>
+      </select>
+      <p class="note" id="voice-engine-note"></p>
+    </div>
+
+    <div class="field" id="voice-sub-field" hidden>
+      <label for="voice-sub" id="voice-sub-label">Browser voice</label>
+      <select id="voice-sub"></select>
+    </div>
+
+    <div class="field">
+      <label for="fish-key">Fish Audio key, for the ZERACK voice</label>
       <div class="row">
         <input id="fish-key" type="text" placeholder="Paste your Fish Audio API key" autocomplete="off" spellcheck="false"/>
         <button class="btn" id="save-fish">Save</button>
       </div>
       <label for="fish-voice" class="sub-label">Voice id</label>
       <input id="fish-voice" type="text" autocomplete="off" spellcheck="false"/>
-      <p class="note">Paid per character by Fish. Get a key at <a href="https://fish.audio/app/api-keys" target="_blank" rel="noopener">fish.audio</a>. The voice id is the model of the voice you made there, not the key.</p>
+      <p class="note">Paid per character by Fish. Get a key at <a href="https://fish.audio/app/api-keys" target="_blank" rel="noopener">fish.audio</a>. The voice id is the model of the voice you made there, not the key. Saving the key does not switch the voice: pick the ZERACK voice above to use it.</p>
       <p class="status" id="fish-status"></p>
     </div>
+
+    <div class="field">
+      <label for="voice-lang">The language you speak</label>
+      <select id="voice-lang">
+        <option value="auto">Detect it every time</option>
+        <option value="es">Spanish</option>
+        <option value="en">English</option>
+      </select>
+      <p class="note" id="voice-lang-note"></p>
+    </div>
+
+    <div class="field">
+      <label class="check" for="voice-wake"><input type="checkbox" id="voice-wake"/> Voice on, always listening</label>
+      <p class="note">Off unless you turn it on here, with the round button on YouTube, the dot in the toolbar popup or Alt+Z. While it is on the microphone stays open. Commands like "open YouTube" or "search sleep stories" run as soon as you say them. Start anything else with "oye", "hey" or the name, like "Oye, what niche should I try?". While a tab is playing sound, commands need the name too, so a video cannot give orders.</p>
+      <p class="note">Speech is turned into text by Chrome's speech service, the same one behind voice typing in Chrome. If Chrome cannot do it, Whisper does it on this computer instead, which is slower.</p>
+      <label for="voice-wake-word" class="sub-label">Your own wake word</label>
+      <div class="row">
+        <input id="voice-wake-word" type="text" placeholder="Zerack" autocomplete="off" spellcheck="false" maxlength="40"/>
+        <button class="btn" id="save-wake-word">Save</button>
+      </div>
+      <p class="note">Zerack, Serac, Seraki and the ways they get written always work. Add a word here if it hears you say the name some other way. Leave it empty to use only those.</p>
+      <p class="status" id="voice-status"></p>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>Instant decisions</h2>
+      <span class="tag" id="extra-state">optional</span>
+    </div>
+    <p class="note">
+      Optional. The assistant works without it. Each key is stored on this machine and is sent only to its own provider.
+    </p>
 
     <div class="field">
       <label for="typesafe-key">TypeSafe key, for Jev instant decisions</label>

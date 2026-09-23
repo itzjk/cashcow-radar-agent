@@ -778,4 +778,250 @@ window.addEventListener('message', function(event) {
   } catch (eSend) {}
 });
 
+var NSP_VOICE_UI_STATES = { idle: 1, listening: 1, thinking: 1, speaking: 1, error: 1 };
+var NSP_VOICE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+var NSP_VOICE_CARD = 'ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-playlist-video-renderer, ytd-reel-item-renderer, yt-lockup-view-model';
+var NSP_VOICE_BUTTON_CSS = [
+  ':host { all: initial; }',
+  '.b { all: unset; box-sizing: border-box; position: relative; display: block; width: 44px; height: 44px; border-radius: 50%; background: #000; border: 1.5px solid rgba(255,255,255,.55); box-shadow: 0 6px 22px rgba(0,0,0,.5); cursor: pointer; opacity: .85; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: border-color .2s ease, opacity .2s ease, transform .15s ease; }',
+  '.b:hover { opacity: 1; border-color: #fff; }',
+  '.b:focus-visible { opacity: 1; outline: 2px solid #fff; outline-offset: 3px; }',
+  '.b.drag { cursor: grabbing; transform: scale(1.06); }',
+  '.core { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; transition: transform .2s ease, background .2s ease, opacity .2s ease; }',
+  '.ring, .arc { position: absolute; inset: -1.5px; border-radius: 50%; pointer-events: none; opacity: 0; }',
+  '.ring { border: 1.5px solid #fff; }',
+  '.arc { border: 1.5px solid transparent; border-top-color: #fff; border-right-color: rgba(255,255,255,.35); }',
+  '.dot { position: absolute; top: 0; right: 0; width: 9px; height: 9px; border-radius: 50%; background: #ff2d2d; box-shadow: 0 0 0 1.5px #000; opacity: 0; transition: opacity .2s ease; }',
+  '.b[data-wake="on"] { opacity: 1; border-color: #ff2d2d; }',
+  '.b[data-wake="on"] .dot { opacity: 1; }',
+  '.b[data-state="listening"] { opacity: 1; border-color: #ff2d2d; }',
+  '.b[data-state="listening"] .core { background: #ff2d2d; transform: scale(1.5); }',
+  '.b[data-state="listening"] .ring { border-color: #ff2d2d; animation: nsp-pulse 1.1s ease-out infinite; }',
+  '.b[data-state="thinking"] { opacity: 1; }',
+  '.b[data-state="thinking"] .core { transform: scale(.6); opacity: .6; }',
+  '.b[data-state="thinking"] .arc { opacity: 1; animation: nsp-spin .8s linear infinite; }',
+  '.b[data-state="speaking"] { opacity: 1; border-color: #fff; }',
+  '.b[data-state="speaking"] .core { animation: nsp-talk .42s ease-in-out infinite alternate; }',
+  '.b[data-state="speaking"] .ring { animation: nsp-pulse 1.6s ease-out infinite; }',
+  '.b[data-state="error"] { border-color: #ff2d2d; animation: nsp-shake .36s ease; }',
+  '.b[data-state="error"] .core { background: #ff2d2d; }',
+  '@keyframes nsp-pulse { from { transform: scale(1); opacity: .75; } to { transform: scale(1.75); opacity: 0; } }',
+  '@keyframes nsp-spin { to { transform: rotate(360deg); } }',
+  '@keyframes nsp-talk { from { transform: scale(.8); } to { transform: scale(1.7); } }',
+  '@keyframes nsp-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }',
+  '@media (prefers-reduced-motion: reduce) { .b, .core, .ring, .arc { animation: none !important; } }'
+].join('\n');
+
+function nspVoiceRows() {
+  var host = document.getElementById('nsp-shadow-host');
+  var root = host && host.shadowRoot;
+  return root ? Array.prototype.slice.call(root.querySelectorAll('#list [data-niche-card]')) : [];
+}
+
+function nspVoiceVideoLink(vid) {
+  return document.querySelector('a[href^="/watch?v=' + vid + '"], a[href*="/watch?v=' + vid + '"], a[href^="/shorts/' + vid + '"]');
+}
+
+function nspVoiceChannelLink(vid) {
+  var link = nspVoiceVideoLink(vid);
+  var card = link && link.closest(NSP_VOICE_CARD);
+  var links = card ? card.querySelectorAll('a[href^="/@"], a[href^="/channel/"], a[href^="/c/"], a[href^="/user/"]') : [];
+  for (var i = 0; i < links.length; i++) {
+    if (/^https:\/\/www\.youtube\.com\/(?:@|channel\/|c\/|user\/)/.test(links[i].href)) return links[i];
+  }
+  return null;
+}
+
+function nspVoiceWaitFor(find, ms, done) {
+  var until = Date.now() + ms;
+  (function look() {
+    var el = find();
+    if (el || Date.now() > until) { done(el || null); return; }
+    setTimeout(look, 200);
+  })();
+}
+
+function nspVoiceStopAgent() {
+  var host = document.getElementById('nsp-coach-host');
+  var stop = host && host.shadowRoot && host.shadowRoot.getElementById('stop-btn');
+  if (stop && stop.style.display !== 'none') stop.click();
+}
+
+function nspVoiceFollow(el, url) {
+  setTimeout(function() {
+    if (el) el.click();
+    else window.location.assign(url);
+  }, 30);
+}
+
+function nspVoiceAct(msg, reply) {
+  var action = String(msg.action || '');
+  if (action === 'stop') { nspVoiceStopAgent(); reply({ ok: true, code: 'stopped' }); return; }
+  chrome.storage.local.get('nsp_agent_enabled', function(st) {
+    if (chrome.runtime.lastError || !st || st.nsp_agent_enabled !== true) { reply({ ok: false, code: 'agent_needed' }); return; }
+    if (action === 'scan') {
+      nspVoiceWaitFor(function() { return document.getElementById('nsp-batman-scan-btn'); }, 6000, function(btn) {
+        if (!btn) { reply({ ok: false, code: 'no_scan_button' }); return; }
+        btn.click();
+        reply({ ok: true, code: 'scanning' });
+      });
+      return;
+    }
+    var n = Math.floor(Number(msg.n) || 0);
+    var rows = nspVoiceRows();
+    if (action === 'save' && !n) {
+      var own = document.getElementById('nsp-save-btn');
+      if (own) { own.click(); reply({ ok: true, code: 'saved' }); return; }
+      reply({ ok: false, code: rows.length ? 'which_one' : 'nothing_to_save' });
+      return;
+    }
+    if (!rows.length) { reply({ ok: false, code: 'no_results' }); return; }
+    if (n < 1 || n > rows.length) { reply({ ok: false, code: 'no_such_result' }); return; }
+    var row = rows[n - 1];
+    if (action === 'save') {
+      var save = row.querySelector('.save-btn');
+      if (!save) { reply({ ok: false, code: 'failed' }); return; }
+      save.click();
+      reply({ ok: true, code: 'saved' });
+      return;
+    }
+    var vid = String(row.getAttribute('data-video-id') || '');
+    if (!NSP_VOICE_VIDEO_ID.test(vid)) { reply({ ok: false, code: 'failed' }); return; }
+    if (action === 'result') {
+      reply({ ok: true, code: 'open' });
+      nspVoiceFollow(nspVoiceVideoLink(vid), 'https://www.youtube.com/watch?v=' + vid);
+      return;
+    }
+    if (action === 'channel') {
+      var channel = nspVoiceChannelLink(vid);
+      if (!channel) { reply({ ok: false, code: 'no_channel_link', vid: vid }); return; }
+      reply({ ok: true, code: 'opening_channel' });
+      nspVoiceFollow(channel, channel.href);
+      return;
+    }
+    reply({ ok: false, code: 'failed' });
+  });
+}
+
+var nspVoiceButton = (function() {
+  if (window.top !== window || document.getElementById('nsp-voice-host')) return null;
+  var POS_KEY = 'nsp_voice_button_pos';
+  var SIZE = 44, EDGE = 12, DRAG_PX = 6;
+  // Higher than the usual corner on purpose: the transcript, comments and scan navigation controls already sit in it.
+  var pos = { r: 24, b: 148 };
+  var press = null, errTimer = 0;
+
+  var host = document.createElement('div');
+  host.id = 'nsp-voice-host';
+  host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;width:' + SIZE + 'px;height:' + SIZE + 'px;right:24px;bottom:148px;';
+  var root = host.attachShadow({ mode: 'closed' });
+  var style = document.createElement('style');
+  style.textContent = NSP_VOICE_BUTTON_CSS;
+  var btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'b';
+  btn.setAttribute('aria-label', 'ZERACK voice');
+  btn.setAttribute('aria-pressed', 'false');
+  btn.dataset.state = 'idle';
+  btn.dataset.wake = 'off';
+  ['ring', 'arc', 'core', 'dot'].forEach(function(name) {
+    var part = document.createElement('span');
+    part.className = name;
+    btn.appendChild(part);
+  });
+  root.appendChild(style);
+  root.appendChild(btn);
+  // Same z-index as the scan panel, and later in the document, so the panel can never bury the button.
+  document.documentElement.appendChild(host);
+
+  // After an extension reload this copy has no runtime left, and a button that does nothing is worse than none.
+  function send(msg, cb) {
+    try {
+      chrome.runtime.sendMessage(msg, function(res) {
+        var err = chrome.runtime.lastError;
+        if (cb) cb(err ? null : res);
+      });
+    } catch (e) { host.remove(); }
+  }
+  function place() {
+    var maxR = Math.max(EDGE, window.innerWidth - SIZE - EDGE);
+    var maxB = Math.max(EDGE, window.innerHeight - SIZE - EDGE);
+    pos.r = Math.min(Math.max(EDGE, pos.r), maxR);
+    pos.b = Math.min(Math.max(EDGE, pos.b), maxB);
+    host.style.right = pos.r + 'px';
+    host.style.bottom = pos.b + 'px';
+  }
+  function paint(state, wake) {
+    clearTimeout(errTimer);
+    btn.dataset.state = NSP_VOICE_UI_STATES[state] ? state : 'idle';
+    if (typeof wake === 'boolean') { btn.dataset.wake = wake ? 'on' : 'off'; btn.setAttribute('aria-pressed', wake ? 'true' : 'false'); }
+    if (state === 'error') errTimer = setTimeout(function() { btn.dataset.state = 'idle'; }, 1400);
+  }
+  function sync() {
+    send({ type: 'NSP_VOICE_STATE_GET' }, function(res) { if (res) paint(res.state, res.wake); });
+  }
+
+  btn.addEventListener('pointerdown', function(e) {
+    if (!e.isTrusted || e.button !== 0) return;
+    press = { id: e.pointerId, x: e.clientX, y: e.clientY, r: pos.r, b: pos.b, drag: false };
+    try { btn.setPointerCapture(e.pointerId); } catch (x) {}
+  });
+  btn.addEventListener('pointermove', function(e) {
+    if (!press || e.pointerId !== press.id) return;
+    var dx = e.clientX - press.x, dy = e.clientY - press.y;
+    if (!press.drag && Math.abs(dx) + Math.abs(dy) < DRAG_PX) return;
+    if (!press.drag) { press.drag = true; btn.classList.add('drag'); }
+    pos.r = press.r - dx;
+    pos.b = press.b - dy;
+    place();
+  });
+  function release(e) {
+    if (!press || e.pointerId !== press.id) return;
+    var p = press;
+    press = null;
+    btn.classList.remove('drag');
+    if (p.drag) {
+      var saved = {};
+      saved[POS_KEY] = { r: pos.r, b: pos.b };
+      try { chrome.storage.local.set(saved); } catch (x) {}
+      return;
+    }
+    if (e.type !== 'pointerup' || !e.isTrusted) return;
+    send({ type: 'NSP_VOICE_WAKE_TOGGLE' });
+  }
+  btn.addEventListener('pointerup', release);
+  btn.addEventListener('pointercancel', release);
+  btn.addEventListener('click', function(e) {
+    if (e.isTrusted && e.detail === 0) send({ type: 'NSP_VOICE_WAKE_TOGGLE' });
+  });
+  // YouTube reads Space and Enter on the document as play and pause, so the key must end at the button.
+  btn.addEventListener('keydown', function(e) { if (e.key === ' ' || e.key === 'Enter') e.stopPropagation(); });
+  btn.addEventListener('keyup', function(e) { if (e.key === ' ' || e.key === 'Enter') e.stopPropagation(); });
+
+  try {
+    chrome.storage.local.get(POS_KEY, function(r) {
+      var p = !chrome.runtime.lastError && r && r[POS_KEY];
+      if (p && isFinite(p.r) && isFinite(p.b)) { pos.r = Number(p.r); pos.b = Number(p.b); }
+      place();
+    });
+  } catch (e) { place(); }
+  window.addEventListener('resize', place);
+  document.addEventListener('fullscreenchange', function() { host.style.display = document.fullscreenElement ? 'none' : ''; });
+  document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'visible') sync(); });
+  sync();
+  return { paint: paint };
+})();
+
+chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+  if (!msg || (msg.type !== 'NSP_VOICE_PING' && msg.type !== 'NSP_VOICE_ACT' && msg.type !== 'NSP_VOICE_STATE')) return false;
+  if (!sender || sender.id !== chrome.runtime.id || sender.tab) return false;
+  if (msg.type === 'NSP_VOICE_PING') { sendResponse({ ok: true }); return false; }
+  if (msg.type === 'NSP_VOICE_STATE') {
+    if (nspVoiceButton) nspVoiceButton.paint(String(msg.state || ''), typeof msg.wake === 'boolean' ? msg.wake : undefined);
+    return false;
+  }
+  nspVoiceAct(msg, sendResponse);
+  return true;
+});
+
 try { window.postMessage({ type: 'ASHLYV_BRIDGE_READY' }, window.location.origin); } catch (eReady) {}

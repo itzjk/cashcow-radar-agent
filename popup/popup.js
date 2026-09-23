@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   openOnClick('btn-niche-index', 'niche-index/niche-index.html');
   openOnClick('btn-course', 'academy/academy.html');
   bindAgentSwitch();
-  bindVoiceButton();
+  bindTalkButton();
 });
 
 function openOnClick(id, page) {
@@ -415,25 +415,26 @@ function paintAgentSwitch(on) {
   }
 }
 
-// sidePanel.open only counts the click as a user gesture while it is still synchronous, so the window id is read before the click.
-function bindVoiceButton() {
-  const btn = document.getElementById('btn-voice');
-  const hint = document.getElementById('voice-hint');
+function bindTalkButton() {
+  const btn = document.getElementById('btn-talk');
   if (!btn) return;
-  let windowId = null;
-  chrome.windows.getCurrent((w) => { if (w && typeof w.id === 'number') windowId = w.id; });
+  let shortcut = '';
+  const paint = (on) => {
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.title = (on ? 'Voice on, listening. Click to turn it off' : 'Voice off. Click to turn it on') + (shortcut ? ' (' + shortcut + ')' : '');
+  };
+  chrome.commands.getAll((list) => {
+    const talk = (list || []).find((c) => c.name === 'talk');
+    if (talk && talk.shortcut) shortcut = talk.shortcut;
+    paint(btn.getAttribute('aria-pressed') === 'true');
+  });
+  chrome.runtime.sendMessage({ type: 'NSP_VOICE_STATE_GET' }, (res) => {
+    void chrome.runtime.lastError;
+    if (res && typeof res.wake === 'boolean') paint(res.wake);
+  });
   btn.addEventListener('click', () => {
-    if (!chrome.sidePanel || typeof chrome.sidePanel.open !== 'function') {
-      if (hint) hint.textContent = 'This Chrome has no side panel. Update Chrome to use voice.';
-      return;
-    }
-    if (windowId === null) {
-      if (hint) hint.textContent = 'Not ready yet. Click again.';
-      return;
-    }
-    chrome.sidePanel.open({ windowId }).then(() => window.close(), (err) => {
-      if (hint) hint.textContent = 'The voice panel did not open: ' + String((err && err.message) || err);
-    });
+    paint(btn.getAttribute('aria-pressed') !== 'true');
+    chrome.runtime.sendMessage({ type: 'NSP_VOICE_WAKE_TOGGLE' }, () => { void chrome.runtime.lastError; });
   });
 }
 

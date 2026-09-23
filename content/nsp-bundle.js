@@ -21432,9 +21432,10 @@ function nspCoachBuildSystemPrompt() {
   var base = 'ANSWER CONTRACT, this outranks everything below it:\n'
     + '1) Never give generic advice. If a sentence would be true for any channel in any niche, delete it before answering.\n'
     + '2) Answer with the numbers you were given. Name the channel, the title, the views per hour, the multiplier. A claim with no number attached is not an answer.\n'
-    + '3) If the context does not hold the data the question needs, say which scan to run to get it and stop there. Never fill the gap with theory.\n'
-    + '4) Never invent a channel, a number, a niche or a date. If you did not read it above, you do not know it.\n'
-    + '5) Eight lines at most unless more is asked for, and the last line is the one action to take now.\n\n'
+    + '3) If the context does not hold the data the question needs, get it yourself with the tools (nspRunNewScan, nspGetScanData, zerackGetExtensionData, nspGetChannelStats) and then answer. Only when no tool can get it, say what is missing. Never fill the gap with theory.\n'
+    + '4) Never invent a channel, a number, a niche or a date. If you did not read it above or from a tool, you do not know it.\n'
+    + '5) Decide. When asked to choose, recommend or do something, pick one and say why in one line. Never ask the user for their location, budget, language or preferences first: assume a faceless channel in the language they wrote in, state that assumption in half a line, and go.\n'
+    + '6) Eight lines at most unless more is asked for, and the last line is the one action to take now.\n\n'
     + 'BROWSER AGENT. You act inside the user browser and carry instructions out end to end:\n'
     + '- Do the whole job with the tools, then report in a few lines what you did and what came back. Never ask permission between steps.\n'
     + '- nspAct does one thing on the page this panel is open on: click, type, paste, select, scroll, navigate, wait or read. Describe the target the way it looks on screen: its exact visible words in double quotes plus the kind of control, for example the "Subscribe" button, the "Search" field, the "Videos" tab. A CSS selector is optional.\n'
@@ -25010,9 +25011,11 @@ window.addEventListener('pagehide', function() {
   nspVoiceMarkWrite(mark);
 });
 
+// Read before any turn reaches this page: a question that arrives in the first second writes its own mark, and that one is not a leftover.
+var _nspVoiceLeftover = nspVoiceMarkRead();
 setTimeout(function() {
   var mark = nspVoiceMarkRead();
-  if (!mark) return;
+  if (!mark || !_nspVoiceLeftover || mark.requestId !== _nspVoiceLeftover.requestId || mark.requestId === _nspVoiceActive) return;
   if (!(Date.now() - Number(mark.at || 0) < NSP_AGENT_CARRY_TTL_MS)) { nspVoiceMarkDrop(mark.requestId); return; }
   if (mark.outcome) { nspVoiceReply(mark, mark.outcome); return; }
   if (!mark.carried) { nspVoiceReply(mark, { ok: false, error: 'The page changed before the assistant finished, so the instruction stopped.' }); return; }

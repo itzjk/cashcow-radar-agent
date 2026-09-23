@@ -25,7 +25,7 @@ cd cashcow-radar-agent
 
 Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and pick this folder. That is all: the scanner, the scan, the policy engine, the country radar and every panel work from a plain checkout.
 
-`scripts/fetch-assets.sh` downloads four large binaries into `lib/whisper/`, each checked against the SHA-256 of the build this code shipped with. **You do not need to run it.** Nothing in the extension imports `lib/whisper/` today; the script is there for whoever wires local transcription back up.
+`scripts/fetch-assets.sh` downloads four large binaries into `lib/whisper/`, each checked against the SHA-256 of the build this code shipped with. **You do not need to run it** unless those files are missing from your checkout: they are the local Whisper model the voice falls back to when Chrome's own speech recognition is not available.
 
 ## Models and where keys go
 
@@ -39,7 +39,7 @@ Open **Options**: the Settings button in the popup, or `chrome://extensions`, De
 | Assistant model | `nsp_selected_model` | the picker |
 | Let a scan send thumbnails to the vision model | `nsp_vision_allowed` | off by default |
 
-The **Assistant model** picker is the one catalog, `lib/nsp-models.js`, read by the options page, the service worker and the overlay. Picking an entry sets the preferred provider, it does not lock you to it: on a rate limit or a failure the service worker falls through to the next provider you have configured, in the order Groq, Ollama, Gemini. Picking *Auto* takes that order as it stands.
+The **Assistant model** picker is the one catalog, `lib/nsp-models.js`, read by the options page, the service worker and the overlay. Picking an entry sets the preferred provider, it does not lock you to it: on a rate limit or a failure the service worker falls through to the next provider you have configured, in the order OpenAI, Groq, Ollama, Gemini (the OpenAI key is pasted in Setup). Picking *Auto* takes that order as it stands.
 
 Keys live in `chrome.storage.local` and leave the browser only to reach the provider whose key you pasted. Without any key the metrics overlay, the scan, the tracking panel, the country radar, the niche index and the policy engine all still work; the AI panels say they have no provider.
 
@@ -64,6 +64,10 @@ Keys live in `chrome.storage.local` and leave the browser only to reach the prov
 **Country radar** (`country-feed/`) pick a market, get the faceless feed for that language through InnerTube, export it.
 
 **Niche Index** (`niche-index/`) the niche table your own scans have filled in, with its RPM, and a CSV export.
+
+**Voice** (`offscreen/voice.js`, routed in `background/service-worker.js`) one switch: the round button on YouTube, the dot in the popup, or Alt+Z. While it is on, the microphone stays open in an offscreen document and every phrase is turned into text. A browser command (open YouTube or one of about forty other sites, search YouTube for a topic, scan, open result two, save it, go back, reload, next tab) runs as soon as it is heard, in Spanish or English, with no wake word. Anything else is ignored unless it starts with *oye*, *hey* or the name *Zerack*, and then it goes to the assistant in the YouTube tab, which is brought to the front if it is not there. While any tab is playing sound, commands need the name too, so a video cannot give orders. The answer is spoken in the browser voice for free, or in the ZERACK voice on Fish Audio or OpenAI's voice when you add those keys in Setup.
+
+Where the audio goes: speech to text is Chrome's speech recognition, the same service behind voice typing in Chrome, handed the extension's own microphone track. When Chrome cannot run it, the local Whisper model in `lib/whisper/` does the job on your machine instead, slower. The switch is off until you turn it on.
 
 **Service worker** (`background/service-worker.js`) the one place with privileges: the message hub, the provider cascade with its rate limiters, the InnerTube calls, the channel and transcript readers, the cookie write that switches market, the alarms, and the `policy:*` routes.
 
@@ -105,7 +109,7 @@ Run `node smoke.mjs` for the machine-checkable list. These are the ones a checke
 - **The popup's tier counters and its *Analyzed* number have different denominators.** `Analyzed` counts every card scored; `RISING+` and `VIRAL` are counted over the session's top 20, so they stop climbing at 20.
 - **Five of the nine tool pages have no link.** `autopilot`, `brandforge`, `competitorfinder`, `help` and `nichemaster` under `ashlyv/tools/` only open if you type the address.
 - **Strings are not all English yet.** `node smoke.mjs` names every file with Spanish or emoji left in a string the user reads. Spanish inside search queries, YouTube DOM matchers and language detection tables is data and stays; the smoke exempts those tables by name.
-- **`lib/whisper/` ships for a transcription path that no screen reaches today.** It stays because the model files are already vendored, but nothing in the interface calls it yet.
+- **Local Whisper is slow on a busy machine.** It is only the fallback for when Chrome's recognizer cannot run, and on a loaded laptop it takes seconds per phrase and loads for about twenty seconds the first time.
 
 ## License
 

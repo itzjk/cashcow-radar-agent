@@ -17,7 +17,7 @@
     "notifications",
     "cookies",
     "downloads",
-    "sidePanel"
+    "offscreen"
   ],
   "host_permissions": [
     "https://www.youtube.com/*",
@@ -79,8 +79,14 @@
     "default_popup": "popup/popup.html",
     "default_title": "ZERACK"
   },
-  "side_panel": {
-    "default_path": "sidepanel/voice.html"
+  "commands": {
+    "talk": {
+      "suggested_key": {
+        "default": "Alt+Z",
+        "mac": "Alt+Z"
+      },
+      "description": "Turn the ZERACK voice on or off"
+    }
   },
   "options_ui": {
     "page": "options/options.html",

@@ -1005,13 +1005,8 @@ function nspChatCascade(chatPayload, sendResponse) {
 var NSP_VOICE_TAB_WAIT_MS = 180000;
 var NSP_VOICE_ACK_MS = 8000;
 var NSP_VOICE_YOUTUBE = /^https:\/\/www\.youtube\.com\//;
-var NSP_VOICE_SYSTEM = 'You are ZERACK, an assistant for YouTube creators. The user asked this out loud and your reply will be read aloud, so answer in plain spoken sentences with no markdown, lists, links or emoji, in under 120 words unless they ask for more, and in the language they spoke. You are answering outside the browser, so you cannot see or act on any page. If they ask you to do something in the browser, tell them to open YouTube, reload the tab if it is already open, and ask again.';
+var NSP_VOICE_SYSTEM = 'You are ZERACK, an assistant for YouTube creators. The user said this out loud and your reply will be read aloud, so answer in plain spoken sentences with no markdown, lists, links or emoji, in under 60 words unless they ask for more, and in the language they spoke. Spoken browser commands such as open YouTube, search YouTube for a topic, scan, open result two, open the channel of result two, save this niche, go back, next tab and turn on the agent are carried out before you are asked, so what reaches you is a question or a request those commands did not cover. Never tell the user to open YouTube or to reload a tab. If they asked for an action you cannot do, say in one short sentence which spoken command does it.';
 var _nspVoiceTurns = {};
-
-function nspVoiceFromExtensionPage(sender) {
-  var base = chrome.runtime.getURL('');
-  return !!(sender && sender.id === chrome.runtime.id && typeof sender.url === 'string' && sender.url.indexOf(base) === 0);
-}
 
 function nspVoiceByCascade(text, reason, sendResponse) {
   console.log('[NSP SW] voice: the provider cascade answers, ' + reason);
@@ -1100,13 +1095,703 @@ function nspVoiceByTab(tabId, text, requestId, sendResponse) {
   }
 }
 
+// The assistant that can act lives in the YouTube tab, so a question asked from any other page brings YouTube to the front first.
 function nspVoiceAsk(text, requestId, sendResponse) {
-  chrome.tabs.query({ active: true, lastFocusedWindow: true }, function(tabs) {
-    var tab = !chrome.runtime.lastError && tabs && tabs[0];
-    if (!tab || !NSP_VOICE_YOUTUBE.test(String(tab.url || ''))) { nspVoiceByCascade(text, 'no YouTube tab in front', sendResponse); return; }
-    nspVoiceByTab(tab.id, text, requestId, sendResponse);
+  nspVoiceYouTubeTab(function(tab, how) {
+    if (!tab) { nspVoiceByCascade(text, 'no YouTube tab could be opened', sendResponse); return; }
+    if (how === 'active') { nspVoiceByTab(tab.id, text, requestId, sendResponse); return; }
+    nspVoiceWaitBridge(tab.id, function(ready) {
+      if (ready) nspVoiceByTab(tab.id, text, requestId, sendResponse);
+      else nspVoiceByCascade(text, 'YouTube did not load in time', sendResponse);
+    });
   });
 }
+
+var NSP_VR_MAX_WORDS = 14;
+var NSP_VR_WAKE = /^(?:(?:hey|hi|oye|ok|okay|hola|ey)\s+)?(?:[szx][ei]r+[aeiou]?[ckq]+[aeiouy]?|cerac|cerak|zero)(?:\s+|$)/;
+var NSP_VR_WAKE_END = /(?:^|\s+)(?:[szx][ei]r+[aeiou]?[ckq]+[aeiouy]?|cerac|cerak)$/;
+var NSP_VR_LEAD = /^(?:eh+|em+|mm+|um+|uh+|ah+|este|bueno|pues|oye|mira|a ver|vale|ok|okay|hey|ey|entonces|ya|ahora|y|so|well|alright|now|and)\s+/;
+var NSP_VR_POLITE = /\b(?:por favor|porfavor|porfa|plis|please|pls|gracias|thanks|thank you)\b/g;
+var NSP_VR_QUESTION = /\b(?:que es|que son|que significa|que hace|que hago|que puedo|que me|que opinas|que piensas|como|cuanto|cuanta|cuantos|cuantas|cual|cuales|por que|porque|para que|donde|cuando|quien|quienes|dime|explica\w*|cuentame|what|whats|how|why|which|when|where|who|tell me|explain|should|would|recomiend\w*|deberia|conviene|sabes)\b/;
+var NSP_VR_NEGATION = /\b(?:no|nunca|never|don t|dont|do not|not)\s+(?:(?:lo|la|me|te|le|se|the|it|to|you)\s+)?(?:abr|cierr|busc|escane|guard|activ|desactiv|apag|enciend|prend|recarg|open|close|search|scan|save|turn|switch|enable|disable|reload|refresh|go\b|pong|pon\b|vay|ve\b|entr|dale|des)/;
+var NSP_VR_OPEN = '(?:abre(?:me|lo|la)?|abrir|ve a|ve al|vete a|vete al|ir a|ir al|vamos a|vamos al|llevame a|llevame al|entra a|entra al|entra en|muestrame|ensename|pon(?:me)?|quiero ver|quiero ir a|quiero ir al|quiero abrir|puedes abrir|podrias abrir|necesito ver|necesito abrir|open(?: up)?|go to|show me|show|take me to|bring up|launch|navigate to)';
+var NSP_VR_ORD = { primero: 1, primer: 1, primera: 1, first: 1, segundo: 2, segunda: 2, second: 2, tercero: 3, tercer: 3, tercera: 3, third: 3, cuarto: 4, cuarta: 4, fourth: 4, quinto: 5, quinta: 5, fifth: 5, sexto: 6, sexta: 6, sixth: 6, septimo: 7, septima: 7, seventh: 7, octavo: 8, octava: 8, eighth: 8, noveno: 9, novena: 9, ninth: 9, decimo: 10, decima: 10, tenth: 10 };
+var NSP_VR_CARD = { uno: 1, una: 1, one: 1, dos: 2, two: 2, tres: 3, three: 3, cuatro: 4, four: 4, cinco: 5, five: 5, seis: 6, six: 6, siete: 7, seven: 7, ocho: 8, eight: 8, nueve: 9, nine: 9, diez: 10, ten: 10 };
+var NSP_VR_ORD_RE = new RegExp('\\b(' + Object.keys(NSP_VR_ORD).join('|') + ')\\b');
+var NSP_VR_CARD_RE = new RegExp('(?:\\b(?:numero|resultado|result|number|video|opcion|option|el|la|al|the)\\s+|#\\s*)(\\d{1,2}|' + Object.keys(NSP_VR_CARD).join('|') + ')\\b');
+var NSP_VR_NUM_WORDS = /^(?:el|la|al|a|the|numero|number|resultado|result|video|nicho|niche|opcion|option|one|de|del|#)$/;
+var NSP_VR_PICK_VERB = /\b(?:abre|abrir|abremelo|abrelo|abrela|pon|ponme|dale|entra|mira|ve|reproduce|play|open|click|clic|selecciona|elige|escoge|pick|choose|watch|show|muestra|muestrame|quiero|toca|pulsa|go)\b/;
+var NSP_VR_SCAN = /\b(?:escane\w*|scan\w*)\b/;
+var NSP_VR_SCAN_OK = /^(?:esta|este|esto|la|el|los|las|pagina|page|this|the|aqui|here|otra|otro|vez|again|de|nuevo|ahora|now|ya|youtube|feed|inicio|home|un|una|a|haz|hazme|hazlo|hacer|dale|al|quiero|puedes|podrias|vamos|vuelve|volver|to|me|it|lo|rapido|resultados|results|nichos|niches|do|run|start|empieza|inicia|lanza|abre|open)$/;
+var NSP_VR_SAVE = /\b(?:guarda(?:lo|la|me|melo|mela)?|guardar(?:lo|la)?|salva(?:lo|la)?|save|bookmark)\b(?! silencio)/;
+var NSP_VR_SEARCH = /^(?:(?:quiero|puedes|podrias|necesito|vamos a|me puedes|can you|could you)\s+)?(?:que\s+)?(?:busca(?:me|lo|la)?|buscar|busques|busque|encuentra(?:me)?|search(?: youtube)?(?: for)?|look up|look for|find(?: me)?|pon(?:me)? videos? (?:de|sobre))\s+(.+)$/;
+var NSP_VR_OTHER_SITE = /\b(?:google|amazon|wikipedia|bing|spotify|netflix|tiktok|instagram|facebook|twitter|reddit|chatgpt|gmail)\b/;
+var NSP_VR_PAGES = [
+  { page: 'dashboard/dashboard.html', re: '(?:command center|comand center|commander center|centro de comandos?|centro de mando|dashboard|panel de control|panel principal)' },
+  { page: 'academy/academy.html', re: '(?:curso|cursos|course|academia|academy|clases|lecciones)' },
+  { page: 'niche-index/niche-index.html', re: '(?:indice de nichos?|niche index|nicho index|index of niches|indice)' },
+  { page: 'setup/setup.html', re: '(?:setup|set up|configuracion(?: inicial)?|configurar)' },
+  { page: 'options/options.html', re: '(?:settings|ajustes|opciones|options)' }
+];
+var NSP_VR_PAGE_RES = NSP_VR_PAGES.map(function(p) {
+  return { page: p.page, re: new RegExp('^(?:' + NSP_VR_OPEN + '\\s+)?(?:(?:el|la|los|las|the|mi|my|al|a)\\s+)?' + p.re + '(?:\\s+(?:de zerack|of zerack|de youtube|page|pagina))?$') };
+});
+var NSP_VR_SITES = {
+  google: 'https://www.google.com/', gmail: 'https://mail.google.com/', correo: 'https://mail.google.com/',
+  drive: 'https://drive.google.com/', googledrive: 'https://drive.google.com/', googledocs: 'https://docs.google.com/',
+  maps: 'https://maps.google.com/', googlemaps: 'https://maps.google.com/', translate: 'https://translate.google.com/', traductor: 'https://translate.google.com/', googletranslate: 'https://translate.google.com/',
+  calendar: 'https://calendar.google.com/', calendario: 'https://calendar.google.com/', googlecalendar: 'https://calendar.google.com/',
+  youtube: 'youtube', youtubestudio: 'https://studio.youtube.com/', studio: 'https://studio.youtube.com/', studiodeyoutube: 'https://studio.youtube.com/', youtubemusic: 'https://music.youtube.com/',
+  facebook: 'https://www.facebook.com/', instagram: 'https://www.instagram.com/', twitter: 'https://x.com/', tiktok: 'https://www.tiktok.com/', reddit: 'https://www.reddit.com/',
+  linkedin: 'https://www.linkedin.com/', pinterest: 'https://www.pinterest.com/', twitch: 'https://www.twitch.tv/', whatsapp: 'https://web.whatsapp.com/', telegram: 'https://web.telegram.org/',
+  amazon: 'https://www.amazon.com/', netflix: 'https://www.netflix.com/', spotify: 'https://open.spotify.com/', wikipedia: 'https://www.wikipedia.org/',
+  chatgpt: 'https://chatgpt.com/', claude: 'https://claude.ai/', gemini: 'https://gemini.google.com/', github: 'https://github.com/', canva: 'https://www.canva.com/',
+  notion: 'https://www.notion.so/', figma: 'https://www.figma.com/', fishaudio: 'https://fish.audio/', elevenlabs: 'https://elevenlabs.io/', capcut: 'https://www.capcut.com/',
+  socialblade: 'https://socialblade.com/', vidiq: 'https://vidiq.com/', tubebuddy: 'https://www.tubebuddy.com/', outlook: 'https://outlook.live.com/', hotmail: 'https://outlook.live.com/'
+};
+var NSP_VR_SITE_RE = new RegExp('^' + NSP_VR_OPEN + '\\s+(?:(?:la pagina de|la web de|el sitio de|the website|the site)\\s+)?(?:(?:el|la|a|al|the|mi|my)\\s+)?(.+?)(?:\\s+(?:ya|ahora|now|de nuevo|again|otra vez|en otra pestana|en una pestana nueva|in a new tab))?$');
+var NSP_VR_DOMAIN = /^([a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*)(?:\.| punto | dot )(com|org|net|io|ai|es|mx|co|app|dev|tv|me|gg)$/;
+var NSP_VR_YOUTUBE_OPEN = new RegExp('^' + NSP_VR_OPEN + '\\s+(?:(?:el|la|a|al|the)\\s+)?you ?tube(?:\\s+(?:punto com|com|ya|ahora|now|de nuevo|again|otra vez|en otra pestana|en una pestana nueva|in a new tab|home|inicio))*$');
+var NSP_VR_YOUTUBE_WANT = /\b(?:necesito|quiero|ahora|abre|abreme|abrir|ve|vete|pon|ponme|entra|llevame|vamos|dame|muestrame|open|go|goto|take me|now|want|need|show me)\b/;
+var NSP_VR_YOUTUBE_OPINION = /\b(?:gusta|encanta|odio|odia|mejor|peor|dificil|facil|aburre|love|hate|like|best|worst|hard|boring)\b/;
+var NSP_VR_YOUTUBE_NOT = /\b(?:studio|music|kids|shorts?|canal|channel|video|videos|busca\w*|search|cierra|cerrar|close|guarda\w*|save|escane\w*|scan\w*)\b/;
+var NSP_VR_YOUTUBE_REFUSED = /\bno\s+(?:quiero|queria|abras|vayas|pongas|necesito|me gusta)\s+(?:(?:el|la|a|al)\s+)?you ?tube\b|\bnot\b|\bdon t\b/;
+
+// Accents go before any pattern runs, because \b and \w are ASCII only and an accented letter ends a word early.
+function nspVrNorm(text) {
+  var s = nspStripAccents(String(text || '').toLowerCase())
+    .replace(/[^a-z0-9.#\s]+/g, ' ')
+    .replace(/\.(?![a-z0-9])|(?<![a-z0-9])\./g, ' ')
+    .replace(/\s+/g, ' ').trim();
+  var words = s ? s.split(' ') : [];
+  return words.filter(function(w, i) { return w !== words[i - 1]; }).join(' ');
+}
+
+function nspVrClean(norm) {
+  var s = norm.replace(NSP_VR_POLITE, ' ').replace(/\s+/g, ' ').trim();
+  for (var i = 0; i < 4; i++) {
+    var next = s.replace(NSP_VR_WAKE, '').replace(NSP_VR_LEAD, '').replace(NSP_VR_WAKE_END, '').trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s;
+}
+
+function nspVrNumber(s) {
+  var m = s.match(NSP_VR_ORD_RE);
+  if (m) return NSP_VR_ORD[m[1]];
+  m = s.match(NSP_VR_CARD_RE);
+  if (!m) return 0;
+  var n = /^\d+$/.test(m[1]) ? parseInt(m[1], 10) : NSP_VR_CARD[m[1]];
+  return n >= 1 && n <= 20 ? n : 0;
+}
+
+function nspVrBareNumber(s) {
+  var words = s.split(' ');
+  if (words.length > 4) return false;
+  return words.every(function(w) { return NSP_VR_NUM_WORDS.test(w) || NSP_VR_ORD[w] || NSP_VR_CARD[w] || /^\d{1,2}$/.test(w); });
+}
+
+function nspVrLang(norm, heard) {
+  var es = (norm.match(/\b(?:abr\w*|busc\w*|escane\w*|guard\w*|recarg\w*|cierr\w*|pestana|atras|adelante|siguiente|anterior|canal|segundo|primero|tercero|cuarto|curso|dale|agente|activa|desactiva|apaga|ve|vete|vamos|pon|ponme|quiero|necesito|ahora|el|la|los|las|de|del|que|es|en|un|una|para|por|no|y|callate|detente|basta|silencio|nicho|nichos|indice|configuracion|numero|regresa|vuelve|modo|manos|libres|deja|escuchar|escuchame|siempre|hablar|llevame|ir|otra|nueva)\b/g) || []).length;
+  var en = (norm.match(/\b(?:open|search|scan|save|tab|back|forward|reload|refresh|close|next|previous|channel|second|first|third|course|agent|turn|off|go|the|this|to|for|of|and|stop|niche|index|settings|result|number|listening|talking)\b/g) || []).length;
+  if (es > en) return 'es';
+  if (en > es) return 'en';
+  var h = String(heard || '').toLowerCase();
+  if (/^es|spanish|espanol/.test(h)) return 'es';
+  if (/^en|english/.test(h)) return 'en';
+  return 'en';
+}
+
+function nspVrSite(target) {
+  var t = target.replace(/\s+(?:punto com|dot com)$/, '.com');
+  var dom = t.match(NSP_VR_DOMAIN);
+  if (dom && !/\s/.test(dom[1])) return 'https://' + dom[1] + '.' + dom[2] + '/';
+  var key = t.replace(/\s+/g, '');
+  return Object.prototype.hasOwnProperty.call(NSP_VR_SITES, key) ? NSP_VR_SITES[key] : '';
+}
+
+function nspVrQuery(q, raw) {
+  q = q.replace(/^(?:(?:en|on|in)\s+)?you ?tube\s+/, '').replace(/\s+(?:en|on|in)\s+you ?tube$/, '').replace(/^(?:de|sobre|about|for)\s+/, '').trim();
+  if (!q || q.split(' ').length > 8 || NSP_VR_OTHER_SITE.test(q)) return '';
+  var originals = {};
+  String(raw || '').split(/\s+/).forEach(function(w) {
+    var k = nspVrNorm(w);
+    var clean = w.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+    if (k && k.indexOf(' ') < 0 && clean) originals[k] = clean;
+  });
+  return q.split(' ').map(function(w) { return originals[w] || w; }).join(' ');
+}
+
+// Each rule answers or declines; a decline goes to the assistant, never on to a looser rule below it.
+function nspVrDecide(s, raw) {
+  var words = s.split(' ');
+  var asked = /[?\u00bf]/.test(raw);
+  var m;
+
+  if (/^(?:callate|calla|silencio|shut up|be quiet|quiet|stop talking|deja de hablar|no hables mas|ya no hables)(?: ya)?$/.test(s)) return { kind: 'hush' };
+  if (/^(?:para|parate|paralo|detente|detenlo|deten todo|para todo|para ya|ya para|stop|stop it|stop everything|basta|ya basta|alto|cancela|cancelalo|cancel|cancel it|cancel that|olvidalo|forget it|never mind|nevermind|dejalo|ya esta)$/.test(s)) return { kind: 'stop' };
+
+  if (words.length > NSP_VR_MAX_WORDS) return null;
+  if (NSP_VR_QUESTION.test(s) || NSP_VR_NEGATION.test(s)) return null;
+
+  if (words.length <= 8) {
+    if (/\b(?:deja de escuchar|dejes de escuchar|stop listening|apaga (?:el )?(?:microfono|mic)|desactiva (?:el )?(?:modo )?manos libres|quita (?:el )?(?:modo )?manos libres|manos libres off|hands free off|turn off hands free|disable hands free|desactiva (?:la )?palabra(?: de activacion)?|turn off (?:the )?wake word)\b/.test(s)) return { kind: 'wake', on: false };
+    if (/\b(?:escuchame siempre|escucha siempre|activa (?:el )?(?:modo )?manos libres|modo manos libres|manos libres|hands free(?: mode)?|always listen|listen always|activa (?:la )?palabra(?: de activacion)?|turn on (?:the )?wake word|wake word on)\b/.test(s)) return { kind: 'wake', on: true };
+    if (/\b(?:desactiva(?:r)?|apaga(?:r)?|deshabilita(?:r)?|quita(?:r)?|turn off|switch off|disable|stop|shut off)\s+(?:(?:el|al|the|a|tu|your)\s+)?(?:modo\s+)?(?:agente|agent)(?:\s+mode)?\b|\bagent off\b/.test(s)) return { kind: 'agent', on: false };
+    if (/(?:^|\b(?:puedes|podrias|quiero|can you|could you)\s+)(?:activa|enciende|prende|habilita|turn on|switch on|enable|activar|encender|prender|habilitar)\s+(?:(?:el|al|the|a|tu|your)\s+)?(?:modo\s+)?(?:agente|agent)(?:\s+mode)?$|^agent on$/.test(s)) return { kind: 'agent', on: true };
+  }
+
+  if (words.length <= 6) {
+    if (/^(?:(?:abre(?:me)?|abrir|open|crea|create)\s+(?:una|otra|a|another|un)(?:\s+(?:nueva|new))?\s+(?:pestana|tab)(?:\s+nueva)?|(?:(?:una|a)\s+)?(?:nueva pestana|pestana nueva|new tab))$/.test(s)) return { kind: 'new_tab' };
+    if (/^(?:cierra(?:me)?|cerrar|close|quita)\s+(?:(?:esta|la|this|the|current|el|esa|that)\s+)?(?:pestana|tab|pagina|page|ventana)(?:\s+(?:actual|ya|ahora|now))?$|^(?:cierrala|cierralo|cierra esto|close this|close it|close that)$/.test(s)) return { kind: 'close_tab' };
+    if (/^(?:(?:ve a|vete a|ir a|cambia a|pasa a|go to|switch to|move to)\s+)?(?:(?:la|the)\s+)?(?:siguiente pestana|pestana siguiente|proxima pestana|pestana de la derecha|next tab|tab to the right|otra pestana)$|^(?:cambia de pestana|cambiar de pestana|switch tabs?)$/.test(s)) return { kind: 'next_tab' };
+    if (/^(?:(?:ve a|vete a|ir a|cambia a|pasa a|vuelve a|regresa a|go to|switch to|go back to|move to)\s+)?(?:(?:la|the)\s+)?(?:pestana anterior|anterior pestana|pestana de la izquierda|previous tab|prev tab|last tab|tab to the left)$/.test(s)) return { kind: 'prev_tab' };
+    if (/^(?:(?:ve|vete|vuelve|regresa|volver|regresar|go|ir|vamos)\s+)?(?:(?:hacia|para)\s+)?atras$|^(?:vuelve|volver|regresa|regresar|retrocede|go back|back|pagina anterior|la pagina anterior|previous page|vuelve a la pagina anterior|regresa a la pagina anterior|go to the previous page|go back a page)$/.test(s)) return { kind: 'back' };
+    if (/^(?:(?:ve|vete|go|ir|vamos)\s+)?(?:hacia\s+)?adelante$|^(?:avanza|go forward|forward|pagina siguiente|siguiente pagina|la pagina siguiente|next page)$/.test(s)) return { kind: 'forward' };
+    if (/^(?:recarga(?:la|lo)?|recargar|refresca(?:la|lo)?|refrescar|actualiza(?:la|lo)?|reload|refresh)(?:\s+(?:(?:la|esta|the|this)\s+)?(?:pagina|page|pestana|tab))?(?:\s+(?:ya|ahora|now|again|otra vez|de nuevo))?$/.test(s)) return { kind: 'reload' };
+  }
+
+  for (var p = 0; p < NSP_VR_PAGE_RES.length; p++) {
+    if (NSP_VR_PAGE_RES[p].re.test(s)) return { kind: 'page', page: NSP_VR_PAGE_RES[p].page };
+  }
+
+  var n = nspVrNumber(s);
+
+  if (NSP_VR_SAVE.test(s)) return words.length <= 8 ? { kind: 'save', n: n } : null;
+  if (/\b(?:canal|channel)\b/.test(s) && n) return words.length <= 9 ? { kind: 'channel', n: n } : null;
+  if (NSP_VR_SCAN.test(s)) {
+    var extra = words.filter(function(w) { return !NSP_VR_SCAN.test(w) && !NSP_VR_SCAN_OK.test(w); });
+    return extra.length ? null : { kind: 'scan' };
+  }
+  if (n && !/\b(?:pestana|tab|pagina|page)\b/.test(s)) {
+    if (NSP_VR_PICK_VERB.test(s) && words.length <= 7) return { kind: 'result', n: n };
+    if (nspVrBareNumber(s) && !asked) return { kind: 'result', n: n };
+  }
+
+  m = s.match(NSP_VR_SEARCH);
+  if (m) {
+    var q = nspVrQuery(m[1], raw);
+    return q ? { kind: 'search', q: q } : null;
+  }
+
+  if (NSP_VR_YOUTUBE_OPEN.test(s)) return { kind: 'youtube' };
+  m = s.match(NSP_VR_SITE_RE);
+  if (m) {
+    var url = nspVrSite(m[1]);
+    if (url === 'youtube') return { kind: 'youtube' };
+    return url ? { kind: 'site', url: url } : null;
+  }
+  if (words.length <= 3 && !asked) {
+    var bare = nspVrSite(s);
+    if (bare === 'youtube') return { kind: 'youtube' };
+    if (bare) return { kind: 'site', url: bare };
+  }
+  if (/\byou ?tube\b/.test(s) && words.length <= 7 && !asked && (words.length <= 2 || NSP_VR_YOUTUBE_WANT.test(s)) && !NSP_VR_YOUTUBE_OPINION.test(s) && !NSP_VR_YOUTUBE_NOT.test(s) && !NSP_VR_YOUTUBE_REFUSED.test(s)) return { kind: 'youtube' };
+  return null;
+}
+
+function nspVoiceRoute(text, heardLang) {
+  var norm = nspVrNorm(text);
+  var s = nspVrClean(norm);
+  if (!s) return NSP_VR_WAKE.test(norm) ? { kind: 'hello', lang: nspVrLang(norm, heardLang) } : null;
+  var r = nspVrDecide(s, String(text || ''));
+  if (r) r.lang = nspVrLang(s, heardLang);
+  return r;
+}
+
+var NSP_VOICE_OFFSCREEN = 'offscreen/voice.html';
+var NSP_VOICE_MIC_PAGE = 'sidepanel/mic.html';
+var NSP_VOICE_BRIDGE_WAIT_MS = 15000;
+var NSP_VOICE_RELOAD_AFTER_MS = 2500;
+var NSP_VOICE_LISTEN_RETRY_MS = 1500;
+var NSP_VOICE_MIC_TAB_GAP_MS = 10000;
+var NSP_VOICE_BLANK_TAB = /^(?:chrome:\/\/newtab\/?|chrome-search:\/\/local-ntp|about:blank)/;
+var NSP_VOICE_STATES = { idle: 1, listening: 1, thinking: 1, speaking: 1, error: 1 };
+var NSP_VOICE_BADGE = { listening: '#ff2d2d', thinking: '#ffffff', speaking: '#ffffff', error: '#ff2d2d' };
+var NSP_VOICE_LINES = {
+  hello: { en: 'Yes?', es: 'Dime.' },
+  youtube: { en: 'Opening YouTube.', es: 'Abro YouTube.' },
+  search: { en: 'Searching YouTube.', es: 'Busco en YouTube.' },
+  open: { en: 'Opening it.', es: 'Lo abro.' },
+  back: { en: 'Back.', es: 'Atrás.' },
+  forward: { en: 'Forward.', es: 'Adelante.' },
+  reload: { en: 'Reloading.', es: 'Recargo.' },
+  next_tab: { en: 'Next tab.', es: 'Siguiente pestaña.' },
+  prev_tab: { en: 'Previous tab.', es: 'Pestaña anterior.' },
+  close_tab: { en: 'Closed.', es: 'Cerrada.' },
+  new_tab: { en: 'New tab.', es: 'Pestaña nueva.' },
+  one_tab: { en: 'There is only one tab.', es: 'Solo hay una pestaña.' },
+  no_history: { en: 'There is nowhere to go.', es: 'No hay adónde ir.' },
+  agent_on: { en: 'The agent is on.', es: 'Agente activado.' },
+  agent_off: { en: 'The agent is off.', es: 'Agente apagado.' },
+  agent_needed: { en: 'The agent is off. Say: turn on the agent.', es: 'El agente está apagado. Di: activa el agente.' },
+  wake_on: { en: 'Listening.', es: 'Te escucho.' },
+  wake_off: { en: 'Voice off.', es: 'Voz apagada.' },
+  scanning: { en: 'Scanning.', es: 'Escaneando.' },
+  opening_channel: { en: 'Opening the channel.', es: 'Abro el canal.' },
+  saved: { en: 'Saved.', es: 'Guardado.' },
+  no_results: { en: 'There are no scan results here. Say scan first.', es: 'Aquí no hay resultados. Primero di escanea.' },
+  no_such_result: { en: 'That number is not on the list.', es: 'Ese número no está en la lista.' },
+  which_one: { en: 'Which one? Say, for example, save the first.', es: '¿Cuál? Di, por ejemplo, guarda el primero.' },
+  nothing_to_save: { en: 'There is nothing to save on this page.', es: 'En esta página no hay nada que guardar.' },
+  no_scan_button: { en: 'The scan button is not on this page yet. Try again in a moment.', es: 'El botón de escanear aún no está. Prueba en un momento.' },
+  youtube_late: { en: 'YouTube did not answer in time. Say it again.', es: 'YouTube no respondió a tiempo. Repítelo.' },
+  failed: { en: 'That did not work.', es: 'No funcionó.' },
+  mic: { en: 'I need the microphone once. A tab opened to allow it.', es: 'Necesito el micrófono una vez. Abrí una pestaña para permitirlo.' },
+  mic_help: { en: 'The microphone did not start. A tab opened with help.', es: 'El micrófono no arrancó. Abrí una pestaña con ayuda.' },
+  model_missing: { en: 'The speech model is missing from the extension folder.', es: 'Falta el modelo de voz en la carpeta de la extensión.' },
+  not_heard: { en: 'I did not catch that.', es: 'No te entendí.' },
+  no_provider: { en: 'No AI provider is set up. Add a key in Setup.', es: 'No hay proveedor de IA. Añade una clave en Setup.' },
+  busy: { en: 'Every AI provider is busy. Try again in a moment.', es: 'Todos los proveedores están ocupados. Prueba en un momento.' },
+  no_answer: { en: 'I did not get an answer.', es: 'No obtuve respuesta.' }
+};
+var NSP_VOICE_ASK_ERRORS = { no_provider_configured: 'no_provider', all_busy: 'busy' };
+var NSP_VOICE_EAR_LINES = { mic_permission: 'mic', mic_missing: 'mic_help', mic_busy: 'mic_help', model_missing: 'model_missing', not_heard: 'not_heard', transcribe_failed: 'failed' };
+var NSP_VOICE_MIC_REASONS = { mic_permission: 1, mic_missing: 1, mic_busy: 1 };
+var NSP_VOICE_PREF_KEYS = ['nsp_voice_engine', 'nsp_voice_browser_name', 'nsp_voice_local_name', 'nsp_voice_lang', 'nsp_voice_wake_word', 'nsp_openai_api_key', 'nsp_fish_api_key', 'nsp_fish_voice_id'];
+var _nspVoice = { ear: 'idle', wake: false, lang: /^es\b/i.test((self.navigator && navigator.language) || '') ? 'es' : 'en', busy: 0, gen: 0, stateAt: 0, micTabAt: 0, creating: null, recalled: false };
+
+function nspVoiceFromEar(sender) {
+  var page = chrome.runtime.getURL(NSP_VOICE_OFFSCREEN);
+  return !!(sender && sender.id === chrome.runtime.id && typeof sender.url === 'string' && sender.url.indexOf(page) === 0);
+}
+
+function nspVoiceFromExtension(sender) {
+  return !!(sender && sender.id === chrome.runtime.id);
+}
+
+function nspVoiceHasEar() {
+  var url = chrome.runtime.getURL(NSP_VOICE_OFFSCREEN);
+  try {
+    if (chrome.runtime.getContexts) {
+      return chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'], documentUrls: [url] })
+        .then(function(list) { return !!(list && list.length); }, function() { return false; });
+    }
+    if (chrome.offscreen && chrome.offscreen.hasDocument) return chrome.offscreen.hasDocument().catch(function() { return false; });
+  } catch (e) {}
+  return Promise.resolve(false);
+}
+
+function nspVoiceEnsureEar() {
+  if (_nspVoice.creating) return _nspVoice.creating;
+  _nspVoice.creating = nspVoiceHasEar().then(function(has) {
+    if (has) return false;
+    return chrome.offscreen.createDocument({
+      url: NSP_VOICE_OFFSCREEN,
+      reasons: ['USER_MEDIA', 'AUDIO_PLAYBACK'],
+      justification: 'Listens for one spoken command at a time, turns it into text with the local Whisper model, and speaks the reply.'
+    }).then(function() {
+      _nspVoice.ear = 'idle';
+      return true;
+    }, function(err) {
+      // Two calls can race to create it, and the loser fails although the document now exists.
+      return nspVoiceHasEar().then(function(has) { if (has) return false; throw err; });
+    });
+  });
+  var done = function() { _nspVoice.creating = null; };
+  _nspVoice.creating.then(done, done);
+  return _nspVoice.creating;
+}
+
+function nspVoicePost(msg) {
+  try { chrome.runtime.sendMessage(msg, function() { void chrome.runtime.lastError; }); } catch (e) {}
+}
+
+function nspVoiceToEar(msg) {
+  return nspVoiceEnsureEar().then(function(created) {
+    nspVoicePost(msg);
+    return created;
+  }, function(err) {
+    console.warn('[NSP SW] voice: the offscreen document did not open:', err && err.message);
+    _nspVoice.ear = 'error';
+    nspVoiceRelay('offscreen');
+    _nspVoice.ear = 'idle';
+    return null;
+  });
+}
+
+function nspVoiceListen() {
+  var sentAt = Date.now();
+  nspVoiceToEar({ type: 'NSP_VOICE_LISTEN' }).then(function(created) {
+    if (!created) return;
+    // A document that is still starting can miss the first message, and then the tap would do nothing at all.
+    setTimeout(function() { if (_nspVoice.stateAt < sentAt) nspVoicePost({ type: 'NSP_VOICE_LISTEN' }); }, NSP_VOICE_LISTEN_RETRY_MS);
+  });
+}
+
+function nspVoiceSay(text, fixed) {
+  var t = String(text || '').trim();
+  if (!t) return;
+  var msg = { type: 'NSP_VOICE_SAY', text: t.slice(0, 6000) };
+  if (fixed) msg.cache = true;
+  nspVoiceToEar(msg);
+}
+
+function nspVoiceLine(key, lang) {
+  var row = NSP_VOICE_LINES[key];
+  if (row) nspVoiceSay(row[lang === 'es' ? 'es' : 'en'], true);
+}
+
+function nspVoiceHush() {
+  _nspVoice.gen++;
+  _nspVoice.busy = 0;
+  return nspVoiceHasEar().then(function(has) {
+    if (has) nspVoicePost({ type: 'NSP_VOICE_STOP' });
+    else _nspVoice.ear = 'idle';
+    nspVoiceRelay();
+  });
+}
+
+function nspVoiceShown() {
+  return _nspVoice.busy && _nspVoice.ear === 'idle' ? 'thinking' : _nspVoice.ear;
+}
+
+function nspVoiceBadge(state) {
+  var color = NSP_VOICE_BADGE[state] || (_nspVoice.wake ? '#6b1414' : '');
+  try {
+    chrome.action.setBadgeText({ text: color ? (state === 'error' ? '!' : '\u25cf') : '' });
+    if (!color) return;
+    chrome.action.setBadgeBackgroundColor({ color: color });
+    if (chrome.action.setBadgeTextColor) chrome.action.setBadgeTextColor({ color: color === '#ffffff' ? '#000000' : '#ffffff' });
+  } catch (e) {}
+}
+
+function nspVoiceActiveTab(cb) {
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, function(tabs) {
+    cb((!chrome.runtime.lastError && tabs && tabs[0]) || null);
+  });
+}
+
+function nspVoiceRelay(reason) {
+  var state = nspVoiceShown();
+  var msg = { type: 'NSP_VOICE_STATE', state: state, wake: _nspVoice.wake };
+  if (reason) msg.reason = String(reason);
+  nspVoiceBadge(state);
+  nspVoiceActiveTab(function(tab) {
+    if (!tab || !NSP_VOICE_YOUTUBE.test(String(tab.url || ''))) return;
+    try { chrome.tabs.sendMessage(tab.id, msg, { frameId: 0 }, function() { void chrome.runtime.lastError; }); } catch (e) {}
+  });
+}
+
+function nspVoiceRemember() {
+  try { chrome.storage.session.set({ nsp_voice_ui: { ear: _nspVoice.ear, wake: _nspVoice.wake } }); } catch (e) {}
+}
+
+// The worker is torn down between phrases, and without this a tap after a restart would think the ear is idle while it still listens.
+function nspVoiceRecall(cb) {
+  if (_nspVoice.recalled) { cb(); return; }
+  var finish = function(saved) {
+    if (!_nspVoice.recalled) {
+      _nspVoice.recalled = true;
+      if (saved && NSP_VOICE_STATES[saved.ear] && !_nspVoice.stateAt) _nspVoice.ear = saved.ear;
+      if (saved && typeof saved.wake === 'boolean') _nspVoice.wake = saved.wake;
+    }
+    cb();
+  };
+  try {
+    chrome.storage.session.get('nsp_voice_ui', function(r) {
+      var saved = (!chrome.runtime.lastError && r && r.nsp_voice_ui) || {};
+      chrome.storage.local.get('nsp_voice_wake', function(w) {
+        saved.wake = !chrome.runtime.lastError && !!w && w.nsp_voice_wake === true;
+        finish(saved);
+      });
+    });
+  } catch (e) { finish(null); }
+}
+
+function nspVoiceEar(state, reason) {
+  if (!NSP_VOICE_STATES[state]) return;
+  _nspVoice.recalled = true;
+  _nspVoice.stateAt = Date.now();
+  _nspVoice.ear = state;
+  if (reason === 'mic_lost_wake') _nspVoice.wake = false;
+  nspVoiceRemember();
+  nspVoiceRelay(reason);
+  if (state === 'error') _nspVoice.ear = 'idle';
+  if (state === 'error' && NSP_VOICE_MIC_REASONS[reason]) { nspVoiceMicPage(NSP_VOICE_EAR_LINES[reason]); return; }
+  if (NSP_VOICE_EAR_LINES[reason]) nspVoiceLine(NSP_VOICE_EAR_LINES[reason], _nspVoice.lang);
+}
+
+function nspVoiceTap() {
+  nspVoiceRecall(function() {
+    nspVoiceHasEar().then(function(has) {
+      if (!has) _nspVoice.ear = 'idle';
+      var shown = nspVoiceShown();
+      if (shown === 'listening' || shown === 'thinking' || shown === 'speaking') { nspVoiceHush(); return; }
+      nspVoiceListen();
+    });
+  });
+}
+
+function nspVoiceSetWake(on, lang) {
+  var next = !!on;
+  chrome.storage.local.get('nsp_voice_wake', function(r) {
+    var stored = !chrome.runtime.lastError && !!r && r.nsp_voice_wake === true;
+    if (stored === next) nspVoiceWakeChanged({ nsp_voice_wake: { newValue: next } }, 'local');
+    else chrome.storage.local.set({ nsp_voice_wake: next }, function() { void chrome.runtime.lastError; });
+  });
+  nspVoiceLine(next ? 'wake_on' : 'wake_off', lang);
+}
+
+function nspVoiceResumeWake() {
+  chrome.storage.local.get('nsp_voice_wake', function(r) {
+    if (chrome.runtime.lastError || !r || r.nsp_voice_wake !== true) return;
+    _nspVoice.wake = true;
+    nspVoiceToEar({ type: 'NSP_VOICE_WAKE', on: true });
+    nspVoiceBadge(nspVoiceShown());
+  });
+}
+
+function nspVoiceFocus(tab, cb) {
+  chrome.tabs.update(tab.id, { active: true }, function() {
+    void chrome.runtime.lastError;
+    chrome.windows.update(tab.windowId, { focused: true }, function() { void chrome.runtime.lastError; cb(tab); });
+  });
+}
+
+function nspVoiceOpenUrl(url, cb) {
+  cb = cb || function() {};
+  nspVoiceActiveTab(function(tab) {
+    if (tab && NSP_VOICE_BLANK_TAB.test(String(tab.url || tab.pendingUrl || ''))) {
+      chrome.tabs.update(tab.id, { url: url }, function(t) { cb(chrome.runtime.lastError ? null : t); });
+      return;
+    }
+    var opts = { url: url, active: true };
+    if (tab) { opts.windowId = tab.windowId; opts.index = tab.index + 1; }
+    chrome.tabs.create(opts, function(t) { cb(chrome.runtime.lastError ? null : t); });
+  });
+}
+
+function nspVoiceOpenPage(url, cb) {
+  chrome.tabs.query({ url: url }, function(tabs) {
+    var open = !chrome.runtime.lastError && tabs && tabs[0];
+    if (open) nspVoiceFocus(open, cb);
+    else nspVoiceOpenUrl(url, cb);
+  });
+}
+
+function nspVoiceYouTubeTab(cb) {
+  nspVoiceActiveTab(function(active) {
+    if (active && NSP_VOICE_YOUTUBE.test(String(active.url || ''))) { cb(active, 'active'); return; }
+    chrome.tabs.query({ url: 'https://www.youtube.com/*' }, function(tabs) {
+      var list = (!chrome.runtime.lastError && tabs) || [];
+      var here = active ? list.filter(function(t) { return t.windowId === active.windowId; }) : [];
+      var pool = here.length ? here : list;
+      pool.sort(function(a, b) { return (b.lastAccessed || 0) - (a.lastAccessed || 0); });
+      if (pool[0]) { nspVoiceFocus(pool[0], function(t) { cb(t, 'switched'); }); return; }
+      nspVoiceOpenUrl('https://www.youtube.com/', function(t) { cb(t, 'opened'); });
+    });
+  });
+}
+
+function nspVoiceWaitBridge(tabId, cb) {
+  var until = Date.now() + NSP_VOICE_BRIDGE_WAIT_MS, loadedSince = 0, reloaded = false;
+  (function ping() {
+    try {
+      chrome.tabs.sendMessage(tabId, { type: 'NSP_VOICE_PING' }, { frameId: 0 }, function(res) {
+        if (!chrome.runtime.lastError && res && res.ok === true) { cb(true); return; }
+        if (Date.now() > until) { cb(false); return; }
+        chrome.tabs.get(tabId, function(tab) {
+          if (chrome.runtime.lastError || !tab) { cb(false); return; }
+          var loaded = tab.status === 'complete' && NSP_VOICE_YOUTUBE.test(String(tab.url || ''));
+          if (!loaded) loadedSince = 0;
+          else if (!loadedSince) loadedSince = Date.now();
+          // A tab that was open before the extension loaded never gets the content script, and only a reload gives it one.
+          if (loaded && !reloaded && Date.now() - loadedSince > NSP_VOICE_RELOAD_AFTER_MS) {
+            reloaded = true;
+            loadedSince = 0;
+            chrome.tabs.reload(tabId, function() { void chrome.runtime.lastError; });
+          }
+          setTimeout(ping, 250);
+        });
+      });
+    } catch (e) { cb(false); }
+  })();
+}
+
+function nspVoiceChannelOfVideo(tabId, vid, lang) {
+  innertubeFetch('player', { videoId: vid }, { gl: 'US', hl: 'en' }).then(function(data) {
+    var id = data && data.videoDetails && data.videoDetails.channelId;
+    if (typeof id !== 'string' || !/^UC[A-Za-z0-9_-]{22}$/.test(id)) throw new Error('the player response names no channel');
+    chrome.tabs.update(tabId, { url: 'https://www.youtube.com/channel/' + id }, function() {
+      nspVoiceLine(chrome.runtime.lastError ? 'failed' : 'opening_channel', lang);
+    });
+  }).catch(function(e) {
+    console.warn('[NSP SW] voice: channel lookup failed:', e && e.message);
+    nspVoiceLine('failed', lang);
+  });
+}
+
+function nspVoiceInPage(r, gen) {
+  chrome.storage.local.get('nsp_agent_enabled', function(st) {
+    if (chrome.runtime.lastError || !st || st.nsp_agent_enabled !== true) { nspVoiceLine('agent_needed', r.lang); return; }
+    nspVoiceYouTubeTab(function(tab, how) {
+      if (!tab) { nspVoiceLine('failed', r.lang); return; }
+      if (how === 'opened') nspVoiceLine('youtube', r.lang);
+      nspVoiceWaitBridge(tab.id, function(ready) {
+        if (_nspVoice.gen !== gen) return;
+        if (!ready) { nspVoiceLine('youtube_late', r.lang); return; }
+        chrome.tabs.sendMessage(tab.id, { type: 'NSP_VOICE_ACT', action: r.kind, n: r.n || 0 }, { frameId: 0 }, function(res) {
+          if (chrome.runtime.lastError || !res) { nspVoiceLine('failed', r.lang); return; }
+          if (_nspVoice.gen !== gen) return;
+          if (res.code === 'no_channel_link' && typeof res.vid === 'string' && /^[A-Za-z0-9_-]{11}$/.test(res.vid)) { nspVoiceChannelOfVideo(tab.id, res.vid, r.lang); return; }
+          if (res.code === 'stopped') return;
+          nspVoiceLine(NSP_VOICE_LINES[res.code] ? res.code : 'failed', r.lang);
+        });
+      });
+    });
+  });
+}
+
+function nspVoiceStopPage() {
+  nspVoiceActiveTab(function(tab) {
+    if (!tab || !NSP_VOICE_YOUTUBE.test(String(tab.url || ''))) return;
+    try { chrome.tabs.sendMessage(tab.id, { type: 'NSP_VOICE_ACT', action: 'stop' }, { frameId: 0 }, function() { void chrome.runtime.lastError; }); } catch (e) {}
+  });
+}
+
+function nspVoiceTabs(kind, lang) {
+  nspVoiceActiveTab(function(tab) {
+    if (!tab) { nspVoiceLine('failed', lang); return; }
+    var after = function(line) {
+      return function() {
+        var err = chrome.runtime.lastError;
+        nspVoiceLine(err ? (kind === 'back' || kind === 'forward' ? 'no_history' : 'failed') : line, lang);
+      };
+    };
+    if (kind === 'back') { chrome.tabs.goBack(tab.id, after('back')); return; }
+    if (kind === 'forward') { chrome.tabs.goForward(tab.id, after('forward')); return; }
+    if (kind === 'reload') { chrome.tabs.reload(tab.id, after('reload')); return; }
+    if (kind === 'close_tab') { chrome.tabs.remove(tab.id, after('close_tab')); return; }
+    if (kind === 'new_tab') { chrome.tabs.create({ windowId: tab.windowId, index: tab.index + 1, active: true }, after('new_tab')); return; }
+    chrome.tabs.query({ windowId: tab.windowId }, function(list) {
+      list = ((!chrome.runtime.lastError && list) || []).slice().sort(function(a, b) { return a.index - b.index; });
+      if (list.length < 2) { nspVoiceLine('one_tab', lang); return; }
+      var at = 0;
+      for (var i = 0; i < list.length; i++) if (list[i].id === tab.id) at = i;
+      var to = list[(at + (kind === 'next_tab' ? 1 : list.length - 1)) % list.length];
+      chrome.tabs.update(to.id, { active: true }, after(kind));
+    });
+  });
+}
+
+function nspVoiceRun(r, gen) {
+  var lang = r.lang;
+  var said = function(line) { return function(tab) { nspVoiceLine(tab ? line : 'failed', lang); }; };
+  if (r.kind === 'hello') { nspVoiceLine('hello', lang); return; }
+  if (r.kind === 'hush') { nspVoiceHush(); return; }
+  if (r.kind === 'stop') { nspVoiceHush(); nspVoiceStopPage(); return; }
+  if (r.kind === 'wake') { nspVoiceSetWake(r.on, lang); return; }
+  if (r.kind === 'agent') {
+    chrome.storage.local.set({ nsp_agent_enabled: r.on === true }, function() {
+      nspVoiceLine(chrome.runtime.lastError ? 'failed' : (r.on ? 'agent_on' : 'agent_off'), lang);
+    });
+    return;
+  }
+  if (r.kind === 'youtube') {
+    nspVoiceYouTubeTab(function(tab, how) {
+      if (tab && how === 'active' && !/^https:\/\/www\.youtube\.com\/?(?:[?#].*)?$/.test(String(tab.url || ''))) chrome.tabs.update(tab.id, { url: 'https://www.youtube.com/' }, function() { void chrome.runtime.lastError; });
+      said('youtube')(tab);
+    });
+    return;
+  }
+  if (r.kind === 'search') {
+    var results = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(r.q);
+    nspVoiceActiveTab(function(tab) {
+      if (tab && NSP_VOICE_YOUTUBE.test(String(tab.url || ''))) chrome.tabs.update(tab.id, { url: results }, function(t) { said('search')(chrome.runtime.lastError ? null : t); });
+      else nspVoiceOpenUrl(results, said('search'));
+    });
+    return;
+  }
+  if (r.kind === 'site') { nspVoiceOpenUrl(r.url, said('open')); return; }
+  if (r.kind === 'page') { nspVoiceOpenPage(chrome.runtime.getURL(r.page), said('open')); return; }
+  if (r.kind === 'scan' || r.kind === 'result' || r.kind === 'channel' || r.kind === 'save') { nspVoiceInPage(r, gen); return; }
+  nspVoiceTabs(r.kind, lang);
+}
+
+// The full answer stays in the assistant panel; out loud only its opening sentences, so a reply does not run for a minute.
+var NSP_VOICE_SPOKEN_MAX = 320;
+function nspVoiceSpoken(body) {
+  var t = String(body || '').replace(/^\s*(?:->|\d+\)|[-*])\s*/gm, '').replace(/\s+/g, ' ').trim();
+  if (t.length <= NSP_VOICE_SPOKEN_MAX) return t;
+  var parts = t.match(/[^.!?]+[.!?]+(?:\s|$)/g) || [];
+  var out = '';
+  for (var i = 0; i < parts.length && (out + parts[i]).length <= NSP_VOICE_SPOKEN_MAX; i++) out += parts[i];
+  return (out || t.slice(0, NSP_VOICE_SPOKEN_MAX).replace(/\s+\S*$/, '')).trim();
+}
+
+function nspVoiceThink(text, lang, gen) {
+  _nspVoice.busy = gen;
+  nspVoiceRelay();
+  nspVoiceAsk(text, 'voice-' + Date.now().toString(36) + '-' + gen, function(reply) {
+    if (_nspVoice.gen !== gen) return;
+    _nspVoice.busy = 0;
+    var body = reply && reply.ok ? String(reply.answer || '').trim() : '';
+    if (body) { nspVoiceSay(nspVoiceSpoken(body)); return; }
+    var code = String((reply && reply.error) || '');
+    if (NSP_VOICE_ASK_ERRORS[code]) nspVoiceLine(NSP_VOICE_ASK_ERRORS[code], lang);
+    else if (/\s/.test(code)) nspVoiceSay(code);
+    else nspVoiceLine('no_answer', lang);
+    nspVoiceRelay();
+  });
+}
+
+// With the voice on the ear sends every phrase. A command runs without the name, unless a tab is playing sound that could have said it; anything else needs "oye", "hey" or the name first.
+function nspVoiceHeard(text, lang, addressed) {
+  var t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 2000);
+  if (!t) return;
+  var t0 = performance.now();
+  var r = nspVoiceRoute(t, lang);
+  var took = (performance.now() - t0).toFixed(2);
+  var go = function() {
+    var gen = ++_nspVoice.gen;
+    _nspVoice.busy = 0;
+    _nspVoice.lang = r ? r.lang : nspVrLang(nspVrNorm(t), lang);
+    console.log('[NSP SW] voice: routed in ' + took + ' ms to ' + (r ? r.kind : 'the assistant'));
+    if (r) nspVoiceRun(r, gen);
+    else nspVoiceThink(t, lang, gen);
+  };
+  if (addressed !== false) { go(); return; }
+  if (!r) return;
+  chrome.tabs.query({ audible: true }, function(tabs) {
+    if (!chrome.runtime.lastError && tabs && tabs.length) { console.log('[NSP SW] voice: a tab is playing sound, so an unaddressed ' + r.kind + ' was dropped'); return; }
+    go();
+  });
+}
+
+function nspVoiceMicPage(line) {
+  if (Date.now() - _nspVoice.micTabAt < NSP_VOICE_MIC_TAB_GAP_MS) return;
+  _nspVoice.micTabAt = Date.now();
+  nspVoiceOpenPage(chrome.runtime.getURL(NSP_VOICE_MIC_PAGE), function() {});
+  nspVoiceLine(line || 'mic', _nspVoice.lang);
+}
+
+function nspVoicePrefs(keys, sendResponse) {
+  var wanted = (Array.isArray(keys) ? keys : NSP_VOICE_PREF_KEYS).filter(function(k) { return NSP_VOICE_PREF_KEYS.indexOf(k) >= 0; });
+  if (!wanted.length) { sendResponse({}); return; }
+  chrome.storage.local.get(wanted, function(r) { sendResponse(chrome.runtime.lastError ? {} : (r || {})); });
+}
+
+// Setup and the button both flip the stored switch, so the ear follows the stored value instead of whoever flipped it.
+function nspVoiceWakeChanged(changes, area) {
+  if (area !== 'local' || !changes || !changes.nsp_voice_wake) return;
+  var on = changes.nsp_voice_wake.newValue === true;
+  _nspVoice.wake = on;
+  nspVoiceRemember();
+  if (on) nspVoiceToEar({ type: 'NSP_VOICE_WAKE', on: true });
+  else nspVoiceHasEar().then(function(has) { if (has) nspVoicePost({ type: 'NSP_VOICE_WAKE', on: false }); });
+  nspVoiceRelay();
+}
+
+function nspVoiceToggle() {
+  nspVoiceRecall(function() { nspVoiceSetWake(!_nspVoice.wake, _nspVoice.lang); });
+}
+
+try { chrome.commands.onCommand.addListener(function(command) { if (command === 'talk') nspVoiceToggle(); }); } catch (eCmd) {}
+chrome.runtime.onStartup.addListener(nspVoiceResumeWake);
+chrome.runtime.onInstalled.addListener(nspVoiceResumeWake);
+chrome.storage.onChanged.addListener(nspVoiceWakeChanged);
 
 // ── Message router ──────────────────────────────────────────────────────────
 
@@ -1531,13 +2216,41 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
-  if (msg.type === 'NSP_VOICE_ASK') {
-    if (!nspVoiceFromExtensionPage(sender)) { sendResponse({ ok: false, answer: '', error: 'sender_not_allowed', actedOnTab: false }); return false; }
-    var voiceText = String(msg.text || '').trim().slice(0, 2000);
-    if (!voiceText) { sendResponse({ ok: false, answer: '', error: 'Nothing was heard.', actedOnTab: false }); return false; }
-    var voiceId = String(msg.requestId || '').slice(0, 80) || ('voice-' + Date.now() + '-' + Math.floor(Math.random() * 1e6));
-    nspVoiceAsk(voiceText, voiceId, sendResponse);
+  if (msg.type === 'NSP_VOICE_HEARD') {
+    if (nspVoiceFromEar(sender)) nspVoiceHeard(msg.text, msg.lang, msg.addressed !== false);
+    return false;
+  }
+
+  if (msg.type === 'NSP_VOICE_STATE') {
+    if (nspVoiceFromEar(sender)) nspVoiceEar(String(msg.state || ''), msg.reason ? String(msg.reason) : '');
+    return false;
+  }
+
+  if (msg.type === 'NSP_VOICE_TAP') {
+    if (nspVoiceFromExtension(sender)) nspVoiceTap();
+    return false;
+  }
+
+  if (msg.type === 'NSP_VOICE_WAKE_TOGGLE') {
+    if (nspVoiceFromExtension(sender)) nspVoiceToggle();
+    return false;
+  }
+
+  if (msg.type === 'NSP_VOICE_STATE_GET') {
+    if (!nspVoiceFromExtension(sender)) return false;
+    nspVoiceRecall(function() { sendResponse({ state: nspVoiceShown(), wake: _nspVoice.wake }); });
     return true;
+  }
+
+  if (msg.type === 'NSP_VOICE_PREFS') {
+    if (!nspVoiceFromEar(sender)) return false;
+    nspVoicePrefs(msg.keys, sendResponse);
+    return true;
+  }
+
+  if (msg.type === 'NSP_VOICE_MIC_GRANTED') {
+    if (nspVoiceFromExtension(sender)) nspVoiceResumeWake();
+    return false;
   }
 
   if (msg.type === 'NSP_VOICE_TURN_DONE') {

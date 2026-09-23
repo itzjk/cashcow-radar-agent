@@ -279,8 +279,8 @@ function saveFish() {
   if (raw === voice) { st.textContent = 'That is the voice id, not the key. The key is under API Keys in Fish.'; st.className = 'status bad'; return; }
   if (!/^[A-Za-z0-9_-]{20,}$/.test(raw)) { st.textContent = 'That does not look like a Fish Audio key.'; st.className = 'status bad'; return; }
   if (!/^[a-f0-9]{32}$/.test(voice)) { st.textContent = 'The voice id should be 32 letters and numbers, from the voice page in Fish.'; st.className = 'status bad'; return; }
-  chrome.storage.local.set({ nsp_fish_api_key: raw, nsp_fish_voice_id: voice, nsp_voice_engine: 'fish' }, function () {
-    lockField('fish-key', 'fish-status', raw, 'Saved. The assistant will speak with this voice.');
+  chrome.storage.local.set({ nsp_fish_api_key: raw, nsp_fish_voice_id: voice }, function () {
+    lockField('fish-key', 'fish-status', raw, voiceUi.prefs.engine === 'fish' ? 'Saved. Answers are spoken in this voice.' : 'Saved. Pick the ZERACK voice above to hear it.');
   });
 }
 
@@ -319,4 +319,231 @@ document.addEventListener('DOMContentLoaded', function () {
   el('save-typesafe').addEventListener('click', saveTypesafe);
   el('save-gateway').addEventListener('click', saveGateway);
   loadExtraKeys();
+});
+
+var VOICE_KEYS = {
+  engine: 'nsp_voice_engine',
+  browser: 'nsp_voice_browser_name',
+  local: 'nsp_voice_local_name',
+  lang: 'nsp_voice_lang',
+  wake: 'nsp_voice_wake',
+  wakeWord: 'nsp_voice_wake_word',
+  openai: 'nsp_openai_api_key',
+  fishKey: 'nsp_fish_api_key',
+  fishVoice: 'nsp_fish_voice_id'
+};
+var VOICE_MIRROR = 'nsp_voice_prefs';
+var VOICE_ENGINES = ['browser', 'fish', 'openai', 'local'];
+var VOICE_LANGS = ['auto', 'es', 'en'];
+var VOICE_LOCAL_SERVER = 'http://127.0.0.1:7788';
+var VOICE_LANG_NOTES = {
+  auto: 'Uses the language Chrome is set to. Pick yours if you speak another one.',
+  es: 'Every phrase is read as Spanish. Short commands come out right more often than with Detect.',
+  en: 'Every phrase is read as English. Short commands come out right more often than with Detect.'
+};
+var voiceUi = { prefs: { engine: 'browser', browserVoice: '', localVoice: '', lang: 'auto', wake: false, wakeWord: '' }, local: [] };
+
+function voiceKeyList() { return Object.keys(VOICE_KEYS).map(function (k) { return VOICE_KEYS[k]; }); }
+
+function voiceSet(obj, done) {
+  chrome.storage.local.set(obj, function () { void chrome.runtime.lastError; if (done) done(); });
+}
+
+// The voice runs in an offscreen document, which has no chrome.storage, so it reads this copy when the service worker does not hand it the settings.
+function voiceMirror() {
+  chrome.storage.local.get(voiceKeyList(), function (r) {
+    var copy = {};
+    voiceKeyList().forEach(function (k) { if (r && r[k] != null && k !== VOICE_KEYS.wake) copy[k] = r[k]; });
+    try { localStorage.setItem(VOICE_MIRROR, JSON.stringify(copy)); } catch (e) {}
+  });
+}
+
+function voiceStatus(text, tone) {
+  var st = el('voice-status');
+  st.textContent = text || '';
+  st.className = 'status' + (tone ? ' ' + tone : '');
+}
+
+function voiceFill(sel, items, selected) {
+  sel.textContent = '';
+  items.forEach(function (it) {
+    var o = document.createElement('option');
+    o.value = it.value;
+    o.textContent = it.label;
+    sel.appendChild(o);
+  });
+  if (selected != null) sel.value = selected;
+}
+
+function voiceBrowserList() {
+  if (!window.speechSynthesis) return Promise.resolve([]);
+  var now = speechSynthesis.getVoices();
+  if (now.length) return Promise.resolve(now);
+  return new Promise(function (res) {
+    var t = setTimeout(function () { res(speechSynthesis.getVoices()); }, 1500);
+    speechSynthesis.addEventListener('voiceschanged', function () { clearTimeout(t); res(speechSynthesis.getVoices()); }, { once: true });
+  });
+}
+
+function voiceLocalName() {
+  var list = voiceUi.local, want = voiceUi.prefs.localVoice;
+  var hit = list.filter(function (v) { return v.name === want; })[0] || list.filter(function (v) { return !v.engine; })[0] || list[0];
+  return hit ? hit.name : '';
+}
+
+function voiceLocalLabel(v) {
+  if (!v.engine) return v.name + ' (on this computer)';
+  if (v.engine === 'fish') return v.name + ' (paid, through Fish Audio)';
+  return v.name + ' (' + v.engine + ')';
+}
+
+function voicePaint() {
+  var p = voiceUi.prefs;
+  var engineSel = el('voice-engine'), note = el('voice-engine-note'), subField = el('voice-sub-field'), sub = el('voice-sub');
+  var localOpt = engineSel.querySelector('option[value="local"]');
+  var hasLocal = voiceUi.local.length > 0;
+  localOpt.hidden = !hasLocal;
+  localOpt.disabled = !hasLocal;
+  var eff = p.engine === 'local' && !hasLocal ? 'browser' : p.engine;
+  engineSel.value = eff;
+  el('voice-lang').value = p.lang;
+  el('voice-lang-note').textContent = VOICE_LANG_NOTES[p.lang];
+  el('voice-wake').checked = p.wake;
+  if (document.activeElement !== el('voice-wake-word')) el('voice-wake-word').value = p.wakeWord;
+  var paid = eff === 'fish' || eff === 'openai';
+  setTag('voice-state', paid ? 'paid voice' : 'free', paid ? 'bad' : 'good');
+  note.className = 'note';
+  if (eff === 'fish') {
+    subField.hidden = true;
+    note.textContent = 'Paid. Every spoken answer is billed to your Fish Audio key, in the ZERACK voice. Short confirmations are kept on this computer after the first time, so each is billed once. Pick the browser voice to stop.';
+    return;
+  }
+  if (eff === 'openai') {
+    subField.hidden = true;
+    note.textContent = 'Paid. Every spoken answer is billed to your OpenAI key. Short confirmations are kept on this computer after the first time, so each is billed once. Pick the browser voice to stop.';
+    return;
+  }
+  if (eff === 'local') {
+    var name = voiceLocalName();
+    el('voice-sub-label').textContent = 'Server voice';
+    voiceFill(sub, voiceUi.local.map(function (v) { return { value: v.name, label: voiceLocalLabel(v) }; }), name);
+    subField.hidden = false;
+    var v = voiceUi.local.filter(function (x) { return x.name === name; })[0];
+    note.textContent = v && v.engine === 'fish'
+      ? 'Paid. The server bills this voice through Fish Audio, and refuses it unless you opened a spend permission there.'
+      : 'Runs on the voice server on this computer. Free.';
+    return;
+  }
+  el('voice-sub-label').textContent = 'Browser voice';
+  voiceBrowserList().then(function (list) {
+    if (el('voice-engine').value !== 'browser') return;
+    var sorted = list.slice().sort(function (a, b) { return a.lang.localeCompare(b.lang) || a.name.localeCompare(b.name); });
+    var items = [{ value: '', label: 'Pick one for me, by the language of the answer' }].concat(sorted.map(function (x) {
+      return { value: x.name, label: x.name + ' (' + x.lang + (x.localService ? '' : ', online') + ')' };
+    }));
+    voiceFill(sub, items, list.some(function (x) { return x.name === p.browserVoice; }) ? p.browserVoice : '');
+    subField.hidden = !list.length;
+    note.textContent = 'Free. Voices marked online are read on Google servers: the answer text is sent, never your microphone.';
+  });
+}
+
+function voiceProbeLocal() {
+  var ac = new AbortController();
+  var t = setTimeout(function () { ac.abort(); }, 2500);
+  return fetch(VOICE_LOCAL_SERVER + '/voices', { signal: ac.signal, cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .catch(function () { return null; })
+    .then(function (data) {
+      clearTimeout(t);
+      var list = Array.isArray(data) ? data : (data && Array.isArray(data.voices) ? data.voices : []);
+      var out = [];
+      list.forEach(function (v) {
+        var name = (typeof v === 'string' ? v : (v && typeof v.name === 'string' ? v.name : '')).trim();
+        if (!name || out.some(function (x) { return x.name === name; })) return;
+        out.push({ name: name, engine: v && typeof v === 'object' && typeof v.engine === 'string' ? v.engine : '' });
+      });
+      voiceUi.local = out;
+      voicePaint();
+    });
+}
+
+function voiceLoad() {
+  chrome.storage.local.get(voiceKeyList(), function (r) {
+    r = r || {};
+    var p = voiceUi.prefs;
+    p.engine = VOICE_ENGINES.indexOf(r[VOICE_KEYS.engine]) >= 0 ? r[VOICE_KEYS.engine] : 'browser';
+    p.browserVoice = typeof r[VOICE_KEYS.browser] === 'string' ? r[VOICE_KEYS.browser] : '';
+    p.localVoice = typeof r[VOICE_KEYS.local] === 'string' ? r[VOICE_KEYS.local] : '';
+    p.lang = VOICE_LANGS.indexOf(r[VOICE_KEYS.lang]) >= 0 ? r[VOICE_KEYS.lang] : 'auto';
+    p.wake = r[VOICE_KEYS.wake] === true;
+    p.wakeWord = typeof r[VOICE_KEYS.wakeWord] === 'string' ? r[VOICE_KEYS.wakeWord] : '';
+    voicePaint();
+  });
+}
+
+// The service worker keeps wake listening in memory and only offers a toggle, so Setup reads its state first and flips it only when it differs.
+function voiceSyncWake(on) {
+  try {
+    chrome.runtime.sendMessage({ type: 'NSP_VOICE_STATE_GET' }, function (r) {
+      if (chrome.runtime.lastError || !r || typeof r.wake !== 'boolean') return;
+      if (r.wake !== on) chrome.runtime.sendMessage({ type: 'NSP_VOICE_WAKE_TOGGLE' }, function () { void chrome.runtime.lastError; });
+    });
+  } catch (e) {}
+}
+
+function voiceSaveWakeWord() {
+  var raw = (el('voice-wake-word').value || '').replace(/\s+/g, ' ').trim();
+  if (raw && !/^[\p{L}' -]{2,40}$/u.test(raw)) { voiceStatus('Use letters only, like Zerack or Jarvis.', 'bad'); return; }
+  voiceUi.prefs.wakeWord = raw;
+  var o = {};
+  o[VOICE_KEYS.wakeWord] = raw;
+  voiceSet(o, function () {
+    voiceStatus(raw ? 'Saved. "' + raw + '" wakes it too.' : 'Saved. Only Zerack and the ways it gets written wake it.', 'good');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+  voiceLoad();
+  voiceMirror();
+  voiceProbeLocal();
+  el('voice-engine').addEventListener('change', function () {
+    var v = el('voice-engine').value;
+    if (VOICE_ENGINES.indexOf(v) < 0) return;
+    voiceUi.prefs.engine = v;
+    var o = {};
+    o[VOICE_KEYS.engine] = v;
+    voiceSet(o);
+    voicePaint();
+  });
+  el('voice-sub').addEventListener('change', function () {
+    var v = el('voice-sub').value, o = {};
+    if (el('voice-engine').value === 'local') { voiceUi.prefs.localVoice = v; o[VOICE_KEYS.local] = v; }
+    else { voiceUi.prefs.browserVoice = v; o[VOICE_KEYS.browser] = v; }
+    voiceSet(o);
+    voicePaint();
+  });
+  el('voice-lang').addEventListener('change', function () {
+    var v = el('voice-lang').value;
+    if (VOICE_LANGS.indexOf(v) < 0) return;
+    voiceUi.prefs.lang = v;
+    var o = {};
+    o[VOICE_KEYS.lang] = v;
+    voiceSet(o);
+    voicePaint();
+  });
+  el('voice-wake').addEventListener('change', function () {
+    var on = el('voice-wake').checked;
+    voiceUi.prefs.wake = on;
+    var o = {};
+    o[VOICE_KEYS.wake] = on;
+    voiceSet(o, function () { voiceSyncWake(on); });
+    voiceStatus(on ? 'Listening for the wake word. Say "Zerack, open YouTube".' : 'Wake word off. Use the button or Alt+Z.', on ? 'good' : '');
+  });
+  el('save-wake-word').addEventListener('click', voiceSaveWakeWord);
+  el('voice-wake-word').addEventListener('keydown', function (e) { if (e.key === 'Enter') voiceSaveWakeWord(); });
+  if (window.speechSynthesis) speechSynthesis.addEventListener('voiceschanged', function () { if (el('voice-engine').value === 'browser') voicePaint(); });
+  chrome.storage.onChanged.addListener(function (changes, area) {
+    if (area !== 'local') return;
+    if (voiceKeyList().some(function (k) { return k in changes; })) { voiceMirror(); voiceLoad(); }
+  });
 });

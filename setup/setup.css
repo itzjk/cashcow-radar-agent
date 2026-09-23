@@ -122,3 +122,17 @@ a { color: #fff; text-decoration: underline; text-underline-offset: 2px; }
 
 .sub-label { display: block; margin: 12px 0 6px; font-size: 11px; letter-spacing: 0.6px; text-transform: uppercase; color: rgba(255,255,255,0.5); }
 #fish-voice { width: 100%; }
+
+.field select {
+  width: 100%;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  color: #fff;
+  padding: 9px 10px;
+  font: 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.field select:focus { outline: none; border-color: rgba(255, 255, 255, 0.4); }
+.field label.check { display: flex; align-items: center; gap: 9px; cursor: pointer; margin-bottom: 0; }
+.field label.check input { width: 15px; height: 15px; margin: 0; accent-color: #ff2d2d; }
+[hidden] { display: none !important; }
