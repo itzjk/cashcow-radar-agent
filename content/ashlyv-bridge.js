@@ -664,10 +664,20 @@ var NSP_RELAY_KEYS = {
   ashlyv_thumbnail_consent: 1
 };
 
+var NSP_RELAY_READONLY = {
+  nsp_agent_enabled: 1
+};
+
 function nspRelayKeyAllowed(key) {
   key = String(key || '');
   if (/key|token|secret|password|auth/i.test(key)) return false;
   return NSP_RELAY_KEYS[key] === 1;
+}
+
+function nspRelayReadAllowed(key) {
+  key = String(key || '');
+  if (/key|token|secret|password|auth/i.test(key)) return false;
+  return NSP_RELAY_KEYS[key] === 1 || NSP_RELAY_READONLY[key] === 1;
 }
 
 function nspRelayReply(reqId, payload) {
@@ -708,7 +718,7 @@ window.addEventListener('message', function(event) {
 
   var op = String(data.op || '');
   if (op === 'get') {
-    var keys = (Array.isArray(data.keys) ? data.keys : [data.keys]).filter(nspRelayKeyAllowed);
+    var keys = (Array.isArray(data.keys) ? data.keys : [data.keys]).filter(nspRelayReadAllowed);
     if (!keys.length) { nspRelayReply(reqId, { ok: false, error: 'no_allowed_keys' }); return; }
     chrome.storage.local.get(keys, function(r) {
       nspRelayReply(reqId, { ok: true, data: r || {} });

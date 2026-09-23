@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   openOnClick('btn-command-center', 'dashboard/dashboard.html');
   openOnClick('btn-niche-index', 'niche-index/niche-index.html');
   openOnClick('btn-course', 'academy/academy.html');
+  bindAgentSwitch();
 });
 
 function openOnClick(id, page) {
@@ -399,4 +400,26 @@ function escHtml(str) {
 
 function csvEsc(str) {
   return '"' + String(str || '').replace(/"/g, '""') + '"';
+}
+
+function paintAgentSwitch(on) {
+  const btn = document.getElementById('btn-agent');
+  const hint = document.getElementById('agent-hint');
+  if (!btn) return;
+  btn.setAttribute('aria-checked', on ? 'true' : 'false');
+  if (hint) {
+    hint.textContent = on
+      ? 'On. The assistant can click, type and navigate on YouTube. It still stops to ask before it publishes, deletes or sends anything.'
+      : 'Off. The assistant only reads and answers.';
+  }
+}
+
+function bindAgentSwitch() {
+  const btn = document.getElementById('btn-agent');
+  if (!btn) return;
+  chrome.storage.local.get('nsp_agent_enabled', (r) => paintAgentSwitch(!!(r && r.nsp_agent_enabled === true)));
+  btn.addEventListener('click', () => {
+    const next = btn.getAttribute('aria-checked') !== 'true';
+    chrome.storage.local.set({ nsp_agent_enabled: next }, () => paintAgentSwitch(next));
+  });
 }

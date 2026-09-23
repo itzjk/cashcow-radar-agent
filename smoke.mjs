@@ -234,8 +234,9 @@ function jsStrings(file) {
     if (trimmed.startsWith("//") || trimmed.startsWith("*")) return;
     if (/console\s*\.\s*(?:log|warn|error|info|debug|trace)\s*\(/.test(line)) return;
     const withoutRegex = line.replace(/(^|[=(,:[!&|?+]|\breturn|\bcase)(\s*)\/(?:[^/\\\n[]|\\.|\[(?:[^\]\\]|\\.)*\])+\/[gimsuy]*/g, "$1$2 REGEX ");
-    const literals = [...withoutRegex.matchAll(/'((?:[^'\\\n]|\\.){4,})'|"((?:[^"\\\n]|\\.){4,})"|`((?:[^`\\\n$]|\\.){4,})`/g)]
-      .map(m => m[1] || m[2] || m[3]);
+    const literals = [...withoutRegex.matchAll(/'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\\n$]|\\.)*)`/g)]
+      .map(m => m[1] ?? m[2] ?? m[3] ?? "")
+      .filter(text => text.length >= 4);
     for (const text of literals) {
       if (/^[a-z0-9_$.:;#%/,()\s-]*$/i.test(text) && !/\s\S+\s/.test(text)) continue;
       out.push({ file: rp, line: i + 1, text, context: lines.slice(Math.max(0, i - 2), i + 1).join("\n"), names: enclosingNames(lines, i) });
@@ -343,6 +344,10 @@ section("9. Every storage key the page world touches is on the bridge allowlist"
   if (!block) fail("content/ashlyv-bridge.js has no NSP_RELAY_KEYS allowlist, so nothing limits what the page world can read out of storage");
   else {
     const allowed = new Set([...block[1].matchAll(/([A-Za-z0-9_]+)\s*:\s*1/g)].map(m => m[1]));
+    const roBlock = /var\s+NSP_RELAY_READONLY\s*=\s*\{([\s\S]*?)\}\s*;/.exec(read(bridge));
+    const readOnly = new Set(roBlock ? [...roBlock[1].matchAll(/([A-Za-z0-9_]+)\s*:\s*1/g)].map(m => m[1]) : []);
+    const written = new Set();
+    const writtenAt = new Map();
     const refused = /key|token|secret|password|auth/i;
     const KEY_SHAPE = /^(?:nsp|ashlyv|zerack)_[a-z0-9_]+$/;
     const CALLS = /(?:nspStore\s*\.\s*(?:get|set|remove)|ashlyVStorageGet|ashlyVStorageSet|ashlyv_safeStorageSet)\s*\(/g;
@@ -353,8 +358,16 @@ section("9. Every storage key the page world touches is on the bridge allowlist"
       const lineAt = offset => src.slice(0, offset).split("\n").length;
       for (const m of src.matchAll(CALLS)) {
         const window = src.slice(m.index, m.index + 400);
-        for (const lit of window.matchAll(/['"]([a-z0-9_]+)['"]/g)) {
-          if (KEY_SHAPE.test(lit[1]) && !used.has(lit[1])) used.set(lit[1], script + ":" + lineAt(m.index));
+        const isWrite = /\.\s*(?:set|remove)\s*\(|StorageSet|safeStorageSet/.test(m[0]);
+        const found = [...window.matchAll(/['"]([a-z0-9_]+)['"]/g)].map(x => x[1]);
+        if (isWrite) {
+          const call = window.slice(0, window.indexOf(")") + 1 || window.length);
+          for (const k of call.matchAll(/[{,]\s*([a-z0-9_]+)\s*:/g)) found.push(k[1]);
+        }
+        for (const key of found) {
+          if (!KEY_SHAPE.test(key)) continue;
+          if (isWrite) { written.add(key); if (!writtenAt.has(key)) writtenAt.set(key, script + ":" + lineAt(m.index)); }
+          if (!used.has(key)) used.set(key, script + ":" + lineAt(m.index));
         }
       }
       for (const m of src.matchAll(/payload\s*(?:\.\s*([a-z0-9_]+)|\[\s*['"]([a-z0-9_]+)['"]\s*\])\s*=/g)) {
@@ -362,13 +375,15 @@ section("9. Every storage key the page world touches is on the bridge allowlist"
         if (KEY_SHAPE.test(key) && !used.has(key)) used.set(key, script + ":" + lineAt(m.index));
       }
     }
-    const blocked = [...used].filter(([k]) => !allowed.has(k) || refused.test(k));
-    if (!blocked.length) ok("the " + used.size + " storage keys the page world touches are all on the bridge allowlist of " + allowed.size);
+    const blocked = [...used].filter(([k]) => refused.test(k) || (!allowed.has(k) && !(readOnly.has(k) && !written.has(k))));
+    if (!blocked.length) ok("the " + used.size + " storage keys the page world touches are all on the bridge allowlist of " + allowed.size + (readOnly.size ? ", " + readOnly.size + " of them read only" : ""));
     else for (const [key, where] of blocked) {
       const why = refused.test(key)
         ? "nspRelayKeyAllowed refuses any key whose name contains key, token, secret, password or auth, so this read always comes back empty"
-        : "it is not in NSP_RELAY_KEYS, so the bridge answers no_allowed_keys and the read comes back empty";
-      fail(where + " reads or writes " + key + " from the page world and " + why);
+        : readOnly.has(key)
+          ? "it is on NSP_RELAY_READONLY, so the page world may read it but never write it; a write here is exactly what that list exists to refuse"
+          : "it is not in NSP_RELAY_KEYS, so the bridge answers no_allowed_keys and the read comes back empty";
+      fail((readOnly.has(key) && writtenAt.has(key) ? writtenAt.get(key) + " writes " : where + " reads or writes ") + key + " from the page world and " + why);
     }
     const unusedAllow = [...allowed].filter(k => ![...used.keys()].includes(k));
     if (unusedAllow.length > 0 && unusedAllow.length === allowed.size) fail("NSP_RELAY_KEYS allows " + allowed.size + " keys and the page world asks for none of them");

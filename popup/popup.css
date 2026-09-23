@@ -467,3 +467,41 @@ body {
 }
 
 .country-cta-icon, .icon-btn, .tab, .footer-btn, .stat-label { filter: grayscale(1) brightness(1.35); }
+
+.agent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 12px 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 10px;
+  background: #0a0a0a;
+}
+.agent-text strong { display: block; font-size: 12px; letter-spacing: 1px; color: #fff; }
+.agent-text small { display: block; margin-top: 3px; font-size: 11px; color: rgba(255,255,255,0.5); line-height: 1.35; }
+.agent-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 24px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: #1a1a1a;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.agent-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.7);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.agent-switch[aria-checked="true"] { background: #fff; border-color: #fff; }
+.agent-switch[aria-checked="true"] .agent-knob { transform: translateX(18px); background: #000; }
