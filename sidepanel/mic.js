@@ -21,7 +21,7 @@
   function allowed(already) {
     retry.hidden = true;
     try { chrome.runtime.sendMessage({ type: 'NSP_VOICE_MIC_GRANTED' }, function () { void chrome.runtime.lastError; }); } catch (e) {}
-    var lead = (already ? 'The microphone is already allowed.' : 'Allowed.') + ' Tap the ZERACK button on YouTube';
+    var lead = (already ? 'The microphone is already allowed.' : 'Allowed.') + ' Hold the ZERACK bubble on any page';
     var tail = ' to talk. This tab closes in a moment.';
     show(lead + tail);
     try {

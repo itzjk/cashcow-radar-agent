@@ -678,10 +678,119 @@
     modules: MODULES
   };
 
-  root.NSP_CURRICULUM = {
-    course: COURSE,
-    modules: MODULES,
-    sources: SOURCES,
-    storageKey: 'nsp_course_progress'
+  var PRIMER_MAX_CHARS = 2300;
+  var LOOKUP_MAX_LESSONS = 2;
+
+  var SURFACE_TOOLS = {
+    'the SCAN button on YouTube': 'nspRunNewScan, then nspGetScanData',
+    'the Niche Index': 'zerackGetExtensionData with area nicheStats',
+    'the Command Center': 'zerackGetExtensionData with area savedNiches, and nspAddToTracking to add a channel',
+    'YouTube Studio': 'nspOpenNewTab https://studio.youtube.com/ opens it, and the Studio assistant reads it there; you cannot fill Studio fields from YouTube'
   };
+
+  function shortId(id) {
+    var m = /^(m\d+)-(l\d+)/.exec(String(id || ''));
+    return m ? m[1] + '-' + m[2] : '';
+  }
+
+  function moduleTag(m) {
+    return m.id.split('-')[0].toUpperCase();
+  }
+
+  function primer(maxChars) {
+    var cap = Math.min(PRIMER_MAX_CHARS, Math.max(200, Number(maxChars) || PRIMER_MAX_CHARS));
+    var full = 'COURSE, the playbook you apply (' + COURSE.title + ', updated ' + COURSE.updated + '). Every lesson cites its sources, and it outranks any other knowledge in this prompt when they disagree. '
+      + 'Place the user on a stage and apply its lesson. Never send the user to study a course: you are the one who applies it.\n'
+      + MODULES.map(function (m) {
+        return moduleTag(m) + ' ' + m.title + ': ' + m.lessons.map(function (l) { return shortId(l.id) + ' ' + l.title; }).join('; ') + '\n';
+      }).join('');
+    if (full.length <= cap) return full;
+    var out = 'COURSE you apply, sourced; it outranks other knowledge here. Place the user on a stage and apply its lesson yourself.\n';
+    for (var i = 0; i < MODULES.length; i++) {
+      var m = MODULES[i];
+      var line = moduleTag(m) + ' ' + m.title + ' (' + shortId(m.lessons[0].id) + ' to ' + shortId(m.lessons[m.lessons.length - 1].id) + ')\n';
+      if (out.length + line.length > cap) break;
+      out += line;
+    }
+    return out;
+  }
+
+  function words(s) {
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9%]+/g, ' ').split(' ').filter(function (w) { return w.length > 2; });
+  }
+
+  function render(mod, l) {
+    return {
+      id: shortId(l.id),
+      module: mod.title,
+      title: l.title,
+      why: l.why,
+      steps: l.steps,
+      doNow: l.doNow,
+      proof: l.proof,
+      youCanRun: l.surfaces.map(function (s) { return SURFACE_TOOLS[s] ? s + ': ' + SURFACE_TOOLS[s] : s + ': no tool reaches it, name it to the user'; }),
+      sources: l.sources.map(function (s) { return s.author + ', ' + s.title + ', ' + s.url; })
+    };
+  }
+
+  function lookup(args) {
+    args = args && typeof args === 'object' ? args : {};
+    var all = [];
+    MODULES.forEach(function (m) { m.lessons.forEach(function (l) { all.push({ m: m, l: l }); }); });
+    var asked = [].concat(args.lesson || []).join(',').toLowerCase().split(/[\s,]+/).filter(Boolean);
+    var hits = [];
+    asked.forEach(function (w) {
+      all.forEach(function (e) {
+        var sid = shortId(e.l.id);
+        var match = e.l.id === w || sid === w || (/^m\d+$/.test(w) && sid.indexOf(w + '-') === 0);
+        if (match && hits.indexOf(e) < 0) hits.push(e);
+      });
+    });
+    var by = 'id';
+    if (!hits.length && args.query) {
+      by = 'query';
+      var q = words(args.query);
+      hits = all.map(function (e) {
+        var title = words(e.l.title), body = words(e.l.why + ' ' + e.l.steps.join(' '));
+        var score = 0;
+        q.forEach(function (w) { score += title.indexOf(w) >= 0 ? 3 : (body.indexOf(w) >= 0 ? 1 : 0); });
+        return { e: e, score: score };
+      }).filter(function (x) { return x.score >= 2; })
+        .sort(function (a, b) { return b.score - a.score; })
+        .map(function (x) { return x.e; });
+    }
+    if (!hits.length) {
+      return { ok: false, error: 'no lesson matched ' + JSON.stringify(asked.length ? asked : String(args.query || '')) + '. Use an id from the COURSE list in your instructions, such as m5-l2, or a module such as m5.' };
+    }
+    return {
+      ok: true,
+      matchedBy: by,
+      howToUse: 'The steps are written to the creator. Run the ones a tool in youCanRun can do yourself, and hand the user only the rest. Name a source by its author when you rely on it.',
+      lessons: hits.slice(0, LOOKUP_MAX_LESSONS).map(function (e) { return render(e.m, e.l); }),
+      alsoRelevant: hits.slice(LOOKUP_MAX_LESSONS, LOOKUP_MAX_LESSONS + 4).map(function (e) { return shortId(e.l.id) + ' ' + e.l.title; })
+    };
+  }
+
+  function freeze(o) {
+    if (o && typeof o === 'object' && !Object.isFrozen(o)) {
+      Object.freeze(o);
+      Object.keys(o).forEach(function (k) { freeze(o[k]); });
+    }
+    return o;
+  }
+
+  Object.defineProperty(root, 'NSP_CURRICULUM', {
+    value: freeze({
+      course: COURSE,
+      modules: MODULES,
+      sources: SOURCES,
+      storageKey: 'nsp_course_progress',
+      shortId: shortId,
+      primer: primer,
+      lookup: lookup
+    }),
+    writable: false,
+    configurable: false
+  });
 })(typeof self !== 'undefined' ? self : this);

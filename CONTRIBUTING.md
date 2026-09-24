@@ -43,16 +43,22 @@ Before you claim a change works, paste the command and its output. A claim witho
 
 | Path | What it is |
 |---|---|
-| `manifest.json` | MV3. Three content script blocks, the CSP, the web accessible resources |
+| `manifest.json` | MV3. Four content script blocks, the side panel, the CSP, the web accessible resources |
 | `content/nsp-bundle.js` | the engine. MAIN world, about 24,400 lines. Scoring, badges, the scan, every in-page panel |
 | `content/ashlyv-bridge.js` | ISOLATED world. The only way out of MAIN. Two allowlists: `NSP_RELAY_CALLS`, `NSP_RELAY_KEYS` |
 | `content/nsp-studio.js` | ISOLATED world on studio.youtube.com. Title scoring against your own corpus |
+| `content/zerack-bubble.js` | ISOLATED world, top frame of every http and https page. The bubble: click opens the chat overlay, hold talks, drag moves. Reads nothing on the page |
+| `chat/` | the private chat. `chat.js` the page (the service worker runs each turn and writes it to the store, so an answer survives the page under the chat navigating), `chat-tools.js` the answer loop and tool labels the service worker runs, `chat-render.js` the safe markdown-lite renderer |
 | `background/service-worker.js` | every privileged call: messages, providers, InnerTube, cookies, tabs, alarms, the `policy:*` routes |
 | `nsp-policy.js` | the demonetization engine. Pure functions, no DOM. Attaches to `globalThis` |
 | `data/policies.json` | the rule table the engine reads. Editable data, not code |
 | `knowledge/reverse-engine.js` | extracts the title formula out of a scan's own videos |
-| `knowledge/youtube-playbook.js` | the primer injected into the assistant prompt |
-| `lib/nsp-models.js` | the one model catalog. Read by options, the service worker and the overlay |
+| `knowledge/youtube-playbook.js` | the verified primer the assistant prompt carries when it fits; the course outranks it |
+| `knowledge/course.js` | the course the assistant applies: 33 sourced lessons, `primer()` for the prompt and `lookup()` behind the `zerackCourse` tool. Frozen, and loaded in the page world, the service worker and extension pages |
+| `lib/nsp-brain.js` | the one brain: the system prompt as parts per surface (youtube, chat, voice), `fit()` to each provider cap, the tool declarations and the tool result summary |
+| `lib/nsp-models.js` | the one model catalog. Read by options, the chat, the service worker and the overlay |
+| `lib/nsp-chat-store.js` | the chat history in IndexedDB `zerack_chat`: conversations and messages, shared by the chat pages and the service worker |
+| `lib/nsp-data-tools.js` | the saved niches, extension data, tracking and export reads and writes, shared by the bridge and the service worker |
 | `lib/nsp-text.js` | text helpers shared by the policy engine and Studio |
 | `lib/nsp-faceless-data.js` | niche matchers and their RPM, and the faceless title patterns |
 | `lib/face-api/` | face-api.js and the `tinyFaceDetector` weights, served through the bridge |
@@ -65,7 +71,7 @@ Before you claim a change works, paste the command and its output. A claim witho
 | `ashlyv/tools/` | nine tool pages over the shared `toolkit.js` and `tools.css` |
 | `country-feed/` | the faceless feed for one market through InnerTube |
 | `niche-index/` | the niche table your own scans filled in |
-| `icons/` | the three PNGs, plus two one-shot dev tools that are not part of the extension |
+| `icons/` | the three PNGs, and the logo marks and the bubble as SVG |
 | `smoke.mjs` | the gate |
 | `niche-detector.test.js` | the niche classifier fixtures |
 

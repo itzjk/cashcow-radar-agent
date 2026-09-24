@@ -17,7 +17,7 @@
 body {
   width: 360px;
   min-height: 480px;
-  max-height: 580px;
+  max-height: 600px;
   overflow: hidden;
   background: linear-gradient(160deg, var(--bg), var(--bg2));
   color: var(--text);
@@ -532,3 +532,12 @@ body {
 .talk-btn:hover .talk-core { background: #ff2d2d; box-shadow: 0 0 0 3px rgba(255,45,45,.25); }
 .talk-btn[aria-pressed="true"] { border-color: #ff2d2d; }
 .talk-btn[aria-pressed="true"] .talk-core { background: #ff2d2d; box-shadow: 0 0 0 3px rgba(255,45,45,.3); }
+
+.logo { display: flex; align-items: center; gap: 7px; }
+.logo-mark { display: block; width: 18px; height: 18px; filter: drop-shadow(0 0 4px rgba(255,255,255,.5)); }
+.chat-cta { border-color: #ff2d2d; }
+.chat-cta:hover { border-color: #ff2d2d; box-shadow: 0 0 24px rgba(255,45,45,.25); }
+.bubble-row { margin-top: 0; padding: 8px 14px; }
+.bubble-here { display: block; margin-top: 4px; padding: 0; background: none; border: 0; color: #fff; font: inherit; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.bubble-here[hidden] { display: none; }
+.country-cta-btn { padding: 10px 14px; }

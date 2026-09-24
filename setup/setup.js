@@ -537,7 +537,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var o = {};
     o[VOICE_KEYS.wake] = on;
     voiceSet(o, function () { voiceSyncWake(on); });
-    voiceStatus(on ? 'Listening for the wake word. Say "Zerack, open YouTube".' : 'Wake word off. Use the button or Alt+Z.', on ? 'good' : '');
+    voiceStatus(on ? 'Listening for the wake word. Say "Zerack, open YouTube".' : 'Wake word off. Use the button, or press Alt+Z to talk once.', on ? 'good' : '');
   });
   el('save-wake-word').addEventListener('click', voiceSaveWakeWord);
   el('voice-wake-word').addEventListener('keydown', function (e) { if (e.key === 'Enter') voiceSaveWakeWord(); });

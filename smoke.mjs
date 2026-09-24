@@ -92,7 +92,7 @@ section("2. Manifest declares only files that exist");
     if (manifest.background && manifest.background.service_worker) declared.push(manifest.background.service_worker);
     if (manifest.action && manifest.action.default_popup) declared.push(manifest.action.default_popup);
     if (manifest.options_ui && manifest.options_ui.page) declared.push(manifest.options_ui.page);
-    if (manifest.side_panel && manifest.side_panel.default_path) declared.push(manifest.side_panel.default_path);
+    if (manifest.side_panel && manifest.side_panel.default_path) declared.push(manifest.side_panel.default_path.split(/[?#]/)[0]);
     Object.values(manifest.icons || {}).forEach(v => declared.push(v));
     if (manifest.action && manifest.action.default_icon) {
       const di = manifest.action.default_icon;
@@ -514,7 +514,7 @@ section("14. Pages nobody can reach");
   if (manifest) {
     if (manifest.action && manifest.action.default_popup) entryPoints.add(manifest.action.default_popup.split("/").pop());
     if (manifest.options_ui && manifest.options_ui.page) entryPoints.add(manifest.options_ui.page.split("/").pop());
-    if (manifest.side_panel && manifest.side_panel.default_path) entryPoints.add(manifest.side_panel.default_path.split("/").pop());
+    if (manifest.side_panel && manifest.side_panel.default_path) entryPoints.add(manifest.side_panel.default_path.split(/[?#]/)[0].split("/").pop());
   }
   const allSources = jsFiles.concat(htmlFiles);
   const unreachable = [];

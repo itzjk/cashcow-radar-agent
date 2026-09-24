@@ -114,6 +114,18 @@ window.addEventListener('message', function(event) {
 
 // ── NSP AI COACH bridge ──────────────────────────────────────────────────────
 console.log('[NSP COACH BRIDGE] isolated bridge loaded, listeners ready');
+
+function nspCoachPartsFrom(list) {
+  if (!Array.isArray(list)) return undefined;
+  return list.slice(0, 12).filter(function(p) {
+    return p && typeof p.text === 'string' && p.text;
+  }).map(function(p) {
+    var out = { id: String(p.id || '').slice(0, 40), need: p.need === 'must' ? 'must' : 'fill', text: p.text.slice(0, 30000) };
+    if (typeof p.lean === 'string' && p.lean) out.lean = p.lean.slice(0, 30000);
+    return out;
+  });
+}
+
 window.addEventListener('message', function(event) {
   if (event.source !== window) return;
   if (event.origin && event.origin !== window.location.origin) return;
@@ -139,6 +151,7 @@ window.addEventListener('message', function(event) {
       messages: messages,
       // The full system prompt is sent, the service worker trims it per provider.
       system: typeof data.system === 'string' ? data.system.slice(0, 24000) : '',
+      systemParts: nspCoachPartsFrom(data.systemParts),
       model: typeof data.model === 'string' ? data.model : 'gemini-1.5-flash',
       maxTokens: Number(data.maxTokens) || 2048,
       tools: Array.isArray(data.tools) ? data.tools : undefined
@@ -269,33 +282,8 @@ window.addEventListener('message', function(event) {
   if (!reqId) return;
 
   if (t === 'NSP_COACH_TOOL_EXT_DATA') {
-    var area = String(event.data.area || 'all');
-    chrome.storage.local.get(['ashlyv_nichos', 'ashlyv_niche_stats', 'ashlyv_recent_scan_runs_v', 'ashlyv_opportunity_history', 'ashlyv_alert_history', 'ashlyv_rpm_baselines'], function(r) {
-      r = r || {};
-      var out = {};
-      function summNiches(arr) {
-        return (Array.isArray(arr) ? arr : []).slice(0, 60).map(function(n) {
-          return { title: String(n.title || '').slice(0, 120), niche: String(n.niche || '').slice(0, 60), channel: String(n.channelName || '').slice(0, 60), vph: Math.round(Number(n.vph || 0)), views: Number(n.views || 0), rpm: Number(n.rpm || 0), savedAt: n.savedAt || 0, source: n.source || '' };
-        });
-      }
-      if (area === 'savedNiches' || area === 'all') {
-        var nichos = Array.isArray(r.ashlyv_nichos) ? r.ashlyv_nichos : [];
-        out.savedNiches = { count: nichos.length, items: summNiches(nichos) };
-      }
-      if (area === 'nicheStats' || area === 'all') {
-        out.nicheStats = r.ashlyv_niche_stats || {};
-      }
-      if (area === 'scanHistory' || area === 'all') {
-        var runs = Array.isArray(r.ashlyv_recent_scan_runs_v) ? r.ashlyv_recent_scan_runs_v : [];
-        out.scanHistory = { count: runs.length, recent: runs.slice(-10) };
-        out.rpmBaselines = r.ashlyv_rpm_baselines || {};
-      }
-      if (area === 'alerts' || area === 'all') {
-        var alerts = Array.isArray(r.ashlyv_alert_history) ? r.ashlyv_alert_history : [];
-        out.alerts = { count: alerts.length, recent: alerts.slice(-10) };
-        out.opportunityHistory = r.ashlyv_opportunity_history || {};
-      }
-      window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: true, data: out }, window.location.origin);
+    NSP_DATA_TOOLS.extensionData(event.data.area).then(function(res) {
+      window.postMessage(Object.assign({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId }, res), window.location.origin);
     });
     return;
   }
@@ -353,17 +341,8 @@ window.addEventListener('message', function(event) {
     return;
   }
   if (t === 'NSP_COACH_TOOL_GETSAVED') {
-    chrome.storage.local.get(['ashlyv_nichos'], function(r) {
-      var list = Array.isArray(r && r.ashlyv_nichos) ? r.ashlyv_nichos.slice(0, 50).map(function(n) {
-        return {
-          title: String(n.title || '').slice(0, 200),
-          channelName: String(n.channelName || '').slice(0, 100),
-          niche: String(n.niche || '').slice(0, 60),
-          savedAt: Number(n.savedAt) || 0,
-          source: String(n.source || '')
-        };
-      }) : [];
-      window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: true, count: list.length, niches: list }, window.location.origin);
+    NSP_DATA_TOOLS.savedNiches().then(function(res) {
+      window.postMessage(Object.assign({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId }, res), window.location.origin);
     });
     return;
   }
@@ -375,22 +354,8 @@ window.addEventListener('message', function(event) {
   }
 
   if (t === 'NSP_COACH_TOOL_SAVENICHE') {
-    var nicho = event.data.nicho || {};
-    chrome.storage.local.get(['ashlyv_nichos'], function(r) {
-      var list = Array.isArray(r && r.ashlyv_nichos) ? r.ashlyv_nichos : [];
-      list.unshift({
-        title: String(nicho.title || '').slice(0, 240),
-        niche: String(nicho.niche || 'General').slice(0, 80),
-        channelUrl: /^https:\/\/(www\.)?youtube\.com\//i.test(String(nicho.channelUrl || '')) ? String(nicho.channelUrl).slice(0, 500) : '',
-        channelName: String(nicho.channelName || '').slice(0, 100),
-        vidId: String(nicho.vidId || '').slice(0, 40),
-        savedAt: Date.now(),
-        source: 'agent'
-      });
-      if (list.length > 240) list.length = 240;
-      chrome.storage.local.set({ ashlyv_nichos: list }, function() {
-        window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: true, totalSaved: list.length }, window.location.origin);
-      });
+    NSP_DATA_TOOLS.saveNiche(event.data.nicho).then(function(res) {
+      window.postMessage(Object.assign({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId }, res), window.location.origin);
     });
     return;
   }
@@ -409,37 +374,18 @@ window.addEventListener('message', function(event) {
     return;
   }
   if (t === 'NSP_COACH_TOOL_EXPORT_NICHES') {
-    var fmt = String(event.data.format || 'csv').toLowerCase();
-    chrome.storage.local.get(['ashlyv_nichos'], function(r) {
-      var list = Array.isArray(r && r.ashlyv_nichos) ? r.ashlyv_nichos : [];
-      if (!list.length) {
-        window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: false, error: 'No saved niches to export' }, window.location.origin);
+    NSP_DATA_TOOLS.exportNiches(event.data.format).then(function(res) {
+      if (!res.ok) {
+        window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: false, error: res.error }, window.location.origin);
         return;
       }
-      var blob, filename;
-      if (fmt === 'json') {
-        blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' });
-        filename = 'nsp-niches-' + Date.now() + '.json';
-      } else {
-        var headers = ['title', 'channelName', 'niche', 'channelUrl', 'vidId', 'savedAt', 'source'];
-        var rows = [headers.join(',')];
-        list.forEach(function(n) {
-          var row = headers.map(function(h) {
-            var v = String(n[h] == null ? '' : n[h]).replace(/"/g, '""');
-            return '"' + v + '"';
-          });
-          rows.push(row.join(','));
-        });
-        blob = new Blob([rows.join('\n')], { type: 'text/csv' });
-        filename = 'nsp-niches-' + Date.now() + '.csv';
-      }
       try {
-        var url = URL.createObjectURL(blob);
+        var url = URL.createObjectURL(new Blob([res.text], { type: res.mime }));
         var a = document.createElement('a');
-        a.href = url; a.download = filename;
+        a.href = url; a.download = res.filename;
         document.body.appendChild(a); a.click();
         setTimeout(function() { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
-        window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: true, exported: list.length, filename: filename }, window.location.origin);
+        window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: true, exported: res.exported, filename: res.filename }, window.location.origin);
       } catch(eDl) {
         window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: false, error: 'download failed: ' + eDl.message }, window.location.origin);
       }
@@ -447,24 +393,8 @@ window.addEventListener('message', function(event) {
     return;
   }
   if (t === 'NSP_COACH_TOOL_ADD_TRACKING') {
-    var trk = event.data.nicho || {};
-    chrome.storage.local.get(['ashlyv_tracking', 'nsp_tracking'], function(r) {
-      // Two storage keys exist (legacy and current), write to whichever one already holds data.
-      var key = Array.isArray(r && r.nsp_tracking) ? 'nsp_tracking' : 'ashlyv_tracking';
-      var list = Array.isArray(r && r[key]) ? r[key] : [];
-      list.unshift({
-        title: String(trk.title || trk.channelName || '').slice(0, 240),
-        channelName: String(trk.channelName || '').slice(0, 100),
-        channelUrl: String(trk.channelUrl || '').slice(0, 500),
-        niche: String(trk.niche || 'General').slice(0, 80),
-        addedAt: Date.now(),
-        source: 'agent'
-      });
-      if (list.length > 100) list.length = 100;
-      var setObj = {}; setObj[key] = list;
-      chrome.storage.local.set(setObj, function() {
-        window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, ok: true, tracking: list.length }, window.location.origin);
-      });
+    NSP_DATA_TOOLS.addTracking(event.data.nicho).then(function(res) {
+      window.postMessage(Object.assign({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId }, res), window.location.origin);
     });
     return;
   }
@@ -488,12 +418,12 @@ window.addEventListener('message', function(event) {
   } else if (data.type === 'NSP_COACH_GET_PREFERRED_PROVIDER') {
     chrome.storage.local.get(['nsp_preferred_provider'], function(r) {
       var pref = r && r.nsp_preferred_provider;
-      if (['groq', 'ollama', 'gemini', 'auto'].indexOf(pref) === -1) pref = 'auto';
+      if (['openai', 'groq', 'ollama', 'gemini', 'auto'].indexOf(pref) === -1) pref = 'auto';
       window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, preferredProvider: pref }, window.location.origin);
     });
   } else if (data.type === 'NSP_COACH_SET_PREFERRED_PROVIDER') {
     var prefValue = String(data.provider || 'auto');
-    if (['groq', 'ollama', 'gemini', 'auto'].indexOf(prefValue) === -1) prefValue = 'auto';
+    if (['openai', 'groq', 'ollama', 'gemini', 'auto'].indexOf(prefValue) === -1) prefValue = 'auto';
     chrome.storage.local.set({ nsp_preferred_provider: prefValue }, function() {
       window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, saved: true, preferredProvider: prefValue }, window.location.origin);
     });
@@ -754,7 +684,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   // Past this moment the service worker has already answered through the provider cascade, so running the turn too would answer twice.
   if (!(Date.now() < Number(msg.acceptBefore))) { sendResponse({ accepted: false, code: 'late' }); return false; }
   if (document.documentElement.getAttribute('data-nsp-voice-hook') !== '1') { sendResponse({ accepted: false, code: 'no_assistant' }); return false; }
-  window.postMessage({ type: 'NSP_VOICE_TURN', requestId: reqId, text: text, waitMs: Number(msg.waitMs) || 0 }, window.location.origin);
+  window.postMessage({ type: 'NSP_VOICE_TURN', requestId: reqId, text: text, origin: msg.origin === 'chat' ? 'chat' : 'voice', waitMs: Number(msg.waitMs) || 0 }, window.location.origin);
   sendResponse({ accepted: true });
   return false;
 });
@@ -778,39 +708,8 @@ window.addEventListener('message', function(event) {
   } catch (eSend) {}
 });
 
-var NSP_VOICE_UI_STATES = { idle: 1, listening: 1, thinking: 1, speaking: 1, error: 1 };
 var NSP_VOICE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
 var NSP_VOICE_CARD = 'ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-playlist-video-renderer, ytd-reel-item-renderer, yt-lockup-view-model';
-var NSP_VOICE_BUTTON_CSS = [
-  ':host { all: initial; }',
-  '.b { all: unset; box-sizing: border-box; position: relative; display: block; width: 44px; height: 44px; border-radius: 50%; background: #000; border: 1.5px solid rgba(255,255,255,.55); box-shadow: 0 6px 22px rgba(0,0,0,.5); cursor: pointer; opacity: .85; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; transition: border-color .2s ease, opacity .2s ease, transform .15s ease; }',
-  '.b:hover { opacity: 1; border-color: #fff; }',
-  '.b:focus-visible { opacity: 1; outline: 2px solid #fff; outline-offset: 3px; }',
-  '.b.drag { cursor: grabbing; transform: scale(1.06); }',
-  '.core { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: #fff; transition: transform .2s ease, background .2s ease, opacity .2s ease; }',
-  '.ring, .arc { position: absolute; inset: -1.5px; border-radius: 50%; pointer-events: none; opacity: 0; }',
-  '.ring { border: 1.5px solid #fff; }',
-  '.arc { border: 1.5px solid transparent; border-top-color: #fff; border-right-color: rgba(255,255,255,.35); }',
-  '.dot { position: absolute; top: 0; right: 0; width: 9px; height: 9px; border-radius: 50%; background: #ff2d2d; box-shadow: 0 0 0 1.5px #000; opacity: 0; transition: opacity .2s ease; }',
-  '.b[data-wake="on"] { opacity: 1; border-color: #ff2d2d; }',
-  '.b[data-wake="on"] .dot { opacity: 1; }',
-  '.b[data-state="listening"] { opacity: 1; border-color: #ff2d2d; }',
-  '.b[data-state="listening"] .core { background: #ff2d2d; transform: scale(1.5); }',
-  '.b[data-state="listening"] .ring { border-color: #ff2d2d; animation: nsp-pulse 1.1s ease-out infinite; }',
-  '.b[data-state="thinking"] { opacity: 1; }',
-  '.b[data-state="thinking"] .core { transform: scale(.6); opacity: .6; }',
-  '.b[data-state="thinking"] .arc { opacity: 1; animation: nsp-spin .8s linear infinite; }',
-  '.b[data-state="speaking"] { opacity: 1; border-color: #fff; }',
-  '.b[data-state="speaking"] .core { animation: nsp-talk .42s ease-in-out infinite alternate; }',
-  '.b[data-state="speaking"] .ring { animation: nsp-pulse 1.6s ease-out infinite; }',
-  '.b[data-state="error"] { border-color: #ff2d2d; animation: nsp-shake .36s ease; }',
-  '.b[data-state="error"] .core { background: #ff2d2d; }',
-  '@keyframes nsp-pulse { from { transform: scale(1); opacity: .75; } to { transform: scale(1.75); opacity: 0; } }',
-  '@keyframes nsp-spin { to { transform: rotate(360deg); } }',
-  '@keyframes nsp-talk { from { transform: scale(.8); } to { transform: scale(1.7); } }',
-  '@keyframes nsp-shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }',
-  '@media (prefers-reduced-motion: reduce) { .b, .core, .ring, .arc { animation: none !important; } }'
-].join('\n');
 
 function nspVoiceRows() {
   var host = document.getElementById('nsp-shadow-host');
@@ -903,123 +802,10 @@ function nspVoiceAct(msg, reply) {
   });
 }
 
-var nspVoiceButton = (function() {
-  if (window.top !== window || document.getElementById('nsp-voice-host')) return null;
-  var POS_KEY = 'nsp_voice_button_pos';
-  var SIZE = 44, EDGE = 12, DRAG_PX = 6;
-  // Higher than the usual corner on purpose: the transcript, comments and scan navigation controls already sit in it.
-  var pos = { r: 24, b: 148 };
-  var press = null, errTimer = 0;
-
-  var host = document.createElement('div');
-  host.id = 'nsp-voice-host';
-  host.style.cssText = 'all:initial;position:fixed;z-index:2147483647;width:' + SIZE + 'px;height:' + SIZE + 'px;right:24px;bottom:148px;';
-  var root = host.attachShadow({ mode: 'closed' });
-  var style = document.createElement('style');
-  style.textContent = NSP_VOICE_BUTTON_CSS;
-  var btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'b';
-  btn.setAttribute('aria-label', 'ZERACK voice');
-  btn.setAttribute('aria-pressed', 'false');
-  btn.dataset.state = 'idle';
-  btn.dataset.wake = 'off';
-  ['ring', 'arc', 'core', 'dot'].forEach(function(name) {
-    var part = document.createElement('span');
-    part.className = name;
-    btn.appendChild(part);
-  });
-  root.appendChild(style);
-  root.appendChild(btn);
-  // Same z-index as the scan panel, and later in the document, so the panel can never bury the button.
-  document.documentElement.appendChild(host);
-
-  // After an extension reload this copy has no runtime left, and a button that does nothing is worse than none.
-  function send(msg, cb) {
-    try {
-      chrome.runtime.sendMessage(msg, function(res) {
-        var err = chrome.runtime.lastError;
-        if (cb) cb(err ? null : res);
-      });
-    } catch (e) { host.remove(); }
-  }
-  function place() {
-    var maxR = Math.max(EDGE, window.innerWidth - SIZE - EDGE);
-    var maxB = Math.max(EDGE, window.innerHeight - SIZE - EDGE);
-    pos.r = Math.min(Math.max(EDGE, pos.r), maxR);
-    pos.b = Math.min(Math.max(EDGE, pos.b), maxB);
-    host.style.right = pos.r + 'px';
-    host.style.bottom = pos.b + 'px';
-  }
-  function paint(state, wake) {
-    clearTimeout(errTimer);
-    btn.dataset.state = NSP_VOICE_UI_STATES[state] ? state : 'idle';
-    if (typeof wake === 'boolean') { btn.dataset.wake = wake ? 'on' : 'off'; btn.setAttribute('aria-pressed', wake ? 'true' : 'false'); }
-    if (state === 'error') errTimer = setTimeout(function() { btn.dataset.state = 'idle'; }, 1400);
-  }
-  function sync() {
-    send({ type: 'NSP_VOICE_STATE_GET' }, function(res) { if (res) paint(res.state, res.wake); });
-  }
-
-  btn.addEventListener('pointerdown', function(e) {
-    if (!e.isTrusted || e.button !== 0) return;
-    press = { id: e.pointerId, x: e.clientX, y: e.clientY, r: pos.r, b: pos.b, drag: false };
-    try { btn.setPointerCapture(e.pointerId); } catch (x) {}
-  });
-  btn.addEventListener('pointermove', function(e) {
-    if (!press || e.pointerId !== press.id) return;
-    var dx = e.clientX - press.x, dy = e.clientY - press.y;
-    if (!press.drag && Math.abs(dx) + Math.abs(dy) < DRAG_PX) return;
-    if (!press.drag) { press.drag = true; btn.classList.add('drag'); }
-    pos.r = press.r - dx;
-    pos.b = press.b - dy;
-    place();
-  });
-  function release(e) {
-    if (!press || e.pointerId !== press.id) return;
-    var p = press;
-    press = null;
-    btn.classList.remove('drag');
-    if (p.drag) {
-      var saved = {};
-      saved[POS_KEY] = { r: pos.r, b: pos.b };
-      try { chrome.storage.local.set(saved); } catch (x) {}
-      return;
-    }
-    if (e.type !== 'pointerup' || !e.isTrusted) return;
-    send({ type: 'NSP_VOICE_WAKE_TOGGLE' });
-  }
-  btn.addEventListener('pointerup', release);
-  btn.addEventListener('pointercancel', release);
-  btn.addEventListener('click', function(e) {
-    if (e.isTrusted && e.detail === 0) send({ type: 'NSP_VOICE_WAKE_TOGGLE' });
-  });
-  // YouTube reads Space and Enter on the document as play and pause, so the key must end at the button.
-  btn.addEventListener('keydown', function(e) { if (e.key === ' ' || e.key === 'Enter') e.stopPropagation(); });
-  btn.addEventListener('keyup', function(e) { if (e.key === ' ' || e.key === 'Enter') e.stopPropagation(); });
-
-  try {
-    chrome.storage.local.get(POS_KEY, function(r) {
-      var p = !chrome.runtime.lastError && r && r[POS_KEY];
-      if (p && isFinite(p.r) && isFinite(p.b)) { pos.r = Number(p.r); pos.b = Number(p.b); }
-      place();
-    });
-  } catch (e) { place(); }
-  window.addEventListener('resize', place);
-  document.addEventListener('fullscreenchange', function() { host.style.display = document.fullscreenElement ? 'none' : ''; });
-  document.addEventListener('visibilitychange', function() { if (document.visibilityState === 'visible') sync(); });
-  sync();
-  return { paint: paint };
-})();
-
 chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
-  if (!msg || (msg.type !== 'NSP_VOICE_PING' && msg.type !== 'NSP_VOICE_ACT' && msg.type !== 'NSP_VOICE_STATE')) return false;
+  if (!msg || (msg.type !== 'NSP_VOICE_PING' && msg.type !== 'NSP_VOICE_ACT')) return false;
   if (!sender || sender.id !== chrome.runtime.id || sender.tab) return false;
   if (msg.type === 'NSP_VOICE_PING') { sendResponse({ ok: true }); return false; }
-  if (msg.type === 'NSP_VOICE_STATE') {
-    if (nspVoiceButton) nspVoiceButton.paint(String(msg.state || ''), typeof msg.wake === 'boolean' ? msg.wake : undefined);
-    return false;
-  }
   nspVoiceAct(msg, sendResponse);
   return true;
 });

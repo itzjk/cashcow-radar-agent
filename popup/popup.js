@@ -21,9 +21,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   openOnClick('btn-command-center', 'dashboard/dashboard.html');
   openOnClick('btn-niche-index', 'niche-index/niche-index.html');
-  openOnClick('btn-course', 'academy/academy.html');
   bindAgentSwitch();
   bindTalkButton();
+  bindChat();
+  bindBubbleSwitch();
 });
 
 function openOnClick(id, page) {
@@ -421,7 +422,7 @@ function bindTalkButton() {
   let shortcut = '';
   const paint = (on) => {
     btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-    btn.title = (on ? 'Voice on, listening. Click to turn it off' : 'Voice off. Click to turn it on') + (shortcut ? ' (' + shortcut + ')' : '');
+    btn.title = (on ? 'Voice on, listening. Click to turn it off' : 'Voice off. Click to turn it on') + (shortcut ? '. ' + shortcut + ' talks once: press it, speak, press it again to send' : '');
   };
   chrome.commands.getAll((list) => {
     const talk = (list || []).find((c) => c.name === 'talk');
@@ -445,5 +446,74 @@ function bindAgentSwitch() {
   btn.addEventListener('click', () => {
     const next = btn.getAttribute('aria-checked') !== 'true';
     chrome.storage.local.set({ nsp_agent_enabled: next }, () => paintAgentSwitch(next));
+  });
+}
+
+const NO_CONTENT_SCRIPT = /^https:\/\/(?:chromewebstore\.google\.com|chrome\.google\.com\/webstore)(?:[\/?#]|$)/;
+
+function bindChat() {
+  const btn = document.getElementById('btn-chat');
+  if (!btn) return;
+  btn.addEventListener('click', () => {
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const tab = tabs && tabs[0];
+      const url = (tab && tab.url) || '';
+      const inPanel = () => {
+        const done = () => window.close();
+        const inTab = () => { chrome.tabs.create({ url: 'chrome-extension://' + chrome.runtime.id + '/chat/chat.html?mode=tab' }); done(); };
+        if (!tab) { inTab(); return; }
+        chrome.sidePanel.open({ windowId: tab.windowId }).then(done, inTab);
+      };
+      if (!tab || !/^https?:\/\//.test(url) || NO_CONTENT_SCRIPT.test(url)) { inPanel(); return; }
+      chrome.tabs.sendMessage(tab.id, { type: 'NSP_BUBBLE', op: 'open' }, { frameId: 0 }, (res) => {
+        if (chrome.runtime.lastError || !res || res.ok !== true) { inPanel(); return; }
+        window.close();
+      });
+    });
+  });
+}
+
+function bindBubbleSwitch() {
+  const btn = document.getElementById('btn-bubble');
+  const hint = document.getElementById('bubble-hint');
+  const here = document.getElementById('bubble-here');
+  if (!btn) return;
+  let host = '';
+  let scriptable = true;
+  let key = 'Alt+X';
+  const paint = (on, hidden) => {
+    btn.setAttribute('aria-checked', on ? 'true' : 'false');
+    const hiddenHere = on && host && hidden.indexOf(host) >= 0;
+    if (hint) hint.textContent = !on ? 'Off. ' + key + ' still opens the chat.' : (!scriptable ? 'Chrome keeps the bubble off this page. ' + key + ' or CHAT opens the chat here.' : (hiddenHere ? 'Hidden on ' + host + '.' : 'Click it to chat, hold it to talk.'));
+    if (here) here.hidden = !hiddenHere;
+  };
+  chrome.commands.getAll((list) => {
+    const chat = (list || []).find((c) => c.name === 'chat');
+    if (chat && chat.shortcut) { key = chat.shortcut; read(); }
+  });
+  const read = () => chrome.storage.local.get(['nsp_bubble_on', 'nsp_bubble_hidden_sites'], (r) => {
+    paint(!(r && r.nsp_bubble_on === false), (r && Array.isArray(r.nsp_bubble_hidden_sites)) ? r.nsp_bubble_hidden_sites : []);
+  });
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const tab = tabs && tabs[0];
+    const url = (tab && tab.url) || '';
+    try { host = new URL(url).hostname; } catch (e) { host = ''; }
+    scriptable = /^https?:\/\//.test(url) && !NO_CONTENT_SCRIPT.test(url);
+    read();
+    if (!scriptable || !tab) return;
+    chrome.tabs.sendMessage(tab.id, { type: 'NSP_BUBBLE', op: 'ping' }, { frameId: 0 }, (res) => {
+      if (!chrome.runtime.lastError && res && res.ok === true) return;
+      chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content/zerack-bubble.js'] }).catch(() => {});
+    });
+  });
+  btn.addEventListener('click', () => {
+    const next = btn.getAttribute('aria-checked') !== 'true';
+    chrome.storage.local.set({ nsp_bubble_on: next }, read);
+  });
+  if (here) here.addEventListener('click', () => {
+    chrome.storage.local.get('nsp_bubble_hidden_sites', (r) => {
+      const list = (r && Array.isArray(r.nsp_bubble_hidden_sites)) ? r.nsp_bubble_hidden_sites.filter((h) => h !== host) : [];
+      chrome.storage.local.set({ nsp_bubble_hidden_sites: list }, read);
+    });
   });
 }

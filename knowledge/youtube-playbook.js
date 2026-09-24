@@ -1,4 +1,4 @@
-window.NSP_YT_PLAYBOOK = {
+(typeof self !== 'undefined' ? self : this).NSP_YT_PLAYBOOK = {
   version: '1.3.0',
   updated: '2026-06-24',
   origen: 'deep research (111 agents, primary YouTube sources plus the leaked MrBeast document)',

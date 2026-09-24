@@ -17,7 +17,9 @@
     "notifications",
     "cookies",
     "downloads",
-    "offscreen"
+    "offscreen",
+    "sidePanel",
+    "activeTab"
   ],
   "host_permissions": [
     "https://www.youtube.com/*",
@@ -48,6 +50,8 @@
         "ashlyv/ashlyv-engine.js",
         "knowledge/youtube-playbook.js",
         "knowledge/reverse-engine.js",
+        "knowledge/course.js",
+        "lib/nsp-brain.js",
         "content/nsp-bundle.js"
       ],
       "run_at": "document_idle",
@@ -58,6 +62,7 @@
         "https://www.youtube.com/*"
       ],
       "js": [
+        "lib/nsp-data-tools.js",
         "content/ashlyv-bridge.js"
       ],
       "run_at": "document_idle",
@@ -73,11 +78,25 @@
       ],
       "run_at": "document_idle",
       "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content/zerack-bubble.js"
+      ],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
     }
   ],
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "ZERACK"
+  },
+  "side_panel": {
+    "default_path": "chat/chat.html?mode=panel"
   },
   "commands": {
     "talk": {
@@ -85,7 +104,14 @@
         "default": "Alt+Z",
         "mac": "Alt+Z"
       },
-      "description": "Turn the ZERACK voice on or off"
+      "description": "Talk to ZERACK: press to speak, press again to send"
+    },
+    "chat": {
+      "suggested_key": {
+        "default": "Alt+X",
+        "mac": "Alt+X"
+      },
+      "description": "Open or close the ZERACK chat"
     }
   },
   "options_ui": {
@@ -98,8 +124,6 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "popup/popup.html",
-        "popup/*",
         "ashlyv/ashlyv.html",
         "ashlyv/*",
         "ashlyv/tools/*",
@@ -110,15 +134,22 @@
         "lib/face-api/*",
         "lib/mobilenet/*",
         "lib/whisper/*",
-        "lib/whisper/models/*",
-        "setup/setup.html",
-        "setup/*",
-        "academy/academy.html",
-        "academy/*"
+        "lib/whisper/models/*"
       ],
       "matches": [
         "<all_urls>"
       ]
+    },
+    {
+      "resources": [
+        "chat/chat.html",
+        "icons/zerack-bubble.svg"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "use_dynamic_url": true
     }
   ]
 }

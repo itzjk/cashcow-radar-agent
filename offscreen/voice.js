@@ -29,6 +29,31 @@
   var TIMINGS_KEPT = 20;
   var REC_QUICK_END_MS = 1500;
   var REC_BACKOFF_MS = 2000;
+  var ECHO_KEEP_MS = 3500;
+  var ECHO_LEAD_MS = 300;
+  var ECHO_AFTER_MS = 800;
+  var ECHO_RUN = 3;
+  var EARLY_FAST_MS = 350;
+  var EARLY_SLOW_MS = 800;
+  var NOISY_WORDS = 14;
+  var NOISY_MS = 8000;
+  var NOISY_ADDRESSED_MS = 20000;
+  var NOISY_CLEAR_MS = 12000;
+  var NOISY_QUIET_MS = 3000;
+  var HELD_SILENCE_MS = 1500;
+  var HELD_NO_SPEECH_MS = 8000;
+  var HELD_MAX_MS = 30000;
+  var HELD_FINAL_WAIT_MS = 1500;
+  var NET_RETRY_MS = [1000, 2000, 4000];
+  var NET_FAILS = 3;
+  var NET_WINDOW_MS = 60000;
+  var NET_PROBE_MS = 60000;
+  var PROBE_RETRY_MS = 2000;
+  var VOICES_WAIT_MS = 1500;
+  var EARLY_RESTART_MS = 300;
+  var SYNTH_INIT_MS = 3000;
+  var SYNTH_WARM_MS = 4000;
+  var SYNTH_QUIET_MS = 2500;
 
   var K_ENGINE = 'nsp_voice_engine';
   var K_BROWSER = 'nsp_voice_browser_name';
@@ -50,6 +75,7 @@
   var OPENAI_MODEL = 'gpt-4o-mini-tts';
   var OPENAI_VOICE = 'onyx';
   var OPENAI_INSTRUCTIONS = 'Speak as a calm, precise and confident assistant. Even pace, clear diction, a low and steady tone, no excitement and no filler.';
+  var WHISPER_MODULE = '../lib/whisper/whisper-local.js';
   var CACHE_DB = 'nsp_voice_cache';
   var CACHE_STORE = 'clips';
   var WHISPER_ASSETS = [
@@ -64,6 +90,7 @@
   var STOP_RE = /^(?:never ?mind|forget it|thats all|thats it|stand down|go to sleep|cancel that|stop listening|nada|olvidalo|dejalo|no importa|cancela|cancelalo)$/;
   var NOT_SPEECH_RE = /^(?:you|thank you|thanks|thanks for watching|thank you for watching|bye|gracias|muchas gracias|gracias por ver(?: el video)?|suscribete|musica|subtitulos(?: realizados| hechos)? por .*|amara org.*)$/;
   var CALL_RE = /^(?:oye|hey|ey)$/;
+  var NAME_WEAK_RE = /^(?:crack|crac|crak|krak)$/;
   // Chrome's own recognizer: the answer comes back under a second after the phrase ends. These errors mean it cannot run here, so the local Whisper takes over.
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition || null;
   var REC_FALLBACK = { network: 1, 'service-not-allowed': 1, 'language-not-supported': 1, 'bad-grammar': 1 };
@@ -85,14 +112,20 @@
   var timings = [];
   var turn = null;
   var chimeCtx = null;
+  var held = null;
+  var ph = null;
+  var phraseSeq = 0;
+  var spoken = [];
+  var noisy = { on: false, until: 0, lastAt: 0, timer: 0 };
+  var voicesAsked = false;
 
   var ear = {
     stream: null, ctx: null, src: null, node: null, opening: null, closeTimer: 0, mode: null,
     collecting: false, chunks: [], samples: 0, preroll: [], prerollSamples: 0,
     noise: NOISE_START, speechMs: 0, silenceMs: 0, minRms: 1, startedAt: 0
   };
-  var voice = { token: 0, audio: null, abort: null, finish: null, speaking: false };
-  var rec = { r: null, kind: null, gen: 0, startedAt: 0, quick: 0, got: false, err: '', paused: false, broken: '' };
+  var voice = { token: 0, audio: null, abort: null, finish: null, speaking: false, synthAt: 0 };
+  var rec = { r: null, kind: null, lang: '', live: false, waiters: [], warm: 0, gen: 0, startedAt: 0, quick: 0, got: false, err: '', broken: '', net: [], probing: false, retry: 0, probe: 0, outage: false };
 
   function now() { return performance.now(); }
   function str(v) { return typeof v === 'string' ? v : ''; }
@@ -196,7 +229,8 @@
       .replace(/^x/, 's').replace(/z/g, 's').replace(/g$/, 'k').replace(/(.)\1+/g, '$1');
   }
   var WAKE_LEAD = /^(?:hey|hi|oye|ok|okay|hola|ey|oh|ah|eh)$/;
-  var WAKE_STRONG = /^s[ea]r[aeiou]?k[aeiou]?s?$/;
+  var WAKE_STRONG = /^s[ea]r[aeiou]k[aeiou]?s?$/;
+  var WAKE_JOINED = /^(?:k?[ae]i|oie?)s[ea]r[aeiou]k[aeiou]?s?$/;
   var WAKE_SOFT = /^s[ea]r[aeiou]?$/;
   function customMatch(words, i, custom) {
     if (!custom) return 0;
@@ -218,19 +252,32 @@
     var n = customMatch(words, i, custom);
     if (!n && words[i]) {
       var s = sound(words[i]);
-      if (WAKE_STRONG.test(s)) n = 1;
+      if (WAKE_STRONG.test(s) || WAKE_JOINED.test(s)) n = 1;
       else if (loose && WAKE_SOFT.test(s) && (tokens.length === i + 1 || /[,.!?;:]$/.test(tokens[i]))) n = 1;
     }
     if (!n) return null;
     return tokens.slice(i + n).join(' ').replace(/^[\s,.;:!?-]+/, '').trim();
   }
   // A phrase is addressed when it starts with the name or with "oye" or "hey"; the words after it are returned, or null when it is not.
+  function addressOf(text, loose) {
+    var raw = String(text || '').trim();
+    var named = wakeSplit(raw, prefs.wakeWord, loose);
+    if (named != null) return { text: named, addressed: true, weak: false };
+    var tokens = raw.split(/\s+/).filter(Boolean);
+    var words = tokens.map(function (w) { return strip(w).replace(/[^a-z]/g, ''); });
+    var i = 0, weak = false;
+    if (words.length && CALL_RE.test(words[0])) {
+      i = 1;
+      var again = words.length > 1 ? wakeSplit(tokens.slice(1).join(' '), prefs.wakeWord, false) : null;
+      if (again != null) return { text: again, addressed: true, weak: false };
+    }
+    if (words.length > i + 1 && NAME_WEAK_RE.test(words[i])) { weak = i === 0; i++; }
+    if (!i) return { text: raw, addressed: false, weak: false };
+    return { text: tokens.slice(i).join(' ').replace(/^[\s,.;:!?-]+/, '').trim(), addressed: true, weak: weak };
+  }
   function callSplit(text) {
-    var named = wakeSplit(text, prefs.wakeWord, true);
-    if (named != null) return named;
-    var tokens = String(text || '').trim().split(/\s+/).filter(Boolean);
-    if (!tokens.length || !CALL_RE.test(strip(tokens[0]).replace(/[^a-z]/g, ''))) return null;
-    return tokens.slice(1).join(' ').replace(/^[\s,.;:!?-]+/, '').trim();
+    var a = addressOf(text, true);
+    return a.addressed ? a.text : null;
   }
 
   function to16k(input, rate) {
@@ -281,8 +328,10 @@
         ear.noise = Math.min(NOISE_CAP, ear.noise * 0.95 + rms * 0.05);
         keepPreroll(f);
         if (ear.mode === 'listen' && Date.now() - ear.startedAt > NO_SPEECH_MS) {
+          var h = held;
           endListen();
-          setState('idle', 'no_speech');
+          if (h) { held = null; clearInterval(h.tick); clearTimeout(h.wait); heldSend('', lastLang, 0); }
+          else setState('idle', 'no_speech');
         }
         return;
       }
@@ -312,7 +361,10 @@
     var kind = ear.mode === 'wake' && !cmdOpen() ? 'wake' : 'command';
     mark(t, 'phraseEnd');
     ear.noise = Math.max(ear.noise, Math.min(NOISE_CAP, ear.minRms));
-    if (ear.mode === 'listen') endListen(); else resetCapture();
+    if (ear.mode === 'listen') {
+      if (held) { clearInterval(held.tick); clearTimeout(held.wait); held = null; }
+      endListen();
+    } else resetCapture();
     process(pcm, kind, t);
   }
   function endListen() {
@@ -379,11 +431,13 @@
   }
   function closeLater(ms) {
     clearTimeout(ear.closeTimer);
-    ear.closeTimer = setTimeout(function () { if (!ear.mode && !rec.kind) closeMic(); }, ms == null ? MIC_IDLE_CLOSE_MS : ms);
+    ear.closeTimer = setTimeout(function () { if (!ear.mode && !rec.kind && !held) closeMic(); }, ms == null ? MIC_IDLE_CLOSE_MS : ms);
   }
   function micLost() {
     var wasWake = wakeOn;
     wakeOn = false;
+    if (held) { clearInterval(held.tick); clearTimeout(held.wait); held = null; }
+    noisy.on = false;
     closeMic();
     closeCmd();
     setState('error', wasWake ? 'mic_lost_wake' : 'mic_lost');
@@ -400,6 +454,12 @@
   }
   function whisper() {
     if (window.NSP_WHISPER && typeof window.NSP_WHISPER.transcribe === 'function') return Promise.resolve(window.NSP_WHISPER);
+    if (!whisper.tag) {
+      whisper.tag = document.createElement('script');
+      whisper.tag.type = 'module';
+      whisper.tag.src = WHISPER_MODULE;
+      (document.body || document.documentElement).appendChild(whisper.tag);
+    }
     return new Promise(function (res, rej) {
       var t = setTimeout(function () { window.removeEventListener('nsp-whisper-ready', on); rej(new Error('the local speech engine did not load')); }, 15000);
       function on() { clearTimeout(t); res(window.NSP_WHISPER); }
@@ -441,10 +501,13 @@
       if (kind === 'wake') pendingWake--;
       if (mine !== epoch) return;
       if (t) t.text = r.text;
-      if (kind === 'wake') { wakeRoute(r.text, r.language, t); return; }
-      if (!r.text) { setState('idle', 'not_heard'); return; }
-      var cmd = wakeSplit(r.text, prefs.wakeWord, false);
-      heard(cmd == null || !cleanCmd(cmd) ? r.text : cmd, r.language, t);
+      if (kind === 'wake') {
+        if (r.text) handleWake(r.text, { done: [], heard: false, changedAt: Date.now() }, r.language, true);
+        else if (cmdOpen()) setState('listening', 'wake');
+        return;
+      }
+      var cmd = r.text ? wakeSplit(r.text, prefs.wakeWord, false) : null;
+      heldSend(cmd == null || !cleanCmd(cmd) ? r.text : cmd, r.language, 0);
     }, function (err) {
       if (kind === 'wake') pendingWake--;
       if (mine !== epoch) return;
@@ -453,48 +516,73 @@
       checkAssets().then(function (ok) { setState('error', ok ? 'transcribe_failed' : 'model_missing'); });
     });
   }
-  function heard(text, lang, t, addressed) {
-    lastLang = lang || lastLang;
+
+  function ask(msg, cb) {
+    msg.type = 'NSP_VOICE_HEARD';
+    msg.speaking = voice.speaking;
+    var t = newTurn(msg.stage);
+    t.text = String(msg.text || '').slice(0, 80);
     mark(t, 'heard');
-    if (t) t.addressed = addressed !== false;
-    post({ type: 'NSP_VOICE_HEARD', text: text, lang: lang || '', addressed: addressed !== false });
-    setState(cmdOpen() ? 'listening' : 'idle');
+    try {
+      chrome.runtime.sendMessage(msg, function (res) { void chrome.runtime.lastError; if (cb) cb(res || null); });
+    } catch (e) { if (cb) cb(null); }
   }
+  function drop(text, reason) {
+    post({ type: 'NSP_VOICE_DROP', text: String(text || '').slice(0, 300), reason: reason, lang: lastLang || '' });
+  }
+  function base() { return cmdOpen() ? 'listening' : noisy.on ? 'noisy' : 'idle'; }
+  function calm() { if (!voice.speaking && !held) setState(base(), cmdOpen() ? 'wake' : ''); }
+  function recTag() { return String(rec.lang || recLang(prefs)).slice(0, 2).toLowerCase(); }
+  function actedOn(res) {
+    if (!res || !res.acted) return false;
+    if (voice.speaking) { stopSpeaking(); calm(); }
+    return true;
+  }
+
   // With the voice on every phrase goes to the worker, which carries out a command and drops anything else that was not addressed.
-  function wakeRoute(text, lang, t) {
-    if (!text) { if (cmdOpen()) setState('listening', 'wake'); return; }
+  function handleWake(text, p, lang, loose) {
+    lastLang = lang || lastLang;
+    var a;
     if (cmdOpen()) {
       closeCmd();
-      if (isStop(text)) { setState('idle'); return; }
-      var again = callSplit(text);
-      heard(again && cleanCmd(again) ? again : text, lang, t, true);
-      return;
+      if (isStop(text)) { calm(); return; }
+      a = addressOf(text, loose);
+      a = { text: a.addressed && cleanCmd(a.text) ? a.text : text, addressed: true, weak: false };
+    } else {
+      a = addressOf(text, loose);
+      if (a.addressed && cleanCmd(a.text).length < 2) { earcon('listen'); openCmd(); return; }
+      if (a.addressed && isStop(a.text)) { calm(); return; }
     }
-    var cmd = callSplit(text);
-    if (cmd == null) { heard(text, lang, t, false); return; }
-    if (cleanCmd(cmd).length < 2) { chime(); openCmd(); return; }
-    if (isStop(cmd)) return;
-    heard(cmd, lang, t, true);
+    ask({ stage: 'final', text: a.addressed ? a.text : text, raw: text, addressed: a.addressed, weak: a.weak, done: p.done, lang: lang || '', ms: p.changedAt ? Date.now() - p.changedAt : 0 }, actedOn);
+    if (p.heard) calm();
   }
   function openCmd() {
     cmdUntil = Date.now() + CMD_WINDOW_MS;
     clearTimeout(cmdTimer);
-    cmdTimer = setTimeout(function () { cmdUntil = 0; if (!voice.speaking) setState('idle'); }, CMD_WINDOW_MS + 50);
+    cmdTimer = setTimeout(function () { cmdUntil = 0; calm(); }, CMD_WINDOW_MS + 50);
     setState('listening', 'wake');
   }
   function closeCmd() { cmdUntil = 0; clearTimeout(cmdTimer); }
-  function chime() {
+  function tone(ctx, at, from, to, dur, peak) {
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(from, at);
+    if (to !== from) o.frequency.exponentialRampToValueAtTime(to, at + dur * 0.5);
+    g.gain.setValueAtTime(0.001, at);
+    g.gain.exponentialRampToValueAtTime(peak, at + Math.min(0.03, dur / 3));
+    g.gain.exponentialRampToValueAtTime(0.001, at + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(at); o.stop(at + dur + 0.01);
+  }
+  function earcon(kind) {
     try {
       var ctx = ear.ctx || chimeCtx || (chimeCtx = new AudioContext());
-      var o = ctx.createOscillator(), g = ctx.createGain(), t0 = ctx.currentTime;
-      o.type = 'sine';
-      o.frequency.setValueAtTime(880, t0);
-      o.frequency.exponentialRampToValueAtTime(1320, t0 + 0.12);
-      g.gain.setValueAtTime(0.001, t0);
-      g.gain.exponentialRampToValueAtTime(0.12, t0 + 0.03);
-      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.25);
-      o.connect(g); g.connect(ctx.destination);
-      o.start(); o.stop(t0 + 0.26);
+      if (ctx.state === 'suspended') ctx.resume().catch(function () {});
+      var t0 = ctx.currentTime;
+      if (kind === 'done') { tone(ctx, t0, 1047, 1047, 0.08, 0.08); tone(ctx, t0 + 0.09, 1568, 1568, 0.1, 0.08); }
+      else if (kind === 'ignored') tone(ctx, t0, 330, 220, 0.24, 0.07);
+      else if (kind === 'listen') tone(ctx, t0, 880, 1320, 0.25, 0.12);
+      else return;
       skipUntil = Date.now() + CHIME_SKIP_MS;
     } catch (e) {}
   }
@@ -506,51 +594,347 @@
     if (!want) return /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/.test(list[0]) ? list[0] : 'en-US';
     return find(list, function (l) { return l.toLowerCase().split('-')[0] === want && l.indexOf('-') > 0; }) || (want === 'es' ? 'es-MX' : 'en-US');
   }
+  function dropRec(r) {
+    if (!r) return;
+    r.onresult = null; r.onerror = null; r.onend = null; r.onaudiostart = null;
+    try { r.abort(); } catch (e) {}
+  }
   function startRec(kind) {
-    stopRec();
+    clearTimeout(rec.retry);
+    var old = rec.r;
+    rec.gen++;
+    rec.r = null;
     var gen = rec.gen;
     var r;
-    try { r = new SR(); } catch (e) { rec.kind = kind; recBroken('construct'); return; }
+    try { r = new SR(); } catch (e) { dropRec(old); rec.kind = kind; recBroken('construct'); return; }
     r.lang = recLang(prefs);
-    r.continuous = kind === 'wake';
-    r.interimResults = false;
+    r.continuous = true;
+    r.interimResults = true;
     r.maxAlternatives = 1;
-    rec.r = r; rec.kind = kind; rec.startedAt = Date.now(); rec.got = false; rec.err = '';
-    r.onresult = function (e) {
-      if (gen !== rec.gen) return;
-      for (var i = e.resultIndex; i < e.results.length; i++) {
-        if (!e.results[i].isFinal) continue;
-        rec.got = true;
-        onRecText(e.results[i][0] && e.results[i][0].transcript, kind, r.lang);
-      }
-    };
+    rec.r = r; rec.kind = kind; rec.lang = r.lang; rec.live = false; rec.startedAt = Date.now(); rec.got = false; rec.err = '';
+    if (kind === 'wake') newPhrase();
+    r.onstart = function () { if (gen === rec.gen) { rec.live = true; recLive(); if (!voice.synthAt) warmSynth(); } };
+    r.onaudiostart = function () { if (gen === rec.gen && kind === 'held' && held && !held.ready) heldReady(held); };
+    r.onresult = function (e) { if (gen === rec.gen) recResults(e, rec.kind || kind); };
     r.onerror = function (e) {
       if (gen !== rec.gen) return;
       var code = String((e && e.error) || '');
-      if (REC_FALLBACK[code]) { recBroken(code); return; }
+      if (code !== 'network' && REC_FALLBACK[code]) { recBroken(code); return; }
       rec.err = code;
     };
-    r.onend = function () { if (gen === rec.gen) recEnded(kind); };
+    r.onend = function () { if (gen === rec.gen) recEnded(rec.kind || kind); };
     // Handing it the open track keeps one microphone, with echo cancellation, for both recognizers.
     var track = ear.stream && ear.stream.getAudioTracks()[0];
     try { if (track) r.start(track); else r.start(); }
     catch (e) {
-      try { r.start(); } catch (x) { recBroken('start'); }
+      try { r.start(); } catch (x) { dropRec(old); recBroken('start'); return; }
     }
+    dropRec(old);
+  }
+  function warmSynth() {
+    clearTimeout(rec.warm);
+    if (prefs.engine !== 'browser') return;
+    rec.warm = setTimeout(function () {
+      if (voice.synthAt || !rec.live || prefs.engine !== 'browser') return;
+      if (held || Date.now() - noisy.lastAt < SYNTH_QUIET_MS) { warmSynth(); return; }
+      browserVoices();
+    }, SYNTH_WARM_MS);
+  }
+  function recLive() {
+    var list = rec.waiters;
+    rec.waiters = [];
+    list.forEach(function (f) { f(); });
+  }
+  function whenRecLive() {
+    if (!rec.r || rec.live) return Promise.resolve();
+    return new Promise(function (res) {
+      rec.waiters.push(res);
+      setTimeout(res, VOICES_WAIT_MS);
+    });
   }
   function stopRec() {
+    clearTimeout(rec.retry);
     rec.gen++;
     var r = rec.r;
-    rec.r = null; rec.kind = null; rec.paused = false;
-    if (r) { try { r.abort(); } catch (e) {} }
+    rec.r = null; rec.kind = null;
+    dropRec(r);
   }
+  function recResults(e, kind) {
+    var fin = [], live = [];
+    for (var i = 0; i < e.results.length; i++) {
+      var tx = (e.results[i][0] && e.results[i][0].transcript) || '';
+      if (!e.results[i].isFinal) live.push(tx);
+      else if (i >= e.resultIndex) fin.push(tx);
+    }
+    rec.got = true;
+    rec.net = [];
+    rec.probing = false;
+    rec.outage = false;
+    var interim = live.join(' ').replace(/\s+/g, ' ').trim();
+    if (kind === 'held') { heldResults(fin, interim); return; }
+    for (var k = 0; k < fin.length; k++) wakeFinal(fin[k]);
+    wakeInterim(interim);
+  }
+
+  function newPhrase() {
+    if (ph) { clearTimeout(ph.t1); clearTimeout(ph.t2); }
+    ph = { id: ++phraseSeq, at: 0, text: '', key: '', changedAt: 0, done: [], busy: false, again: false, over: false, heard: false, t1: 0, t2: 0 };
+    return ph;
+  }
+  function wakeInterim(text) {
+    var p = ph;
+    if (!p || p.over || !text) return;
+    var key = bare(text);
+    if (!key || key === p.key) return;
+    var t = Date.now();
+    if (!p.at) p.at = t;
+    p.text = text; p.key = key; p.changedAt = t;
+    noisy.lastAt = t;
+    var mine = echoStrip(cleanTranscript(text), p.at);
+    if (!mine) return;
+    if (noiseCheck(p, mine, t)) return;
+    if (!p.heard) { p.heard = true; if (!voice.speaking && !noisy.on) setState('hearing'); }
+    schedule(p);
+  }
+  function schedule(p) {
+    clearTimeout(p.t1); clearTimeout(p.t2);
+    var since = Date.now() - p.changedAt;
+    p.t1 = setTimeout(function () { early(p); }, Math.max(0, EARLY_FAST_MS - since));
+    p.t2 = setTimeout(function () { early(p); }, Math.max(0, EARLY_SLOW_MS - since));
+  }
+  function early(p) {
+    if (p !== ph || p.over || rec.kind !== 'wake') return;
+    if (p.busy) { p.again = true; return; }
+    var mine = echoStrip(cleanTranscript(p.text), p.at);
+    if (!mine) return;
+    var a = addressOf(mine, false);
+    if (cmdOpen()) a = { text: a.addressed ? a.text : mine, addressed: true, weak: false };
+    if (!a.text || cleanCmd(a.text).length < 2) return;
+    var key = p.key, askedAt = Date.now();
+    p.busy = true;
+    ask({ stage: 'interim', text: a.text, raw: mine, addressed: a.addressed, weak: a.weak, done: p.done, stable: Date.now() - p.changedAt, lang: recTag(), ms: Date.now() - p.changedAt }, function (res) {
+      p.busy = false;
+      if (res && Array.isArray(res.done)) p.done = res.done;
+      if (actedOn(res)) {
+        closeCmd();
+        if (res.restart && p === ph && !p.over && rec.kind === 'wake' && restartSafe(askedAt, key, p)) { p.over = true; if (p.heard) calm(); startRec('wake'); }
+        return;
+      }
+      if (p.again && p === ph && !p.over) { p.again = false; if (p.key !== key || Date.now() - p.changedAt < EARLY_SLOW_MS) schedule(p); }
+    });
+  }
+  function restartSafe(askedAt, key, p) {
+    var t = Date.now();
+    return t - askedAt <= EARLY_RESTART_MS && p.key === key && !(voice.synthAt && t - voice.synthAt < SYNTH_INIT_MS);
+  }
+  function wakeFinal(raw) {
+    var p = ph || newPhrase();
+    newPhrase();
+    if (p.over) return;
+    clearTimeout(p.t1); clearTimeout(p.t2);
+    var heardText = cleanTranscript(raw);
+    var mine = echoStrip(heardText, p.at);
+    if (!mine) {
+      if (heardText) drop(heardText, 'echo');
+      if (p.heard) calm();
+      return;
+    }
+    if (noisy.on && bare(mine).split(' ').length > NOISY_WORDS && !addressOf(mine, false).addressed) { noiseHit(mine); return; }
+    handleWake(mine, p, recTag(), false);
+  }
+  function noiseCheck(p, mine, t) {
+    var a = addressOf(mine, false);
+    var long = a.addressed ? t - p.at > NOISY_ADDRESSED_MS : (bare(mine).split(' ').length > NOISY_WORDS || t - p.at > NOISY_MS);
+    if (!long) return false;
+    noiseHit(mine);
+    return true;
+  }
+  function noiseHit(text) {
+    noisy.until = Date.now() + NOISY_CLEAR_MS;
+    if (!noisy.on) {
+      noisy.on = true;
+      drop(text, 'noisy');
+      earcon('ignored');
+      if (!voice.speaking && !held) setState('noisy');
+      noiseWatch();
+    }
+    if (rec.kind === 'wake') startRec('wake');
+  }
+  function noiseWatch() {
+    clearTimeout(noisy.timer);
+    noisy.timer = setTimeout(function () {
+      if (!noisy.on) return;
+      if (!wakeOn) { noisy.on = false; return; }
+      var t = Date.now();
+      if (t < noisy.until || t - noisy.lastAt < NOISY_QUIET_MS) { noiseWatch(); return; }
+      noisy.on = false;
+      calm();
+    }, 1000);
+  }
+
+  function heldStart(auto, tentative) {
+    if (held) { if (auto) held.auto = true; if (!tentative) heldConfirm(); return; }
+    var wakeLive = rec.kind === 'wake' && !!rec.r;
+    if (tentative && !ear.stream && !wakeLive) return;
+    var h = held = { auto: !!auto, at: Date.now(), ready: 0, finals: [], interim: '', key: '', changedAt: 0, ended: 0, cancel: false, heard: false, wait: 0, tick: 0, tentative: !!tentative, adopt: false };
+    h.tick = setInterval(function () { heldTick(h); }, 200);
+    if (tentative && wakeLive) { h.adopt = true; return; }
+    if (!tentative) {
+      if (voice.speaking) stopSpeaking();
+      closeCmd();
+      setState('listening', 'held');
+    }
+    heldOpen(h);
+  }
+  function heldConfirm() {
+    var h = held;
+    if (!h) { heldStart(false, false); return; }
+    if (!h.tentative || h.ended) return;
+    h.tentative = false;
+    if (voice.speaking) stopSpeaking();
+    closeCmd();
+    setState(h.heard ? 'hearing' : 'listening', 'held');
+    if (!h.adopt) return;
+    h.adopt = false;
+    var p = ph;
+    if (!(rec.kind === 'wake' && rec.r && rec.live) || (p && p.at && p.at < h.at)) { heldOpen(h); return; }
+    if (p) { p.over = true; clearTimeout(p.t1); clearTimeout(p.t2); }
+    newPhrase();
+    rec.kind = 'held';
+    h.ready = Date.now();
+    if (p && p.text) heldResults([], p.text);
+  }
+  function heldOpen(h) {
+    if (rec.kind === 'wake') stopRec();
+    if (ear.mode === 'wake') { ear.mode = null; resetCapture(); }
+    refreshPrefs(0).then(function () { return openMic(); }).then(function (why) {
+      if (held !== h) { if (h.cancel && !why && !held && !wakeOn && !ear.mode && !rec.kind) closeLater(0); return; }
+      if (why) { clearInterval(h.tick); held = null; setState('error', why); resumeWake(); return; }
+      if (h.ended) { finishHeld(h); return; }
+      if (useChrome()) { startRec('held'); return; }
+      whisperHeld(h);
+    });
+  }
+  function whisperHeld(h) {
+    checkAssets().then(function (ok) {
+      if (held !== h) return;
+      if (!ok) { clearInterval(h.tick); held = null; setState('error', 'model_missing'); resumeWake(); return; }
+      warm();
+      resetCapture();
+      ear.mode = 'listen';
+      ear.startedAt = Date.now();
+      heldReady(h);
+    });
+  }
+  function heldReady(h) {
+    h.ready = Date.now();
+    if (h.auto) earcon('listen');
+  }
+  function heldTick(h) {
+    if (held !== h || h.ended) return;
+    var t = Date.now();
+    if (t - h.at > HELD_MAX_MS) { heldEnd(false); return; }
+    if (!h.auto || !h.ready || ear.mode === 'listen') return;
+    if (h.key ? t - h.changedAt >= HELD_SILENCE_MS : t - h.ready >= HELD_NO_SPEECH_MS) heldEnd(false);
+  }
+  function heldResults(fin, interim) {
+    var h = held;
+    if (!h) return;
+    for (var i = 0; i < fin.length; i++) h.finals.push(fin[i]);
+    h.interim = interim;
+    var key = bare(h.finals.concat([interim]).join(' '));
+    if (key !== h.key) {
+      h.key = key;
+      h.changedAt = Date.now();
+      if (key && !h.heard) { h.heard = true; if (!h.tentative) setState('hearing', 'held'); }
+    }
+    if (h.ended && fin.length && !interim) finishHeld(h);
+  }
+  function heldEnd(cancel) {
+    var h = held;
+    if (!h || h.ended) return;
+    h.ended = Date.now();
+    h.cancel = !!cancel;
+    clearInterval(h.tick);
+    if (cancel) { finishHeld(h); return; }
+    if (rec.kind === 'held' && rec.r) {
+      try { rec.r.stop(); } catch (e) {}
+      h.wait = setTimeout(function () { finishHeld(h); }, HELD_FINAL_WAIT_MS);
+      return;
+    }
+    if (ear.mode === 'listen') {
+      if (ear.collecting && ear.speechMs >= MIN_SPEECH_MS) { endPhrase(); return; }
+      endListen();
+      finishHeld(h);
+      return;
+    }
+    if (h.ready) finishHeld(h);
+  }
+  function finishHeld(h) {
+    if (held !== h) return;
+    held = null;
+    clearInterval(h.tick);
+    clearTimeout(h.wait);
+    if (rec.kind === 'held') stopRec();
+    resumeWake();
+    if (h.cancel) { if (!h.tentative) calm(); return; }
+    heldSend(h.finals.concat(h.interim ? [h.interim] : []).join(' '), recTag(), h.ended);
+  }
+  function heldSend(text, lang, endedAt) {
+    var mine = cleanTranscript(text);
+    var a = addressOf(mine, !useChrome());
+    lastLang = lang || lastLang;
+    calm();
+    ask({ stage: 'held', text: a.addressed && cleanCmd(a.text) ? a.text : mine, raw: mine, addressed: true, lang: lang || '', ms: endedAt ? Date.now() - endedAt : 0 }, actedOn);
+  }
+  function resumeWake() {
+    if (!wakeOn || held) { if (!held && !ear.mode && !rec.kind) closeLater(); return; }
+    if (useChrome()) { if (!(rec.kind === 'wake' && rec.r)) startRec('wake'); }
+    else whisperWake();
+  }
+
   function recBroken(code) {
     var kind = rec.kind;
     note('chrome_speech_' + code);
     rec.broken = code;
     stopRec();
-    if (kind === 'wake' && wakeOn) whisperWake();
-    else if (kind === 'listen') whisperListen();
+    if (code === 'network') {
+      if (!rec.outage) { rec.outage = true; setState('error', 'slow_engine'); }
+      probeLater();
+    }
+    if (held && kind === 'held') whisperHeld(held);
+    else if (wakeOn && !held) whisperWake();
+  }
+  function netFail(kind) {
+    var t = Date.now();
+    rec.net = rec.net.filter(function (x) { return t - x < NET_WINDOW_MS; });
+    rec.net.push(t);
+    note('chrome_speech_network_retry');
+    if (rec.probing || rec.net.length >= NET_FAILS) {
+      rec.net = [];
+      rec.probing = false;
+      rec.kind = kind;
+      recBroken('network');
+      return;
+    }
+    var gen = rec.gen;
+    rec.retry = setTimeout(function () {
+      if (rec.gen !== gen || rec.r) return;
+      if (kind === 'held') { if (held && !held.ended) startRec('held'); else if (held) finishHeld(held); }
+      else if (wakeOn && !held) startRec('wake');
+    }, NET_RETRY_MS[Math.min(rec.net.length, NET_RETRY_MS.length) - 1]);
+  }
+  function probeLater(ms) {
+    clearTimeout(rec.probe);
+    rec.probe = setTimeout(function () {
+      if (rec.broken !== 'network') return;
+      if (held || voice.speaking || (ear.mode === 'wake' && ear.collecting)) { probeLater(PROBE_RETRY_MS); return; }
+      rec.broken = '';
+      rec.probing = true;
+      if (!wakeOn) return;
+      if (ear.mode === 'wake') { ear.mode = null; resetCapture(); }
+      startRec('wake');
+    }, ms || NET_PROBE_MS);
   }
   function recEnded(kind) {
     rec.r = null;
@@ -558,118 +942,68 @@
     rec.err = '';
     if (err === 'not-allowed' || err === 'audio-capture') {
       rec.kind = null;
+      if (held) { clearInterval(held.tick); clearTimeout(held.wait); held = null; }
       if (err === 'audio-capture' || wakeOn) { micLost(); return; }
       setState('error', 'mic_permission');
       closeLater(0);
       return;
     }
-    if (kind === 'listen') {
-      rec.kind = null;
-      if (!rec.got && !voice.speaking) setState('idle', 'no_speech');
-      if (wakeOn) startRec('wake'); else closeLater();
+    if (err === 'network') { netFail(kind); return; }
+    if (kind === 'held') {
+      if (!held) { rec.kind = null; return; }
+      if (held.ended) finishHeld(held);
+      else startRec('held');
       return;
     }
-    if (!wakeOn || rec.paused) return;
+    if (!wakeOn || held) return;
     var quick = Date.now() - rec.startedAt < REC_QUICK_END_MS;
     rec.quick = quick ? Math.min(rec.quick + 1, 5) : 0;
     var gen = rec.gen;
-    setTimeout(function () { if (wakeOn && rec.gen === gen && !rec.r && !rec.paused) startRec('wake'); }, quick ? REC_BACKOFF_MS * rec.quick : 0);
-  }
-  // It hears the speakers too, so it is off while ZERACK talks and comes back after the echo.
-  function recPause() {
-    if (rec.kind === 'listen') { stopRec(); if (wakeOn) rec.kind = 'wake'; else closeLater(); }
-    if (!rec.kind || rec.paused) return;
-    rec.paused = true;
-    var r = rec.r;
-    rec.r = null;
-    rec.gen++;
-    if (r) { try { r.abort(); } catch (e) {} }
-  }
-  function recResume() {
-    if (!rec.paused) return;
-    rec.paused = false;
-    if (rec.kind !== 'wake' || !wakeOn) { rec.kind = null; return; }
-    var gen = rec.gen;
-    setTimeout(function () { if (wakeOn && rec.gen === gen && rec.kind === 'wake' && !rec.r && !rec.paused) startRec('wake'); }, ECHO_TAIL_MS);
-  }
-  function onRecText(raw, kind, tag) {
-    var text = cleanTranscript(raw);
-    if (!text || muted()) return;
-    var t = newTurn(kind === 'wake' && !cmdOpen() ? 'wake' : 'command');
-    t.stt = 'chrome';
-    t.text = text;
-    mark(t, 'phraseEnd');
-    var lang = String(tag || '').slice(0, 2).toLowerCase();
-    if (kind === 'wake') { wakeRoute(text, lang, t); return; }
-    var cmd = callSplit(text);
-    heard(cmd && cleanCmd(cmd) ? cmd : text, lang, t, true);
+    rec.retry = setTimeout(function () { if (wakeOn && !held && rec.gen === gen && !rec.r) startRec('wake'); }, quick ? REC_BACKOFF_MS * rec.quick : 0);
   }
 
-  function whisperListen() {
-    checkAssets().then(function (ok) {
-      if (!ok) { setState('error', 'model_missing'); if (!wakeOn) closeLater(0); return; }
-      warm();
-      resetCapture();
-      ear.mode = 'listen';
-      ear.startedAt = Date.now();
-    });
-  }
   function whisperWake() {
     checkAssets().then(function (ok) {
-      if (!wakeOn) return;
-      if (!ok) { wakeOn = false; setState('error', 'model_missing'); closeLater(0); return; }
+      if (!wakeOn || held) return;
+      if (!ok) {
+        if (rec.broken === 'network') return;
+        wakeOn = false; setState('error', 'model_missing'); closeLater(0); return;
+      }
       warm();
       if (!ear.mode) { resetCapture(); ear.mode = 'wake'; }
-    });
-  }
-  function listen() {
-    if (rec.kind === 'listen') { if (rec.r) { try { rec.r.stop(); } catch (e) {} } return; }
-    if (ear.mode === 'listen') {
-      if (ear.collecting && ear.speechMs >= MIN_SPEECH_MS) endPhrase();
-      return;
-    }
-    if (voice.speaking) stopSpeaking();
-    if (wakeOn && (rec.kind === 'wake' || ear.mode === 'wake')) { chime(); openCmd(); return; }
-    closeCmd();
-    rec.broken = '';
-    setState('listening');
-    refreshPrefs(0).then(function () { return openMic(); }).then(function (why) {
-      if (why) { setState('error', why); if (!wakeOn) closeLater(0); return; }
-      if (useChrome()) startRec('listen'); else whisperListen();
     });
   }
   function setWake(on) {
     wakeOn = !!on;
     if (!wakeOn) {
       closeCmd();
+      noisy.on = false;
+      clearTimeout(noisy.timer);
       if (rec.kind === 'wake') stopRec();
       if (ear.mode === 'wake') { ear.mode = null; resetCapture(); }
-      if (!ear.mode && !rec.kind) closeLater(0);
-      if (!voice.speaking) setState('idle');
+      if (!ear.mode && !rec.kind && !held) closeLater(0);
+      if (!voice.speaking && !held) setState('idle');
       return;
     }
     rec.broken = '';
+    rec.outage = false;
     refreshPrefs(0).then(function () { return openMic(); }).then(function (why) {
       if (why) { wakeOn = false; setState('error', why); closeLater(0); return; }
-      if (!wakeOn) return;
+      if (!wakeOn || held) return;
       if (!useChrome()) { whisperWake(); return; }
       if (ear.mode === 'wake') { ear.mode = null; resetCapture(); }
-      if (rec.kind) { if (rec.paused) rec.kind = 'wake'; return; }
-      if (voice.speaking) { rec.kind = 'wake'; rec.paused = true; return; }
+      if (rec.kind === 'wake' && rec.r) return;
       startRec('wake');
     });
   }
   function stopAll() {
     epoch++;
     closeCmd();
+    if (held) heldEnd(true);
     if (ear.mode === 'listen') endListen();
     else resetCapture();
-    if (rec.kind === 'listen') {
-      stopRec();
-      if (wakeOn) startRec('wake'); else closeLater();
-    }
     stopSpeaking();
-    setState('idle');
+    setState(base());
   }
 
   function speakable(text) {
@@ -719,14 +1053,15 @@
   }
 
   function say(text, cacheFlag) {
+    if (held && !held.ended && !held.tentative) return;
     var t = speakable(text);
     var token = ++voice.token;
     var trn = timings.length && timings[timings.length - 1].heard != null && timings[timings.length - 1].sayAt == null ? timings[timings.length - 1] : newTurn('say');
     if (ear.mode === 'listen') endListen();
     stopPlayback();
     if (!t) { afterSpeech(token); return; }
-    recPause();
     voice.speaking = true;
+    rememberSpoken(t);
     trn.sayAt = Math.round(now());
     trn.said = t.slice(0, 80);
     setState('speaking');
@@ -745,20 +1080,50 @@
     if (token !== voice.token) return;
     voice.speaking = false;
     mutedUntil = Date.now() + ECHO_TAIL_MS;
-    recResume();
-    setState(cmdOpen() ? 'listening' : 'idle', cmdOpen() ? 'wake' : '');
+    spokenDone();
+    calm();
   }
   function stopPlayback() {
     if (voice.abort) { try { voice.abort.abort(); } catch (e) {} voice.abort = null; }
     if (voice.audio) { try { voice.audio.pause(); } catch (e) {} }
     if (voice.finish) voice.finish();
-    try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
+    try { if (voice.synthAt && window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {}
   }
   function stopSpeaking() {
     voice.token++;
     stopPlayback();
     if (voice.speaking) { voice.speaking = false; mutedUntil = Date.now() + ECHO_TAIL_MS; }
-    recResume();
+    spokenDone();
+  }
+  function echoWords(t) { return bare(t).split(' ').filter(Boolean).map(sound); }
+  function rememberSpoken(t) {
+    spoken.push({ words: echoWords(t), from: Date.now(), end: Infinity });
+    while (spoken.length > 4) spoken.shift();
+  }
+  function spokenDone() {
+    var t = Date.now();
+    spoken.forEach(function (x) { if (x.end === Infinity) x.end = t; });
+  }
+  function sameWord(a, b) { return a === b || (a.length >= 5 && b.length >= 5 && lev(a, b) <= 1); }
+  function echoStrip(text, at) {
+    var t = Date.now();
+    at = at || t;
+    spoken = spoken.filter(function (x) { return x.end === Infinity || t - x.end < ECHO_KEEP_MS; });
+    var lines = spoken.filter(function (x) { return at >= x.from - ECHO_LEAD_MS && at <= x.end + ECHO_AFTER_MS; });
+    if (!lines.length || !text) return text;
+    var tokens = String(text).trim().split(/\s+/).filter(Boolean);
+    var words = tokens.map(function (w) { return sound(bare(w).replace(/ /g, '')); });
+    var keep = words.map(function (w) { return !!w; });
+    lines.forEach(function (x) {
+      for (var i = 0; i < words.length; i++) {
+        for (var j = 0; j < x.words.length; j++) {
+          var k = 0;
+          while (i + k < words.length && j + k < x.words.length && sameWord(words[i + k], x.words[j + k])) k++;
+          if (k >= ECHO_RUN || (k && k === words.length && x.words.length <= 2)) for (var m = i; m < i + k; m++) keep[m] = false;
+        }
+      }
+    });
+    return tokens.filter(function (w, i) { return keep[i]; }).join(' ');
   }
   function engineFor(p) {
     if (p.engine !== 'local') return Promise.resolve(p.engine);
@@ -770,7 +1135,10 @@
   }
 
   function browserVoices() {
+    if (!voicesAsked && rec.r && !rec.live) return whenRecLive().then(function () { voicesAsked = true; return browserVoices(); });
+    voicesAsked = true;
     if (!window.speechSynthesis) return Promise.resolve([]);
+    if (!voice.synthAt) voice.synthAt = Date.now();
     var list = speechSynthesis.getVoices();
     if (list.length) return Promise.resolve(list);
     return new Promise(function (res) {
@@ -814,9 +1182,9 @@
     }, Promise.resolve());
   }
   function speakBrowser(t, token, p, key, trn) {
-    if (!window.speechSynthesis) return Promise.resolve();
     var lang = textLang(t);
     return browserVoices().then(function (list) {
+      if (!window.speechSynthesis || token !== voice.token) return;
       var v = pickBrowserVoice(list, p, lang);
       if (trn) trn.voice = v ? v.name : '';
       return sayChunks(chunksOf(t), v, token, trn).catch(function () {
@@ -1052,17 +1420,33 @@
   chrome.runtime.onMessage.addListener(function (msg, sender) {
     if (!msg || typeof msg.type !== 'string' || msg.type.indexOf('NSP_VOICE_') !== 0) return;
     if (!sender || sender.id !== chrome.runtime.id || sender.tab || String(sender.url || '').indexOf(chrome.runtime.getURL('')) !== 0) return;
-    if (msg.type === 'NSP_VOICE_LISTEN') listen();
+    if (msg.type === 'NSP_VOICE_PTT') ptt(String(msg.op || ''), msg.auto === true, msg.tentative === true);
     else if (msg.type === 'NSP_VOICE_SAY') say(msg.text, msg.cache === true);
+    else if (msg.type === 'NSP_VOICE_CUE') earcon(String(msg.cue || ''));
     else if (msg.type === 'NSP_VOICE_STOP') stopAll();
     else if (msg.type === 'NSP_VOICE_WAKE') setWake(msg.on === true);
   });
+  function ptt(op, auto, tentative) {
+    if (op === 'start') heldStart(auto, tentative);
+    else if (op === 'confirm') heldConfirm();
+    else if (op === 'end') heldEnd(false);
+    else if (op === 'cancel') heldEnd(true);
+    else if (op === 'toggle') { if (held && !held.ended) heldEnd(false); else if (!held) heldStart(true); }
+  }
 
   window.NSP_VOICE = {
     timings: timings,
     wakeSplit: wakeSplit,
     callSplit: callSplit,
-    recState: function () { return { kind: rec.kind, live: !!rec.r, paused: rec.paused, broken: rec.broken, lang: rec.r ? rec.r.lang : '' }; }
+    addressOf: addressOf,
+    echoStrip: echoStrip,
+    recState: function () { return { kind: rec.kind, live: !!rec.r, broken: rec.broken, lang: rec.r ? rec.r.lang : '', held: !!held, noisy: noisy.on, net: rec.net.length, probing: rec.probing }; }
   };
   if (!SR) warm();
+  try {
+    chrome.runtime.sendMessage({ type: 'NSP_VOICE_BOOT' }, function (res) {
+      void chrome.runtime.lastError;
+      if (res && res.wake === true && !wakeOn) setWake(true);
+    });
+  } catch (e) {}
 })();

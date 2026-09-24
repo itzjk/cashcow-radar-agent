@@ -1,5 +1,9 @@
 // Classic service worker, so importScripts runs at initial evaluation. Order matters: NSPPolicy needs NSPText.
 try { importScripts('../lib/nsp-text.js', '../nsp-policy.js', '../lib/nsp-models.js'); } catch (eNspText) { console.warn('[NSP SW] importScripts policy engine:', eNspText && eNspText.message); }
+try { importScripts('../knowledge/course.js'); } catch (eCourse) { console.warn('[NSP SW] importScripts course:', eCourse && eCourse.message); }
+try { importScripts('../knowledge/youtube-playbook.js'); } catch (ePlaybook) { console.warn('[NSP SW] importScripts playbook:', ePlaybook && ePlaybook.message); }
+try { importScripts('../lib/nsp-brain.js'); } catch (eBrain) { console.warn('[NSP SW] importScripts brain:', eBrain && eBrain.message); }
+try { importScripts('../lib/nsp-data-tools.js', '../chat/chat-tools.js', '../lib/nsp-chat-store.js'); } catch (eChatLib) { console.warn('[NSP SW] importScripts chat tools:', eChatLib && eChatLib.message); }
 
 var NSP_GEMINI_LIMIT_PER_MIN = 14;
 var NSP_GROQ_LIMIT_PER_MIN = 28;
@@ -779,16 +783,10 @@ function fmtHours(h) {
 
 var NSP_PAGE_FETCH_HOSTS = ['www.youtube.com', 'm.youtube.com', 'youtube.com', 'studio.youtube.com', 'i.ytimg.com', 'img.youtube.com'];
 
-function nspFetchUrlAllowed(rawUrl, sender) {
+function nspFetchUrlAllowed(rawUrl) {
   var host = '';
   try { host = new URL(rawUrl).hostname.toLowerCase(); } catch (e) { return false; }
-  if (!host) return false;
-  if (host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0') return false;
-  if (/^10\./.test(host) || /^192\.168\./.test(host) || /^169\.254\./.test(host)) return false;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return false;
-  if (/\.local$/.test(host) || /\.internal$/.test(host)) return false;
-  if (!(sender && sender.tab)) return true;
-  return NSP_PAGE_FETCH_HOSTS.indexOf(host) !== -1;
+  return !!host && NSP_PAGE_FETCH_HOSTS.indexOf(host) !== -1;
 }
 
 var _nspStorageQueue = Promise.resolve();
@@ -873,6 +871,22 @@ function uniqueSlice(list, max) {
   return out.slice(0, max || 2500);
 }
 
+var NSP_SYSTEM_CAP = { openai: 24000, groq: 9000, ollama: 3200, gemini: 24000 };
+
+function nspSystemFor(payload, cap) {
+  if (!payload || !Array.isArray(payload.systemParts)) return payload && typeof payload.system === 'string' ? payload.system : '';
+  var list = payload.systemParts.slice(0, 12);
+  if (self.NSP_BRAIN && typeof self.NSP_BRAIN.fit === 'function') return self.NSP_BRAIN.fit(list, cap);
+  return list.map(function(p) { return p && typeof p.text === 'string' ? p.text : ''; }).filter(Boolean).join('\n\n').slice(0, cap);
+}
+
+function nspPayloadFor(payload, prov) {
+  var out = Object.assign({}, payload);
+  out.system = nspSystemFor(payload, NSP_SYSTEM_CAP[prov] || 24000);
+  if (Array.isArray(payload.systemParts)) console.log('[NSP SW] system prompt for ' + prov + ': ' + out.system.length + ' chars');
+  return out;
+}
+
 function nspChatCascade(chatPayload, sendResponse) {
   chrome.storage.local.get([
     'nsp_gemini_api_key', 'nsp_gemini_working_model',
@@ -950,14 +964,14 @@ function nspChatCascade(chatPayload, sendResponse) {
         if (prov === 'openai') {
           anyAttempted = true;
           console.log('[NSP SW] Provider -> openai', openaiModel);
-          var oa = await nspCallOpenAI(openaiKey, openaiModel, payload, messages);
+          var oa = await nspCallOpenAI(openaiKey, openaiModel, nspPayloadFor(payload, prov), messages);
           if (oa.ok) { sendResponse(Object.assign({ provider: 'openai', modelUsed: openaiModel }, oa)); return; }
           lastErr = 'OpenAI: ' + (oa.error || 'unknown');
           if (!oa.rateLimited) allRateLimited = false;
         } else if (prov === 'groq') {
           anyAttempted = true;
           console.log('[NSP SW] Provider → groq', groqModel);
-          var gr = await nspCallGroqWithRetry(groqKey, groqModel, payload, messages);
+          var gr = await nspCallGroqWithRetry(groqKey, groqModel, nspPayloadFor(payload, prov), messages);
           if (gr.ok) { sendResponse(Object.assign({ provider: 'groq', modelUsed: groqModel }, gr)); return; }
           lastErr = 'Groq: ' + (gr.error || 'unknown');
           if (!gr.rateLimited) allRateLimited = false;
@@ -972,7 +986,7 @@ function nspChatCascade(chatPayload, sendResponse) {
           }
           anyAttempted = true;
           console.log('[NSP SW] Provider → ollama', ollamaModel);
-          var orr = await nspCallOllama(ollamaUrl, ollamaModel, payload, messages);
+          var orr = await nspCallOllama(ollamaUrl, ollamaModel, nspPayloadFor(payload, prov), messages);
           if (orr.ok) { sendResponse(Object.assign({ provider: 'ollama', modelUsed: ollamaModel }, orr)); return; }
           lastErr = 'Ollama: ' + (orr.error || 'unknown');
           allRateLimited = false;
@@ -980,7 +994,7 @@ function nspChatCascade(chatPayload, sendResponse) {
         } else if (prov === 'gemini') {
           anyAttempted = true;
           console.log('[NSP SW] Provider → gemini');
-          var ge = await nspCallGemini(geminiKey, cachedModel, payload, messages);
+          var ge = await nspCallGemini(geminiKey, cachedModel, nspPayloadFor(payload, prov), messages);
           if (ge.ok) { sendResponse(Object.assign({ provider: 'gemini' }, ge)); return; }
           lastErr = 'Gemini: ' + (ge.error || 'unknown');
           if (!ge.rateLimited) allRateLimited = false;
@@ -1005,12 +1019,13 @@ function nspChatCascade(chatPayload, sendResponse) {
 var NSP_VOICE_TAB_WAIT_MS = 180000;
 var NSP_VOICE_ACK_MS = 8000;
 var NSP_VOICE_YOUTUBE = /^https:\/\/www\.youtube\.com\//;
-var NSP_VOICE_SYSTEM = 'You are ZERACK, an assistant for YouTube creators. The user said this out loud and your reply will be read aloud, so answer in plain spoken sentences with no markdown, lists, links or emoji, in under 60 words unless they ask for more, and in the language they spoke. Spoken browser commands such as open YouTube, search YouTube for a topic, scan, open result two, open the channel of result two, save this niche, go back, next tab and turn on the agent are carried out before you are asked, so what reaches you is a question or a request those commands did not cover. Never tell the user to open YouTube or to reload a tab. If they asked for an action you cannot do, say in one short sentence which spoken command does it.';
 var _nspVoiceTurns = {};
 
 function nspVoiceByCascade(text, reason, sendResponse) {
   console.log('[NSP SW] voice: the provider cascade answers, ' + reason);
-  nspChatCascade({ messages: [{ role: 'user', content: text }], system: NSP_VOICE_SYSTEM, maxTokens: 600 }, function(res) {
+  var ask = { messages: [{ role: 'user', content: text }], maxTokens: 600 };
+  if (self.NSP_BRAIN) ask.systemParts = self.NSP_BRAIN.parts({ surface: 'voice', query: text });
+  nspChatCascade(ask, function(res) {
     var answer = res && res.ok ? String(res.text || '').trim() : '';
     if (answer) sendResponse({ ok: true, answer: answer, error: '', actedOnTab: false });
     else sendResponse({ ok: false, answer: '', error: String((res && res.ok !== true && res.error) || 'empty_answer'), actedOnTab: false });
@@ -1045,7 +1060,8 @@ function nspVoiceWatchTabs() {
   }
 }
 
-function nspVoiceByTab(tabId, text, requestId, sendResponse) {
+function nspVoiceByTab(tabId, text, requestId, sendResponse, opts) {
+  opts = opts || {};
   if (_nspVoiceTurns[requestId]) {
     sendResponse({ ok: false, answer: '', error: 'This question is already being answered.', actedOnTab: true });
     return;
@@ -1067,12 +1083,13 @@ function nspVoiceByTab(tabId, text, requestId, sendResponse) {
   function fallBack(reason) {
     if (done) return;
     release();
-    nspVoiceByCascade(text, reason, sendResponse);
+    if (opts.fallback === false) sendResponse({ ok: false, answer: '', error: 'The YouTube agent did not take the instruction: ' + reason + '.', actedOnTab: false });
+    else nspVoiceByCascade(text, reason, sendResponse);
   }
-  _nspVoiceTurns[requestId] = { tabId: tabId, finish: finish };
+  _nspVoiceTurns[requestId] = { tabId: tabId, finish: finish, origin: opts.origin === 'chat' ? 'chat' : 'voice' };
   nspVoiceWatchTabs();
   timer = setTimeout(function() { fallBack('the tab did not answer within ' + NSP_VOICE_ACK_MS + ' ms'); }, NSP_VOICE_ACK_MS);
-  var turn = { type: 'NSP_VOICE_TURN', requestId: requestId, text: text, waitMs: NSP_VOICE_TAB_WAIT_MS, acceptBefore: Date.now() + NSP_VOICE_ACK_MS - 1000 };
+  var turn = { type: 'NSP_VOICE_TURN', requestId: requestId, text: text, origin: _nspVoiceTurns[requestId].origin, waitMs: NSP_VOICE_TAB_WAIT_MS, acceptBefore: Date.now() + NSP_VOICE_ACK_MS - 1000 };
   try {
     chrome.tabs.sendMessage(tabId, turn, { frameId: 0 }, function(ack) {
       var err = chrome.runtime.lastError;
@@ -1096,15 +1113,24 @@ function nspVoiceByTab(tabId, text, requestId, sendResponse) {
 }
 
 // The assistant that can act lives in the YouTube tab, so a question asked from any other page brings YouTube to the front first.
-function nspVoiceAsk(text, requestId, sendResponse) {
+function nspAssistDelegate(text, requestId, opts, sendResponse) {
+  opts = { origin: opts && opts.origin === 'chat' ? 'chat' : 'voice', fallback: !(opts && opts.fallback === false) };
+  var fail = function(reason) {
+    if (opts.fallback) nspVoiceByCascade(text, reason, sendResponse);
+    else sendResponse({ ok: false, answer: '', error: 'The YouTube agent did not take the instruction: ' + reason + '.', actedOnTab: false });
+  };
   nspVoiceYouTubeTab(function(tab, how) {
-    if (!tab) { nspVoiceByCascade(text, 'no YouTube tab could be opened', sendResponse); return; }
-    if (how === 'active') { nspVoiceByTab(tab.id, text, requestId, sendResponse); return; }
+    if (!tab) { fail('no YouTube tab could be opened'); return; }
+    if (how === 'active') { nspVoiceByTab(tab.id, text, requestId, sendResponse, opts); return; }
     nspVoiceWaitBridge(tab.id, function(ready) {
-      if (ready) nspVoiceByTab(tab.id, text, requestId, sendResponse);
-      else nspVoiceByCascade(text, 'YouTube did not load in time', sendResponse);
+      if (ready) nspVoiceByTab(tab.id, text, requestId, sendResponse, opts);
+      else fail('YouTube did not load in time');
     });
   });
+}
+
+function nspVoiceAsk(text, requestId, sendResponse) {
+  nspAssistDelegate(text, requestId, { origin: 'voice', fallback: true }, sendResponse);
 }
 
 var NSP_VR_MAX_WORDS = 14;
@@ -1124,11 +1150,11 @@ var NSP_VR_PICK_VERB = /\b(?:abre|abrir|abremelo|abrelo|abrela|pon|ponme|dale|en
 var NSP_VR_SCAN = /\b(?:escane\w*|scan\w*)\b/;
 var NSP_VR_SCAN_OK = /^(?:esta|este|esto|la|el|los|las|pagina|page|this|the|aqui|here|otra|otro|vez|again|de|nuevo|ahora|now|ya|youtube|feed|inicio|home|un|una|a|haz|hazme|hazlo|hacer|dale|al|quiero|puedes|podrias|vamos|vuelve|volver|to|me|it|lo|rapido|resultados|results|nichos|niches|do|run|start|empieza|inicia|lanza|abre|open)$/;
 var NSP_VR_SAVE = /\b(?:guarda(?:lo|la|me|melo|mela)?|guardar(?:lo|la)?|salva(?:lo|la)?|save|bookmark)\b(?! silencio)/;
+var NSP_VR_SEARCH_LEAD = /^(?:busca(?:me)?|buscar|search(?: youtube)?(?: for)?|look up)\s+(.+)$/;
 var NSP_VR_SEARCH = /^(?:(?:quiero|puedes|podrias|necesito|vamos a|me puedes|can you|could you)\s+)?(?:que\s+)?(?:busca(?:me|lo|la)?|buscar|busques|busque|encuentra(?:me)?|search(?: youtube)?(?: for)?|look up|look for|find(?: me)?|pon(?:me)? videos? (?:de|sobre))\s+(.+)$/;
 var NSP_VR_OTHER_SITE = /\b(?:google|amazon|wikipedia|bing|spotify|netflix|tiktok|instagram|facebook|twitter|reddit|chatgpt|gmail)\b/;
 var NSP_VR_PAGES = [
   { page: 'dashboard/dashboard.html', re: '(?:command center|comand center|commander center|centro de comandos?|centro de mando|dashboard|panel de control|panel principal)' },
-  { page: 'academy/academy.html', re: '(?:curso|cursos|course|academia|academy|clases|lecciones)' },
   { page: 'niche-index/niche-index.html', re: '(?:indice de nichos?|niche index|nicho index|index of niches|indice)' },
   { page: 'setup/setup.html', re: '(?:setup|set up|configuracion(?: inicial)?|configurar)' },
   { page: 'options/options.html', re: '(?:settings|ajustes|opciones|options)' }
@@ -1213,7 +1239,7 @@ function nspVrSite(target) {
 
 function nspVrQuery(q, raw) {
   q = q.replace(/^(?:(?:en|on|in)\s+)?you ?tube\s+/, '').replace(/\s+(?:en|on|in)\s+you ?tube$/, '').replace(/^(?:de|sobre|about|for)\s+/, '').trim();
-  if (!q || q.split(' ').length > 8 || NSP_VR_OTHER_SITE.test(q)) return '';
+  if (!q || q.split(' ').length > 12 || NSP_VR_OTHER_SITE.test(q)) return '';
   var originals = {};
   String(raw || '').split(/\s+/).forEach(function(w) {
     var k = nspVrNorm(w);
@@ -1233,6 +1259,11 @@ function nspVrDecide(s, raw) {
   if (/^(?:para|parate|paralo|detente|detenlo|deten todo|para todo|para ya|ya para|stop|stop it|stop everything|basta|ya basta|alto|cancela|cancelalo|cancel|cancel it|cancel that|olvidalo|forget it|never mind|nevermind|dejalo|ya esta)$/.test(s)) return { kind: 'stop' };
 
   if (words.length > NSP_VR_MAX_WORDS) return null;
+  m = s.match(NSP_VR_SEARCH_LEAD);
+  if (m && !NSP_VR_NEGATION.test(s)) {
+    var lead = nspVrQuery(m[1], raw);
+    if (lead) return { kind: 'search', q: lead };
+  }
   if (NSP_VR_QUESTION.test(s) || NSP_VR_NEGATION.test(s)) return null;
 
   if (words.length <= 8) {
@@ -1296,8 +1327,49 @@ function nspVoiceRoute(text, heardLang) {
   var s = nspVrClean(norm);
   if (!s) return NSP_VR_WAKE.test(norm) ? { kind: 'hello', lang: nspVrLang(norm, heardLang) } : null;
   var r = nspVrDecide(s, String(text || ''));
-  if (r) r.lang = nspVrLang(s, heardLang);
+  if (r) { r.lang = nspVrLang(s, heardLang); r.said = s; }
   return r;
+}
+
+var NSP_VR_HEAD = /^(?:abre|abreme|abrir|busca|buscame|buscar|escanea|escanear|guarda|guardar|cierra|cerrar|recarga|recargar|refresca|siguiente|pestana|nueva|atras|adelante|vuelve|regresa|callate|activa|desactiva|apaga|enciende|deja|escuchame|ve|vete|llevame|open|search|scan|save|close|reload|refresh|back|forward|next|previous|new|go)$/;
+var NSP_VR_JOIN = /^(?:y|e|and|luego|despues|then|tambien|also)$/;
+var NSP_VR_CUTS_MAX = 6;
+var NSP_VR_JUNK_MAX = 1;
+
+function nspVoiceRouteAll(text, heardLang) {
+  var whole = nspVoiceRoute(text, heardLang);
+  if (whole && whole.kind !== 'search') return [whole];
+  if (NSP_VR_NEGATION.test(nspVrNorm(text))) return whole ? [whole] : null;
+  var tokens = String(text || '').trim().split(/\s+/).filter(Boolean);
+  var keys = tokens.map(function(w) { return nspVrNorm(w); });
+  var cuts = [];
+  for (var i = 1; i < tokens.length && cuts.length < NSP_VR_CUTS_MAX; i++) if (NSP_VR_HEAD.test(keys[i])) cuts.push(i);
+  if (!cuts.length) return whole ? [whole] : null;
+  var memo = {};
+  function best(from) {
+    if (Object.prototype.hasOwnProperty.call(memo, from)) return memo[from];
+    var out = null;
+    var ends = cuts.filter(function(c) { return c > from; }).concat([tokens.length]);
+    for (var k = 0; k < ends.length; k++) {
+      var to = ends[k];
+      while (to > from + 1 && NSP_VR_JOIN.test(keys[to - 1])) to--;
+      var r = nspVoiceRoute(tokens.slice(from, to).join(' '), heardLang);
+      if (!r || r.kind === 'hello' || !NSP_VR_HEAD.test(String(r.said || '').split(' ')[0])) continue;
+      var rest = ends[k] === tokens.length ? [] : best(ends[k]);
+      if (rest && (!out || rest.length + 1 > out.length)) out = [r].concat(rest);
+    }
+    memo[from] = out;
+    return out;
+  }
+  var parts = best(0);
+  if (!parts && !whole && !NSP_VR_QUESTION.test(nspVrNorm(text))) {
+    for (var skip = 1; skip <= NSP_VR_JUNK_MAX && !parts; skip++) {
+      if (cuts.indexOf(skip) < 0) continue;
+      var tail = best(skip);
+      if (tail && tail.length > 1) parts = tail;
+    }
+  }
+  return parts && parts.length > 1 ? parts : (whole ? [whole] : null);
 }
 
 var NSP_VOICE_OFFSCREEN = 'offscreen/voice.html';
@@ -1307,8 +1379,18 @@ var NSP_VOICE_RELOAD_AFTER_MS = 2500;
 var NSP_VOICE_LISTEN_RETRY_MS = 1500;
 var NSP_VOICE_MIC_TAB_GAP_MS = 10000;
 var NSP_VOICE_BLANK_TAB = /^(?:chrome:\/\/newtab\/?|chrome-search:\/\/local-ntp|about:blank)/;
-var NSP_VOICE_STATES = { idle: 1, listening: 1, thinking: 1, speaking: 1, error: 1 };
-var NSP_VOICE_BADGE = { listening: '#ff2d2d', thinking: '#ffffff', speaking: '#ffffff', error: '#ff2d2d' };
+var NSP_VOICE_STATES = { idle: 1, listening: 1, hearing: 1, noisy: 1, thinking: 1, speaking: 1, error: 1 };
+var NSP_VOICE_BADGE = { listening: '#ff2d2d', hearing: '#ff2d2d', noisy: '#ffb020', thinking: '#ffffff', speaking: '#ffffff', error: '#ff2d2d' };
+var NSP_VOICE_EARLY_MS = { next_tab: 350, prev_tab: 350, close_tab: 350, new_tab: 350, back: 350, forward: 350, reload: 350, wake: 350, agent: 350, hush: 300, stop: 300, youtube: 800, site: 800, page: 800, search: 800 };
+var NSP_VOICE_EARLY_ONE = /^(?:atras|adelante|recarga|recargar|refresca|reload|refresh|back|forward|callate|calla|silencio|para|basta|alto|stop)$/;
+var NSP_VOICE_IGNORED_GAP_MS = 2000;
+var NSP_VOICE_LOG_KEY = 'nsp_voice_log';
+var NSP_VOICE_LOG_MAX = 100;
+var NSP_VOICE_REPLY_MAX_MS = 1500;
+var NSP_VOICE_CANCEL_QUIET_MS = 4000;
+var NSP_VOICE_ASSIST_ROUNDS = 6;
+var NSP_VOICE_ASSIST_STEPS = 12;
+var NSP_VOICE_MEMORY_MS = 600000;
 var NSP_VOICE_LINES = {
   hello: { en: 'Yes?', es: 'Dime.' },
   youtube: { en: 'Opening YouTube.', es: 'Abro YouTube.' },
@@ -1344,13 +1426,15 @@ var NSP_VOICE_LINES = {
   not_heard: { en: 'I did not catch that.', es: 'No te entendí.' },
   no_provider: { en: 'No AI provider is set up. Add a key in Setup.', es: 'No hay proveedor de IA. Añade una clave en Setup.' },
   busy: { en: 'Every AI provider is busy. Try again in a moment.', es: 'Todos los proveedores están ocupados. Prueba en un momento.' },
-  no_answer: { en: 'I did not get an answer.', es: 'No obtuve respuesta.' }
+  no_answer: { en: 'I did not get an answer.', es: 'No obtuve respuesta.' },
+  slow_engine: { en: 'Speech recognition is not answering, so I switched to the slow local one.', es: 'El reconocimiento de voz no responde, así que uso el local, que es lento.' }
 };
 var NSP_VOICE_ASK_ERRORS = { no_provider_configured: 'no_provider', all_busy: 'busy' };
-var NSP_VOICE_EAR_LINES = { mic_permission: 'mic', mic_missing: 'mic_help', mic_busy: 'mic_help', model_missing: 'model_missing', not_heard: 'not_heard', transcribe_failed: 'failed' };
+var NSP_VOICE_EAR_LINES = { mic_permission: 'mic', mic_missing: 'mic_help', mic_busy: 'mic_help', model_missing: 'model_missing', not_heard: 'not_heard', transcribe_failed: 'failed', slow_engine: 'slow_engine' };
 var NSP_VOICE_MIC_REASONS = { mic_permission: 1, mic_missing: 1, mic_busy: 1 };
 var NSP_VOICE_PREF_KEYS = ['nsp_voice_engine', 'nsp_voice_browser_name', 'nsp_voice_local_name', 'nsp_voice_lang', 'nsp_voice_wake_word', 'nsp_openai_api_key', 'nsp_fish_api_key', 'nsp_fish_voice_id'];
-var _nspVoice = { ear: 'idle', wake: false, lang: /^es\b/i.test((self.navigator && navigator.language) || '') ? 'es' : 'en', busy: 0, gen: 0, stateAt: 0, micTabAt: 0, creating: null, recalled: false };
+var _nspVoice = { ear: 'idle', wake: false, lang: /^es\b/i.test((self.navigator && navigator.language) || '') ? 'es' : 'en', busy: 0, gen: 0, stateAt: 0, micTabAt: 0, creating: null, recalled: false, cueAt: 0, pttEndAt: 0, cancelAt: 0 };
+var _nspVoiceLogChain = Promise.resolve();
 
 function nspVoiceFromEar(sender) {
   var page = chrome.runtime.getURL(NSP_VOICE_OFFSCREEN);
@@ -1411,13 +1495,27 @@ function nspVoiceToEar(msg) {
   });
 }
 
-function nspVoiceListen() {
+function nspVoicePtt(op, auto, tentative) {
+  if (op === 'end' || op === 'cancel') {
+    _nspVoice.pttEndAt = Date.now();
+    if (op === 'cancel') _nspVoice.cancelAt = _nspVoice.pttEndAt;
+    (_nspVoice.creating ? _nspVoice.creating.then(function() { return true; }, function() { return false; }) : nspVoiceHasEar()).then(function(has) { if (has) nspVoicePost({ type: 'NSP_VOICE_PTT', op: op }); });
+    return;
+  }
   var sentAt = Date.now();
-  nspVoiceToEar({ type: 'NSP_VOICE_LISTEN' }).then(function(created) {
+  if (tentative !== true) {
+    _nspVoice.gen++;
+    if (_nspVoice.busy) { _nspVoice.busy = 0; nspVoiceRelay(); }
+  }
+  nspVoiceToEar({ type: 'NSP_VOICE_PTT', op: op, auto: auto === true, tentative: tentative === true }).then(function(created) {
     if (!created) return;
     // A document that is still starting can miss the first message, and then the tap would do nothing at all.
-    setTimeout(function() { if (_nspVoice.stateAt < sentAt) nspVoicePost({ type: 'NSP_VOICE_LISTEN' }); }, NSP_VOICE_LISTEN_RETRY_MS);
+    setTimeout(function() { if (_nspVoice.stateAt < sentAt && _nspVoice.pttEndAt < sentAt) nspVoicePost({ type: 'NSP_VOICE_PTT', op: 'start', auto: op === 'toggle' || auto === true }); }, NSP_VOICE_LISTEN_RETRY_MS);
   });
+}
+
+function nspVoiceCue(cue) {
+  nspVoicePost({ type: 'NSP_VOICE_CUE', cue: cue });
 }
 
 function nspVoiceSay(text, fixed) {
@@ -1433,6 +1531,11 @@ function nspVoiceLine(key, lang) {
   if (row) nspVoiceSay(row[lang === 'es' ? 'es' : 'en'], true);
 }
 
+function nspVoiceSayLine(key, lang) {
+  if (key === 'done') nspVoiceCue('done');
+  else nspVoiceLine(key, lang);
+}
+
 function nspVoiceHush() {
   _nspVoice.gen++;
   _nspVoice.busy = 0;
@@ -1444,7 +1547,7 @@ function nspVoiceHush() {
 }
 
 function nspVoiceShown() {
-  return _nspVoice.busy && _nspVoice.ear === 'idle' ? 'thinking' : _nspVoice.ear;
+  return _nspVoice.busy && (_nspVoice.ear === 'idle' || _nspVoice.ear === 'noisy') ? 'thinking' : _nspVoice.ear;
 }
 
 function nspVoiceBadge(state) {
@@ -1457,21 +1560,113 @@ function nspVoiceBadge(state) {
   } catch (e) {}
 }
 
-function nspVoiceActiveTab(cb) {
-  chrome.tabs.query({ active: true, lastFocusedWindow: true }, function(tabs) {
-    cb((!chrome.runtime.lastError && tabs && tabs[0]) || null);
+function nspTargetTab(cb) {
+  var pick = function(query) {
+    chrome.tabs.query(query, function(tabs) { cb((!chrome.runtime.lastError && tabs && tabs[0]) || null); });
+  };
+  try {
+    chrome.windows.getLastFocused({ windowTypes: ['normal'] }, function(win) {
+      if (chrome.runtime.lastError || !win || !(win.id >= 0)) pick({ active: true, lastFocusedWindow: true });
+      else pick({ active: true, windowId: win.id });
+    });
+  } catch (e) { pick({ active: true, lastFocusedWindow: true }); }
+}
+
+function nspVoiceToTabs(msg) {
+  nspVoicePost(msg);
+  nspTargetTab(function(tab) {
+    if (!tab || !(tab.id >= 0)) return;
+    try { chrome.tabs.sendMessage(tab.id, msg, { frameId: 0 }, function() { void chrome.runtime.lastError; }); } catch (e) {}
   });
 }
 
 function nspVoiceRelay(reason) {
   var state = nspVoiceShown();
-  var msg = { type: 'NSP_VOICE_STATE', state: state, wake: _nspVoice.wake };
-  if (reason) msg.reason = String(reason);
-  nspVoiceBadge(state);
-  nspVoiceActiveTab(function(tab) {
-    if (!tab || !NSP_VOICE_YOUTUBE.test(String(tab.url || ''))) return;
-    try { chrome.tabs.sendMessage(tab.id, msg, { frameId: 0 }, function() { void chrome.runtime.lastError; }); } catch (e) {}
+  nspVoiceRecall(function() {
+    var msg = { type: 'NSP_VOICE_STATE', state: state, wake: _nspVoice.wake, relay: true };
+    if (reason) msg.reason = String(reason);
+    nspVoiceBadge(state);
+    nspVoiceToTabs(msg);
   });
+}
+
+function nspVoiceFlash(state, reason) {
+  nspVoiceRecall(function() {
+    var msg = { type: 'NSP_VOICE_STATE', state: state, wake: _nspVoice.wake, relay: true, flash: true };
+    if (reason) msg.reason = String(reason);
+    nspVoiceToTabs(msg);
+  });
+}
+
+function nspVoiceLog(entry, action, reason) {
+  var row = { at: Date.now(), text: String(entry.text || '').slice(0, 200), addressed: entry.addressed === true, lang: String(entry.lang || '').slice(0, 8), ms: Math.round((entry.ms || 0) + performance.now() - entry.t0) };
+  if (action) row.action = action;
+  else row.reason = reason;
+  console.log('[NSP SW] voice: ' + (action ? 'acted ' + action : 'dropped, ' + reason) + ', ' + row.ms + ' ms after the phrase');
+  _nspVoiceLogChain = _nspVoiceLogChain.then(function() {
+    return chrome.storage.session.get(NSP_VOICE_LOG_KEY).then(function(r) {
+      var list = r && Array.isArray(r[NSP_VOICE_LOG_KEY]) ? r[NSP_VOICE_LOG_KEY] : [];
+      list.push(row);
+      var out = {};
+      out[NSP_VOICE_LOG_KEY] = list.slice(-NSP_VOICE_LOG_MAX);
+      return chrome.storage.session.set(out);
+    });
+  }).catch(function() {});
+  return row;
+}
+
+function nspVoiceLogReply(row, reply, error) {
+  if (!row) return;
+  _nspVoiceLogChain = _nspVoiceLogChain.then(function() {
+    return chrome.storage.session.get(NSP_VOICE_LOG_KEY).then(function(r) {
+      var list = r && Array.isArray(r[NSP_VOICE_LOG_KEY]) ? r[NSP_VOICE_LOG_KEY] : [];
+      for (var i = list.length - 1; i >= 0; i--) {
+        if (list[i] && list[i].at === row.at && list[i].text === row.text) {
+          if (reply) list[i].reply = String(reply).slice(0, 4000);
+          if (error) list[i].error = String(error).slice(0, 300);
+          list[i].replyMs = Date.now() - row.at;
+          var out = {};
+          out[NSP_VOICE_LOG_KEY] = list;
+          return chrome.storage.session.set(out);
+        }
+      }
+    });
+  }).catch(function() {});
+}
+
+function nspVoiceMemory(cb) {
+  chrome.storage.session.get(NSP_VOICE_LOG_KEY).then(function(r) {
+    var list = r && Array.isArray(r[NSP_VOICE_LOG_KEY]) ? r[NSP_VOICE_LOG_KEY] : [];
+    var since = Date.now() - NSP_VOICE_MEMORY_MS;
+    var turns = [];
+    list.filter(function(row) { return row && row.at > since && row.action === 'assistant' && row.reply; }).slice(-3).forEach(function(row) {
+      turns.push({ role: 'user', content: String(row.text) }, { role: 'assistant', content: String(row.reply).slice(0, 1200) });
+    });
+    cb(turns);
+  }, function() { cb([]); });
+}
+
+var NSP_VOICE_ATTEMPT = /^(?:abre\w*|abrir|busca\w*|buscar|pon\w*|ve|vete|vuelve|regresa|atras|adelante|escane\w*|guarda\w*|cierra\w*|recarga\w*|refresca\w*|siguiente|anterior|activa\w*|desactiva\w*|apaga\w*|enciende|llevame|entra|muestrame|open|search|find|look|go|scan|save|close|reload|refresh|next|previous|back|forward|turn|show|play)\b/;
+
+function nspVoiceLooksLikeCommand(text) {
+  var s = nspVrClean(nspVrNorm(text));
+  return !!s && s.split(' ').length <= 10 && NSP_VOICE_ATTEMPT.test(s);
+}
+
+function nspVoiceIgnored(entry, reason) {
+  nspVoiceLog(entry, '', reason);
+  nspVoiceFlash('ignored', reason);
+  if (Date.now() - _nspVoice.cueAt < NSP_VOICE_IGNORED_GAP_MS) return;
+  _nspVoice.cueAt = Date.now();
+  nspVoiceCue('ignored');
+}
+
+function nspVoiceDropped(msg) {
+  var reason = String(msg.reason || '');
+  if (reason !== 'echo' && reason !== 'noisy') return;
+  var entry = { text: String(msg.text || ''), addressed: false, lang: String(msg.lang || ''), ms: 0, t0: performance.now() };
+  if (reason === 'echo' && nspVoiceRouteAll(entry.text.slice(0, 400), entry.lang)) nspVoiceIgnored(entry, reason);
+  else nspVoiceLog(entry, '', reason);
 }
 
 function nspVoiceRemember() {
@@ -1502,15 +1697,16 @@ function nspVoiceRecall(cb) {
 
 function nspVoiceEar(state, reason) {
   if (!NSP_VOICE_STATES[state]) return;
-  _nspVoice.recalled = true;
   _nspVoice.stateAt = Date.now();
-  _nspVoice.ear = state;
-  if (reason === 'mic_lost_wake') _nspVoice.wake = false;
-  nspVoiceRemember();
-  nspVoiceRelay(reason);
-  if (state === 'error') _nspVoice.ear = 'idle';
-  if (state === 'error' && NSP_VOICE_MIC_REASONS[reason]) { nspVoiceMicPage(NSP_VOICE_EAR_LINES[reason]); return; }
-  if (NSP_VOICE_EAR_LINES[reason]) nspVoiceLine(NSP_VOICE_EAR_LINES[reason], _nspVoice.lang);
+  nspVoiceRecall(function() {
+    _nspVoice.ear = state;
+    if (reason === 'mic_lost_wake') _nspVoice.wake = false;
+    nspVoiceRemember();
+    nspVoiceRelay(reason);
+    if (state === 'error') _nspVoice.ear = 'idle';
+    if (state === 'error' && NSP_VOICE_MIC_REASONS[reason]) { if (Date.now() - _nspVoice.cancelAt > NSP_VOICE_CANCEL_QUIET_MS) nspVoiceMicPage(NSP_VOICE_EAR_LINES[reason]); return; }
+    if (NSP_VOICE_EAR_LINES[reason]) nspVoiceLine(NSP_VOICE_EAR_LINES[reason], _nspVoice.lang);
+  });
 }
 
 function nspVoiceTap() {
@@ -1518,8 +1714,8 @@ function nspVoiceTap() {
     nspVoiceHasEar().then(function(has) {
       if (!has) _nspVoice.ear = 'idle';
       var shown = nspVoiceShown();
-      if (shown === 'listening' || shown === 'thinking' || shown === 'speaking') { nspVoiceHush(); return; }
-      nspVoiceListen();
+      if (shown === 'thinking' || shown === 'speaking') { nspVoiceHush(); return; }
+      nspVoicePtt('toggle');
     });
   });
 }
@@ -1552,7 +1748,7 @@ function nspVoiceFocus(tab, cb) {
 
 function nspVoiceOpenUrl(url, cb) {
   cb = cb || function() {};
-  nspVoiceActiveTab(function(tab) {
+  nspTargetTab(function(tab) {
     if (tab && NSP_VOICE_BLANK_TAB.test(String(tab.url || tab.pendingUrl || ''))) {
       chrome.tabs.update(tab.id, { url: url }, function(t) { cb(chrome.runtime.lastError ? null : t); });
       return;
@@ -1572,7 +1768,7 @@ function nspVoiceOpenPage(url, cb) {
 }
 
 function nspVoiceYouTubeTab(cb) {
-  nspVoiceActiveTab(function(active) {
+  nspTargetTab(function(active) {
     if (active && NSP_VOICE_YOUTUBE.test(String(active.url || ''))) { cb(active, 'active'); return; }
     chrome.tabs.query({ url: 'https://www.youtube.com/*' }, function(tabs) {
       var list = (!chrome.runtime.lastError && tabs) || [];
@@ -1610,34 +1806,34 @@ function nspVoiceWaitBridge(tabId, cb) {
   })();
 }
 
-function nspVoiceChannelOfVideo(tabId, vid, lang) {
+function nspVoiceChannelOfVideo(tabId, vid, lang, say) {
   innertubeFetch('player', { videoId: vid }, { gl: 'US', hl: 'en' }).then(function(data) {
     var id = data && data.videoDetails && data.videoDetails.channelId;
     if (typeof id !== 'string' || !/^UC[A-Za-z0-9_-]{22}$/.test(id)) throw new Error('the player response names no channel');
     chrome.tabs.update(tabId, { url: 'https://www.youtube.com/channel/' + id }, function() {
-      nspVoiceLine(chrome.runtime.lastError ? 'failed' : 'opening_channel', lang);
+      say(chrome.runtime.lastError ? 'failed' : 'opening_channel', lang);
     });
   }).catch(function(e) {
     console.warn('[NSP SW] voice: channel lookup failed:', e && e.message);
-    nspVoiceLine('failed', lang);
+    say('failed', lang);
   });
 }
 
-function nspVoiceInPage(r, gen) {
+function nspVoiceInPage(r, gen, say) {
   chrome.storage.local.get('nsp_agent_enabled', function(st) {
-    if (chrome.runtime.lastError || !st || st.nsp_agent_enabled !== true) { nspVoiceLine('agent_needed', r.lang); return; }
+    if (chrome.runtime.lastError || !st || st.nsp_agent_enabled !== true) { say('agent_needed', r.lang); return; }
     nspVoiceYouTubeTab(function(tab, how) {
-      if (!tab) { nspVoiceLine('failed', r.lang); return; }
-      if (how === 'opened') nspVoiceLine('youtube', r.lang);
+      if (!tab) { say('failed', r.lang); return; }
+      if (how === 'opened') say('youtube', r.lang);
       nspVoiceWaitBridge(tab.id, function(ready) {
         if (_nspVoice.gen !== gen) return;
-        if (!ready) { nspVoiceLine('youtube_late', r.lang); return; }
+        if (!ready) { say('youtube_late', r.lang); return; }
         chrome.tabs.sendMessage(tab.id, { type: 'NSP_VOICE_ACT', action: r.kind, n: r.n || 0 }, { frameId: 0 }, function(res) {
-          if (chrome.runtime.lastError || !res) { nspVoiceLine('failed', r.lang); return; }
+          if (chrome.runtime.lastError || !res) { say('failed', r.lang); return; }
           if (_nspVoice.gen !== gen) return;
-          if (res.code === 'no_channel_link' && typeof res.vid === 'string' && /^[A-Za-z0-9_-]{11}$/.test(res.vid)) { nspVoiceChannelOfVideo(tab.id, res.vid, r.lang); return; }
+          if (res.code === 'no_channel_link' && typeof res.vid === 'string' && /^[A-Za-z0-9_-]{11}$/.test(res.vid)) { nspVoiceChannelOfVideo(tab.id, res.vid, r.lang, say); return; }
           if (res.code === 'stopped') return;
-          nspVoiceLine(NSP_VOICE_LINES[res.code] ? res.code : 'failed', r.lang);
+          say(NSP_VOICE_LINES[res.code] ? res.code : 'failed', r.lang);
         });
       });
     });
@@ -1645,72 +1841,97 @@ function nspVoiceInPage(r, gen) {
 }
 
 function nspVoiceStopPage() {
-  nspVoiceActiveTab(function(tab) {
+  nspTargetTab(function(tab) {
     if (!tab || !NSP_VOICE_YOUTUBE.test(String(tab.url || ''))) return;
     try { chrome.tabs.sendMessage(tab.id, { type: 'NSP_VOICE_ACT', action: 'stop' }, { frameId: 0 }, function() { void chrome.runtime.lastError; }); } catch (e) {}
   });
 }
 
-function nspVoiceTabs(kind, lang) {
-  nspVoiceActiveTab(function(tab) {
-    if (!tab) { nspVoiceLine('failed', lang); return; }
-    var after = function(line) {
-      return function() {
-        var err = chrome.runtime.lastError;
-        nspVoiceLine(err ? (kind === 'back' || kind === 'forward' ? 'no_history' : 'failed') : line, lang);
-      };
+function nspVoiceTabs(kind, lang, fin, say) {
+  nspTargetTab(function(tab) {
+    if (!tab) { say('failed', lang); fin(null); return; }
+    var after = function(t) {
+      var err = chrome.runtime.lastError;
+      if (err) say(kind === 'back' || kind === 'forward' ? 'no_history' : 'failed', lang);
+      else say('done', lang);
+      fin(err ? null : (t && t.id ? t : tab));
     };
-    if (kind === 'back') { chrome.tabs.goBack(tab.id, after('back')); return; }
-    if (kind === 'forward') { chrome.tabs.goForward(tab.id, after('forward')); return; }
-    if (kind === 'reload') { chrome.tabs.reload(tab.id, after('reload')); return; }
-    if (kind === 'close_tab') { chrome.tabs.remove(tab.id, after('close_tab')); return; }
-    if (kind === 'new_tab') { chrome.tabs.create({ windowId: tab.windowId, index: tab.index + 1, active: true }, after('new_tab')); return; }
+    if (kind === 'back') { chrome.tabs.goBack(tab.id, after); return; }
+    if (kind === 'forward') { chrome.tabs.goForward(tab.id, after); return; }
+    if (kind === 'reload') { chrome.tabs.reload(tab.id, after); return; }
+    if (kind === 'close_tab') { chrome.tabs.remove(tab.id, after); return; }
+    if (kind === 'new_tab') { chrome.tabs.create({ windowId: tab.windowId, index: tab.index + 1, active: true }, after); return; }
     chrome.tabs.query({ windowId: tab.windowId }, function(list) {
       list = ((!chrome.runtime.lastError && list) || []).slice().sort(function(a, b) { return a.index - b.index; });
-      if (list.length < 2) { nspVoiceLine('one_tab', lang); return; }
+      if (list.length < 2) { say('one_tab', lang); fin(null); return; }
       var at = 0;
       for (var i = 0; i < list.length; i++) if (list[i].id === tab.id) at = i;
       var to = list[(at + (kind === 'next_tab' ? 1 : list.length - 1)) % list.length];
-      chrome.tabs.update(to.id, { active: true }, after(kind));
+      chrome.tabs.update(to.id, { active: true }, after);
     });
   });
 }
 
-function nspVoiceRun(r, gen) {
+function nspVoiceRun(r, gen, fin, say) {
+  fin = fin || function() {};
+  say = say || nspVoiceSayLine;
   var lang = r.lang;
-  var said = function(line) { return function(tab) { nspVoiceLine(tab ? line : 'failed', lang); }; };
-  if (r.kind === 'hello') { nspVoiceLine('hello', lang); return; }
-  if (r.kind === 'hush') { nspVoiceHush(); return; }
-  if (r.kind === 'stop') { nspVoiceHush(); nspVoiceStopPage(); return; }
-  if (r.kind === 'wake') { nspVoiceSetWake(r.on, lang); return; }
+  var seen = function(tab) {
+    say(tab ? 'done' : 'failed', lang);
+    fin(tab || null);
+  };
+  if (r.kind === 'hello') { say('hello', lang); fin(null); return; }
+  if (r.kind === 'hush') { nspVoiceHush(); fin(null); return; }
+  if (r.kind === 'stop') { nspVoiceHush(); nspVoiceStopPage(); fin(null); return; }
+  if (r.kind === 'wake') { nspVoiceSetWake(r.on, lang); fin(null); return; }
   if (r.kind === 'agent') {
     chrome.storage.local.set({ nsp_agent_enabled: r.on === true }, function() {
-      nspVoiceLine(chrome.runtime.lastError ? 'failed' : (r.on ? 'agent_on' : 'agent_off'), lang);
+      say(chrome.runtime.lastError ? 'failed' : (r.on ? 'agent_on' : 'agent_off'), lang);
     });
+    fin(null);
     return;
   }
   if (r.kind === 'youtube') {
     nspVoiceYouTubeTab(function(tab, how) {
       if (tab && how === 'active' && !/^https:\/\/www\.youtube\.com\/?(?:[?#].*)?$/.test(String(tab.url || ''))) chrome.tabs.update(tab.id, { url: 'https://www.youtube.com/' }, function() { void chrome.runtime.lastError; });
-      said('youtube')(tab);
+      seen(tab);
     });
     return;
   }
   if (r.kind === 'search') {
     var results = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(r.q);
-    nspVoiceActiveTab(function(tab) {
-      if (tab && NSP_VOICE_YOUTUBE.test(String(tab.url || ''))) chrome.tabs.update(tab.id, { url: results }, function(t) { said('search')(chrome.runtime.lastError ? null : t); });
-      else nspVoiceOpenUrl(results, said('search'));
+    if (r.tab) {
+      chrome.tabs.update(r.tab, { url: results }, function(t) {
+        if (!chrome.runtime.lastError && t) { seen(t); return; }
+        nspVoiceRun({ kind: 'search', q: r.q, lang: lang }, gen, fin, say);
+      });
+      return;
+    }
+    nspTargetTab(function(tab) {
+      if (tab && NSP_VOICE_YOUTUBE.test(String(tab.url || ''))) chrome.tabs.update(tab.id, { url: results }, function(t) { seen(chrome.runtime.lastError ? null : t); });
+      else nspVoiceOpenUrl(results, seen);
     });
     return;
   }
-  if (r.kind === 'site') { nspVoiceOpenUrl(r.url, said('open')); return; }
-  if (r.kind === 'page') { nspVoiceOpenPage(chrome.runtime.getURL(r.page), said('open')); return; }
-  if (r.kind === 'scan' || r.kind === 'result' || r.kind === 'channel' || r.kind === 'save') { nspVoiceInPage(r, gen); return; }
-  nspVoiceTabs(r.kind, lang);
+  if (r.kind === 'site') { nspVoiceOpenUrl(r.url, seen); return; }
+  if (r.kind === 'page') { nspVoiceOpenPage(chrome.runtime.getURL(r.page), seen); return; }
+  if (r.kind === 'scan' || r.kind === 'result' || r.kind === 'channel' || r.kind === 'save') { nspVoiceInPage(r, gen, say); fin(null); return; }
+  nspVoiceTabs(r.kind, lang, fin, say);
 }
 
-// The full answer stays in the assistant panel; out loud only its opening sentences, so a reply does not run for a minute.
+function nspVoiceRunAll(list, gen, cb) {
+  var out = [];
+  (function next(i) {
+    if (i >= list.length) { cb(out); return; }
+    var r = list[i];
+    nspVoiceRun(r, gen, function(tab) {
+      out.push({ kind: r.kind, q: r.q || '', tab: (tab && tab.id) || 0 });
+      next(i + 1);
+    });
+  })(0);
+}
+
+// The full answer stays in the voice history; out loud only its opening sentences, so a reply does not run for a minute.
 var NSP_VOICE_SPOKEN_MAX = 320;
 function nspVoiceSpoken(body) {
   var t = String(body || '').replace(/^\s*(?:->|\d+\)|[-*])\s*/gm, '').replace(/\s+/g, ' ').trim();
@@ -1721,41 +1942,135 @@ function nspVoiceSpoken(body) {
   return (out || t.slice(0, NSP_VOICE_SPOKEN_MAX).replace(/\s+\S*$/, '')).trim();
 }
 
-function nspVoiceThink(text, lang, gen) {
+function nspAssistVoice(text, lang, cb) {
+  if (!self.NSP_BRAIN || !self.NSP_CHAT_TOOLS) { nspVoiceByCascade(text, 'the brain did not load', cb); return; }
+  var talk = nspVrLang(nspVrNorm(text), lang);
+  chrome.storage.local.get('nsp_agent_enabled', function(st) {
+    var agentOn = !chrome.runtime.lastError && !!st && st.nsp_agent_enabled === true;
+    nspVoiceMemory(function(turns) {
+      self.NSP_CHAT_TOOLS.loop({
+        systemParts: self.NSP_BRAIN.parts({ surface: 'voice', query: text, context: self.NSP_CHAT_TOOLS.context({ surface: 'voice', agentOn: agentOn, lang: talk }) }),
+        tools: self.NSP_BRAIN.tools('voice', { agentOn: agentOn }),
+        messages: turns.concat([{ role: 'user', content: text }]),
+        maxRounds: NSP_VOICE_ASSIST_ROUNDS,
+        maxSteps: NSP_VOICE_ASSIST_STEPS,
+        maxTokens: 600,
+        ask: function(payload) { return new Promise(function(resolve) { nspChatCascade(payload, resolve); }); },
+        run: function(name, args) { return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'voice', lang: talk }, resolve); }); }
+      }).then(function(out) {
+        console.log('[NSP SW] voice: the brain answered in ' + out.rounds + ' model calls and ' + out.steps + ' tool steps, ' + (out.provider || 'no provider'));
+        if (out.ok && out.text) cb({ ok: true, answer: out.text, error: '', provider: out.provider, model: out.model });
+        else cb({ ok: false, answer: '', error: out.error || 'empty_answer' });
+      }, function(e) { cb({ ok: false, answer: '', error: String((e && e.message) || e) }); });
+    });
+  });
+}
+
+function nspVoiceThink(text, lang, gen, row) {
   _nspVoice.busy = gen;
   nspVoiceRelay();
-  nspVoiceAsk(text, 'voice-' + Date.now().toString(36) + '-' + gen, function(reply) {
+  nspAssistVoice(text, lang, function(reply) {
+    var body = reply && reply.ok ? String(reply.answer || '').trim() : '';
+    var spoken = body ? nspVoiceSpoken(body) : '';
+    var code = String((reply && reply.error) || '');
+    nspVoiceLogReply(row, body, body ? '' : (code || 'no_answer'));
     if (_nspVoice.gen !== gen) return;
     _nspVoice.busy = 0;
-    var body = reply && reply.ok ? String(reply.answer || '').trim() : '';
-    if (body) { nspVoiceSay(nspVoiceSpoken(body)); return; }
-    var code = String((reply && reply.error) || '');
-    if (NSP_VOICE_ASK_ERRORS[code]) nspVoiceLine(NSP_VOICE_ASK_ERRORS[code], lang);
+    if (spoken) { nspVoiceSay(spoken); return; }
+    var talk = nspVrLang(nspVrNorm(text), lang);
+    if (NSP_VOICE_ASK_ERRORS[code]) nspVoiceLine(NSP_VOICE_ASK_ERRORS[code], talk);
     else if (/\s/.test(code)) nspVoiceSay(code);
-    else nspVoiceLine('no_answer', lang);
+    else nspVoiceLine('no_answer', talk);
     nspVoiceRelay();
   });
 }
 
+function nspVoiceDone(list) {
+  return (Array.isArray(list) ? list : []).slice(0, 8).map(function(d) {
+    return { kind: String((d && d.kind) || ''), q: String((d && d.q) || '').slice(0, 300), tab: Number(d && d.tab) || 0 };
+  });
+}
+
+function nspVoiceEarlyOk(r, msg) {
+  var need = NSP_VOICE_EARLY_MS[r.kind];
+  if (!need || !(Number(msg.stable) >= need)) return false;
+  if ((r.kind === 'hush' || r.kind === 'stop') && msg.speaking !== true && !_nspVoice.busy) return false;
+  var words = String(r.said || '').split(' ');
+  return words.length > 1 || NSP_VOICE_EARLY_ONE.test(words[0]);
+}
+
 // With the voice on the ear sends every phrase. A command runs without the name, unless a tab is playing sound that could have said it; anything else needs "oye", "hey" or the name first.
-function nspVoiceHeard(text, lang, addressed) {
-  var t = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 2000);
-  if (!t) return;
+function nspVoiceHeard(msg, reply) {
+  reply = reply || function() {};
+  var t = String(msg.text || '').replace(/\s+/g, ' ').trim().slice(0, 2000);
+  var stage = msg.stage === 'interim' || msg.stage === 'held' ? msg.stage : 'final';
+  var lang = String(msg.lang || '');
+  var addressed = stage === 'held' || msg.addressed !== false;
+  var done = nspVoiceDone(msg.done);
+  var entry = { text: String(msg.raw || t).replace(/\s+/g, ' ').trim(), addressed: addressed, lang: lang, ms: Math.max(0, Math.min(60000, Number(msg.ms) || 0)), t0: performance.now() };
+  if (!t) {
+    if (stage === 'held') nspVoiceIgnored(entry, 'not_heard');
+    reply({ acted: false });
+    return;
+  }
   var t0 = performance.now();
-  var r = nspVoiceRoute(t, lang);
+  var routes = nspVoiceRouteAll(t, lang);
   var took = (performance.now() - t0).toFixed(2);
+  if (msg.weak === true && !routes) { addressed = false; entry.addressed = false; }
+  if (!routes) {
+    if (stage === 'interim' || done.length) { reply({ acted: false, done: done }); return; }
+    if (!addressed) {
+      if (nspVoiceLooksLikeCommand(t)) nspVoiceIgnored(entry, 'not_command');
+      else { nspVoiceLog(entry, '', 'not_command'); nspVoiceFlash('ignored', 'not_command'); }
+      reply({ acted: false, dropped: 'not_command' });
+      return;
+    }
+    var gen = ++_nspVoice.gen;
+    _nspVoice.busy = 0;
+    _nspVoice.lang = nspVrLang(nspVrNorm(t), lang);
+    console.log('[NSP SW] voice: routed in ' + took + ' ms to the assistant');
+    nspVoiceThink(t, lang, gen, nspVoiceLog(entry, 'assistant'));
+    reply({ acted: true, kinds: ['assistant'] });
+    return;
+  }
+  var from = 0;
+  while (from < routes.length && done[from] && done[from].kind === routes[from].kind && (routes[from].kind !== 'search' || done[from].q === routes[from].q)) from++;
+  var list = [];
+  for (var i = from; i < routes.length; i++) {
+    if (stage === 'interim' && i === routes.length - 1 && !nspVoiceEarlyOk(routes[i], msg)) break;
+    list.push(routes[i]);
+  }
+  if (!list.length) { reply({ acted: false, done: done }); return; }
+  if (done[from] && done[from].kind === 'search' && list[0].kind === 'search' && done[from].tab) list[0].tab = done[from].tab;
   var go = function() {
     var gen = ++_nspVoice.gen;
     _nspVoice.busy = 0;
-    _nspVoice.lang = r ? r.lang : nspVrLang(nspVrNorm(t), lang);
-    console.log('[NSP SW] voice: routed in ' + took + ' ms to ' + (r ? r.kind : 'the assistant'));
-    if (r) nspVoiceRun(r, gen);
-    else nspVoiceThink(t, lang, gen);
+    _nspVoice.lang = list[list.length - 1].lang;
+    var kinds = list.map(function(r) { return r.kind; });
+    console.log('[NSP SW] voice: routed in ' + took + ' ms to ' + kinds.join(', ') + (stage === 'interim' ? ', before the final' : ''));
+    nspVoiceLog(entry, kinds.join('+'));
+    var answered = false;
+    var answer = function(results) {
+      if (answered) return;
+      answered = true;
+      var next = done.slice(0, from).concat(results);
+      reply({ acted: true, kinds: kinds, done: next, restart: stage === 'interim' && from + list.length === routes.length && kinds[kinds.length - 1] !== 'search' });
+    };
+    var bare = list.map(function(r) { return { kind: r.kind, q: r.q || '', tab: 0 }; });
+    if (stage === 'interim' && from + list.length === routes.length && kinds[kinds.length - 1] !== 'search') answer(bare);
+    var late = setTimeout(function() { answer(bare); }, NSP_VOICE_REPLY_MAX_MS);
+    nspVoiceRunAll(list, gen, function(results) { clearTimeout(late); answer(results); });
   };
-  if (addressed !== false) { go(); return; }
-  if (!r) return;
+  if (addressed) { go(); return; }
   chrome.tabs.query({ audible: true }, function(tabs) {
-    if (!chrome.runtime.lastError && tabs && tabs.length) { console.log('[NSP SW] voice: a tab is playing sound, so an unaddressed ' + r.kind + ' was dropped'); return; }
+    var loud = (!chrome.runtime.lastError && tabs) ? tabs.filter(function(t) { return !(t.mutedInfo && t.mutedInfo.muted); }) : [];
+    if (loud.length) {
+      if (stage === 'interim') { reply({ acted: false, done: done }); return; }
+      console.log('[NSP SW] voice: a tab is playing sound, so an unaddressed ' + list[0].kind + ' was dropped');
+      nspVoiceIgnored(entry, 'audible');
+      reply({ acted: false, dropped: 'audible' });
+      return;
+    }
     go();
   });
 }
@@ -1788,14 +2103,580 @@ function nspVoiceToggle() {
   nspVoiceRecall(function() { nspVoiceSetWake(!_nspVoice.wake, _nspVoice.lang); });
 }
 
-try { chrome.commands.onCommand.addListener(function(command) { if (command === 'talk') nspVoiceToggle(); }); } catch (eCmd) {}
+var NSP_CHAT_PAGE = 'chat/chat.html';
+var NSP_CHAT_TOKEN_TTL_MS = 60000;
+var NSP_CHAT_ROUTE_WORDS = 8;
+var NSP_CHAT_ROUTE_SKIP = { hush: 1, stop: 1, wake: 1, hello: 1 };
+var NSP_CHAT_IN_PAGE = { scan: 1, result: 1, channel: 1, save: 1 };
+var NSP_CHAT_OK_LINES = { done: 1, youtube: 1, scanning: 1, saved: 1, open: 1, opening_channel: 1, agent_on: 1, agent_off: 1 };
+var NSP_CHAT_DONE = { youtube: 'Opened YouTube.', search: 'Searched YouTube.', site: 'Opened the page.', page: 'Opened the ZERACK page.', back: 'Went back.', forward: 'Went forward.', reload: 'Reloaded the tab.', next_tab: 'Moved to the next tab.', prev_tab: 'Moved to the previous tab.', close_tab: 'Closed the tab.', new_tab: 'Opened a new tab.' };
+var NSP_CHAT_PAGES = { dashboard: 'dashboard/dashboard.html', 'niche-index': 'niche-index/niche-index.html', setup: 'setup/setup.html', options: 'options/options.html' };
+var NSP_CHAT_BROWSER = { youtube: 1, back: 1, forward: 1, reload: 1, new_tab: 1, close_tab: 1, next_tab: 1, prev_tab: 1 };
+var NSP_CHAT_ACT_TOOLS = { nspSaveNiche: 1, nspAddToTracking: 1, nspExportNiches: 1, zerackBrowser: 1, zerackOpenPage: 1, zerackYouTubeAgent: 1 };
+var NSP_CHAT_NO_SCRIPT = /^https:\/\/(?:chromewebstore\.google\.com|chrome\.google\.com\/webstore)(?:[\/?#]|$)/;
+var NSP_AGENT_OFF_REFUSAL = 'not run: acting is switched off. Tell the user to turn on Agent from the ZERACK icon in the Chrome toolbar, then ask again. Do not retry.';
+var NSP_CHAT_TYPED_YT = /\byou ?tube\b/;
+var NSP_CHAT_TYPED_ASK = { save: 1, result: 1, channel: 1 };
+var NSP_CHAT_TYPED_DATA = /\b(?:mi|mis|my|mine|me|guardad\w*|saved?|escaneos?|scans?|nichos?|niches?|titulos?|titles?|ideas?|rpm|cpm|ctr)\b/;
+var NSP_CHAT_TYPED_ONLY = { search: 1, save: 1, result: 1, channel: 1, scan: 1 };
+var NSP_CHAT_NAV_TOOLS = { zerackBrowser: 1, zerackYouTubeAgent: 1 };
+var NSP_CHAT_REOPEN_MS = 180000;
+var NSP_CHAT_ROUTE_LABELS = {
+  youtube: 'Open YouTube', search: 'Search YouTube', site: 'Open a site', page: 'Open a ZERACK page', back: 'Go back', forward: 'Go forward', reload: 'Reload',
+  next_tab: 'Next tab', prev_tab: 'Previous tab', close_tab: 'Close the tab', new_tab: 'New tab', scan: 'Scan', result: 'Open a result', channel: 'Open a channel',
+  save: 'Save', agent: 'Agent switch'
+};
+var NSP_CHAT_ERRORS = {
+  no_provider_configured: 'No AI provider is set up yet. Add a key in Setup, or turn on a local model.',
+  all_busy: 'Every AI provider is busy right now. Try again in a moment.',
+  round_cap: 'Stopped after 10 model calls without a final answer.',
+  empty_answer: 'The model sent back an empty answer.'
+};
+var _nspChat = { panels: {}, keys: Promise.resolve(), reopen: Promise.resolve(), runs: {}, channel: null, beat: 0, nav: {}, navTimer: 0 };
+
+function nspChatUrl(query) {
+  return 'chrome-extension://' + chrome.runtime.id + '/' + NSP_CHAT_PAGE + (query || '');
+}
+
+function nspChatFromPage(sender) {
+  return !!(sender && sender.id === chrome.runtime.id && typeof sender.url === 'string' && sender.url.indexOf(nspChatUrl()) === 0);
+}
+
+function nspChatFromBubble(sender) {
+  return !!(sender && sender.id === chrome.runtime.id && sender.tab && sender.tab.id >= 0 && sender.frameId === 0 && /^https?:\/\//.test(String(sender.url || '')));
+}
+
+function nspChatKeys(mutate) {
+  _nspChat.keys = _nspChat.keys.then(function() {
+    return chrome.storage.session.get(['nsp_chat_tokens', 'nsp_chat_docs']).then(function(r) {
+      var box = { tokens: (r && r.nsp_chat_tokens) || {}, docs: (r && r.nsp_chat_docs) || {} };
+      var now = Date.now();
+      Object.keys(box.tokens).forEach(function(k) { if (!(now - box.tokens[k].at < NSP_CHAT_TOKEN_TTL_MS)) delete box.tokens[k]; });
+      var out = mutate(box);
+      return chrome.storage.session.set({ nsp_chat_tokens: box.tokens, nsp_chat_docs: box.docs }).then(function() { return out; });
+    });
+  }).catch(function(e) { console.warn('[NSP SW] chat: token store failed:', e && e.message); return null; });
+  return _nspChat.keys;
+}
+
+function nspChatTrusted(sender) {
+  if (!nspChatFromPage(sender)) return Promise.resolve(false);
+  if (!sender.tab || sender.frameId === 0) return Promise.resolve(true);
+  return chrome.storage.session.get('nsp_chat_docs').then(function(r) {
+    var doc = r && r.nsp_chat_docs && sender.documentId ? r.nsp_chat_docs[sender.documentId] : null;
+    return !!(doc && doc.tabId === sender.tab.id);
+  }, function() { return false; });
+}
+
+function nspChatToken(sender, sendResponse) {
+  var bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  var token = Array.prototype.map.call(bytes, function(b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+  nspChatKeys(function(box) {
+    box.tokens[token] = { tabId: sender.tab.id, at: Date.now() };
+    return token;
+  }).then(function(t) { sendResponse(t ? { ok: true, token: t } : { ok: false }); });
+}
+
+function nspChatHello(msg, sender, sendResponse) {
+  var host = '';
+  try { host = sender.tab ? new URL(String(sender.tab.url || '')).hostname : ''; } catch (e) {}
+  if (!sender.tab || sender.frameId === 0) { sendResponse({ ok: true, overlay: false, host: '' }); return; }
+  var token = String(msg.token || '');
+  nspChatKeys(function(box) {
+    var hit = box.tokens[token];
+    if (!hit) return false;
+    delete box.tokens[token];
+    if (hit.tabId !== sender.tab.id || !sender.documentId) return false;
+    var now = Date.now();
+    Object.keys(box.docs).forEach(function(k) { if (now - box.docs[k].at > 86400000) delete box.docs[k]; });
+    box.docs[sender.documentId] = { tabId: sender.tab.id, at: now };
+    return true;
+  }).then(function(ok) {
+    if (!ok) console.warn('[NSP SW] chat: refused a chat frame in tab ' + sender.tab.id + ' with no valid token');
+    sendResponse(ok ? { ok: true, overlay: true, host: host } : { ok: false });
+  });
+}
+
+function nspChatToBubble(tabId, op) {
+  try { chrome.tabs.sendMessage(tabId, { type: 'NSP_BUBBLE', op: op }, { frameId: 0 }, function() { void chrome.runtime.lastError; }); } catch (e) {}
+}
+
+function nspChatOverlay(msg, sender, sendResponse) {
+  var op = String(msg.op || '');
+  if (!sender.tab || !(sender.tab.id >= 0)) { sendResponse({ ok: false }); return; }
+  if (op === 'settled') { nspChatReopenBox(function(box) { if (box[sender.tab.id] && !box[sender.tab.id].nav) delete box[sender.tab.id]; }).then(function() { sendResponse({ ok: true }); }); return; }
+  if (op !== 'hide_site') { nspChatToBubble(sender.tab.id, 'close'); sendResponse({ ok: true }); return; }
+  var host = '';
+  try { host = new URL(String(sender.tab.url || '')).hostname; } catch (e) {}
+  if (!host) { sendResponse({ ok: false }); return; }
+  nspStorageUpdate('nsp_bubble_hidden_sites', function(list) {
+    list = Array.isArray(list) ? list.filter(function(h) { return typeof h === 'string'; }) : [];
+    if (list.indexOf(host) < 0) list.push(host);
+    return list.slice(-500);
+  }).then(function() {
+    nspChatToBubble(sender.tab.id, 'close');
+    sendResponse({ ok: true, host: host });
+  });
+}
+
+function nspChatLine(key, lang, kind) {
+  if (key === 'done') return NSP_CHAT_DONE[kind] || 'Done.';
+  var row = NSP_VOICE_LINES[key];
+  return row ? row[lang === 'es' ? 'es' : 'en'] : '';
+}
+
+function nspChatRunRoute(r, cb) {
+  var lines = [], fined = false, answered = false;
+  var inPage = NSP_CHAT_IN_PAGE[r.kind] === 1;
+  var lang = r.lang === 'es' ? 'es' : 'en';
+  var reply = function(late) {
+    if (answered) return;
+    answered = true;
+    clearTimeout(timer);
+    var last = lines[lines.length - 1] || '';
+    var ok = !late && lines.length > 0 && lines.every(function(k) { return NSP_CHAT_OK_LINES[k] === 1; });
+    var out = { ok: ok, kind: r.kind, line: late ? 'No answer from the page in time.' : nspChatLine(last, lang, r.kind) };
+    if (r.q) out.q = r.q;
+    if (r.url) out.url = r.url;
+    if (r.page) out.page = r.page;
+    if (!ok) out.error = out.line || 'That did not work.';
+    cb(out);
+  };
+  var timer = setTimeout(function() { reply(true); }, inPage ? 30000 : 15000);
+  var say = function(key) {
+    lines.push(String(key));
+    if (inPage ? key !== 'youtube' : fined) reply(false);
+  };
+  var fin = function() {
+    fined = true;
+    if (!inPage && lines.length) reply(false);
+  };
+  try { nspVoiceRun(r, _nspVoice.gen, fin, say); } catch (e) { lines.push('failed'); reply(false); }
+}
+
+function nspChatTyped(text, lang) {
+  if (!text || text.split(' ').length > NSP_CHAT_ROUTE_WORDS) return null;
+  var routes = nspVoiceRouteAll(text, lang);
+  if (!routes || !routes.length) return null;
+  var norm = nspVrNorm(text);
+  var named = NSP_CHAT_TYPED_YT.test(norm);
+  for (var i = 0; i < routes.length; i++) {
+    var r = routes[i];
+    if (NSP_CHAT_ROUTE_SKIP[r.kind] === 1) return null;
+    if (NSP_CHAT_TYPED_ASK[r.kind] === 1 && !named) return null;
+    if (NSP_CHAT_TYPED_ONLY[r.kind] === 1 && NSP_CHAT_TYPED_DATA.test(norm)) return null;
+    if (r.kind === 'search' && !named && !NSP_VR_SEARCH_LEAD.test(String(r.said || ''))) return null;
+  }
+  return routes;
+}
+
+function nspChatRoute(msg, sendResponse) {
+  var text = String(msg.text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  var list = nspChatTyped(text, String(msg.lang || ''));
+  if (!list) { sendResponse({ handled: false }); return; }
+  var results = [];
+  (function next(i) {
+    if (i >= list.length) { sendResponse({ handled: true, results: results }); return; }
+    nspChatRunRoute(list[i], function(res) { results.push(res); next(i + 1); });
+  })(0);
+}
+
+function nspChatDownload(res) {
+  if (!res || !res.ok) return res;
+  return new Promise(function(resolve) {
+    try {
+      chrome.downloads.download({ url: 'data:' + res.mime + ';charset=utf-8,' + encodeURIComponent(res.text), filename: res.filename, saveAs: false }, function(id) {
+        var err = chrome.runtime.lastError;
+        resolve(err || !id ? { ok: false, error: 'download failed: ' + (err ? err.message : 'no id') } : { ok: true, exported: res.exported, filename: res.filename });
+      });
+    } catch (e) { resolve({ ok: false, error: 'download failed: ' + String((e && e.message) || e) }); }
+  });
+}
+
+function nspChatBrowser(args, ctx, done) {
+  var action = String(args.action || '');
+  var lang = ctx.lang === 'es' ? 'es' : 'en';
+  if (action === 'switch_tab') {
+    var id = Number(args.tabId);
+    if (!(id >= 0)) { done({ ok: false, error: 'switch_tab needs a tabId from nspListTabs' }); return; }
+    chrome.tabs.update(id, { active: true }, function(tab) {
+      if (chrome.runtime.lastError || !tab) { done({ ok: false, error: 'no tab ' + id }); return; }
+      chrome.windows.update(tab.windowId, { focused: true }, function() { void chrome.runtime.lastError; done({ ok: true, line: 'Switched to ' + String(tab.title || tab.url || 'the tab').slice(0, 120) + '.' }); });
+    });
+    return;
+  }
+  var r = null;
+  if (action === 'open_url') {
+    var url = String(args.url || '').trim();
+    if (!/^https?:\/\/[^\s]+$/i.test(url)) { done({ ok: false, error: 'open_url needs an http or https url' }); return; }
+    r = { kind: 'site', url: url.slice(0, 2000) };
+  } else if (action === 'search_youtube') {
+    var q = String(args.query || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+    if (!q) { done({ ok: false, error: 'search_youtube needs a query' }); return; }
+    r = { kind: 'search', q: q };
+  } else if (NSP_CHAT_BROWSER[action] === 1) {
+    r = { kind: action };
+  }
+  if (!r) { done({ ok: false, error: 'unknown action "' + action.slice(0, 30) + '"' }); return; }
+  r.lang = lang;
+  nspChatRunRoute(r, done);
+}
+
+function nspChatTool(name, args, ctx, cb) {
+  args = args && typeof args === 'object' ? args : {};
+  ctx = ctx || {};
+  var answered = false;
+  var done = function(res) {
+    if (answered) return;
+    answered = true;
+    try { cb(res && typeof res === 'object' ? res : { ok: false, error: 'no result' }); } catch (e) {}
+  };
+  if (NSP_CHAT_ACT_TOOLS[name] !== 1) { nspChatToolNow(name, args, ctx, done); return; }
+  chrome.storage.local.get('nsp_agent_enabled', function(st) {
+    if (chrome.runtime.lastError || !st || st.nsp_agent_enabled !== true) { done({ ok: false, code: 'agent_off', error: NSP_AGENT_OFF_REFUSAL }); return; }
+    nspChatToolNow(name, args, ctx, done);
+  });
+}
+
+function nspChatToolNow(name, args, ctx, done) {
+  var data = self.NSP_DATA_TOOLS;
+  var lib = function(p) { Promise.resolve(p).then(done, function(e) { done({ ok: false, error: String((e && e.message) || e) }); }); };
+  var handler = function(msg) {
+    try { if (!nspOnMessage(msg, { id: chrome.runtime.id }, done)) setTimeout(function() { done({ ok: false, error: 'no answer' }); }, 0); }
+    catch (e) { done({ ok: false, error: String((e && e.message) || e) }); }
+  };
+  if (/^(?:nspGetSavedNiches|zerackGetExtensionData|nspSaveNiche|nspAddToTracking|nspExportNiches)$/.test(name) && !data) { done({ ok: false, error: 'the data tools did not load' }); return; }
+  if (name === 'nspGetSavedNiches') { lib(data.savedNiches()); return; }
+  if (name === 'zerackGetExtensionData') { lib(data.extensionData(args.area)); return; }
+  if (name === 'nspSaveNiche') { lib(data.saveNiche(args)); return; }
+  if (name === 'nspAddToTracking') { lib(data.addTracking(args)); return; }
+  if (name === 'nspExportNiches') { lib(data.exportNiches(args.format).then(nspChatDownload)); return; }
+  if (name === 'zerackCourse') { done(self.NSP_BRAIN ? self.NSP_BRAIN.courseLookup(args) : { ok: false, error: 'the course did not load' }); return; }
+  if (name === 'nspListTabs') { handler({ type: 'NSP_AGENT_LIST_TABS' }); return; }
+  if (name === 'nspFetchUrl') { handler({ type: 'NSP_AGENT_FETCH_URL', url: String(args.url || '') }); return; }
+  if (name === 'nspGetChannelStats') { handler({ type: 'NSP_AGENT_CHANNEL_STATS', channelUrl: String(args.channelUrl || '') }); return; }
+  if (name === 'nspGetChannelVideos') { handler({ type: 'NSP_AGENT_CHANNEL_VIDEOS', channelUrl: String(args.channelUrl || '') }); return; }
+  if (name === 'zerackBrowser') { nspChatBrowser(args, ctx, done); return; }
+  if (name === 'zerackOpenPage') {
+    var page = NSP_CHAT_PAGES[String(args.page || '')];
+    if (!page) { done({ ok: false, error: 'unknown page, use dashboard, niche-index, setup or options' }); return; }
+    nspChatRunRoute({ kind: 'page', page: page, lang: ctx.lang === 'es' ? 'es' : 'en' }, done);
+    return;
+  }
+  if (name === 'zerackYouTubeAgent') {
+    var instruction = String(args.instruction || '').replace(/\s+/g, ' ').trim().slice(0, 2000);
+    if (!instruction) { done({ ok: false, error: 'zerackYouTubeAgent needs an instruction' }); return; }
+    var id = String(ctx.requestId || '').slice(0, 60) || ((ctx.origin === 'chat' ? 'chat-' : 'voice-') + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6));
+    nspAssistDelegate(instruction, id, { origin: ctx.origin === 'chat' ? 'chat' : 'voice', fallback: false }, function(reply) {
+      done(reply && reply.ok ? { ok: true, answer: String(reply.answer || '') } : { ok: false, error: String((reply && reply.error) || 'the YouTube agent did not answer') });
+    });
+    return;
+  }
+  done({ ok: false, error: 'unknown tool ' + String(name).slice(0, 60) });
+}
+
+function nspChatProviders(sendResponse) {
+  chrome.storage.local.get(['nsp_openai_api_key', 'nsp_groq_api_key', 'nsp_gemini_api_key', 'nsp_ollama_enabled', 'nsp_ollama_model', 'nsp_selected_model'], function(r) {
+    r = (!chrome.runtime.lastError && r) || {};
+    sendResponse({
+      configured: {
+        openai: typeof r.nsp_openai_api_key === 'string' && /^sk-/.test(r.nsp_openai_api_key.trim()),
+        groq: typeof r.nsp_groq_api_key === 'string' && /^gsk_/.test(r.nsp_groq_api_key.trim()),
+        gemini: typeof r.nsp_gemini_api_key === 'string' && /^AIza/.test(r.nsp_gemini_api_key.trim()),
+        ollama: r.nsp_ollama_enabled === true
+      },
+      localModel: typeof r.nsp_ollama_model === 'string' ? r.nsp_ollama_model.slice(0, 80) : '',
+      selected: typeof r.nsp_selected_model === 'string' ? r.nsp_selected_model : 'auto'
+    });
+  });
+}
+
+function nspChatStop(msg) {
+  var turn = _nspVoiceTurns[String(msg.requestId || '')];
+  if (!turn || turn.origin !== 'chat') return;
+  try { chrome.tabs.sendMessage(turn.tabId, { type: 'NSP_VOICE_ACT', action: 'stop' }, { frameId: 0 }, function() { void chrome.runtime.lastError; }); } catch (e) {}
+  turn.finish({ ok: false, answer: '', error: 'Stopped by the user.', actedOnTab: true });
+}
+
+function nspChatPost(msg) {
+  try {
+    if (!_nspChat.channel) _nspChat.channel = new BroadcastChannel('zerack_chat');
+    _nspChat.channel.postMessage(msg);
+  } catch (e) {}
+}
+
+function nspChatBeat() {
+  var busy = Object.keys(_nspChat.runs).length > 0;
+  if (busy && !_nspChat.beat) _nspChat.beat = setInterval(function() { chrome.runtime.getPlatformInfo(function() {}); }, 20000);
+  else if (!busy && _nspChat.beat) { clearInterval(_nspChat.beat); _nspChat.beat = 0; }
+}
+
+function nspChatReopenBox(mutate) {
+  _nspChat.reopen = _nspChat.reopen.then(function() {
+    return chrome.storage.local.get('nsp_chat_reopen').then(function(r) {
+      var box = (r && r.nsp_chat_reopen && typeof r.nsp_chat_reopen === 'object') ? r.nsp_chat_reopen : {};
+      var now = Date.now();
+      Object.keys(box).forEach(function(k) { if (!(box[k] && now - box[k].at < NSP_CHAT_REOPEN_MS)) delete box[k]; });
+      var out = mutate(box);
+      var write = Object.keys(box).length ? chrome.storage.local.set({ nsp_chat_reopen: box }) : chrome.storage.local.remove('nsp_chat_reopen');
+      return write.then(function() { return out; });
+    });
+  }).catch(function(e) { console.warn('[NSP SW] chat: reopen marker failed:', e && e.message); return null; });
+  return _nspChat.reopen;
+}
+
+function nspChatNavSeen(tabId, info) {
+  var until = _nspChat.nav[tabId];
+  if (!until || !info || info.status !== 'loading') return;
+  if (Date.now() > until) { delete _nspChat.nav[tabId]; nspChatNavWatch(); return; }
+  nspChatReopenBox(function(box) { box[tabId] = { at: Date.now(), nav: true }; });
+}
+
+function nspChatNavWatch(tabId, ms) {
+  if (tabId >= 0) _nspChat.nav[tabId] = Date.now() + ms;
+  var now = Date.now();
+  Object.keys(_nspChat.nav).forEach(function(k) { if (!(_nspChat.nav[k] > now)) delete _nspChat.nav[k]; });
+  var want = Object.keys(_nspChat.nav).length > 0;
+  var has = chrome.tabs.onUpdated.hasListener(nspChatNavSeen);
+  if (want && !has) chrome.tabs.onUpdated.addListener(nspChatNavSeen);
+  else if (!want && has) chrome.tabs.onUpdated.removeListener(nspChatNavSeen);
+  clearTimeout(_nspChat.navTimer);
+  if (want) _nspChat.navTimer = setTimeout(function() { nspChatNavWatch(); }, 11000);
+}
+
+function nspChatMarkHost(run) {
+  if (!(run.tabId >= 0) || run.marked) return;
+  run.marked = true;
+  nspChatNavWatch(run.tabId, NSP_CHAT_REOPEN_MS);
+  nspChatReopenBox(function(box) { box[run.tabId] = { at: Date.now(), nav: false }; });
+}
+
+function nspChatAdd(run, role, text, meta) {
+  var store = self.NSP_CHAT_STORE;
+  run.chain = run.chain.then(function() {
+    if (run.gone || !store) return null;
+    return store.appendMessage(run.convId, { role: role, text: text, meta: meta || null }).then(function(row) {
+      if (!row) { run.gone = true; run.stopped = true; return null; }
+      nspChatPost({ convId: run.convId, row: row });
+      return row;
+    });
+  }).catch(function(e) { console.warn('[NSP SW] chat: could not store a message:', e && e.message); return null; });
+  return run.chain;
+}
+
+function nspChatPatch(run, row, meta) {
+  run.chain = run.chain.then(function() {
+    if (run.gone) return;
+    row.meta = meta;
+    return self.NSP_CHAT_STORE.updateMessage(row.id, { meta: meta }).then(function() { nspChatPost({ convId: run.convId, row: row }); });
+  }).catch(function() {});
+  return run.chain;
+}
+
+function nspChatTyping(run, label) {
+  if (run.typing === label || run.stopped) return;
+  run.typing = label;
+  nspChatPost({ convId: run.convId, typing: label });
+}
+
+function nspChatErrorText(out) {
+  var code = String((out && out.error) || '');
+  if (NSP_CHAT_ERRORS[code]) return NSP_CHAT_ERRORS[code];
+  if (code === 'all_providers_failed') return 'No provider could answer. ' + String(out.detail || '').slice(0, 300);
+  if (/\s/.test(code)) return code.slice(0, 400);
+  return 'Something went wrong (' + (code || 'unknown') + ').';
+}
+
+function nspChatRouteLabel(r) {
+  var base = NSP_CHAT_ROUTE_LABELS[r.kind] || r.kind;
+  if (r.q) return base + ': ' + r.q;
+  if (r.url) return base + ': ' + String(r.url).replace(/^https?:\/\//, '').replace(/\/$/, '');
+  return base;
+}
+
+function nspChatEnd(run) {
+  run.chain.then(function() {
+    if (_nspChat.runs[run.convId] !== run) return;
+    delete _nspChat.runs[run.convId];
+    if (run.marked) nspChatNavWatch(run.tabId, 10000);
+    nspChatBeat();
+    nspChatPost({ convId: run.convId, typing: '', done: true });
+  });
+}
+
+function nspChatRouted(run, routes) {
+  return routes.reduce(function(p, r) {
+    return p.then(function() {
+      if (run.stopped) return null;
+      if (r.kind !== 'agent') nspChatMarkHost(run);
+      return new Promise(function(resolve) { nspChatRunRoute(r, resolve); }).then(function(res) {
+        return nspChatAdd(run, 'action', nspChatRouteLabel(res), { kind: res.kind, status: res.ok ? 'done' : 'failed', detail: String(res.line || res.error || '').slice(0, 300), routed: true });
+      });
+    });
+  }, Promise.resolve());
+}
+
+function nspChatThink(run) {
+  var tools = self.NSP_CHAT_TOOLS, brain = self.NSP_BRAIN, store = self.NSP_CHAT_STORE;
+  if (!tools || !brain) return nspChatAdd(run, 'error', 'The assistant did not load. Reload the extension.');
+  var askedAt = Date.now();
+  return new Promise(function(resolve) {
+    chrome.storage.local.get('nsp_agent_enabled', function(st) { resolve(!chrome.runtime.lastError && !!st && st.nsp_agent_enabled === true); });
+  }).then(function(agentOn) {
+    return store.getMessages(run.convId).then(function(rows) {
+      return tools.loop({
+        systemParts: brain.parts({ surface: 'chat', query: run.text, context: tools.context({ surface: 'chat', agentOn: agentOn, lang: run.lang }) }),
+        tools: brain.tools('chat', { agentOn: agentOn }),
+        messages: tools.history(rows),
+        maxRounds: tools.maxRounds,
+        maxSteps: tools.maxSteps,
+        maxTokens: 1200,
+        stopped: function() { return run.stopped; },
+        ask: function(payload) {
+          askedAt = Date.now();
+          nspChatTyping(run, 'Thinking');
+          return new Promise(function(resolve) { nspChatCascade(payload, resolve); });
+        },
+        run: function(name, args) {
+          var id = name === 'zerackYouTubeAgent' ? 'chat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6) : '';
+          if (id) run.delegate = id;
+          if (NSP_CHAT_NAV_TOOLS[name] === 1) nspChatMarkHost(run);
+          nspChatTyping(run, name === 'zerackYouTubeAgent' ? 'The YouTube agent is working' : 'Working');
+          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'chat', lang: run.lang, requestId: id }, resolve); }).then(function(res) {
+            if (id) run.delegate = '';
+            return res;
+          });
+        },
+        onText: function(reply, res) {
+          if (run.stopped) return;
+          nspChatAdd(run, 'assistant', reply, { provider: String(res.provider || ''), model: String(res.modelUsed || ''), ms: Date.now() - askedAt });
+        },
+        onToolStart: function(name, args) {
+          return nspChatAdd(run, 'action', tools.label(name, args), { tool: name, status: 'running', detail: '' });
+        },
+        onToolEnd: function(handle, name, args, result) {
+          Promise.resolve(handle).then(function(row) {
+            if (!row) return;
+            var failed = !result || result.ok === false;
+            nspChatPatch(run, row, { tool: name, status: failed ? 'failed' : 'done', detail: tools.note(result) });
+          });
+        }
+      });
+    });
+  }).then(function(out) {
+    if (run.stopped || !out || out.ok) return null;
+    return nspChatAdd(run, 'error', nspChatErrorText(out), out.error === 'no_provider_configured' ? { fix: 'setup' } : null);
+  });
+}
+
+function nspChatRun(msg, sender, sendResponse) {
+  var convId = String(msg.convId || '').slice(0, 80);
+  var text = String(msg.text || '').replace(/\s+/g, ' ').trim().slice(0, 8000);
+  if (!convId || !text || !self.NSP_CHAT_STORE) { sendResponse({ ok: false, error: 'bad_request' }); return; }
+  if (_nspChat.runs[convId]) { sendResponse({ ok: false, error: 'busy' }); return; }
+  var overlay = !!(sender.tab && sender.tab.id >= 0 && sender.frameId !== 0);
+  var run = { convId: convId, text: text, lang: msg.lang === 'es' ? 'es' : 'en', tabId: overlay ? sender.tab.id : -1, stopped: false, gone: false, delegate: '', typing: '', marked: false, chain: Promise.resolve() };
+  _nspChat.runs[convId] = run;
+  nspChatBeat();
+  sendResponse({ ok: true });
+  var routes = nspChatTyped(text.slice(0, 400), String(msg.tabLang || ''));
+  nspChatTyping(run, routes ? 'Working' : 'Thinking');
+  (routes ? nspChatRouted(run, routes) : nspChatThink(run)).catch(function(e) {
+    return nspChatAdd(run, 'error', 'Something went wrong: ' + String((e && e.message) || e));
+  }).then(function() { nspChatEnd(run); });
+}
+
+function nspChatHalt(msg) {
+  var ids = msg.all === true ? Object.keys(_nspChat.runs) : [String(msg.convId || '')];
+  ids.forEach(function(id) {
+    var run = _nspChat.runs[id];
+    if (!run || run.stopped) return;
+    run.stopped = true;
+    if (run.delegate) nspChatStop({ requestId: run.delegate });
+    if (msg.silent === true) run.gone = true;
+    else nspChatAdd(run, 'action', 'Stopped', { status: 'failed', detail: 'You stopped this answer.' });
+    nspChatEnd(run);
+  });
+}
+
+function nspChatRuns() {
+  var out = {};
+  Object.keys(_nspChat.runs).forEach(function(id) { out[id] = _nspChat.runs[id].typing || 'Thinking'; });
+  return out;
+}
+
+function nspChatWindow() {
+  chrome.windows.create({ url: nspChatUrl('?mode=window'), type: 'popup', width: 440, height: 760 }, function() { void chrome.runtime.lastError; });
+}
+
+function nspChatPanel(tab) {
+  var windowId = tab && tab.windowId >= 0 ? tab.windowId : -1;
+  if (windowId >= 0 && _nspChat.panels[windowId] && chrome.sidePanel.close) {
+    chrome.sidePanel.close({ windowId: windowId }).catch(function() {});
+    return;
+  }
+  try {
+    var opening = windowId >= 0 ? chrome.sidePanel.open({ windowId: windowId }) : Promise.reject(new Error('no window'));
+    opening.catch(function(e) {
+      console.warn('[NSP SW] chat: the side panel did not open, ' + (e && e.message) + ', so the chat opens in its own window');
+      nspChatWindow();
+    });
+  } catch (e) { nspChatWindow(); }
+}
+
+function nspBubbleInject(tabId, cb) {
+  cb = cb || function() {};
+  try {
+    chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['content/zerack-bubble.js'] }).then(function() { cb(true); }, function() { cb(false); });
+  } catch (e) { cb(false); }
+}
+
+function nspBubbleReinject() {
+  chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] }, function(tabs) {
+    ((!chrome.runtime.lastError && tabs) || []).forEach(function(t) {
+      if (t.id >= 0 && !t.discarded && !NSP_CHAT_NO_SCRIPT.test(String(t.url || ''))) nspBubbleInject(t.id);
+    });
+  });
+}
+
+function nspChatCommand(tab) {
+  var url = String((tab && (tab.url || tab.pendingUrl)) || '');
+  if (!tab || !(tab.id >= 0) || !/^https?:\/\//.test(url) || NSP_CHAT_NO_SCRIPT.test(url)) { nspChatPanel(tab); return; }
+  var toggle = function(retry) {
+    try {
+      chrome.tabs.sendMessage(tab.id, { type: 'NSP_BUBBLE', op: 'toggle' }, { frameId: 0 }, function(res) {
+        if (!chrome.runtime.lastError && res && res.ok === true) return;
+        if (!retry) { nspChatPanel(tab); return; }
+        nspBubbleInject(tab.id, function(ok) { if (ok) toggle(false); else nspChatPanel(tab); });
+      });
+    } catch (e) { nspChatPanel(tab); }
+  };
+  toggle(true);
+}
+
+try {
+  chrome.sidePanel.onOpened.addListener(function(info) { if (info && info.windowId >= 0) _nspChat.panels[info.windowId] = true; });
+  chrome.sidePanel.onClosed.addListener(function(info) { if (info && info.windowId >= 0) delete _nspChat.panels[info.windowId]; });
+} catch (ePanel) {}
+
+try {
+  chrome.commands.onCommand.addListener(function(command, tab) {
+    if (command === 'talk') nspVoicePtt('toggle');
+    else if (command === 'chat') nspChatCommand(tab);
+  });
+} catch (eCmd) {}
 chrome.runtime.onStartup.addListener(nspVoiceResumeWake);
 chrome.runtime.onInstalled.addListener(nspVoiceResumeWake);
+nspVoiceHasEar().then(function(has) { if (!has) nspVoiceResumeWake(); });
+chrome.runtime.onInstalled.addListener(function(details) {
+  if (details && (details.reason === 'install' || details.reason === 'update')) nspBubbleReinject();
+});
 chrome.storage.onChanged.addListener(nspVoiceWakeChanged);
 
 // ── Message router ──────────────────────────────────────────────────────────
 
-chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+function nspOnMessage(msg, sender, sendResponse) {
   if (!msg || !msg.type) return false;
 
   // — Health check
@@ -2217,7 +3098,22 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   }
 
   if (msg.type === 'NSP_VOICE_HEARD') {
-    if (nspVoiceFromEar(sender)) nspVoiceHeard(msg.text, msg.lang, msg.addressed !== false);
+    if (!nspVoiceFromEar(sender)) return false;
+    nspVoiceHeard(msg, sendResponse);
+    return true;
+  }
+
+  if (msg.type === 'NSP_VOICE_DROP') {
+    if (nspVoiceFromEar(sender)) nspVoiceDropped(msg);
+    return false;
+  }
+
+  if (msg.type === 'NSP_VOICE_PTT_START' || msg.type === 'NSP_VOICE_PTT_CONFIRM' || msg.type === 'NSP_VOICE_PTT_END' || msg.type === 'NSP_VOICE_PTT_TOGGLE') {
+    if (!nspVoiceFromExtension(sender)) return false;
+    if (msg.type === 'NSP_VOICE_PTT_START') nspVoicePtt('start', msg.auto === true, msg.tentative === true);
+    else if (msg.type === 'NSP_VOICE_PTT_CONFIRM') nspVoicePtt('confirm');
+    else if (msg.type === 'NSP_VOICE_PTT_END') nspVoicePtt(msg.cancel === true ? 'cancel' : 'end');
+    else nspVoicePtt('toggle');
     return false;
   }
 
@@ -2242,6 +3138,12 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
     return true;
   }
 
+  if (msg.type === 'NSP_VOICE_BOOT') {
+    if (!nspVoiceFromEar(sender)) return false;
+    chrome.storage.local.get('nsp_voice_wake', function(r) { sendResponse({ wake: !chrome.runtime.lastError && !!r && r.nsp_voice_wake === true }); });
+    return true;
+  }
+
   if (msg.type === 'NSP_VOICE_PREFS') {
     if (!nspVoiceFromEar(sender)) return false;
     nspVoicePrefs(msg.keys, sendResponse);
@@ -2262,6 +3164,43 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
         : { ok: false, answer: '', error: String(msg.error || 'The assistant finished without an answer.'), actedOnTab: true });
     }
     return false;
+  }
+
+  if (msg.type === 'NSP_CHAT_TOKEN') {
+    if (!nspChatFromBubble(sender)) return false;
+    nspChatToken(sender, sendResponse);
+    return true;
+  }
+
+  if (msg.type === 'NSP_CHAT_HELLO') {
+    if (!nspChatFromPage(sender)) return false;
+    nspChatHello(msg, sender, sendResponse);
+    return true;
+  }
+
+  if (msg.type === 'NSP_CHAT_REOPEN') {
+    if (!nspChatFromBubble(sender)) return false;
+    nspChatReopenBox(function(box) {
+      var hit = !!box[sender.tab.id];
+      delete box[sender.tab.id];
+      return hit;
+    }).then(function(hit) { sendResponse({ open: hit === true }); });
+    return true;
+  }
+
+  if (msg.type === 'NSP_CHAT_RUN' || msg.type === 'NSP_CHAT_HALT' || msg.type === 'NSP_CHAT_RUNS' || msg.type === 'NSP_CHAT_ROUTE' || msg.type === 'NSP_CHAT_TOOL' || msg.type === 'NSP_CHAT_OVERLAY' || msg.type === 'NSP_CHAT_STOP' || msg.type === 'NSP_CHAT_PROVIDERS') {
+    nspChatTrusted(sender).then(function(ok) {
+      if (!ok) { sendResponse({ ok: false, error: 'not_allowed' }); return; }
+      if (msg.type === 'NSP_CHAT_RUN') nspChatRun(msg, sender, sendResponse);
+      else if (msg.type === 'NSP_CHAT_HALT') { nspChatHalt(msg); sendResponse({ ok: true }); }
+      else if (msg.type === 'NSP_CHAT_RUNS') sendResponse({ ok: true, runs: nspChatRuns() });
+      else if (msg.type === 'NSP_CHAT_ROUTE') nspChatRoute(msg, sendResponse);
+      else if (msg.type === 'NSP_CHAT_TOOL') nspChatTool(String(msg.name || ''), msg.args, { origin: 'chat', lang: String(msg.lang || ''), requestId: String(msg.requestId || '') }, sendResponse);
+      else if (msg.type === 'NSP_CHAT_OVERLAY') nspChatOverlay(msg, sender, sendResponse);
+      else if (msg.type === 'NSP_CHAT_PROVIDERS') nspChatProviders(sendResponse);
+      else { nspChatStop(msg); sendResponse({ ok: true }); }
+    });
+    return true;
   }
 
   // — NSP AGENT tools (v3.6.0) — chrome.tabs control ───────────────────────
@@ -2369,7 +3308,7 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   if (msg.type === 'NSP_AGENT_FETCH_URL') {
     var fUrl = String(msg.url || '');
     if (!/^https:\/\//i.test(fUrl)) { sendResponse({ ok: false, error: 'must_be_https' }); return false; }
-    if (!nspFetchUrlAllowed(fUrl, sender)) { sendResponse({ ok: false, error: 'host_not_allowed' }); return false; }
+    if (!nspFetchUrlAllowed(fUrl)) { sendResponse({ ok: false, error: 'host_not_allowed' }); return false; }
     (async function() {
       try {
         var resp = await nspFetchTimeout(fUrl, { method: 'GET', credentials: 'omit' }, 20000);
@@ -2541,7 +3480,8 @@ chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
   }
 
   return false;
-});
+}
+chrome.runtime.onMessage.addListener(nspOnMessage);
 
 // ══════════════════════════════════════════════════════════════════════════
 // ── InnerTube fetcher — REAL country-localized YouTube content ────────────
