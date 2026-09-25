@@ -122,7 +122,7 @@ var NSP_YT_LOCALE_MAP = {
   lt: { hl: 'lt', gl: 'LT' }
 };
 var NSP_MARKET_META = {
- global: { label:'Global', flag:'', gl: null, hl: null, lang: null },
+  global:      { label: 'Global',      flag: '', gl: null, hl: null, lang: null },
   usa:         { label: 'USA',         flag: '🇺🇸', gl: 'US', hl: 'en', lang: 'en' },
   australia:   { label: 'Australia',   flag: '🇦🇺', gl: 'AU', hl: 'en', lang: 'en' },
   uk:          { label: 'UK',          flag: '🇬🇧', gl: 'GB', hl: 'en', lang: 'en' },
@@ -1140,6 +1140,14 @@ function ashlyv_validateMessage(data, allowedTypes) {
   return true;
 }
 
+// How a niche's average RPM moved on its last scan. Stored as the id, the words are only for the screen.
+var NSP_RPM_TRENDS = {
+  up: { label: 'UP', color: '#00DC82' },
+  down: { label: 'DOWN', color: '#FF4D6D' },
+  flat: { label: 'FLAT', color: 'rgba(234,240,255,.55)' },
+  'new': { label: 'NEW', color: 'rgba(234,240,255,.55)' }
+};
+
 // SECURITY: Validates chrome.storage.local values before extension logic uses them.
 function ashlyv_validateStorageValue(key, value) {
   try {
@@ -1197,7 +1205,7 @@ function ashlyv_validateStorageValue(key, value) {
             bestRpm: isFinite(Number(item.bestRpm)) ? Number(item.bestRpm) : 0,
             timesSeen: isFinite(Number(item.timesSeen)) ? Math.max(0, Number(item.timesSeen)) : 0,
             lastSeen: isFinite(Number(item.lastSeen)) ? Number(item.lastSeen) : 0,
- trend: item.trend ===''|| item.trend ===''? item.trend :'',
+            trend: NSP_RPM_TRENDS[item.trend] ? item.trend : 'new',
             rpmHistory: Array.isArray(item.rpmHistory) ? item.rpmHistory.slice(-5).map(function(n) { n = Number(n); return isFinite(n) ? n : 0; }) : []
           };
         });
@@ -3013,9 +3021,9 @@ function detectRPM(text) {
   return 4;
 }
 var TIERS = [
-  { key:'VIRAL',  min:5000, label:'VIRAL',    col:'#E040FF', bg:'rgba(200,0,255,.2)',  bd:'rgba(200,0,255,.5)'  },
-  { key:'HOT',    min:500,  label:'HOT',      col:'#FF6B35', bg:'rgba(255,80,0,.15)', bd:'rgba(255,80,0,.45)'  },
-  { key:'RISING', min:50,   label:'RISING',   col:'#FFD700', bg:'rgba(255,200,0,.12)',bd:'rgba(255,200,0,.4)'  },
+  { key:'VIRAL',  min:5000, label:'VIRAL ',  col:'#E040FF', bg:'rgba(200,0,255,.2)',  bd:'rgba(200,0,255,.5)'  },
+  { key:'HOT',    min:500,  label:'HOT ',   col:'#FF6B35', bg:'rgba(255,80,0,.15)', bd:'rgba(255,80,0,.45)'  },
+  { key:'RISING', min:50,   label:'RISING ', col:'#FFD700', bg:'rgba(255,200,0,.12)',bd:'rgba(255,200,0,.4)'  },
   { key:'ACTIVE', min:5,    label:'ACTIVE',   col:'#00DC82', bg:'rgba(0,220,130,.1)', bd:'rgba(0,220,130,.3)'  },
   { key:'SLOW',   min:0,    label:'SLOW',     col:'#888',    bg:'rgba(80,80,80,.1)',  bd:'rgba(80,80,80,.2)'   },
 ];
@@ -6065,7 +6073,8 @@ function isAshlyVFeedHardUnsafeCandidate(item) {
   if (/national geographic|nat geo|terra\s*x|arte|dw\s*(?:documentary|doku|deutsch)?|zdf|ard|bbc|history\s+channel|discovery\s+channel|reportage|reportero|reporter|noticiero|news network/i.test(text + ' ' + channel)) return true;
   if (/podcast|podcasts|interview|entrevista|reaction|reacting|reacci[oó]n|vlog|daily vlog|storytime|grwm|get ready|livestream|live stream|en vivo|directo|transmitido|transmitted|streaming|gameplay|walkthrough|playthrough|streamer|face.?cam|talking head|presentador|presenter|hosted by|host\b/i.test(text)) return true;
   if (/music video|video oficial|official music video|lyrics|lyric video|vevo|m[uú]sica|canci[oó]n|mix\b|playlist|lofi|lo-fi|sleep|dormir|rain|lluvia|white noise|ruido blanco|asmr|relax|relajant|relaxing|meditation|meditaci[oó]n|ocean sounds?|waves|olas|soundscape|ambient|ambience|\b4k\b|\b8k\b|ultra.?hd|experience/i.test(text)) return true;
- if (/|||||||sports?|deportes|f[uú]tbol|football|soccer|bal[oó]n|partido|marcador|goles?|liga\b|champions|premier league|laliga|nba|nfl|mlb|ufc|wwe|tennis|b[aá]squet|basket|news|noticias|noti.?nerd|noticiero|breaking|última hora|ultima hora|urgente|trump|biden|milei|petro|sheinbaum|bukele|gobierno|pol[ií]tica|politics|sanciones|eeuu|usa|rusia|ukraine|ucrania|israel|gaza/i.test(text)) return true;
+  // The emoji alternatives are written as escapes: a text purge once deleted them and left empty ones, which match every title.
+  if (/\u26BD|\uD83C\uDFC0|\uD83C\uDFC8|\u26BE|\uD83C\uDFBE|\uD83C\uDFD0|\uD83C\uDFC6|sports?|deportes|f[uú]tbol|football|soccer|bal[oó]n|partido|marcador|goles?|liga\b|champions|premier league|laliga|nba|nfl|mlb|ufc|wwe|tennis|b[aá]squet|basket|news|noticias|noti.?nerd|noticiero|breaking|última hora|ultima hora|urgente|trump|biden|milei|petro|sheinbaum|bukele|gobierno|pol[ií]tica|politics|sanciones|eeuu|usa|rusia|ukraine|ucrania|israel|gaza/i.test(text)) return true;
   if (/trailer|teaser|episode|episodio|cap[ií]tulo|pel[ií]cula completa|full movie/i.test(text)) return true;
   if (/tener casa|comprar casa|casa propia|real estate|bienes ra[ií]ces|inmobiliari|hipoteca|mortgage/i.test(text)) return true;
   if (/probando|taste test|hamburguesas?|burger|carne\b|comida\b|food\b|receta|recipe|cooking|cocina|traditional cooking|village life|remote village|country life|mukbang|eating challenge/i.test(text)) return true;
@@ -7643,7 +7652,7 @@ function getAshlyVNicheTitle(item) {
     label = detectNicheLabel((sc.title || '') + ' ' + (_session.query || ''));
   }
   if (!label || label === '🔮 General') label = (sc.title || 'Faceless niche').slice(0, 70);
- return String(label).replace(/^\s*/,'').trim();
+  return String(label).replace(/^\uD83D\uDD2E\s*/, '').trim();
 }
 
 function getAshlyVNicheId(item) {
@@ -7694,11 +7703,11 @@ function updateAshlyVNicheStats(results, baselines, history) {
       var title = getAshlyVNicheTitle(item);
       var rpm = getAshlyVRpm(item);
       if (!title || !rpm) return;
- var prev = stats[title] || { avgRpm: 0, bestRpm: 0, timesSeen: 0, lastSeen: 0, trend:'', rpmHistory: [] };
+      var prev = stats[title] || { avgRpm: 0, bestRpm: 0, timesSeen: 0, lastSeen: 0, trend: 'new', rpmHistory: [] };
       var oldAvg = Number(prev.avgRpm || 0);
       var times = Number(prev.timesSeen || 0) + 1;
       var avg = oldAvg ? ((oldAvg * (times - 1)) + rpm) / times : rpm;
- var trend = oldAvg ? (avg >oldAvg * 1.03 ?'': (avg < oldAvg * 0.97 ?'':'')) :'';
+      var trend = oldAvg ? (avg > oldAvg * 1.03 ? 'up' : (avg < oldAvg * 0.97 ? 'down' : 'flat')) : 'new';
       var rpmHistory = (prev.rpmHistory || []).slice(-4);
       rpmHistory.push(Number(rpm.toFixed(2)));
       stats[title] = {
@@ -7714,13 +7723,13 @@ function updateAshlyVNicheStats(results, baselines, history) {
       var title = alert && alert.nicheTitle;
       if (!title || stats[title]) return;
       var rpm = Number(alert.rpmAfter || alert.rpmBefore || 0);
- stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: alert.timestamp || Date.now(), trend:'', rpmHistory: rpm ? [rpm] : [] };
+ stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: alert.timestamp || Date.now(), trend: 'new', rpmHistory: rpm ? [rpm] : [] };
     });
     Object.keys(baselines || {}).forEach(function(id) {
       var title = id.replace(/-/g, ' ');
       if (stats[title]) return;
       var rpm = Number(baselines[id] || 0);
- if (rpm) stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: 0, trend:'', rpmHistory: [rpm] };
+ if (rpm) stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: 0, trend: 'new', rpmHistory: [rpm] };
     });
     var payload = {};
     payload[ASHLYV_NICHE_STATS_KEY] = stats;
@@ -7798,10 +7807,10 @@ window.AshlyVAlerts = {
 };
 
 function getAshlyVPageTypeBadgeText() {
- if (isHomeFeedPage && isHomeFeedPage()) return'HOME';
- if (isSearchPage && isSearchPage()) return'SEARCH';
- if (/^\/@|^\/channel\/|^\/c\/|^\/user\//.test(String(location.pathname ||''))) return'CHANNEL';
- return'CHANNEL';
+  if (isHomeFeedPage && isHomeFeedPage()) return 'HOME';
+  if (isSearchPage && isSearchPage()) return 'SEARCH';
+  if (/^\/@|^\/channel\/|^\/c\/|^\/user\//.test(String(location.pathname || ''))) return 'CHANNEL';
+  return 'CHANNEL';
 }
 
 /* Creates a reusable dark-theme AshlyV button. */
@@ -8394,16 +8403,16 @@ function showAshlyVRPMLeaderboardModal() {
       var title = alert.nicheTitle;
       if (!title) return;
       var rpm = Number(alert.rpmAfter || alert.rpmBefore || 0);
- if (!stats[title]) stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: alert.timestamp || 0, trend:''};
+ if (!stats[title]) stats[title] = { avgRpm: rpm, bestRpm: rpm, timesSeen: 1, lastSeen: alert.timestamp || 0, trend: 'new'};
     });
     Object.keys(baselines).forEach(function(id) {
       var title = id.replace(/-/g, ' ');
- if (!stats[title]) stats[title] = { avgRpm: Number(baselines[id] || 0), bestRpm: Number(baselines[id] || 0), timesSeen: 1, lastSeen: 0, trend:''};
+ if (!stats[title]) stats[title] = { avgRpm: Number(baselines[id] || 0), bestRpm: Number(baselines[id] || 0), timesSeen: 1, lastSeen: 0, trend: 'new'};
     });
     function rows() {
       return Object.keys(stats).map(function(title) {
         var s = stats[title] || {};
- return { title: title, avgRpm: Number(s.avgRpm || 0), bestRpm: Number(s.bestRpm || 0), timesSeen: Number(s.timesSeen || 0), trend: s.trend ||'', rpmHistory: s.rpmHistory || [] };
+        return { title: title, avgRpm: Number(s.avgRpm || 0), bestRpm: Number(s.bestRpm || 0), timesSeen: Number(s.timesSeen || 0), trend: NSP_RPM_TRENDS[s.trend] ? s.trend : 'new', rpmHistory: s.rpmHistory || [] };
       }).filter(function(r) {
         if (filter === 'high') return r.avgRpm >= 15;
         if (filter === 'mid') return r.avgRpm >= 8 && r.avgRpm < 15;
@@ -8449,8 +8458,7 @@ function showAshlyVRPMLeaderboardModal() {
       var exportBtn = ashlyVThemeButton('EXPORT CSV');
       exportBtn.onclick = function() {
         var csvRows = ['Niche,Average RPM,Best RPM,Times seen,Trend'].concat(rows().map(function(r) {
- var trend = r.bestRpm >r.avgRpm * 1.1 ?'': (r.bestRpm < r.avgRpm * 0.9 ?'':'');
-          return ['"' + String(r.title).replace(/"/g, '""') + '"', r.avgRpm, r.bestRpm, r.timesSeen, trend].join(',');
+          return ['"' + String(r.title).replace(/"/g, '""') + '"', r.avgRpm, r.bestRpm, r.timesSeen, NSP_RPM_TRENDS[r.trend].label].join(',');
         }));
         var blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8' });
         var url = URL.createObjectURL(blob);
@@ -8470,7 +8478,7 @@ function showAshlyVRPMLeaderboardModal() {
       table.appendChild(head);
       rows().forEach(function(r, i) {
         var c = r.avgRpm >= 15 ? 'rgba(0,220,130,0.4)' : (r.avgRpm >= 8 ? 'rgba(255,200,0,0.3)' : 'rgba(255,255,255,.16)');
- var trend = r.bestRpm >r.avgRpm * 1.1 ?'': (r.bestRpm < r.avgRpm * 0.9 ?'':'');
+        var trend = NSP_RPM_TRENDS[r.trend];
         var row = document.createElement('div');
         row.style.cssText = 'display:grid;grid-template-columns:50px 1fr 90px 90px 90px 90px;gap:8px;align-items:center;padding:10px 8px;border:1px solid ' + c + ';border-radius:12px;margin-bottom:8px;background:#0b0e1a;box-shadow:' + (r.avgRpm >= 15 ? '0 0 18px rgba(0,220,130,.14)' : 'none') + ';font-size:11px;';
         appendAshlyVText(row, 'b', '#' + (i + 1));
@@ -8933,7 +8941,7 @@ function finalizeAshlyVScanResults(topResults, allResults, avgOS, avgRpm, topNic
         console.log('[NSP API DEBUG] extracted channelIds:', channelIds.length, 'of', topResults.length, 'sample:', channelIds.slice(0, 3));
 
         if (!channelIds.length) {
- console.log('[NSP API] No valid channelIds extracted from any item — skipping API validation. Items will use local filters only.');
+          console.log('[NSP API] No valid channelIds extracted from any item — skipping API validation. Items will use local filters only.');
           try { nspHideApiToast(false, { msg: 'No channel ids available, items were not validated' }); } catch(e) {}
           nspApplyFaceApiFilter(topResults).then(function(filtered) {
             topResults = filtered;
@@ -11562,7 +11570,7 @@ var AshlyVFaceless = (function() {
 
   // HARD REJECT — only the most obvious non-faceless content
   // Keep this SHORT. Less is more.
- var HARD_REJECT = /\bnba\b|\bnfl\b|\bnhl\b|\bmlb\b|\bufc\b|\bwwe\b|\bespn\b|\bvevo\b|\bnba highlights|nfl highlights|breaking news|última hora|urgente| en vivo| alerta|noticiero|telediario|partido de fútbol|goles del|resumen del partido|\bvs\b.*\bfc\b|\bfc\b.*\bvs\b|real madrid vs|barcelona vs|champions league final|superbowl|formula 1 race|nascar race|official music video|music video oficial|lyrics video|lyric video|video oficial|vevo|grammy performance|oscar ceremony|película completa|full movie online|serie completa|capítulo \d+ completo|novela completa|live stream ahora|transmisión en vivo ahora|inauguración|acto de gobierno|discurso de|conferencia de prensa de|best moments?|greatest moments?|launch(?:es|ing)?|mission update|official trailer|teaser|iglesia|church|cat[oó]lic|serm[oó]n|predicaci[oó]n/i;
+ var HARD_REJECT = /\bnba\b|\bnfl\b|\bnhl\b|\bmlb\b|\bufc\b|\bwwe\b|\bespn\b|\bvevo\b|\bnba highlights|nfl highlights|breaking news|última hora|urgente|\uD83D\uDD34 en vivo|\uD83D\uDEA8 alerta|noticiero|telediario|partido de fútbol|goles del|resumen del partido|\bvs\b.*\bfc\b|\bfc\b.*\bvs\b|real madrid vs|barcelona vs|champions league final|superbowl|formula 1 race|nascar race|official music video|music video oficial|lyrics video|lyric video|video oficial|vevo|grammy performance|oscar ceremony|película completa|full movie online|serie completa|capítulo \d+ completo|novela completa|live stream ahora|transmisión en vivo ahora|inauguración|acto de gobierno|discurso de|conferencia de prensa de|best moments?|greatest moments?|launch(?:es|ing)?|mission update|official trailer|teaser|iglesia|church|cat[oó]lic|serm[oó]n|predicaci[oó]n/i;
 
   // POSITIVE signals — these boost faceless score
   var POS_FORMAT = /narrat|explained|facts|top \d|\d+ facts|\d+ things|\d+ reasons|\d+ ways|the truth|dark history|untold|hidden|forbidden|classified|secret|unsolved|mystery|conspiracy|ancient|lost city|rise and fall|the real story|the story of|what happened|why did|the science|survival|prepper|wilderness|history|human history|missing|era of|age of|breakdown|analyzed|ranked|ranking|comparison|compared|science of|psychology of|philosophy of|evolution of|origin of|story of|history of|who were|historia|misterio|explicado|hechos|datos|lista|ranking|conteo|true crime|crimen|tech|tecnologia|finance|finanzas|psychology|psicologia|religion|biblia|b[ií]blic|jes[uú]s|cristo|dios|angel|[aá]ngel|infierno|supervivencia/i;
@@ -11649,7 +11657,7 @@ var AshlyVFaceless = (function() {
   }
 
   // Explicit hard reject: news, politics, sports and music.
- var OBVIOUS_REJECT = /shakira|bad bunny|j balvin|maluma|ozuna|karol g|rosalia|daddy yankee|anuel|nicky jam|rauw|myke towers|farruko|arcangel|reggaeton|trap latino|corrido|narco|cartel|regional mexicano|grupero|cumbia|vallenato|merengue|nba|nfl|nhl|mlb|fifa|uefa|laliga|premier league|champions|wwe|ufc|espn|fox news|cnn|bbc|telemundo|univision|caracol|televisa|latinus|trump|biden|putin|zelensky|petro|sheinbaum|milei|maduro|bukele|lula|modi|macron|netanyahu|obrador|amlo|iran|irán|ormuz|palestin|hamas|hezbollah|gaza|israel|misil|missile|ultimatum|abre fuego|dispara|amenaza terrorista|amenaza nuclear|ataque militar|ataque terrorista|ataque aéreo|buque de guerra|ejército de|||en vivo|live stream|transmisión en vivo|breaking|última hora|urgente|alerta máxima|noticiero|telediario|noticias de|partido de|goles del|resumen de|highlights|resultado final|marcador|segundo tiempo|primer tiempo|liga mx|selección|mundial|copa america|eurocopa|formula 1|nascar|superbowl|olimpiadas|tour de france|official music video|music video|video oficial|lyrics|lyric video|vevo|grammy|oscar|emmy|concierto|concert|tour|en vivo con|live at|ft\.|feat\.|\(official|videoclip|clip oficial|estreno|nuevo sencillo|nuevo album|nueva canción|telenovela|novela|serie completa|pelicula completa|full movie|capítulo completo|episodio completo|misa de|culto cristiano|sermón|predicación|pastor |iglesia |evangelio|dios dice|señor jesús|testigos de jehov|estafa de|me timaron|me robaron|vlog|daily vlog|mi día|my day|grwm|get ready|storytime|q&a|unboxing|haul|reaction|reacción|reacting|mi rutina|my routine|me fui a|llegué a|primer día|mi nueva|mi nuevo|compré|renté|probando comida|mukbang|asmr eating|stand.?up|show de|programa de|episodio \d|temporada \d|capítulo \d|segunda emisión|primera emisión|transmitiendo|streaming ahora|minecraft|roblox|fortnite|gameplay|walkthrough|playthrough|speedrun|podcast|podcasts|mix\b|mixes|playlist|study music|sleep music|white noise|river sound|waterfall|thunderstorm|lluvia para dormir|sonido de lluvia|relaxing music|deep sleep|ocean sounds/i;
+ var OBVIOUS_REJECT = /shakira|bad bunny|j balvin|maluma|ozuna|karol g|rosalia|daddy yankee|anuel|nicky jam|rauw|myke towers|farruko|arcangel|reggaeton|trap latino|corrido|narco|cartel|regional mexicano|grupero|cumbia|vallenato|merengue|nba|nfl|nhl|mlb|fifa|uefa|laliga|premier league|champions|wwe|ufc|espn|fox news|cnn|bbc|telemundo|univision|caracol|televisa|latinus|trump|biden|putin|zelensky|petro|sheinbaum|milei|maduro|bukele|lula|modi|macron|netanyahu|obrador|amlo|iran|irán|ormuz|palestin|hamas|hezbollah|gaza|israel|misil|missile|ultimatum|abre fuego|dispara|amenaza terrorista|amenaza nuclear|ataque militar|ataque terrorista|ataque aéreo|buque de guerra|ejército de|\uD83D\uDEA8|\uD83D\uDD34|en vivo|live stream|transmisión en vivo|breaking|última hora|urgente|alerta máxima|noticiero|telediario|noticias de|partido de|goles del|resumen de|highlights|resultado final|marcador|segundo tiempo|primer tiempo|liga mx|selección|mundial|copa america|eurocopa|formula 1|nascar|superbowl|olimpiadas|tour de france|official music video|music video|video oficial|lyrics|lyric video|vevo|grammy|oscar|emmy|concierto|concert|tour|en vivo con|live at|ft\.|feat\.|\(official|videoclip|clip oficial|estreno|nuevo sencillo|nuevo album|nueva canción|telenovela|novela|serie completa|pelicula completa|full movie|capítulo completo|episodio completo|misa de|culto cristiano|sermón|predicación|pastor |iglesia |evangelio|dios dice|señor jesús|testigos de jehov|estafa de|me timaron|me robaron|vlog|daily vlog|mi día|my day|grwm|get ready|storytime|q&a|unboxing|haul|reaction|reacción|reacting|mi rutina|my routine|me fui a|llegué a|primer día|mi nueva|mi nuevo|compré|renté|probando comida|mukbang|asmr eating|stand.?up|show de|programa de|episodio \d|temporada \d|capítulo \d|segunda emisión|primera emisión|transmitiendo|streaming ahora|minecraft|roblox|fortnite|gameplay|walkthrough|playthrough|speedrun|podcast|podcasts|mix\b|mixes|playlist|study music|sleep music|white noise|river sound|waterfall|thunderstorm|lluvia para dormir|sonido de lluvia|relaxing music|deep sleep|ocean sounds/i;
 
   var FEED_GENERIC_REJECT = /podcast|podcasts|interview|entrevista|music|música|musica|piano|orchestra|orquesta|chopin|mozart|beethoven|playlist|mix\b|mixes|sports?|deportes|baseball|basketball|football|soccer|fútbol|tennis|golf|boxing|mma|ufc|banana ball|finals?|game\b|match\b|highlights|best moments?|greatest moments?|launch(?:es|ing)?|mission update|press conference|official\b|trailer|teaser|biblia|bible|iglesia|church|cat[oó]lic|serm[oó]n|predicaci[oó]n|sabiduría|sabiduria|quotes|frases|affirmations|afirmaciones|production line|manufacturing|assembly line|factory tour|car manufacturing/i;
 
@@ -12060,7 +12068,7 @@ function showAshlyVScanOverlayLegacy_old(topResults, totalVideos, avgOS, avgRpm,
     var memSt = AshlyVMemory.getStats();
     var t2 = document.createElement('div'); t2.id = 'hdr-sub'; t2.textContent = 'DRAG TO MOVE • ' + topResults.length + ' TOPS • ' + memSt.seenTitles + ' SAVED';
     hL.appendChild(t1); hL.appendChild(t2);
- var closeBtn = document.createElement('button'); closeBtn.id ='close-btn'; closeBtn.textContent ='';
+    var closeBtn = document.createElement('button'); closeBtn.id = 'close-btn'; closeBtn.textContent = 'X'; closeBtn.setAttribute('aria-label', 'Close');
     closeBtn.onclick = function() { host.remove(); if(btnTxt) btnTxt.textContent = 'SCAN'; };
     hdr.appendChild(hL); hdr.appendChild(closeBtn);
     panel.appendChild(hdr);
@@ -12523,7 +12531,7 @@ function nspRunVisionPass(topResults, listEl) {
         badge.textContent = conf + '% FACELESS';
         badge.style.cssText = 'border:1px solid rgba(0,255,150,0.55); background:rgba(0,255,150,0.10); color:#0f9;';
       } else {
-        badge.textContent = String(v.type || 'no-faceless').slice(0, 14);
+        badge.textContent = '' + String(v.type || 'no-faceless').slice(0, 14);
         badge.style.cssText = 'border:1px solid rgba(255,90,90,0.55); background:rgba(255,90,90,0.10); color:#f88;';
         row.style.opacity = '0.45';
         try { listEl.appendChild(row); } catch (e) {}
@@ -12790,7 +12798,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
       if (topResults.length === 0 && hasStrictUserScanPreferences() && totalVideos > 0) {
         var prefsHint = NspScanPrefs.get();
         var metaHint = NSP_MARKET_META[prefsHint.market] || {};
- var flagHint = metaHint.flag ||'';
+        var flagHint = metaHint.flag || '';
         var marketName = metaHint.label || 'your market';
         var hint = document.createElement('div');
         hint.id = 'nsp-zero-hint';
@@ -14112,7 +14120,7 @@ function extractChannelData() {
   } catch(e) { console.log('[NSP] extractChannelData err:', e); return null; }
 }
 
-// NEW & EXPLODING badge — injected NEXT TO YouTube's native Subscribe button 
+// ── NEW & EXPLODING badge — injected NEXT TO YouTube's native Subscribe button ──
 // Survives YouTube DOM re-renders via MutationObserver.
 var _nspExplodingMO = null;
 var _nspExplodingState = null; // { ch, avgVPH } — re-inject after navigation
@@ -14428,7 +14436,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
   // Drag handle icon (4-direction arrows)
   var dragHandle = document.createElement('div');
   dragHandle.setAttribute('style', 'width:18px;height:18px;display:flex;align-items:center;justify-content:center;color:' + NEON + ';flex-shrink:0;font-size:14px;line-height:1;');
- dragHandle.textContent ='';
+  dragHandle.textContent = '::';
   dragHandle.title = 'Drag to move';
   hdr.appendChild(dragHandle);
 
@@ -14445,7 +14453,8 @@ function openTrackingPanel(ch, subGrowthMonth) {
   hdr.appendChild(hLeft);
 
   var hX = document.createElement('button');
- hX.textContent ='';
+  hX.textContent = 'X';
+  hX.setAttribute('aria-label', 'Close');
   hX.setAttribute('style', 'width:30px;height:30px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:transparent;color:' + FG + ';cursor:pointer;font-size:14px;font-family:inherit;flex-shrink:0;');
   hX.onclick = function() { panel.remove(); };
   hdr.appendChild(hX);
@@ -15304,7 +15313,8 @@ function buildChannelStatsPanel(ch, scored, subGrowth, revMonth, rangeKey) {
   hdr.appendChild(hdrLeft);
 
   var closeBtn = document.createElement('button');
- closeBtn.textContent ='';
+  closeBtn.textContent = 'X';
+  closeBtn.setAttribute('aria-label', 'Close');
   closeBtn.style.cssText = 'background:none;border:1px solid rgba(255,255,255,.12);border-radius:8px;'
     + 'color:rgba(234,240,255,.4);font-size:13px;padding:4px 9px;cursor:pointer;'
     + 'font-family:ui-monospace,monospace;transition:all .15s;';
@@ -16037,7 +16047,7 @@ function openChannelStatsWithLoader(ch, channelScored, subGrowth, revMonth, rang
     + 'font-family:ui-monospace,monospace;color:#eaf0ff;text-align:center;';
   var titleEl = document.createElement('div');
   titleEl.style.cssText = 'font-size:14px;font-weight:900;letter-spacing:.14em;color:#A88FFF;margin-bottom:8px;';
- titleEl.textContent ='ANALYZING CHANNEL';
+  titleEl.textContent = 'ANALYZING CHANNEL';
   var subEl = document.createElement('div');
   subEl.style.cssText = 'font-size:11px;color:rgba(234,240,255,.55);margin-bottom:18px;line-height:1.5;';
   subEl.textContent = 'Fetching recent videos from ' + (ch.name || 'this channel') + ', about 3 seconds';
@@ -16636,7 +16646,7 @@ function showThumbLabPanel(ch) {
       nspSetHTML(card, '<img src="' + g.thumbUrl + '" style="width:100%;display:block;aspect-ratio:16/9;object-fit:cover;"/>'
         + '<div style="padding:8px 10px;">'
         + '<div style="font-size:10.5px;font-weight:700;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + (g.title || '').replace(/[<>]/g, '') + '</div>'
- +'<div style="font-size:9px;color:rgba(255,255,255,.55);margin-top:4px;">'+ fmtVPH(g.vph) +'/h ·'+ fmtN(g.views) +'</div>'
+        + '<div style="font-size:9px;color:rgba(255,255,255,.55);margin-top:4px;">' + fmtVPH(g.vph) + '/h · ' + fmtN(g.views) + '</div>'
         + '</div>');
       grid.appendChild(card);
     });
@@ -16990,7 +17000,7 @@ function showTranscriptPanel(videoId) {
 
   var search = document.createElement('input');
   search.type = 'text';
- search.placeholder ='Search the transcript';
+  search.placeholder = 'Search the transcript';
   search.style.cssText = 'margin:10px 14px 6px;padding:7px 11px;border-radius:8px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;font-family:inherit;font-size:11px;outline:none;';
   panel.appendChild(search);
 
@@ -17183,9 +17193,9 @@ function showCommentsPanel(videoId) {
       });
       body.appendChild(sec);
     }
- section('TOPICS', parsed.themes || []);
- section('PAIN POINTS', parsed.painPoints || [],'rgba(255,107,107,.08)');
- section('REQUESTS', parsed.requests || [],'rgba(0,220,130,.06)');
+    section('TOPICS', parsed.themes || []);
+    section('PAIN POINTS', parsed.painPoints || [], 'rgba(255,107,107,.08)');
+    section('REQUESTS', parsed.requests || [], 'rgba(0,220,130,.06)');
   }).catch(function(err) {
     nspSetHTML(loading, '<div style="color:#FF6B6B;font-size:11px;">Error: ' + (err && err.message || 'unknown') + '</div>');
   });
@@ -17226,7 +17236,7 @@ function injectTranscriptButton() {
 
   var btn = document.createElement('button');
   btn.id = 'nsp-transcript-btn-floating';
- btn.textContent ='TRANSCRIPT';
+  btn.textContent = 'TRANSCRIPT';
   btn.style.cssText = 'position:fixed;bottom:18px;right:18px;z-index:9999;padding:10px 14px;border-radius:14px;'
     + 'border:1px solid rgba(255,255,255,.22);background:linear-gradient(135deg,#0a0a0a,#1a1a2e);color:#fff;'
     + 'font-family:ui-monospace,monospace;font-size:10px;font-weight:900;cursor:pointer;letter-spacing:.12em;'
@@ -18040,7 +18050,7 @@ function showSimilarChannelsPanel(ch) {
   // Trusted Types: YouTube blocks innerHTML here.
   var loadingTitle = document.createElement('div');
   loadingTitle.style.cssText = 'font-size:13px;font-weight:800;color:#A88FFF;margin-bottom:8px;';
- loadingTitle.textContent ='Detecting niche';
+  loadingTitle.textContent = 'Detecting niche';
   loading.appendChild(loadingTitle);
   var loadingSteps = ['1. Pulling keywords from the channel', '2. Searching top videos in the niche', '3. Filtering for channels with real traction'];
   loadingSteps.forEach(function(step) {
@@ -18067,7 +18077,7 @@ function showSimilarChannelsPanel(ch) {
     if (nicheQ) {
       var totalFound = list._totalFound || 0;
       var totalKept = list._totalKept || list.length;
- hS.textContent = mktTag +''+ nicheQ.slice(0, 42) +'·'+ totalKept +'/'+ totalFound +'with traction';
+      hS.textContent = (mktTag ? mktTag + ' ' : '') + nicheQ.slice(0, 42) + ' · ' + totalKept + '/' + totalFound + ' with traction';
       hS.title = 'Detected market, niche keywords, channels with real stats out of total';
     } else {
       hS.textContent = mktTag + (ch.name || 'channel').slice(0, 30);
@@ -18107,32 +18117,33 @@ function showSimilarChannelsPanel(ch) {
       var meta = document.createElement('div');
       meta.style.cssText = 'font-size:9.5px;color:rgba(255,255,255,.55);margin-top:3px;';
       var bits = [];
- if (c.subs) bits.push(''+ fmtN(c.subs));
- if (c.videoCount) bits.push(''+ c.videoCount);
- else if (c.videoViews) bits.push(''+ fmtN(c.videoViews) +'v');
+      if (c.subs) bits.push(fmtN(c.subs) + ' subs');
+      if (c.videoCount) bits.push(c.videoCount + ' videos');
+      else if (c.videoViews) bits.push(fmtN(c.videoViews) + ' views');
       // Monetization badge — only show positive signals (clutter-free)
- if (c.monetized ==='yes') bits.push('Monet.');
- else if (c.monetized ==='likely') bits.push('Likely');
+      if (c.monetized === 'yes') bits.push('Monet.');
+      else if (c.monetized === 'likely') bits.push('Likely');
       // Source last
- if (c.source ==='niche-video') bits.push('Niche');
- else if (c.source ==='niche-channel') bits.push('Channel');
- else if (c.source ==='featured') bits.push('Feat.');
- else if (c.source ==='watch-next') bits.push('Next');
+      if (c.source === 'niche-video') bits.push('Niche');
+      else if (c.source === 'niche-channel') bits.push('Channel');
+      else if (c.source === 'featured') bits.push('Feat.');
+      else if (c.source === 'watch-next') bits.push('Next');
       if ((c.hits || 0) > 1) bits.push('×' + c.hits);
- if (c._lowTraction) bits.push('small');
- if (c._faceless === true) bits.push('faceless');
- else if (c._faceless === false) bits.push('face');
+      if (c._lowTraction) bits.push('small');
+      if (c._faceless === true) bits.push('faceless');
+      else if (c._faceless === false) bits.push('face');
       meta.textContent = bits.join(' · ');
       info.appendChild(nm); info.appendChild(meta);
       row.appendChild(info);
 
       var saveBtn = document.createElement('button');
- saveBtn.textContent ='';
+      saveBtn.textContent = '+';
       saveBtn.title = 'Save channel';
+      saveBtn.setAttribute('aria-label', 'Save channel');
       saveBtn.style.cssText = 'width:30px;height:30px;border-radius:6px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;cursor:pointer;flex-shrink:0;font-size:14px;';
       saveBtn.onclick = function(ev) {
         ev.stopPropagation();
- saveBtn.textContent ='';
+        saveBtn.textContent = 'OK';
         saveBtn.disabled = true;
         try {
           saveToAllChannels({
@@ -18158,7 +18169,7 @@ function injectChannelOverlay() {
   try {
     return _injectChannelOverlay_inner();
   } catch(eFatal) {
- console.error('[NSP] OVERLAY FATAL ERROR:', eFatal && eFatal.stack || eFatal);
+    console.error('[NSP] OVERLAY FATAL ERROR:', eFatal && eFatal.stack || eFatal);
     // Show visible error alert (user can't always see console)
     try {
       var existingAlert = document.getElementById('nsp-fatal-alert');
@@ -18169,7 +18180,7 @@ function injectChannelOverlay() {
         + 'padding:14px 22px;background:rgba(255,80,80,.95);color:#fff;border-radius:14px;'
         + 'font-family:ui-monospace,monospace;font-size:12px;font-weight:700;'
         + 'box-shadow:0 12px 32px rgba(255,80,80,.4);text-align:left;';
- nspSetHTML(a,'<div style="font-size:13px;font-weight:900;margin-bottom:6px;">NSP overlay error</div>'
+      nspSetHTML(a, '<div style="font-size:13px;font-weight:900;margin-bottom:6px;">NSP overlay error</div>'
         + '<div style="font-size:11px;font-weight:500;line-height:1.5;opacity:.95;">'
         + String((eFatal && eFatal.message) || eFatal).slice(0, 300)
         + '</div><div style="font-size:9.5px;margin-top:8px;opacity:.7;">Copy this message into the chat so it can be fixed.</div>');
@@ -18276,24 +18287,24 @@ function _injectChannelOverlay_inner() {
   var infoSec = document.createElement('div');
   infoSec.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:1;min-width:0;';
 
- infoSec.appendChild(sp('NSP','color:#7B5CFF;font-weight:800;font-size:11px;letter-spacing:.1em;flex-shrink:0'));
+  infoSec.appendChild(sp('NSP', 'color:#7B5CFF;font-weight:800;font-size:11px;letter-spacing:.1em;flex-shrink:0'));
   infoSec.appendChild(dv());
- infoSec.appendChild(sp(''+ fmtN(ch.subs),'color:#2EE9FF;font-weight:700;font-size:11px;flex-shrink:0'));
+  infoSec.appendChild(sp(fmtN(ch.subs) + ' subs', 'color:#2EE9FF;font-weight:700;font-size:11px;flex-shrink:0'));
 
   if (subGrowth != null) {
     var gc = subGrowth >= 0 ? '#00DC82' : '#FF6B6B';
     infoSec.appendChild(sp((subGrowth >= 0 ? '+' : '') + fmtN(subGrowth) + '/mo', 'color:' + gc + ';font-size:10.5px;font-weight:700;flex-shrink:0'));
   } else {
- infoSec.appendChild(sp('tracking','color:rgba(234,240,255,.3);font-size:10px;flex-shrink:0'));
+    infoSec.appendChild(sp('tracking', 'color:rgba(234,240,255,.3);font-size:10px;flex-shrink:0'));
   }
 
   infoSec.appendChild(dv());
 
   var monLabel, monColor;
- if (ch.monetized ==='yes') { monLabel ='Monetized'; monColor ='#00DC82'; }
- else if (ch.monetized ==='likely') { monLabel ='Likely monetized'; monColor ='#FFD700'; }
- else if (ch.monetized ==='no') { monLabel ='Not monetized'; monColor ='#FF6B6B'; }
- else { monLabel ='Unknown'; monColor ='rgba(234,240,255,.4)'; }
+  if (ch.monetized === 'yes')         { monLabel = 'Monetized';         monColor = '#00DC82'; }
+  else if (ch.monetized === 'likely') { monLabel = 'Likely monetized'; monColor = '#FFD700'; }
+  else if (ch.monetized === 'no')     { monLabel = 'Not monetized';     monColor = '#FF6B6B'; }
+  else                                { monLabel = 'Unknown';           monColor = 'rgba(234,240,255,.4)'; }
   infoSec.appendChild(sp(monLabel, 'color:' + monColor + ';font-size:10.5px;font-weight:700;flex-shrink:0'));
 
   if (revMonth > 0) {
@@ -18308,11 +18319,11 @@ function _injectChannelOverlay_inner() {
     for (var bv = 0; bv < _allScored.length; bv++) barAvgVPH += _allScored[bv].vph;
     barAvgVPH /= _allScored.length;
     var barVerdict, barCol, barBg, barBd;
- if (barAvgVPH >= 1000) { barVerdict ='VIRAL'; barCol='#E040FF'; barBg='rgba(200,0,255,.15)'; barBd='rgba(200,0,255,.4)'; }
- else if (barAvgVPH >= 200) { barVerdict ='HOT'; barCol='#FF6B35'; barBg='rgba(255,80,0,.12)'; barBd='rgba(255,80,0,.35)'; }
- else if (barAvgVPH >= 50) { barVerdict ='MOVING'; barCol='#FFD700'; barBg='rgba(255,200,0,.1)'; barBd='rgba(255,200,0,.3)'; }
- else if (barAvgVPH >= 10) { barVerdict ='STABLE'; barCol='#00DC82'; barBg='rgba(0,220,130,.08)'; barBd='rgba(0,220,130,.25)'; }
- else { barVerdict ='SLOW'; barCol='#888'; barBg='rgba(80,80,80,.1)'; barBd='rgba(80,80,80,.2)'; }
+    if (barAvgVPH >= 1000)     { barVerdict = 'VIRAL'; barCol='#E040FF'; barBg='rgba(200,0,255,.15)'; barBd='rgba(200,0,255,.4)'; }
+    else if (barAvgVPH >= 200) { barVerdict = 'HOT'; barCol='#FF6B35'; barBg='rgba(255,80,0,.12)'; barBd='rgba(255,80,0,.35)'; }
+    else if (barAvgVPH >= 50)  { barVerdict = 'MOVING'; barCol='#FFD700'; barBg='rgba(255,200,0,.1)'; barBd='rgba(255,200,0,.3)'; }
+    else if (barAvgVPH >= 10)  { barVerdict = 'STABLE'; barCol='#00DC82'; barBg='rgba(0,220,130,.08)'; barBd='rgba(0,220,130,.25)'; }
+    else                       { barVerdict = 'SLOW'; barCol='#888'; barBg='rgba(80,80,80,.1)'; barBd='rgba(80,80,80,.2)'; }
     infoSec.appendChild(dv());
     var vc = document.createElement('span');
     vc.style.cssText = 'display:inline-flex;align-items:center;padding:3px 9px;border-radius:4px;'
@@ -18374,7 +18385,7 @@ function _injectChannelOverlay_inner() {
           + 'padding:10px 18px;background:rgba(46,233,255,.95);color:#000;border-radius:10px;'
           + 'font-family:ui-monospace,monospace;font-size:12px;font-weight:800;'
           + 'box-shadow:0 12px 32px rgba(46,233,255,.4);';
- feedback.textContent ='Opening TRACKING';
+        feedback.textContent = 'Opening TRACKING';
         document.body.appendChild(feedback);
         setTimeout(function() { feedback.remove(); }, 1500);
 
@@ -18388,7 +18399,7 @@ function _injectChannelOverlay_inner() {
         a.style.cssText = 'position:fixed;top:160px;left:50%;transform:translateX(-50%);z-index:99999;'
           + 'padding:14px 22px;background:rgba(255,80,80,.95);color:#fff;border-radius:10px;'
           + 'font-family:ui-monospace,monospace;font-size:12px;font-weight:700;max-width:480px;';
- nspSetHTML(a,'<div style="font-weight:900;margin-bottom:6px;">TRACKING error</div>'
+        nspSetHTML(a, '<div style="font-weight:900;margin-bottom:6px;">TRACKING error</div>'
           + '<div style="font-size:10.5px;">' + String(err && err.message || err).slice(0, 200) + '</div>');
         document.body.appendChild(a);
         setTimeout(function() { a.remove(); }, 6000);
@@ -18405,7 +18416,7 @@ function _injectChannelOverlay_inner() {
     console.log('[NSP] TRACKING pill created with', allChildren.length, 'children disabled for events');
   } catch(eTrack) { console.warn('[NSP] tracking pill setup error:', eTrack); }
   // Neutral placeholder while the ad check runs, so the pill does not show a subscriber based guess and then jump to another value.
- var monetPill = createNSPInteractiveMetricPill('CHECKING ADS', monetValue,'money', false);
+  var monetPill = createNSPInteractiveMetricPill('CHECKING ADS', monetValue, 'money', false);
   monetPill.dataset.monetPlaceholder = '1';
   infoSec.appendChild(monetPill);
 
@@ -18416,21 +18427,21 @@ function _injectChannelOverlay_inner() {
       var label, sub;
       if (res.verdict === 'monetized') {
         // Green only comes from Join or Shop, direct proof of YPP, never from ads alone.
- label ='MONETIZED';
+        label = 'MONETIZED';
         sub = res.joinButton ? 'Join button active, YPP confirmed'
             : (res.shopTab ? 'Shop tab active, YPP confirmed' : 'YPP confirmed');
       }
       else if (res.verdict === 'ads_unconfirmed') {
- label = " CAN'T CHECK";
+        label = "CAN'T CHECK";
         sub = 'serves ads but no direct YPP proof, ' + res.adsFound + '/' + res.probeCount + ' videos with ads, possibly Content-ID';
       }
       else if (res.verdict === 'demonetized') {
- label ='NOT MONETIZED';
+        label = 'NOT MONETIZED';
         sub = (res.reasons && res.reasons.indexOf('below_ypp_threshold') !== -1)
           ? 'under 1000 subs, below the YPP minimum'
           : 'NO ADS in ' + res.probeCount + ' video' + (res.probeCount === 1 ? '' : 's') + ' checked';
       }
- else { label = " CAN'T CHECK"; sub = (res.reasons && res.reasons.indexOf('probe_unavailable') !== -1) ?'YouTube blocked the ad check':'no direct YPP proof, no Join and no Shop'; }
+      else { label = "CAN'T CHECK"; sub = (res.reasons && res.reasons.indexOf('probe_unavailable') !== -1) ? 'YouTube blocked the ad check' : 'no direct YPP proof, no Join and no Shop'; }
       var fresh = createNSPInteractiveMetricPill(label, sub, 'money', res.verdict === 'monetized');
       fresh.dataset.monetVerdict = res.verdict;
       try {
@@ -18454,7 +18465,7 @@ function _injectChannelOverlay_inner() {
     }
   } catch(e) {}
 
- // Channel Age pill (in overlay) + NEW & EXPLODING badge (next to Subscribe button) 
+  // ── Channel Age pill (in overlay) + NEW & EXPLODING badge (next to Subscribe button) ──
   try {
     function renderAgePill(ageDays, joinedDateStr, opts) {
       opts = opts || {};
@@ -18479,7 +18490,7 @@ function _injectChannelOverlay_inner() {
       if (isYoung) agePill.style.color = '#FFD93D';
       infoSec.appendChild(agePill);
 
- // NEW & EXPLODING — now injected NEXT TO Subscribe button, not in overlay
+      // NEW & EXPLODING — now injected NEXT TO Subscribe button, not in overlay
       var chWithAge = Object.assign({}, ch, { channelAgeDays: ageDays });
       var avgVPH = 0, timedVPH = 0;
       for (var nE = 0; nE < _allScored.length; nE++) {
@@ -18569,7 +18580,7 @@ function _injectChannelOverlay_inner() {
         + 'padding:14px 22px;background:rgba(255,80,80,.95);color:#fff;border-radius:10px;'
         + 'font-family:ui-monospace,monospace;font-size:12px;font-weight:700;'
         + 'box-shadow:0 12px 32px rgba(255,80,80,.4);max-width:480px;text-align:left;';
- nspSetHTML(alertDiv,'<div style="font-size:13px;font-weight:900;margin-bottom:6px;">VIEW STATS error</div>'
+      nspSetHTML(alertDiv, '<div style="font-size:13px;font-weight:900;margin-bottom:6px;">VIEW STATS error</div>'
         + '<div style="font-size:10.5px;font-weight:500;line-height:1.5;opacity:.95;">'
         + String(err && err.message || err).slice(0, 200)
         + '</div><div style="font-size:9px;margin-top:8px;opacity:.7;">Open the console (F12) for the full stack.</div>');
@@ -19241,7 +19252,7 @@ function nspShowFacelessVerdict() {
   head.style.cssText = 'display:flex;justify-content:space-between;align-items:center;gap:10px;';
   var ht = document.createElement('div');
   ht.style.cssText = 'font-size:11px;font-weight:900;letter-spacing:.14em;color:#fff;text-shadow:0 0 8px rgba(255,255,255,.5);';
- ht.textContent ='FACELESS VERDICT';
+  ht.textContent = 'FACELESS VERDICT';
   var hx = document.createElement('button');
   hx.textContent = '×';
   hx.style.cssText = 'background:none;border:none;color:rgba(255,255,255,.6);font-size:18px;cursor:pointer;line-height:1;';
@@ -19260,7 +19271,7 @@ function nspShowFacelessVerdict() {
  big.textContent ='NO FACELESS'+ (extra ||'');
       big.style.color = '#FF6B6B'; big.style.borderColor = 'rgba(255,107,107,.55)'; big.style.background = 'rgba(255,107,107,.08)';
     } else {
- big.textContent ='DOUBTFUL'+ (extra ||'');
+      big.textContent = 'DOUBTFUL' + (extra || '');
       big.style.color = '#FFD93D'; big.style.borderColor = 'rgba(255,217,61,.5)'; big.style.background = 'rgba(255,217,61,.07)';
     }
   }
@@ -19638,7 +19649,7 @@ function renderGlobeDropdown(panel, summaryEl) {
   var act = document.createElement('div');
   act.style.cssText = 'padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;flex-direction:column;gap:8px;';
   var scanNowBtn = document.createElement('button');
- scanNowBtn.textContent ='SCAN NOW WITH THIS SETUP';
+  scanNowBtn.textContent = 'SCAN NOW WITH THIS SETUP';
   scanNowBtn.style.cssText = 'width:100%;padding:11px 12px;border-radius:10px;border:1px solid rgba(0,255,136,.5);background:linear-gradient(135deg,rgba(0,255,136,.16),rgba(0,0,0,.9));color:#00FF88;font-size:11px;font-weight:900;letter-spacing:.08em;cursor:pointer;font-family:' + NSP_FONT_DISPLAY + ';box-shadow:0 0 18px rgba(0,255,136,.15);';
   scanNowBtn.onclick = function(e) {
     e.preventDefault();
@@ -19703,7 +19714,7 @@ function renderGlobeDropdown(panel, summaryEl) {
   }
 
   section('Language', 'Hard filter: only videos detected in the chosen language show up in the scan.', [
- { label:'Auto', value:'auto'},
+    { label:'Auto', value:'auto' },
     { label:'English', value:'en' },
     { label:'Spanish', value:'es' },
     { label:'German', value:'de' },
@@ -19798,7 +19809,7 @@ function injectGlobeButton() {
         ? (marketMeta.lang || 'auto')
         : prefs.language;
       var depthLabel = (NSP_DEPTH_META[prefs.depth] || {}).label || prefs.depth;
- var marketFlag = marketMeta.flag ||'';
+      var marketFlag = marketMeta.flag || '';
       var marketCode = marketMeta.gl || 'GL';
       var filtered = (typeof NSP_LAST_FILTERED_COUNT === 'number') ? NSP_LAST_FILTERED_COUNT : 0;
       badge.textContent = marketFlag + ' ' + marketCode + ' · ' + langCode + ' · ' + depthLabel + ' · ' + filtered + ' filt';
@@ -19905,7 +19916,7 @@ function showMarketSwitchToast(meta) {
       + 'background:#000;border:1px solid #00FF88;'
       + 'box-shadow:0 14px 36px rgba(0,0,0,.6),0 0 22px rgba(0,255,136,.3);'
       + 'font-family:ui-monospace,monospace;color:#fff;font-size:12px;max-width:400px;';
- var flag = (meta && meta.flag) ||'';
+    var flag = (meta && meta.flag) || '';
     var name = (meta && meta.label) || 'Global';
     var line1 = document.createElement('div');
     line1.style.cssText = 'font-weight:900;font-size:12px;color:#00FF88;letter-spacing:.05em;margin-bottom:3px;';
@@ -20039,7 +20050,7 @@ function showAutoScanStartingToast(flag) {
       + 'box-shadow:0 12px 32px rgba(0,0,0,.5),0 0 18px rgba(0,255,136,.3);'
       + 'font-family:ui-monospace,monospace;color:#00FF88;font-size:11px;font-weight:800;letter-spacing:.05em;'
       + 'max-width:380px;line-height:1.5;';
- nspSetHTML(t,'Stealth scan for'+ (meta.flag ||'') +''+ (meta.label || flag.market)
+    nspSetHTML(t, 'Stealth scan for ' + (meta.flag || '') + ' ' + (meta.label || flag.market)
       + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.65);font-weight:600;">Scanning about 300 videos, then expanding by keywords</span>');
     document.body.appendChild(t);
     setTimeout(function() { if (t.parentNode) t.remove(); }, 8000);
@@ -20084,7 +20095,7 @@ function updateStealthToast(phase, info) {
     var t = document.getElementById('nsp-stealth-scan-toast');
     if (!t) return;
     if (phase === 'expand') {
- nspSetHTML(t,'Stealth scan, expanding by keywords'
+      nspSetHTML(t, 'Stealth scan, expanding by keywords'
         + '<br><span style="font-size:9.5px;color:rgba(0,255,136,0.65);font-weight:600;">Searching ' + (info && info.keywords ? '"' + info.keywords + '"' : 'top keywords') + ' on YouTube ' + (info && info.gl || '') + '</span>');
     } else if (phase === 'done') {
       t.style.borderColor = '#00FF88';
@@ -20094,7 +20105,7 @@ function updateStealthToast(phase, info) {
     } else if (phase === 'error') {
       t.style.borderColor = '#FF4488';
       t.style.color = '#FF4488';
- nspSetHTML(t,'Stealth scan:'+ ((info && info.msg) ||'error'));
+      nspSetHTML(t, 'Stealth scan: ' + ((info && info.msg) || 'error'));
       setTimeout(function() { if (t.parentNode) t.remove(); }, 5000);
     }
   } catch(e) {}
@@ -20111,7 +20122,7 @@ function showOpeningCountryDashboardToast(meta) {
       + 'background:#000;border:1px solid #00FF88;'
       + 'box-shadow:0 14px 36px rgba(0,0,0,.6),0 0 22px rgba(0,255,136,.3);'
       + 'font-family:ui-monospace,monospace;color:#fff;font-size:12px;max-width:400px;';
- var flag = (meta && meta.flag) ||'';
+    var flag = (meta && meta.flag) || '';
     var name = (meta && meta.label) || 'Global';
     var line1 = document.createElement('div');
     line1.style.cssText = 'font-weight:900;font-size:12px;color:#00FF88;letter-spacing:.05em;margin-bottom:3px;';
@@ -20289,7 +20300,7 @@ function showNichePanel(ch, scored) {
   // Header
   var hdr = el('div','padding:14px 16px;background:rgba(0,0,0,0.8);border-bottom:1px solid rgba(255,255,255,0.08);border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1;');
   var hl = el('div');
- hl.appendChild(el('div','font-size:12px;font-weight:900;color:#fff;letter-spacing:0.08em;','NICHE COMPETITOR RADAR'));
+  hl.appendChild(el('div','font-size:12px;font-weight:900;color:#fff;letter-spacing:0.08em;','NICHE COMPETITOR RADAR'));
   hl.appendChild(el('div','font-size:9px;color:rgba(255,255,255,0.4);margin-top:2px;',ch.name + ' · RPM $' + avgRpm));
  var cl = el('button','background:none;border:1px solid rgba(255,255,255,.12);border-radius:6px;color:rgba(255,255,255,.4);font-size:12px;padding:3px 7px;cursor:pointer;','');
   cl.onclick = function() { p.remove(); };
@@ -20298,10 +20309,10 @@ function showNichePanel(ch, scored) {
 
   if (topVideo && viralTitle) {
     var vs = el('div','padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.06);background:rgba(0,220,130,0.04);');
- vs.appendChild(el('div','font-size:9px;color:rgba(0,220,130,0.6);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:5px;','Most viral video on the channel'));
+    vs.appendChild(el('div','font-size:9px;color:rgba(0,220,130,0.6);text-transform:uppercase;letter-spacing:0.08em;font-weight:700;margin-bottom:5px;','Most viral video on the channel'));
     vs.appendChild(el('div','font-size:11px;color:#eaf0ff;font-weight:700;line-height:1.4;margin-bottom:6px;',topVideo.title||''));
     var vphFmt = topVideo.vph>=1000?(topVideo.vph/1000).toFixed(1)+'K':Math.round(topVideo.vph);
- vs.appendChild(el('div','font-size:9px;color:rgba(255,255,255,0.35);margin-bottom:8px;',''+vphFmt+'VPH · $'+(topVideo.totalRev||0).toLocaleString()+'estimated total'));
+    vs.appendChild(el('div','font-size:9px;color:rgba(255,255,255,0.35);margin-bottom:8px;',''+vphFmt+' VPH · $'+(topVideo.totalRev||0).toLocaleString()+' estimated total'));
     var btns = el('div','display:flex;gap:6px;flex-wrap:wrap;');
     function sb(label, q, col, forcedLang) {
       var b = el('button','padding:4px 10px;border-radius:6px;border:1px solid '+col+'44;background:'+col+'15;color:'+col+';font-size:9.5px;font-weight:800;cursor:pointer;font-family:inherit;',label);
@@ -20311,9 +20322,9 @@ function showNichePanel(ch, scored) {
     btns.appendChild(sb('🇪🇸 Search ES', viralTitle, '#00DC82', 'es'));
     btns.appendChild(sb('🇺🇸 Search EN', viralEN, '#2EE9FF', 'en'));
     
- var ashmBtn = el('button','padding:4px 10px;border-radius:6px;border:1px solid #FF990044;background:#FF990015;color:#FF9900;font-size:9.5px;font-weight:800;cursor:pointer;font-family:inherit;','ASHLYV');
+    var ashmBtn = el('button','padding:4px 10px;border-radius:6px;border:1px solid #FF990044;background:#FF990015;color:#FF9900;font-size:9.5px;font-weight:800;cursor:pointer;font-family:inherit;','ASHLYV');
     ashmBtn.onclick = function() {
- ashmBtn.textContent ='Opening';
+      ashmBtn.textContent = 'Opening';
       var nichoEntry = {
         title: topVideo.title || ch.name,
         niche: nicheKey,
@@ -20335,7 +20346,7 @@ function showNichePanel(ch, scored) {
       
       saveAshlyVNichoSecure(nichoEntry, true, topVideo.title || ch.name || '', ch.channelUrl || '');
 
- setTimeout(function(){ ashmBtn.textContent ='ASHLYV'; }, 2000);
+      setTimeout(function(){ ashmBtn.textContent = 'ASHLYV'; }, 2000);
     };
     btns.appendChild(ashmBtn);
     
@@ -20344,13 +20355,13 @@ function showNichePanel(ch, scored) {
   }
 
   section('🇪🇸 Spanish competition', [
- row('Direct competition', searches.es,'#00DC82','es'),
- row('Growing niche', searches.es +'2025','#FFD700','es'),
- row('Unexplored', searches.es +'nuevo canal','#A88FFF','es'),
+    row('Direct competition', searches.es, '#00DC82', 'es'),
+    row('Growing niche', searches.es + ' 2025', '#FFD700', 'es'),
+    row('Unexplored', searches.es + ' nuevo canal', '#A88FFF', 'es'),
   ]);
   section('🇺🇸 English market, higher RPM', [
- row('Direct competition EN', searches.en,'#2EE9FF','en'),
- row('High RPM, same niche', viralEN +'faceless','#00DC82','en'),
+    row('Direct competition EN', searches.en, '#2EE9FF', 'en'),
+    row('High RPM, same niche', viralEN + ' faceless', '#00DC82', 'en'),
   ]);
 
   document.body.appendChild(p);
@@ -20939,7 +20950,7 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
 
   var hdr = el('div', 'padding:16px 16px 10px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;');
   var hLeft = el('div', 'display:flex;flex-direction:column;gap:5px;min-width:0;');
- hLeft.appendChild(el('div','font-size:12px;font-weight:900;color:#fff;letter-spacing:.16em;text-transform:uppercase;font-family:'+ NSP_FONT_DISPLAY +';','Emulate channel'));
+  hLeft.appendChild(el('div', 'font-size:12px;font-weight:900;color:#fff;letter-spacing:.16em;text-transform:uppercase;font-family:' + NSP_FONT_DISPLAY + ';', 'Emulate channel'));
   hLeft.appendChild(el('div', 'font-size:9px;color:rgba(255,255,255,.48);line-height:1.5;', shortText(analysis.channel.name, 32) + ' | ' + (analysis.channel.handle || 'unknown') + ' | ' + analysis.channel.sampleCount + ' videos'));
   var closeBtn = el('button', 'width:34px;height:34px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.02);'
     + 'color:rgba(255,255,255,.65);font-size:12px;cursor:pointer;font-family:' + NSP_FONT_DISPLAY + ';'
@@ -20983,7 +20994,7 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
 
   var actions = el('div', 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px;');
 
- var emularBtn = actionButton('EMULATE, CREATE VIDEO', true);
+  var emularBtn = actionButton('EMULATE, CREATE VIDEO', true);
   emularBtn.style.gridColumn = '1 / -1';
   emularBtn.onclick = function() {
     try {
@@ -20992,14 +21003,14 @@ function renderDeepChannelAnalysisPanel(analysis, panelMeta) {
         + '\n\nPaste this into your writing tool as the base script and produce the video in this style.'
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(kit).then(function() {
- flashButton(emularBtn,'KIT COPIED, OPEN STUDIO','EMULATE, CREATE VIDEO');
+          flashButton(emularBtn, 'KIT COPIED, OPEN STUDIO', 'EMULATE, CREATE VIDEO');
         }).catch(function() {});
       }
     } catch (e) {}
   };
   actions.appendChild(emularBtn);
 
- var masterBtn = actionButton('THUMB LAB', true);
+  var masterBtn = actionButton('THUMB LAB', true);
   masterBtn.style.gridColumn = '1 / -1';
   masterBtn.onclick = function() {
     try {
@@ -21119,7 +21130,7 @@ async function runDeepChannelAnalysis(ch, btn) {
     if (btn) {
       setTimeout(function() {
         btn.disabled = false;
- btn.textContent = originalText ||'EMULATE';
+        btn.textContent = originalText || 'EMULATE';
         setNSPMonoButtonActive(btn, !!document.getElementById('nsp-niche-panel'));
       }, 1200);
     }
@@ -21137,7 +21148,7 @@ injectChannelOverlay = function() {
     if (!ch) return;
     var nb = document.createElement('button');
     nb.id = 'nsp-niche-btn';
- nb.textContent ='EMULATE';
+    nb.textContent = 'EMULATE';
     styleNSPMonoButton(nb, { compact: true, active: false });
     nb.onclick = function() { runDeepChannelAnalysis(ch, nb); };
     btnSec.insertBefore(nb, btnSec.firstChild);
@@ -21756,7 +21767,7 @@ function _zRenderThumbResult(container, img, scored) {
   if (!scored) return;
   if (scored.error) {
     var er = document.createElement('div');
- er.textContent =''+ scored.error;
+    er.textContent = '' + scored.error;
     er.style.cssText = 'color:#FFD93D;font-size:12px;line-height:1.5;padding:8px 0;';
     container.appendChild(er);
     return;
@@ -21795,13 +21806,13 @@ function _zRenderThumbResult(container, img, scored) {
 
   // Tips
   var tipsHdr = document.createElement('div');
- tipsHdr.textContent ='HOW TO RAISE CTR';
+  tipsHdr.textContent = 'HOW TO RAISE CTR';
   tipsHdr.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:rgba(255,255,255,0.55);margin:10px 0 7px;';
   container.appendChild(tipsHdr);
   (scored.tips || []).forEach(function(tip) {
     var t = document.createElement('div');
     t.style.cssText = 'display:flex;gap:8px;font-size:11.5px;color:rgba(255,255,255,0.82);line-height:1.45;margin-bottom:6px;';
- var dot = document.createElement('span'); dot.textContent =''; dot.style.cssText ='color:#00DC82;flex:0 0 auto;font-weight:900;';
+    var dot = document.createElement('span'); dot.textContent = '-'; dot.style.cssText = 'color:#00DC82;flex:0 0 auto;font-weight:900;';
     var tx = document.createElement('span'); tx.textContent = tip;
     t.appendChild(dot); t.appendChild(tx);
     container.appendChild(t);
@@ -21816,12 +21827,11 @@ function _zBuildThumbView(container) {
 
   var dropZone = document.createElement('label');
   dropZone.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:22px;border:1.5px dashed rgba(0,220,130,0.4);border-radius:12px;background:rgba(0,220,130,0.04);cursor:pointer;text-align:center;';
- var dzIcon = document.createElement('div'); dzIcon.textContent =''; dzIcon.style.cssText ='font-size:26px;';
   var dzText = document.createElement('div'); dzText.textContent = 'Upload your thumbnail (PNG or JPG)'; dzText.style.cssText = 'font-size:12px;font-weight:700;color:#00DC82;';
   var dzHint = document.createElement('div'); dzHint.textContent = 'click here, or drag the file in'; dzHint.style.cssText = 'font-size:10px;color:rgba(255,255,255,0.4);';
   var fileInput = document.createElement('input');
   fileInput.type = 'file'; fileInput.accept = 'image/*'; fileInput.style.display = 'none';
-  dropZone.appendChild(dzIcon); dropZone.appendChild(dzText); dropZone.appendChild(dzHint); dropZone.appendChild(fileInput);
+  dropZone.appendChild(dzText); dropZone.appendChild(dzHint); dropZone.appendChild(fileInput);
   container.appendChild(dropZone);
 
   var or = document.createElement('div'); or.textContent = 'or paste a URL'; or.style.cssText = 'text-align:center;font-size:10px;color:rgba(255,255,255,0.35);margin:11px 0;';
@@ -21831,7 +21841,7 @@ function _zBuildThumbView(container) {
   urlInput.style.cssText = 'width:100%;box-sizing:border-box;background:#11151a;border:1px solid rgba(255,255,255,0.12);border-radius:10px;color:#fff;padding:9px 13px;font-size:12px;font-family:inherit;outline:none;';
   container.appendChild(urlInput);
   var urlBtn = document.createElement('button');
- urlBtn.textContent ='ANALYZE THUMBNAIL';
+  urlBtn.textContent = 'ANALYZE THUMBNAIL';
   urlBtn.style.cssText = 'width:100%;margin-top:11px;padding:12px;border:none;border-radius:11px;background:linear-gradient(135deg,#00DC82,#00b86b);color:#04140d;font-weight:900;font-size:12.5px;letter-spacing:0.04em;cursor:pointer;font-family:inherit;';
   container.appendChild(urlBtn);
 
@@ -21851,7 +21861,7 @@ function _zBuildThumbView(container) {
     img.onload = function() { analyzeImg(img); };
     img.onerror = function() {
       while (result.firstChild) result.removeChild(result.firstChild);
- var e = document.createElement('div'); e.textContent ='Could not load the image. Try uploading the file.'; e.style.cssText ='color:#FFD93D;font-size:12px;';
+      var e = document.createElement('div'); e.textContent = 'Could not load the image. Try uploading the file.'; e.style.cssText = 'color:#FFD93D;font-size:12px;';
       result.appendChild(e);
     };
     img.src = src;
@@ -21913,7 +21923,7 @@ function _zRenderPredictionResult(container, pred) {
   nicheLine.textContent = 'Niche: ' + pred.niche + '  ·  RPM ~$' + pred.nicheRpm;
   nicheLine.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);margin-top:5px;';
   var moneyLine = document.createElement('div');
- moneyLine.textContent ='Money index:'+ pred.moneyPotentialIndex +'(score x RPM)';
+  moneyLine.textContent = 'Money index: ' + pred.moneyPotentialIndex + '  (score x RPM)';
   moneyLine.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.62);margin-top:2px;';
   heroTxt.appendChild(verdict); heroTxt.appendChild(nicheLine); heroTxt.appendChild(moneyLine);
   hero.appendChild(ring); hero.appendChild(heroTxt);
@@ -21959,7 +21969,7 @@ function _zRenderPredictionResult(container, pred) {
   var rec = document.createElement('div');
   rec.style.cssText = 'margin-top:8px;margin-bottom:13px;padding:12px 13px;border-radius:11px;background:' + _zHexToRgba(recColor, 0.09) + ';border:1px solid ' + _zHexToRgba(recColor, 0.42) + ';';
   var recTitle = document.createElement('div');
- recTitle.textContent = st ==='publish'?'READY TO PUBLISH': st ==='improve'?'IMPROVE BEFORE PUBLISHING': st ==='lowdata'?'ℹ LOW MARKET DATA':'VERDICT';
+  recTitle.textContent = st === 'publish' ? 'READY TO PUBLISH' : st === 'improve' ? 'IMPROVE BEFORE PUBLISHING' : st === 'lowdata' ? 'LOW MARKET DATA' : 'VERDICT';
   recTitle.style.cssText = 'font-size:10px;font-weight:900;letter-spacing:0.08em;color:' + recColor + ';margin-bottom:5px;';
   var recText = document.createElement('div');
   recText.textContent = pred.recommendation || '';
@@ -21971,7 +21981,7 @@ function _zRenderPredictionResult(container, pred) {
   var winners = md.topWinners || [];
   if (winners.length) {
     var wHdr = document.createElement('div');
- wHdr.textContent ='REAL NICHE WINNERS ('+ (md.nicheTitlesInCorpus || winners.length) +'in your market corpus)';
+    wHdr.textContent = 'REAL NICHE WINNERS (' + (md.nicheTitlesInCorpus || winners.length) + ' in your market corpus)';
     wHdr.style.cssText = 'font-size:10px;font-weight:800;letter-spacing:0.04em;color:rgba(255,255,255,0.55);margin:4px 0 6px;';
     container.appendChild(wHdr);
     winners.slice(0, 6).forEach(function(w) {
@@ -22018,10 +22028,11 @@ function openZerackPredictorPanel(prefillTitle) {
     var hdr = document.createElement('div');
     hdr.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:15px 18px;border-bottom:1px solid rgba(255,255,255,0.07);position:sticky;top:0;background:#0a0c0f;z-index:2;';
     var hTitle = document.createElement('div');
- hTitle.textContent ='VIRALITY PREDICTOR';
+    hTitle.textContent = 'VIRALITY PREDICTOR';
     hTitle.style.cssText = 'font-weight:900;font-size:14px;letter-spacing:0.07em;color:#00DC82;';
     var closeBtn = document.createElement('button');
- closeBtn.textContent ='';
+  closeBtn.textContent = 'X';
+  closeBtn.setAttribute('aria-label', 'Close');
     closeBtn.style.cssText = 'background:transparent;border:none;color:rgba(255,255,255,0.5);font-size:18px;cursor:pointer;line-height:1;padding:2px 6px;';
     closeBtn.onclick = function() { overlay.remove(); };
     hdr.appendChild(hTitle); hdr.appendChild(closeBtn);
@@ -22035,8 +22046,8 @@ function openZerackPredictorPanel(prefillTitle) {
     var thumbView = document.createElement('div');
     var tabBar = document.createElement('div');
     tabBar.style.cssText = 'display:flex;gap:6px;margin-bottom:15px;';
- var tabTitle = document.createElement('button'); tabTitle.textContent ='TITLE';
- var tabThumb = document.createElement('button'); tabThumb.textContent ='THUMBNAIL';
+    var tabTitle = document.createElement('button'); tabTitle.textContent = 'TITLE';
+    var tabThumb = document.createElement('button'); tabThumb.textContent = 'THUMBNAIL';
     var _tabBase = 'flex:1;padding:9px;border-radius:9px;border:1px solid;font-weight:800;font-size:11px;cursor:pointer;font-family:inherit;letter-spacing:0.03em;';
     function _zActivateTab(which) {
       var on = 'background:rgba(0,220,130,0.14);border-color:rgba(0,220,130,0.5);color:#00DC82;';
@@ -22101,7 +22112,7 @@ function openZerackPredictorPanel(prefillTitle) {
         return;
       }
       predictBtn.disabled = true;
- predictBtn.textContent ='Analyzing the market';
+      predictBtn.textContent = 'Analyzing the market';
       predictBtn.style.opacity = '0.7';
       var loading = document.createElement('div');
       loading.textContent = 'Reading your market corpus and searching YouTube for niche winners';
@@ -22109,7 +22120,7 @@ function openZerackPredictorPanel(prefillTitle) {
       result.appendChild(loading);
       zerackRunPrediction(title, String(nicheInput.value || '')).then(function(pred) {
         predictBtn.disabled = false;
- predictBtn.textContent ='PREDICT AGAIN';
+        predictBtn.textContent = 'PREDICT AGAIN';
         predictBtn.style.opacity = '1';
         _zRenderPredictionResult(result, pred);
       }).catch(function(err) {
@@ -22118,7 +22129,7 @@ function openZerackPredictorPanel(prefillTitle) {
         predictBtn.style.opacity = '1';
         while (result.firstChild) result.removeChild(result.firstChild);
         var e = document.createElement('div');
- e.textContent ='Error:'+ (err && err.message || err);
+        e.textContent = 'Error: ' + (err && err.message || err);
         e.style.cssText = 'color:#FF6B6B;font-size:12px;';
         result.appendChild(e);
       });
@@ -23714,12 +23725,8 @@ function injectNspCoachButton() {
     + 'transition:all 0.2s;letter-spacing:0.1em;outline:none;'
     + 'box-shadow:0 2px 12px rgba(0,220,130,0.5);';
   // Trusted Types: no innerHTML.
-  var btnIcon = document.createElement('span');
-  btnIcon.style.cssText = 'font-size:14px;line-height:1;';
- btnIcon.textContent ='';
   var btnLabel = document.createElement('span');
   btnLabel.textContent = 'COACH';
-  btn.appendChild(btnIcon);
   btn.appendChild(btnLabel);
 
   btn.onmouseenter = function() { btn.style.background='linear-gradient(135deg,#4a2a7e,#2a1a5e)'; btn.style.transform='translateY(-1px)'; };
@@ -23843,7 +23850,7 @@ function openNspCoachChat(opts) {
   var hdr = document.createElement('div');
   hdr.id = 'hdr';
   var hL = document.createElement('div');
- var t1 = document.createElement('div'); t1.id ='hdr-title'; t1.textContent ='ZERACK';
+  var t1 = document.createElement('div'); t1.id = 'hdr-title'; t1.textContent = 'ZERACK';
   var t2 = document.createElement('div'); t2.id = 'hdr-sub'; t2.textContent = 'YOUR MENTOR · DETECTING PROVIDER';
   // Updates the header with the provider actually configured, read from storage.
   (function detectProvider() {
@@ -23858,11 +23865,11 @@ function openNspCoachChat(opts) {
       var cfg = (data && data.providerConfig) || {};
       var parts = [];
  if (cfg.hasOpenai) parts.push('OPENAI');
- if (cfg.hasGroq) parts.push('GROQ');
- if (cfg.hasOllama) parts.push('OLLAMA');
- if (cfg.hasGemini) parts.push('GEMINI');
+      if (cfg.hasGroq) parts.push('GROQ');
+      if (cfg.hasOllama) parts.push('OLLAMA');
+      if (cfg.hasGemini) parts.push('GEMINI');
       if (!parts.length) {
- t2.textContent ='NO PROVIDER · SET ONE UP IN OPTIONS';
+        t2.textContent = 'NO PROVIDER · SET ONE UP IN OPTIONS';
         t2.style.color = '#FF6B6B';
       } else {
         t2.textContent = parts.join(' · ') + ' · ' + nspCoachGetToolDefinitions()[0].functionDeclarations.length + ' TOOLS';
@@ -23970,7 +23977,7 @@ function openNspCoachChat(opts) {
       actionsRow.style.cssText = 'display:flex;justify-content:flex-end;margin-top:2px;';
       var delBtn = document.createElement('button');
       delBtn.className = 'hist-del-btn';
- delBtn.textContent ='Delete';
+      delBtn.textContent = 'Delete';
       delBtn.onclick = function(ev) {
         ev.stopPropagation();
         if (!confirm('Delete this conversation?')) return;
@@ -24155,13 +24162,13 @@ function openNspCoachChat(opts) {
   quickBar.id = 'quick-bar';
   quickBar.style.cssText = 'display:flex;gap:6px;padding:8px 12px 4px;overflow-x:auto;flex-shrink:0;background:#050505;scrollbar-width:none;';
   var quickActions = [
- ['Read my scan','Which niche in the last scan has the most potential, and why? Be specific.'],
+    ['Read my scan', 'Which niche in the last scan has the most potential, and why? Be specific.'],
  ['Work a niche','Take the strongest niche from the last scan, open that channel in a new tab, read its real stats and its recent uploads, then give me my next video: title, hook, outline and thumbnail idea. Use the tools, do not guess the numbers.'],
- ['Give me 5 titles','Write 5 viral titles for niche 1 of the scan, in faceless YouTube automation style.'],
- ['60s script','Write a 60 second faceless script (hook, body, call to action) for niche 1 of the scan.'],
- ['Look at my screen','Extract the videos on screen right now and tell me which faceless niches you see.'],
- ['Channel stats','Analyze the real stats of the channel behind niche 1 of the scan: subs, videos, age.'],
- ['Export niches','Export my saved niches to CSV.']
+    ['Give me 5 titles', 'Write 5 viral titles for niche 1 of the scan, in faceless YouTube automation style.'],
+    ['60s script', 'Write a 60 second faceless script (hook, body, call to action) for niche 1 of the scan.'],
+    ['Look at my screen', 'Extract the videos on screen right now and tell me which faceless niches you see.'],
+    ['Channel stats', 'Analyze the real stats of the channel behind niche 1 of the scan: subs, videos, age.'],
+    ['Export niches', 'Export my saved niches to CSV.']
   ];
   quickActions.forEach(function(qa) {
     var chip = document.createElement('button');
@@ -24296,7 +24303,7 @@ function openNspCoachChat(opts) {
   var footerInfo = document.createElement('span');
   footerInfo.textContent = 'persistent memory · sessions in HISTORY';
   var clearAllBtn = document.createElement('button');
- clearAllBtn.textContent ='Delete all';
+  clearAllBtn.textContent = 'Delete all';
   clearAllBtn.title = 'Delete every saved conversation';
   clearAllBtn.onclick = function() {
     if (!confirm('Delete every saved conversation? This cannot be undone.')) return;
@@ -24319,7 +24326,7 @@ function openNspCoachChat(opts) {
       hint.id = 'empty-hint';
       var hintTitle = document.createElement('div');
       hintTitle.className = 'ehl-title';
- hintTitle.textContent ='ZERACK, your mentor';
+      hintTitle.textContent = 'ZERACK, your mentor';
       var hintSub = document.createElement('div');
       hintSub.textContent = 'Your partner for building faceless channels at scale. Start here:';
       hint.appendChild(hintTitle);
@@ -24477,9 +24484,9 @@ function openNspCoachChat(opts) {
         if (/no_provider_configured/i.test(errMsg)) {
           errMsg = 'ZERACK needs an AI provider.\n\nFastest option, Groq, free:\n1) console.groq.com/keys, create an API key (gsk_...)\n2) Options, GROQ section, paste the key, save\n\nOr Gemini: aistudio.google.com/apikey (AIza...), then Options. Both are free, no card needed.';
         } else if (/all_busy/i.test(errMsg) || /rate_limited/i.test(errMsg) || /RESOURCE_EXHAUSTED/i.test(errMsg) || /quota/i.test(errMsg)) {
- errMsg ='Your providers are saturated for a moment. Try again in about 15 seconds. ZERACK already tried switching between Groq and Gemini. Set up both in Options so you never run out of turns.';
+          errMsg = 'Your providers are saturated for a moment. Try again in about 15 seconds. ZERACK already tried switching between Groq and Gemini. Set up both in Options so you never run out of turns.';
         } else if (/all_providers_failed|all_models_failed/i.test(errMsg)) {
- errMsg ='No provider could answer. In Options, use Test connection to check that your Groq or Gemini key is valid.';
+          errMsg = 'No provider could answer. In Options, use Test connection to check that your Groq or Gemini key is valid.';
         } else if (/missing_or_invalid_gemini_key/i.test(errMsg)) {
           errMsg = 'Gemini API key missing. Open Options and set it up, free at aistudio.google.com/apikey.';
         }
@@ -24583,8 +24590,7 @@ function openNspCoachChat(opts) {
       banner.style.cssText = 'margin:8px 12px;padding:10px 12px;background:rgba(255,80,80,0.10);border:1px solid rgba(255,80,80,0.35);border-radius:8px;color:#ff9090;font-size:10.5px;line-height:1.5;letter-spacing:0.03em;';
       // Trusted Types: no innerHTML.
       var bannerStrong = document.createElement('strong');
-      bannerStrong.textContent = ' The bridge is not responding.';
- banner.appendChild(document.createTextNode(''));
+      bannerStrong.textContent = 'The bridge is not responding.';
       banner.appendChild(bannerStrong);
       banner.appendChild(document.createTextNode(' Check that chrome://extensions has the right extension folder loaded, then reload the extension and refresh YouTube.'));
       msgList.parentNode.insertBefore(banner, msgList);

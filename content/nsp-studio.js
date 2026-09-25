@@ -291,7 +291,7 @@
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function scoreColor(s) { s = Number(s) || 0; return s >= 75 ? '#00DC82' : s >= 55 ? '#7FE3B5' : s >= 35 ? '#FFD93D' : '#FF6B6B'; }
   function verdictColor(v) { return ({ good: '#00DC82', ok: '#FFD93D', bad: '#FF6B6B' })[v] || 'rgba(255,255,255,0.5)'; }
- function verdictDot(v) { return ({ good:'', ok:'', bad:''})[v] ||''; }
+  function verdictDot(v) { return ({ good: 'GOOD', ok: 'OK', bad: 'LOW' })[v] || ''; }
   function priMeta(p) { return ({ high: { l: 'HIGH', c: '#FF6B6B' }, medium: { l: 'MEDIUM', c: '#FFD93D' }, low: { l: 'LOW', c: '#7FE3B5' } })[p] || { l: 'MEDIUM', c: '#FFD93D' }; }
 
   var _shadow = null, _bodyEl = null, _sendBtn = null, _input = null;
@@ -313,7 +313,8 @@
         var c = el('div', 'nsp-metric-card'); c.style.borderColor = verdictColor(m.verdict) + '55';
         var top = el('div', 'nsp-metric-top');
         top.appendChild(el('span', 'nsp-metric-name', String(m.name || '').toUpperCase()));
-        top.appendChild(el('span', 'nsp-metric-dot', verdictDot(m.verdict)));
+        var dot = el('span', 'nsp-metric-dot', verdictDot(m.verdict)); dot.style.color = verdictColor(m.verdict);
+        top.appendChild(dot);
         var v = el('div', 'nsp-metric-val', String(m.value || '—')); v.style.color = verdictColor(m.verdict);
         c.appendChild(top); c.appendChild(v);
         if (m.note) c.appendChild(el('div', 'nsp-metric-note', String(m.note)));
@@ -364,7 +365,7 @@
     while (bodyEl.firstChild) bodyEl.removeChild(bodyEl.firstChild);
     if (!S.messages.length) {
       var hint = el('div', 'nsp-empty');
- hint.appendChild(el('div','nsp-empty-t','ZERACK · STUDIO'));
+      hint.appendChild(el('div', 'nsp-empty-t', 'ZERACK · STUDIO'));
       hint.appendChild(el('div', 'nsp-empty-s', 'Ask me about anything on your channel. Examples:'));
       ['Analyze this video and give me a report', 'Which video is performing best this month?', 'Read the comments and give me the sentiment', 'What should I improve to grow?', 'Compare my last videos'].forEach(function(ex) {
         var c = el('button', 'nsp-chip', ex);
@@ -460,7 +461,7 @@
     var p = el('div'); p.id = 'p';
     var h = el('div'); h.id = 'h';
     var hl = el('div');
- hl.appendChild(function(){ var t = el('div'); t.id ='ht'; t.textContent ='ZERACK · STUDIO'; return t; }());
+    hl.appendChild(function(){ var t = el('div'); t.id = 'ht'; t.textContent = 'ZERACK · STUDIO'; return t; }());
     var hs = el('div'); hs.id = 'hs'; hs.textContent = pageLabel(pageType());
     hl.appendChild(hs);
     var hbtns = el('div'); hbtns.id = 'hbtns';
@@ -1033,7 +1034,8 @@
       var parts = dims.hook.parts || {}, k;
       for (k in parts) {
         var hit = parts[k].hit, ch = document.createElement('span');
- ch.textContent = (hit ?'':'') + (lblmap[k] || k);
+        // Colour alone does not say it to everyone, so the chip says whether the title has it.
+        ch.textContent = (hit ? 'has ' : 'no ') + (lblmap[k] || k);
         ch.style.cssText = 'font-size:9.5px;font-weight:700;padding:3px 7px;border-radius:6px;' + (hit ? 'background:rgba(0,220,130,0.14);color:#00DC82;border:1px solid rgba(0,220,130,0.4);' : 'background:rgba(255,107,107,0.12);color:#FF6B6B;border:1px solid rgba(255,107,107,0.35);');
         chips.appendChild(ch);
       }
@@ -1185,10 +1187,9 @@
     info.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.5);line-height:1.5;margin-bottom:12px;'; m.body.appendChild(info);
     var drop = document.createElement('label');
     drop.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:18px;border:1.5px dashed rgba(0,220,130,0.4);border-radius:12px;background:rgba(0,220,130,0.04);cursor:pointer;text-align:center;margin-bottom:6px;';
- var di = document.createElement('div'); di.textContent =''; di.style.cssText ='font-size:24px;';
     var dt = document.createElement('div'); dt.textContent = 'Upload your thumbnail, PNG or JPG'; dt.style.cssText = 'font-size:12px;font-weight:700;color:#00DC82;';
     var fi = document.createElement('input'); fi.type = 'file'; fi.accept = 'image/*'; fi.style.display = 'none';
-    drop.appendChild(di); drop.appendChild(dt); drop.appendChild(fi); m.body.appendChild(drop);
+    drop.appendChild(dt); drop.appendChild(fi); m.body.appendChild(drop);
     m.body.appendChild(res);
     fi.onchange = function() { var f = fi.files && fi.files[0]; if (!f) return; dt.textContent = f.name.slice(0, 30); var rd = new FileReader(); rd.onload = function(ev) { analyze(String(ev.target.result), false); }; rd.readAsDataURL(f); };
     drop.ondragover = function(e) { e.preventDefault(); drop.style.background = 'rgba(0,220,130,0.12)'; };
@@ -1241,9 +1242,8 @@
     var btn = document.createElement('button');
     btn.id = 'nsp-studio-btn';
     btn.style.cssText = 'position:fixed;bottom:28px;right:28px;z-index:2147483646;display:flex;align-items:center;gap:9px;height:48px;padding:0 20px;border-radius:24px;background:linear-gradient(135deg,#0a0c0f,#11161b);border:1.5px solid rgba(0,220,130,0.6);color:#00DC82;font-size:13px;font-weight:900;cursor:pointer;font-family:Roboto,Arial,sans-serif;letter-spacing:0.05em;box-shadow:0 8px 28px rgba(0,220,130,0.32);transition:all 0.2s;';
- var ic = document.createElement('span'); ic.style.fontSize ='18px'; ic.textContent ='';
     var lb = document.createElement('span'); lb.textContent = 'ZERACK';
-    btn.appendChild(ic); btn.appendChild(lb);
+    btn.appendChild(lb);
     btn.onmouseenter = function() { btn.style.transform = 'translateY(-2px) scale(1.04)'; };
     btn.onmouseleave = function() { btn.style.transform = 'none'; };
     btn.onclick = function() { showPanel(); };

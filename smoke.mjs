@@ -528,6 +528,25 @@ section("14. Pages nobody can reach");
   else unreachable.forEach(p => warn(p + " has no link from any page or script, so it only opens by typing the address"));
 }
 
+section("15. No regex with an empty alternative");
+{
+  // An empty branch, as in /a||b/, matches every string. A text purge once left dozens of them, and a
+  // reject list that matches everything rejects every video without a word.
+  const LITERAL = /(^|[=(,:!&|?;{}\s])\/((?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\n\[])+)\/[gimsuy]*(?=\s*(?:\.(?:test|exec|match|source)|[;,)\]}]|$))/g;
+  let bad = 0;
+  for (const f of jsFiles.filter(f => !/\.min\.js$/.test(f))) {
+    read(f).split("\n").forEach((line, i) => {
+      if (/^\s*\/\//.test(line)) return;
+      for (const m of line.matchAll(LITERAL)) {
+        const body = m[2].replace(/\\./g, "x").replace(/\[[^\]]*\]/g, "x");
+        if (!/[|]/.test(body) || /^[\s\d.+\-*()]+$/.test(body)) continue;
+        if (/^\||\|$|\|\||\(\||\(\?:\||\(\?[=!]\||\|\)/.test(body)) { bad++; fail(rel(f) + ":" + (i + 1) + " has a regex with an empty alternative, so it matches every string: " + m[0].trim().slice(0, 80)); }
+      }
+    });
+  }
+  if (!bad) ok("no regex literal has an empty alternative");
+}
+
 console.log("");
 if (failures) console.log("\x1b[31mRED\x1b[0m: " + failures + " failure(s), " + warnings + " warning(s)");
 else console.log("\x1b[32mGREEN\x1b[0m: 0 failures, " + warnings + " warning(s)");
