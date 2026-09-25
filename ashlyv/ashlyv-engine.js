@@ -2113,7 +2113,10 @@ function buildGeneratedQueries(language) {
       buildSavedByLanguage: buildSavedByLanguage,
       buildCompetitiveSnapshot: buildCompetitiveSnapshot,
       computeOpportunityFromBucket: computeOpportunityFromBucket,
-      buildAlertCandidateFromOpportunity: buildAlertCandidateFromOpportunity
+      buildAlertCandidateFromOpportunity: buildAlertCandidateFromOpportunity,
+      // The service worker rebuilds what a YouTube tab sends as numbers with these same scales.
+      bandLabel: bandLabel,
+      verdictForScore: verdictForScore
     },
     filtersEngine: filtersEngine,
     countryDemandEngine: {

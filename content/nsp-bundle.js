@@ -4317,7 +4317,8 @@ function showAshlyVLiveToast(alert, opportunity, leadEntry) {
   meta.style.cssText = 'margin-top:8px;font-size:11px;color:rgba(255,255,255,.58);line-height:1.7;';
   meta.textContent = [
     (NSP_LANGUAGE_META[(alert && alert.languageCode) || opp.languageCode || 'auto'] || { label: 'Auto / Global' }).label,
-    'RPM ' + moneyLabel((alert && alert.rpm) || opp.estimatedRpm || 0),
+    // moneyLabel does not exist in this file: the card threw a ReferenceError and never showed.
+    'RPM ' + ASHLYV_ENGINE.dashboardRenderer.compactMoney((alert && alert.rpm) || opp.estimatedRpm || 0),
     'Comp. ' + (opp.competitionLabel || 'Medium'),
     'Score ' + (score + '/10')
   ].join(' · ');
@@ -4446,11 +4447,11 @@ function maybeEmitAshlyVLiveAlerts(force) {
     }
   }
 
-  sendRuntimeMessage({ type: 'ASHLYV_OPPORTUNITY_HISTORY_PUSH', entries: opportunities.slice(0, 6) }).catch(function() {});
-  var alert = ASHLYV_ENGINE.nicheScoring.buildAlertCandidateFromOpportunity(top, 'youtube-live');
-  sendRuntimeMessage({ type: 'ASHLYV_ALERT_PUSH', alert: alert }).then(function(res) {
-    if (res && res.ok && res.show) showAshlyVLiveToast(res.alert || alert, top, leadEntry);
-  }).catch(function() {});
+  // The opportunity travels as numbers: the service worker rebuilds the alert (title and text) with the same engine.
+  sendRuntimeMessage({ type: 'ASHLYV_OPPORTUNITY_HISTORY_PUSH', entries: opportunities.slice(0, 6) });
+  sendRuntimeMessage({ type: 'ASHLYV_ALERT_PUSH', opportunity: top }).then(function(res) {
+    if (res && res.ok && res.show && res.alert) showAshlyVLiveToast(res.alert, top, leadEntry);
+  });
 }
 
 // Master SCAN Button & Report 

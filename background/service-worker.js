@@ -2,6 +2,9 @@
 try { importScripts('../lib/nsp-text.js', '../nsp-policy.js', '../lib/nsp-models.js'); } catch (eNspText) { console.warn('[NSP SW] importScripts policy engine:', eNspText && eNspText.message); }
 try { importScripts('../knowledge/course.js'); } catch (eCourse) { console.warn('[NSP SW] importScripts course:', eCourse && eCourse.message); }
 try { importScripts('../knowledge/youtube-playbook.js'); } catch (ePlaybook) { console.warn('[NSP SW] importScripts playbook:', ePlaybook && ePlaybook.message); }
+// The ASHLYV niche engine has no DOM: with it the worker rewrites, from ids and numbers, the opportunities and alerts
+// a YouTube tab sends, instead of storing the text the tab brought.
+try { importScripts('../ashlyv/ashlyv-engine.js'); } catch (eAshlyvEngine) { console.warn('[NSP SW] importScripts ASHLYV engine:', eAshlyvEngine && eAshlyvEngine.message); }
 try { importScripts('../lib/nsp-brain.js'); } catch (eBrain) { console.warn('[NSP SW] importScripts brain:', eBrain && eBrain.message); }
 try { importScripts('../lib/nsp-data-tools.js', '../chat/chat-tools.js', '../lib/nsp-chat-store.js'); } catch (eChatLib) { console.warn('[NSP SW] importScripts chat tools:', eChatLib && eChatLib.message); }
 
@@ -3160,6 +3163,110 @@ function nspGrantDrop(tabId) {
 }
 
 // The only extension page YouTube may open is the hub, and only with the two fields the hub reads.
+// ── Opportunities, alerts, scan preferences and dashboard opens from a page ──
+// Any script on youtube.com can send these through the bridge, so each value is rebuilt here: the niche and the
+// language must exist in the engine, numbers are bounded, and the words (niche name, bands, verdict, alert title and
+// text) come from the engine, never from the page.
+function nspBounded(v, min, max) { var n = Number(v); if (!isFinite(n)) n = min; return Math.max(min, Math.min(max, n)); }
+
+function nspOpportunityFromNumbers(o) {
+  var engine = self.ASHLYVEngine;
+  if (!engine || !o || typeof o !== 'object' || Array.isArray(o)) return null;
+  var niche = engine.nicheScoring.getNiche(String(o.nicheId || ''));
+  var language = engine.languageEngine.get(String(o.languageCode || ''));
+  if (!niche || !language || language.code !== String(o.languageCode || '')) return null;
+  var score = Math.round(nspBounded(o.opportunityScore, 0, 10) * 10) / 10;
+  var band = engine.nicheScoring.bandLabel;
+  var competition = nspBounded(o.competitionScore, 0, 10);
+  var saturation = nspBounded(o.saturationScore, 0, 10);
+  return {
+    languageCode: language.code,
+    languageLabel: language.label,
+    nicheId: niche.id,
+    recommendedNiche: niche.label,
+    opportunityScore: score,
+    estimatedRpm: Math.round(nspBounded(o.estimatedRpm, 0, 1000) * 10) / 10,
+    demandScore: nspBounded(o.demandScore, 0, 10),
+    competitionScore: competition,
+    competitionLabel: band(competition),
+    saturationScore: saturation,
+    saturationLabel: band(saturation),
+    facelessScore: nspBounded(o.facelessScore, 0, 10),
+    velocity: Math.round(nspBounded(o.velocity, 0, 1e9)),
+    verdict: engine.nicheScoring.verdictForScore(score),
+    createdAt: Date.now()
+  };
+}
+
+function nspPushOpportunities(entries) {
+  var fresh = (Array.isArray(entries) ? entries : []).slice(0, 12).map(nspOpportunityFromNumbers).filter(Boolean);
+  if (!fresh.length) return Promise.resolve({ ok: false, error: 'no_valid_entry' });
+  return chrome.storage.local.get('ashlyv_opportunity_history').then(function(r) {
+    var seen = {};
+    var hist = fresh.concat(Array.isArray(r.ashlyv_opportunity_history) ? r.ashlyv_opportunity_history : []).filter(function(item) {
+      var k = String(item && item.languageCode || '') + '|' + String(item && item.nicheId || '');
+      if (k === '|' || seen[k]) return false;
+      seen[k] = true;
+      return true;
+    }).slice(0, 80);
+    return chrome.storage.local.set({ ashlyv_opportunity_history: hist }).then(function() { return { ok: true, saved: fresh.length }; });
+  });
+}
+
+function nspPushAlert(opportunity, source) {
+  var engine = self.ASHLYVEngine;
+  var o = nspOpportunityFromNumbers(opportunity);
+  if (!o || !engine) return Promise.resolve({ ok: false, error: 'bad_opportunity' });
+  var alert = engine.nicheScoring.buildAlertCandidateFromOpportunity(o, source === 'watchlist' ? 'watchlist' : 'youtube-live');
+  alert.timestamp = Date.now();
+  alert.signature = engine.alertEngine.signature(alert);
+  return chrome.storage.local.get(['ashlyv_alert_history', 'ashlyv_alerts_unread']).then(function(r) {
+    var hist = Array.isArray(r.ashlyv_alert_history) ? r.ashlyv_alert_history : [];
+    if (hist.some(function(h) { return h && h.signature === alert.signature; })) return { ok: true, show: false };
+    hist.unshift(alert);
+    return chrome.storage.local.set({ ashlyv_alert_history: hist.slice(0, 50), ashlyv_alerts_unread: Math.min(999, (Number(r.ashlyv_alerts_unread) || 0) + 1) }).then(function() {
+      return { ok: true, show: true, alert: alert };
+    });
+  });
+}
+
+function nspDismissAlert(signature) {
+  signature = String(signature || '').slice(0, 300);
+  if (!signature) return Promise.resolve({ ok: false, error: 'no_signature' });
+  return chrome.storage.local.get(['ashlyv_alert_history', 'ashlyv_alerts_unread']).then(function(r) {
+    var hist = Array.isArray(r.ashlyv_alert_history) ? r.ashlyv_alert_history : [];
+    var found = false;
+    hist.forEach(function(h) { if (h && h.signature === signature && !h.dismissed) { h.dismissed = true; h.dismissedAt = Date.now(); found = true; } });
+    if (!found) return { ok: true, dismissed: false };
+    var unread = Math.max(0, (Number(r.ashlyv_alerts_unread) || 0) - 1);
+    return chrome.storage.local.set({ ashlyv_alert_history: hist, ashlyv_alerts_unread: unread }).then(function() { return { ok: true, dismissed: true, unread: unread }; });
+  });
+}
+
+function nspScanPrefs(p) {
+  p = p && typeof p === 'object' && !Array.isArray(p) ? p : {};
+  var language = String(p.language || 'auto').toLowerCase();
+  var market = String(p.market || 'global').toLowerCase();
+  var depth = String(p.depth || 'balanced').toLowerCase();
+  return {
+    language: /^(auto|[a-z]{2})$/.test(language) ? language : 'auto',
+    market: /^[a-z]{2,16}$/.test(market) ? market : 'global',
+    depth: depth === 'fast' || depth === 'deep' ? depth : 'balanced'
+  };
+}
+
+// A YouTube tab opens the hub at a person's pace: one every 2 s, ten every 10 minutes.
+var NSP_OPEN_PACE = { gap: 2000, max: 10, window: 10 * 60000 };
+var _nspOpensByTab = {};
+function nspOpenAllowed(tabId, now) {
+  var key = String(tabId);
+  var list = (_nspOpensByTab[key] || []).filter(function(t) { return now - t < NSP_OPEN_PACE.window; });
+  if ((list.length && now - list[list.length - 1] < NSP_OPEN_PACE.gap) || list.length >= NSP_OPEN_PACE.max) { _nspOpensByTab[key] = list; return false; }
+  list.push(now);
+  _nspOpensByTab[key] = list;
+  return true;
+}
+
 function nspPageOpenUrl(msg) {
   if (String(msg.page || 'hub') !== 'hub') return '';
   var q = [];
@@ -3457,6 +3564,8 @@ function nspRoute(msg, sender, sendResponse, who) {
   // Opens a page of this extension. YouTube names the page and its fields, the worker builds the address.
   if (msg.type === 'ASHLYV_OPEN') {
     var url = who === 'youtube' ? nspPageOpenUrl(msg) : (String(msg.url || '') || chrome.runtime.getURL('ashlyv/ashlyv.html'));
+    // Only an open that would happen counts against the tab's pace.
+    if (url && who === 'youtube' && !nspOpenAllowed(sender.tab.id, Date.now())) { sendResponse({ ok: false, error: 'open_rate_limited' }); return false; }
     if (url && url.indexOf(chrome.runtime.getURL('')) === 0) {
       chrome.tabs.create({ url: url });
       sendResponse({ ok: true });
@@ -3493,8 +3602,9 @@ function nspRoute(msg, sender, sendResponse, who) {
     return true;
   }
   if (msg.type === 'NSP_UI_PREFS_SET') {
-    chrome.storage.local.set({ nsp_ui_prefs: msg.prefs || {} }, function() {
-      sendResponse({ ok: true, prefs: msg.prefs });
+    var cleanPrefs = nspScanPrefs(msg.prefs);
+    chrome.storage.local.set({ nsp_ui_prefs: cleanPrefs }, function() {
+      sendResponse({ ok: true, prefs: cleanPrefs });
     });
     return true;
   }
@@ -3692,46 +3802,18 @@ function nspRoute(msg, sender, sendResponse, who) {
 
   // — Opportunity history (push latest top-N from each scan)
   if (msg.type === 'ASHLYV_OPPORTUNITY_HISTORY_PUSH') {
-    chrome.storage.local.get('ashlyv_opportunity_history', function(r) {
-      var hist = Array.isArray(r.ashlyv_opportunity_history) ? r.ashlyv_opportunity_history : [];
-      var entries = Array.isArray(msg.entries) ? msg.entries : [];
-      hist = entries.concat(hist);
-      // Dedup by languageCode|nicheId
-      var seen = {};
-      hist = hist.filter(function(item) {
-        var k = String(item.languageCode || '') + '|' + String(item.nicheId || '');
-        if (!k || seen[k]) return false;
-        seen[k] = true;
-        return true;
-      }).slice(0, 80);
-      chrome.storage.local.set({ ashlyv_opportunity_history: hist }, function() {
-        sendResponse({ ok: true });
-      });
-    });
+    nspPushOpportunities(msg.entries).then(sendResponse, function(e) { sendResponse({ ok: false, error: String((e && e.message) || e) }); });
     return true;
   }
 
-  // — Alerts
+  // Alerts: rebuilt here from the opportunity (language, niche, numbers); their title and text never come from the page.
   if (msg.type === 'ASHLYV_ALERT_PUSH') {
-    chrome.storage.local.get(['ashlyv_alert_history', 'ashlyv_alerts_unread'], function(r) {
-      var hist = Array.isArray(r.ashlyv_alert_history) ? r.ashlyv_alert_history : [];
-      var alert = msg.alert || {};
-      alert.timestamp = alert.timestamp || Date.now();
-      alert.signature = String(alert.signature || (alert.nicheTitle || '') + '|' + Math.floor(alert.timestamp / 60000));
-      var isDupe = hist.some(function(h) { return h.signature === alert.signature; });
-      if (isDupe) { sendResponse({ ok: true, show: false }); return; }
-      hist.unshift(alert);
-      hist = hist.slice(0, 50);
-      var unread = (Number(r.ashlyv_alerts_unread) || 0) + 1;
-      chrome.storage.local.set({ ashlyv_alert_history: hist, ashlyv_alerts_unread: unread }, function() {
-        sendResponse({ ok: true, show: true, alert: alert });
-      });
-    });
+    nspPushAlert(msg.opportunity, msg.source).then(sendResponse, function(e) { sendResponse({ ok: false, error: String((e && e.message) || e) }); });
     return true;
   }
   if (msg.type === 'ASHLYV_ALERT_DISMISS') {
-    sendResponse({ ok: true });
-    return false;
+    nspDismissAlert(msg.signature).then(sendResponse, function(e) { sendResponse({ ok: false, error: String((e && e.message) || e) }); });
+    return true;
   }
   if (msg.type === 'ASHLYV_ALERTS_READ') {
     chrome.storage.local.set({ ashlyv_alerts_unread: 0 }, function() {

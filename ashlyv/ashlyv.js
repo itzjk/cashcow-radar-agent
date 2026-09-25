@@ -833,7 +833,8 @@ function toggleWatchlist(opportunity) {
   if (added && engine && engine.nicheScoring && engine.nicheScoring.buildAlertCandidateFromOpportunity) {
     requestRuntimeMessage({
       type: 'ASHLYV_ALERT_PUSH',
-      alert: engine.nicheScoring.buildAlertCandidateFromOpportunity(opportunity, 'watchlist')
+      opportunity: opportunity,
+      source: 'watchlist'
     }).then(function(res) {
       if (res && res.alert) app.alertHistory = [res.alert].concat(app.alertHistory || []).slice(0, 120);
       renderEngine();
