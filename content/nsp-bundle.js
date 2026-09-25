@@ -387,7 +387,6 @@ var AI_FACELESS_CHANNEL_WHITELIST = [
 var NSP_FACE_AREA_THRESHOLD = 0.015;
 var NSP_FACE_CONFIDENCE_THRESHOLD = 0.5;
 var _nspFaceApiModel = null;
-var _nspFaceApiLoadingPromise = null;
 var _nspFaceApiCache = {};
 
 function nspHasCartoonFacelessSignalText(text) {
@@ -498,53 +497,6 @@ function nspHasStrictFacelessFormatItem(item) {
   return nspHasStrictFacelessFormatText(text);
 }
 
-function nspIsFaceApiReady() {
-  return typeof faceapi !== 'undefined'
-    && faceapi.nets
-    && faceapi.nets.tinyFaceDetector
-    && faceapi.nets.tinyFaceDetector.params;
-}
-
-function nspLoadFaceApiModel() {
-  if (nspIsFaceApiReady()) return Promise.resolve(true);
-  if (_nspFaceApiLoadingPromise) return _nspFaceApiLoadingPromise;
-  if (typeof faceapi === 'undefined') {
-    console.warn('[NSP face-api] faceapi global not loaded, check the manifest content_scripts order');
-    return Promise.resolve(false);
-  }
-  // MV3 MAIN world has no chrome.runtime — read modelUrl from DOM attribute
-  // set by ashlyv-bridge.js (ISOLATED world).
-  var modelUrl = '';
-  try {
-    modelUrl = document.documentElement.getAttribute('data-nsp-faceapi-url') || '';
-    // Fallback only if somehow chrome.runtime is available (e.g. dev/test)
-    if (!modelUrl && typeof chrome !== 'undefined' && chrome && chrome.runtime && chrome.runtime.getURL) {
-      modelUrl = chrome.runtime.getURL('lib/face-api/');
-    }
-  } catch(eUrl) {}
-  if (!modelUrl) {
-    console.warn('[NSP face-api] modelUrl unavailable, ashlyv-bridge.js (ISOLATED) may not have run yet');
-    return Promise.resolve(false);
-  }
-  try {
-    console.log('[NSP face-api] Loading tinyFaceDetector from:', modelUrl);
-    _nspFaceApiLoadingPromise = faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl)
-      .then(function() {
- console.log('[NSP face-api] tinyFaceDetector model loaded');
-        return true;
-      })
-      .catch(function(err) {
-        console.warn('[NSP face-api] model load FAILED:', err && err.message);
-        _nspFaceApiLoadingPromise = null;
-        return false;
-      });
-    return _nspFaceApiLoadingPromise;
-  } catch(e) {
-    console.warn('[NSP face-api] loader error:', e && e.message);
-    return Promise.resolve(false);
-  }
-}
-
 function nspGetThumbnailImg(item) {
   try {
     var card = item && (item.card || item.domElement);
@@ -556,6 +508,27 @@ function nspGetThumbnailImg(item) {
   return null;
 }
 
+// The face detector runs in the isolated world (content/nsp-faces.js), out of YouTube's globals. This asks it with
+// the thumbnail address and turns the boxes it returns into the verdict the scan reads.
+var _nspFacePending = {};
+window.addEventListener('message', function(event) {
+  if (event.source !== window) return;
+  if (event.origin && event.origin !== window.location.origin) return;
+  var data = event.data;
+  if (!data || data.type !== 'NSP_FACE_RESULT') return;
+  var done = _nspFacePending[String(data.requestId || '')];
+  if (done) done(data);
+});
+
+function nspAskFaces(src) {
+  return new Promise(function(resolve) {
+    var reqId = 'face-' + Date.now() + '-' + Math.floor(Math.random() * 1e9);
+    var timer = setTimeout(function() { delete _nspFacePending[reqId]; resolve({ ok: false, error: 'no answer from the face reader within 20 s' }); }, 20000);
+    _nspFacePending[reqId] = function(res) { clearTimeout(timer); delete _nspFacePending[reqId]; resolve(res); };
+    window.postMessage({ type: 'NSP_FACE_DETECT', requestId: reqId, src: src, scoreThreshold: NSP_FACE_CONFIDENCE_THRESHOLD }, window.location.origin);
+  });
+}
+
 function nspDetectFaceInThumbnail(item) {
   var sc = (item && item.sc) || {};
   var thumbUrl = sc.thumbUrl || sc.thumbnail || '';
@@ -564,70 +537,32 @@ function nspDetectFaceInThumbnail(item) {
   if (cacheKey && _nspFaceApiCache[cacheKey] !== undefined) {
     return Promise.resolve(_nspFaceApiCache[cacheKey]);
   }
-
-  return nspLoadFaceApiModel().then(function(ok) {
-    if (!ok) {
-      var unsupported = { hasFace: false, faceArea: 0, confidence: 0, supported: false, unknown: true };
-      if (cacheKey) _nspFaceApiCache[cacheKey] = unsupported;
-      return unsupported;
+  var domImg = nspGetThumbnailImg(item);
+  var thumbSrc = String((domImg && domImg.src) || thumbUrl || '').split('?')[0];
+  if (!thumbSrc) {
+    var noSrc = { hasFace: false, faceArea: 0, confidence: 0, supported: true, unknown: true };
+    if (cacheKey) _nspFaceApiCache[cacheKey] = noSrc;
+    return Promise.resolve(noSrc);
+  }
+  return nspAskFaces(thumbSrc).then(function(res) {
+    if (!res || res.ok !== true) {
+      if (res && res.error) console.warn('[NSP faces] no verdict:', res.error, 'src:', thumbSrc.slice(0, 80));
+      var unknown = { hasFace: false, faceArea: 0, confidence: 0, supported: !(res && res.supported === false), unknown: true };
+      if (cacheKey) _nspFaceApiCache[cacheKey] = unknown;
+      return unknown;
     }
-    // Get thumbnail URL (the DOM <img> is tainted because YouTube didn't set
-    // crossOrigin='anonymous'; we must reload via a fresh <img crossOrigin='anonymous'>
-    // so WebGL can read pixels without SecurityError).
-    var domImg = nspGetThumbnailImg(item);
-    var thumbSrc = (domImg && domImg.src) || (item.sc && (item.sc.thumbUrl || item.sc.thumbnail)) || '';
-    if (!thumbSrc) {
-      var noSrc = { hasFace: false, faceArea: 0, confidence: 0, supported: true, unknown: true };
-      if (cacheKey) _nspFaceApiCache[cacheKey] = noSrc;
-      return noSrc;
-    }
-    return nspLoadImageWithCrossOrigin(thumbSrc).then(function(img) {
-      var totalArea = Math.max(1, (img.naturalWidth || img.width || 1) * (img.naturalHeight || img.height || 1));
-      return faceapi.detectAllFaces(img, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: NSP_FACE_CONFIDENCE_THRESHOLD }))
-        .then(function(detections) {
-          detections = Array.isArray(detections) ? detections : [];
-          var maxArea = 0;
-          var maxConf = 0;
-          var bigCount = 0;
-          detections.forEach(function(d) {
-            if (!d || !d.box) return;
-            var area = Math.max(0, (d.box.width || 0) * (d.box.height || 0));
-            var rel = area / totalArea;
-            if (rel >= NSP_FACE_AREA_THRESHOLD) bigCount++;
-            if (rel > maxArea) maxArea = rel;
-            if ((d.score || 0) > maxConf) maxConf = d.score || 0;
-          });
-          var result = {
-            hasFace: bigCount > 0,
-            faceArea: maxArea,
-            confidence: maxConf,
-            faceCount: detections.length,
-            supported: true,
-            unknown: false
-          };
-          if (cacheKey) _nspFaceApiCache[cacheKey] = result;
-          return result;
-        });
-    }).catch(function(err) {
-      console.warn('[NSP face-api] detect error:', err && err.message, 'src:', String(thumbSrc).slice(0, 80));
-      var errRes = { hasFace: false, faceArea: 0, confidence: 0, supported: true, unknown: true };
-      if (cacheKey) _nspFaceApiCache[cacheKey] = errRes;
-      return errRes;
+    var totalArea = Math.max(1, (Number(res.width) || 1) * (Number(res.height) || 1));
+    var faces = Array.isArray(res.faces) ? res.faces : [];
+    var maxArea = 0, maxConf = 0, bigCount = 0;
+    faces.forEach(function(f) {
+      var rel = Math.max(0, (Number(f.w) || 0) * (Number(f.h) || 0)) / totalArea;
+      if (rel >= NSP_FACE_AREA_THRESHOLD) bigCount++;
+      if (rel > maxArea) maxArea = rel;
+      if ((Number(f.score) || 0) > maxConf) maxConf = Number(f.score) || 0;
     });
-  });
-}
-
-// Reloaded with crossOrigin='anonymous' so WebGL can read the pixels; i.ytimg.com serves thumbnails with Access-Control-Allow-Origin: *.
-function nspLoadImageWithCrossOrigin(srcUrl) {
-  return new Promise(function(resolve, reject) {
-    if (!srcUrl) { reject(new Error('no src')); return; }
-    var img = new Image();
-    img.crossOrigin = 'anonymous';
-    var done = false;
-    img.onload = function() { if (done) return; done = true; resolve(img); };
-    img.onerror = function() { if (done) return; done = true; reject(new Error('img load failed')); };
-    setTimeout(function() { if (done) return; done = true; reject(new Error('img load timeout 8s')); }, 8000);
-    img.src = srcUrl;
+    var result = { hasFace: bigCount > 0, faceArea: maxArea, confidence: maxConf, faceCount: faces.length, supported: true, unknown: false };
+    if (cacheKey) _nspFaceApiCache[cacheKey] = result;
+    return result;
   });
 }
 

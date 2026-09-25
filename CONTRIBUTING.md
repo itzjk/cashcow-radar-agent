@@ -48,6 +48,7 @@ Before you claim a change works, paste the command and its output. A claim witho
 | `manifest.json` | MV3. Four content script blocks, the side panel, the CSP, the web accessible resources |
 | `content/nsp-bundle.js` | the engine. MAIN world, about 24,000 lines. Scoring, badges, the scan, every in-page panel |
 | `content/ashlyv-bridge.js` | ISOLATED world. The only way out of MAIN, and it speaks for any script on youtube.com: a fixed list of forwarded messages rebuilt field by field, the relay allowlists `NSP_RELAY_CALLS` and `NSP_RELAY_KEYS`, and the grant requests it sends only on a trusted press |
+| `content/nsp-faces.js` | ISOLATED world on youtube.com. face-api.js and its weights; answers `NSP_FACE_DETECT` with face boxes for i.ytimg.com thumbnails |
 | `content/nsp-studio.js` | ISOLATED world on studio.youtube.com. Title scoring against your own corpus |
 | `content/zerack-bubble.js` | ISOLATED world, top frame of YouTube and Studio, and of every http and https page once the user grants that access from the popup. The bubble: click opens the chat overlay, hold talks, drag moves. Reads nothing on the page |
 | `chat/` | the private chat. `chat.js` the page (the service worker runs each turn and writes it to the store, so an answer survives the page under the chat navigating), `chat-tools.js` the answer loop and tool labels the service worker runs, `chat-render.js` the safe markdown-lite renderer |
@@ -63,7 +64,7 @@ Before you claim a change works, paste the command and its output. A claim witho
 | `lib/nsp-data-tools.js` | the saved niches, extension data, tracking and export reads and writes, shared by the bridge and the service worker |
 | `lib/nsp-text.js` | text helpers shared by the policy engine and Studio |
 | `lib/nsp-faceless-data.js` | niche matchers and their RPM, and the faceless title patterns |
-| `lib/face-api/` | face-api.js and the `tinyFaceDetector` weights, served through the bridge |
+| `lib/face-api/` | face-api.js and the `tinyFaceDetector` weights, run in the isolated world by `content/nsp-faces.js` |
 | `lib/whisper/` | local transcription, the voice's fallback when Chrome's recognizer cannot run; its binaries come from `scripts/fetch-assets.sh` |
 | `popup/` | the popup: session counters, top videos, the doors to every other surface |
 | `options/` | keys, the model picker, the paid-call opt-in, the RPM table, the badge switches |

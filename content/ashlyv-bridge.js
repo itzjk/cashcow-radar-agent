@@ -6,11 +6,6 @@
 // worker opens one for a turn handed over from the chat or the voice, and this file asks for one when it sees a real
 // press (isTrusted) on a control this file created for the page. Listing, switching or closing tabs is never forwarded.
 
-// MV3 MAIN world content scripts have no chrome.runtime, so face-api.js reads its model folder from this attribute.
-try {
-  document.documentElement.setAttribute('data-nsp-faceapi-url', chrome.runtime.getURL('lib/face-api/'));
-} catch (eBridgeUrl) { console.warn('[NSP bridge] failed to expose the face-api folder:', eBridgeUrl && eBridgeUrl.message); }
-
 function nspBridgePost(msg) {
   try { window.postMessage(msg, window.location.origin); } catch (e) {}
 }

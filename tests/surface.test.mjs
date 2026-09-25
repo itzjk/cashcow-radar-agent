@@ -1,5 +1,5 @@
 // What the extension asks Chrome for and runs where: the bubble on other sites only with the user's permission,
-// localhost on the ports it uses, no API keys copied into localStorage, and
+// localhost on the two ports it uses, face-api out of the page world, no API keys copied into localStorage, and
 // HTML written to pages through allow lists or as text.
 import vm from "node:vm";
 import { readFileSync } from "node:fs";
@@ -40,6 +40,12 @@ check("localhost only on the ports the extension calls", JSON.stringify(local) =
   check("the popup asks for every site from the click itself", /btn\.addEventListener\('click', \(\) => \{\s*const next = [^\n]*\n\s*if \(next\) askEverywhere\(\);/.test(popup) && /chrome\.permissions\.request\(BUBBLE_EVERYWHERE/.test(popup));
 }
 
+// 7. face-api runs in the isolated world.
+const mainJs = scripts.filter(c => c.world === "MAIN").flatMap(c => c.js);
+const isoJs = scripts.filter(c => c.world !== "MAIN" && c.matches.includes("https://www.youtube.com/*")).flatMap(c => c.js);
+check("face-api is not loaded into youtube.com's page world", !mainJs.some(f => /face-api/.test(f)), mainJs);
+check("it runs in the isolated world with its reader", isoJs.indexOf("lib/face-api/face-api.min.js") >= 0 && isoJs.indexOf("lib/face-api/face-api.min.js") < isoJs.indexOf("content/nsp-faces.js"), isoJs);
+check("the page world no longer calls faceapi", !/faceapi\./.test(read("content/nsp-bundle.js")));
 check("the bridge loads before the page world", scripts.findIndex(c => c.js.includes("content/ashlyv-bridge.js")) < scripts.findIndex(c => c.world === "MAIN"));
 
 // 5. Setup keeps API keys out of localStorage and drops the fields nothing reads.

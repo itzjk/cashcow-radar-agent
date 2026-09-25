@@ -52,7 +52,9 @@
       ],
       "js": [
         "lib/nsp-data-tools.js",
-        "content/ashlyv-bridge.js"
+        "content/ashlyv-bridge.js",
+        "lib/face-api/face-api.min.js",
+        "content/nsp-faces.js"
       ],
       "run_at": "document_idle",
       "world": "ISOLATED"
@@ -63,7 +65,6 @@
       ],
       "js": [
         "lib/nsp-models.js",
-        "lib/face-api/face-api.min.js",
         "ashlyv/ashlyv-engine.js",
         "knowledge/youtube-playbook.js",
         "knowledge/reverse-engine.js",
