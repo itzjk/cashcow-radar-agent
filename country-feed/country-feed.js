@@ -446,7 +446,8 @@ function runScan(force) {
       onFatalError(raw.length + ' videos came back, but none carries a view count yet, so none can be ranked.');
       return;
     }
-    finishScan(vids.length + ' videos from ' + market.label + (res.cached ? ' (cached)' : ' (fresh)') + ', ranked by faceless signal.');
+    var partNote = res.partial ? ' Only ' + (res.searches - res.failedSearches) + ' of ' + res.searches + ' searches answered, so this is part of the market: ' + String((res.errors || [])[0] || 'unknown error') + '.' : '';
+    finishScan(vids.length + ' videos from ' + market.label + (res.cached ? ' (cached)' : ' (fresh)') + ', ranked by faceless signal.' + partNote);
   });
 }
 

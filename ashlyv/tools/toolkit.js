@@ -30,7 +30,7 @@
   TK.gemini = function (k, sys, user, temp) {
     var models = [];
     if (k.geminiModel) models.push(k.geminiModel);
-    ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest'].forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
+    ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-flash-latest'].forEach(function (m) { if (models.indexOf(m) < 0) models.push(m); });
     var prompt = (sys ? sys + '\n\n' : '') + user, i = 0;
     return new Promise(function (resolve, reject) {
       (function tryM() {

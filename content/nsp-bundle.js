@@ -8740,6 +8740,8 @@ function runAshlyVScanWithFacelessFilter(allResults, candidateResults, avgOS, av
       queries: localeQueries,
       force: true
     }).then(function(res) {
+      if (!res || !res.ok) console.warn('[ASHLYV] Locale fallback: the market feed failed, the scan keeps only what the page held:', res && res.error);
+      else if (res.partial) console.warn('[ASHLYV] Locale fallback: ' + res.failedSearches + ' of ' + res.searches + ' market searches failed, so the pool is partial:', (res.errors || [])[0]);
       var videos = (res && Array.isArray(res.videos)) ? res.videos : [];
       var apiItems = adaptInnertubeVideosToAshlyVItems(videos);
       var apiCandidates = apiItems.filter(function(item) {

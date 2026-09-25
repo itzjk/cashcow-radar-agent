@@ -340,27 +340,25 @@ async function nspCallOllama(url, model, payload, messages) {
   return nspParseOpenAIResponse(data);
 }
 
+var NSP_GEMINI_RETIRED = /^gemini-1\.5|-exp$/;
+// Groq retired these in 2025; an older build may still have one saved.
+var NSP_GROQ_RETIRED = /^(?:llama-3\.1-70b-versatile|mixtral-8x7b-32768)$/;
+
 async function nspCallGemini(geminiKey, cachedModel, payload, messages) {
   var modelChain = [];
-  if (cachedModel) modelChain.push(cachedModel);
+  if (cachedModel && !NSP_GEMINI_RETIRED.test(cachedModel)) modelChain.push(cachedModel);
   // Ordered by how likely each model is to be reachable.
+  // Google retired the 1.5 family in 2025, so it is not tried: each dead name cost one failed request per turn.
+  // The caller never picks the model, the user does in Options, so nothing from the message goes in front of this chain.
   var fallbacks = [
     'gemini-2.5-flash',
     'gemini-2.0-flash',
     'gemini-2.0-flash-001',
-    'gemini-2.0-flash-exp',
-    'gemini-2.0-flash-lite',
-    'gemini-1.5-flash-latest',
-    'gemini-1.5-flash-002',
-    'gemini-1.5-flash-001',
-    'gemini-1.5-flash'
+    'gemini-2.0-flash-lite'
   ];
   fallbacks.forEach(function(m) {
     if (modelChain.indexOf(m) === -1) modelChain.push(m);
   });
-  if (payload.model && /^gemini/.test(payload.model) && modelChain.indexOf(payload.model) === -1) {
-    modelChain.unshift(payload.model);
-  }
 
   var contents = messages.slice(-50).map(function(m) {
     return {
@@ -515,8 +513,8 @@ async function nspFetchImageAsBase64(url) {
 
 async function nspCallGeminiVision(geminiKey, cachedModel, images, prompt, system) {
   var modelChain = [];
-  if (cachedModel) modelChain.push(cachedModel);
-  ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-001', 'gemini-1.5-flash-latest', 'gemini-1.5-flash'].forEach(function (m) {
+  if (cachedModel && !NSP_GEMINI_RETIRED.test(cachedModel)) modelChain.push(cachedModel);
+  ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-2.0-flash-001'].forEach(function (m) {
     if (modelChain.indexOf(m) === -1) modelChain.push(m);
   });
   var parts = [{ text: String(prompt || '').slice(0, 8000) }];
@@ -1035,7 +1033,7 @@ function nspChatCascade(chatPayload, sendResponse) {
     // Read all provider configs
     var groqKey = r && typeof r.nsp_groq_api_key === 'string' ? r.nsp_groq_api_key.trim() : '';
     var groqValid = groqKey && /^gsk_[A-Za-z0-9_\-]{30,}$/.test(groqKey);
-    var groqModel = (r && r.nsp_groq_model) || 'llama-3.3-70b-versatile';
+    var groqModel = (r && typeof r.nsp_groq_model === 'string' && !NSP_GROQ_RETIRED.test(r.nsp_groq_model) && r.nsp_groq_model) || 'llama-3.3-70b-versatile';
     var chosen = String((r && r.nsp_selected_model) || 'auto');
     var chosenProvider = '', chosenModel = '';
     if (chosen && chosen !== 'auto') {
@@ -1043,9 +1041,10 @@ function nspChatCascade(chatPayload, sendResponse) {
       var catalogEntry = null;
       try { catalogEntry = (typeof NSP_MODELS !== 'undefined' && NSP_MODELS.byId) ? NSP_MODELS.byId(chosen) : null; } catch (eCat) {}
       if (!catalogEntry || catalogEntry.id !== chosen) catalogEntry = null;
-      var cut = chosen.indexOf(':');
-      chosenProvider = catalogEntry ? catalogEntry.provider : (cut > 0 ? chosen.slice(0, cut) : chosen);
-      chosenModel = catalogEntry ? String(catalogEntry.model || '') : (cut > 0 ? chosen.slice(cut + 1) : '');
+      // A choice the catalog no longer lists (a retired model saved by an older build) falls back to Auto instead of calling a dead model.
+      if (!catalogEntry) console.warn('[NSP SW] the saved model ' + chosen + ' is not in the catalog any more, using Auto');
+      chosenProvider = catalogEntry ? catalogEntry.provider : '';
+      chosenModel = catalogEntry ? String(catalogEntry.model || '') : '';
       if (chosenProvider === 'groq' && chosenModel) groqModel = chosenModel;
     }
 
@@ -3365,9 +3364,11 @@ function nspRoute(msg, sender, sendResponse, who) {
     function returnCached(cached, source) {
       sendResponse({ ok: true, videos: cached.videos || [], cached: true, ts: cached.ts, source: source });
     }
-    function returnFresh(videos) {
-      // An empty answer is not cached: caching it would hand the same empty list back for 15 minutes without asking YouTube again.
-      if (videos && videos.length) {
+    function returnFresh(feed) {
+      var videos = feed.videos;
+      var partial = feed.failed.length > 0;
+      // An empty or partial answer is not cached: the cache would hand it back for 15 minutes as if it were the whole market.
+      if (videos && videos.length && !partial) {
         try {
           var payload = { videos: videos, ts: Date.now(), gl: gl, hl: hl, queries: queries };
           var setObj = {}; setObj[cacheKey] = payload;
@@ -3377,7 +3378,7 @@ function nspRoute(msg, sender, sendResponse, who) {
           });
         } catch(e) {}
       }
-      sendResponse({ ok: true, videos: videos, cached: false, ts: Date.now() });
+      sendResponse({ ok: true, videos: videos, cached: false, ts: Date.now(), searches: feed.searches, partial: partial, failedSearches: feed.failed.length, errors: feed.failed.slice(0, 5) });
     }
 
     chrome.storage.local.get(cacheKey, function(r) {
@@ -4207,12 +4208,14 @@ function fetchCountryFacelessFeed(gl, hl, queries, maxAgeHours) {
   nspEmitProgress({ stage: 'session', status: 'start', sessionId: sessionId, gl: gl, hl: hl, totalSteps: queries.length });
 
   var stepErrors = [];
+  var emptySteps = 0;
 
   function fetchStep(stageId, label, promise) {
     nspEmitProgress({ stage: stageId, status: 'start', sessionId: sessionId, label: label });
     return promise
       .then(function(d) {
         var videos = extractVideosFromInnertube(d).map(function(v) { v.source = stageId; return v; });
+        if (!videos.length) emptySteps++;
         nspEmitProgress({ stage: stageId, status: 'done', sessionId: sessionId, label: label, count: videos.length });
         return videos;
       })
@@ -4250,10 +4253,12 @@ function fetchCountryFacelessFeed(gl, hl, queries, maxAgeHours) {
       e.stepErrors = stepErrors;
       throw e;
     }
-    console.log('[NSP SW] InnerTube feed: ' + list.length + ' unique (from ' + rawTotal + ' raw) videos from ' + arrays.length + ' sources (gl=' + gl + ' hl=' + hl + ')');
+    // Every search answered and not one renderer was recognized: YouTube changed the shape of its answer, which is not the same as a market with no videos.
+    if (!list.length && queries.length && emptySteps === queries.length) throw new Error('no_renderers_recognized: YouTube answered all ' + queries.length + ' searches in a shape this build does not read');
+    console.log('[NSP SW] InnerTube feed: ' + list.length + ' unique (from ' + rawTotal + ' raw) videos from ' + arrays.length + ' sources (gl=' + gl + ' hl=' + hl + '), ' + stepErrors.length + ' searches failed');
     nspEmitProgress({ stage: 'merge', status: 'done', sessionId: sessionId, rawCount: rawTotal, uniqueCount: list.length });
     nspEmitProgress({ stage: 'session', status: 'done', sessionId: sessionId, count: list.length });
-    return list;
+    return { videos: list, searches: queries.length, failed: stepErrors.slice() };
   });
 }
 
