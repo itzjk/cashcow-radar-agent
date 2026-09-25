@@ -8,7 +8,7 @@ It runs in your browser. No server, no account, no telemetry. Every AI panel is 
 
 **A demonetization policy engine.** `nsp-policy.js` is a rules engine over `data/policies.json`: it normalizes a script (diacritics folded, `ß` to `ss`, everything non-alphanumeric collapsed), matches the rule table in word or substring mode with an uppercase guard so `ss` does not fire inside *besser*, and maps every hit back to its index in the original text so you can see the exact phrase. It also keeps a per-channel corpus of top-400 token frequencies (never the raw script) and scores a new script against it, so a near-duplicate of your own back catalogue comes back yellow with the inauthentic-content reason instead of green. The service worker loads it and answers `policy:rules` and `policy:evaluate`, and the listener refuses any sender that is not this extension. **No surface calls it yet** (see Limits): today it is an engine with a message API and no button.
 
-**A reverse engine for titles, built from your own scan.** `knowledge/reverse-engine.js` takes the videos a scan just measured, finds the outliers against that set's own median, and reports which title formats over-index inside the outliers versus the rest, which words live in them, how they open in the first two words, which channels own the niche, and a fill-in template drawn from the format that actually took off. It is wired into the coach prompt at `content/nsp-bundle.js:21302`. Nothing here is generic blog advice: every number comes from the videos on your screen.
+**A reverse engine for titles, built from your own scan.** `knowledge/reverse-engine.js` takes the videos a scan just measured, finds the outliers against that set's own median, and reports which title formats over-index inside the outliers versus the rest, which words live in them, how they open in the first two words, which channels own the niche, and a fill-in template drawn from the format that actually took off. It feeds the scan context of the YouTube panel's prompt. Nothing here is generic blog advice: every number comes from the videos on your screen.
 
 **Faceless detection that looks at the thumbnail.** face-api.js `tinyFaceDetector` runs locally on each thumbnail, with the weights served from `lib/face-api/` through the bridge, and rejects a card when a face covers more than the area threshold. That is a measurement of the image, not a guess from the title.
 
@@ -33,7 +33,7 @@ Open **Options**: the Settings button in the popup, or `chrome://extensions`, De
 
 | Field | Storage key | What it is for |
 |---|---|---|
-| Groq API key (`gsk_…`) | `nsp_groq_api_key` | free tier, tried first for text |
+| Groq API key (`gsk_…`) | `nsp_groq_api_key` | free tier, second in the cascade after OpenAI |
 | Gemini API key (`AIza…`) | `nsp_gemini_api_key` | Google, text and thumbnail vision |
 | Enable Ollama, URL, model | `nsp_ollama_enabled`, `nsp_ollama_url`, `nsp_ollama_model` | a model on your own machine, no limits, offline |
 | Assistant model | `nsp_selected_model` | the picker |
@@ -43,7 +43,7 @@ The **Assistant model** picker is the one catalog, `lib/nsp-models.js`, read by 
 
 Keys live in `chrome.storage.local` and leave the browser only to reach the provider whose key you pasted. Without any key the metrics overlay, the scan, the tracking panel, the country radar, the niche index and the policy engine all still work; the AI panels say they have no provider.
 
-**A stored key is not permission to spend it.** Sending a thumbnail to the vision model is a separate checkbox in Options, and the service worker refuses the call with `vision_not_allowed` when the flag is not exactly `true` (`background/service-worker.js:1160`). The in-page thumbnail analyzer asks the same question through `ashlyv_thumbnail_consent`.
+**A stored key is not permission to spend it.** Sending a thumbnail to the vision model is a separate checkbox in Options, only Options can write it, and the service worker refuses the call with `vision_not_allowed` when the flag is not exactly `true`. On youtube.com a second rule applies, see *Who can ask the service worker for what*.
 
 ## What each surface does
 
@@ -51,7 +51,7 @@ Keys live in `chrome.storage.local` and leave the browser only to reach the prov
 - A badge on every video card: views per hour, the multiplier against that channel's own average, a tier, an opportunity score, and a revenue estimate labelled `est.` because it is one. Each of the five can be switched off in Options.
 - **SCAN** sweeps the feed you are on (home, search, a channel, trending), keeps the faceless videos with traction, and puts a niche read on top.
 - A country selector that switches the feed's market and rescans it.
-- A tracking panel for channels under watch, an ad-placement probe that reports monetized, likely, not monetized or cannot check, a thumbnail analyzer, a transcript reader and a comment reader.
+- A tracking panel for channels under watch, an ad-placement probe that reports monetized, likely, not monetized or cannot check, a thumbnail check that measures faces, contrast and brightness in the browser, a transcript reader, a Title Lab that asks the model to rank your title variants against the outliers you saved, and a comment reader that asks the model about the comments YouTube has loaded on the page.
 
 **On studio.youtube.com** (`content/nsp-studio.js`) reads your own Studio page, recognizes which page it is, and scores title candidates against the titles that already worked, in the language the corpus is written in. Studio enforces Trusted Types, so this script builds DOM with `createElement` and `textContent` only.
 
@@ -81,7 +81,18 @@ Where the audio goes: speech to text is Chrome's speech recognition, the same se
 
 ## Architecture in one paragraph
 
-Four content scripts. The heavy one runs in the **MAIN** world, the page's own context, because it needs YouTube's internal data, and there it has no `chrome.*` at all: no storage, no messaging, no `runtime.getURL`. A small script in the **ISOLATED** world, `content/ashlyv-bridge.js`, is its only way out, and it is a relay with two explicit allowlists: `NSP_RELAY_CALLS` names the sixteen message types the page world may forward to the service worker, and `NSP_RELAY_KEYS` names the storage keys it may read or write, with a second rule that refuses any key whose name contains *key*, *token*, *secret*, *password* or *auth* even if it were listed. The third runs only on Studio. The fourth, `content/zerack-bubble.js`, runs in the ISOLATED world of the top frame of every http and https page and does nothing but draw the bubble in a closed shadow root and frame the chat when you open it. The service worker holds every privileged call: network, cookies, tabs, notifications, alarms, and the policy engine loaded with `importScripts`. Extension pages run under `script-src 'self' 'wasm-unsafe-eval'`, so there is no inline script and no inline handler anywhere, and `node smoke.mjs` fails if one appears.
+Four content scripts. The heavy one runs in the **MAIN** world, the page's own context, because it needs YouTube's internal data, and there it has no `chrome.*` at all: no storage, no messaging, no `runtime.getURL`. A small script in the **ISOLATED** world, `content/ashlyv-bridge.js`, is its only way out. The third runs only on Studio. The fourth, `content/zerack-bubble.js`, runs in the ISOLATED world of the top frame of every http and https page and does nothing but draw the bubble in a closed shadow root and frame the chat when you open it. The service worker holds every privileged call: network, cookies, tabs, notifications, alarms, and the policy engine loaded with `importScripts`. Extension pages run under `script-src 'self' 'wasm-unsafe-eval'`, so there is no inline script and no inline handler anywhere, and `node smoke.mjs` fails if one appears.
+
+## Who can ask the service worker for what
+
+Any script on youtube.com can post to the page, not only this extension's, so the bridge treats every page message as a request from the page and the service worker checks every message again at its own door.
+
+- **The door.** `NSP_MESSAGE_CALLERS` in `background/service-worker.js` names, for each of the 64 message types, who may send it: an extension page (`chrome-extension://` of this extension), the bridge on youtube.com, the Studio script, or the bubble. Anything else is answered `sender_not_allowed` before a handler runs.
+- **Tabs are never the page's.** Listing, switching and closing tabs, navigating the active tab and reading other sites are for extension pages only (the chat, with its Agent switch). The YouTube panel can open a youtube.com or studio.youtube.com tab, and the worker checks the host and the Agent switch itself.
+- **Spending needs a grant.** A YouTube tab can spend your AI keys only inside a grant. The worker opens one when it hands the tab a turn from the chat or the voice; the bridge asks for one only when it sees a real press (`isTrusted`, which no page script can fake) on a ZERACK control that runs AI. A grant belongs to one tab, runs out by count and by time (45 model calls for the agent, 12 thumbnails for the vision check, one call for a panel), and asking again restarts it, it never adds up.
+- **The prompt is the worker's.** The page sends a task name and data (`NSP_AI_TASK`: `coach`, `titles`, `comments`, `replicate`, `brand`). The system prompt, the tool list and the model are chosen in the worker, so a page can shape what the model reads but never turn your key into a free endpoint. The hub calls the same tasks.
+- **HTML into youtube.com goes through one sanitizer.** YouTube enforces Trusted Types. `nspSetHTML` parses markup inert, removes scripts, frames, event handlers and `javascript:` links, and moves clean nodes in. No `default` policy is registered, so YouTube's own protection stays on.
+- **Storage.** The page world can read and write only the keys on `NSP_RELAY_KEYS`; `nsp_agent_enabled` and `nsp_vision_allowed` are read only from there, so a page cannot switch on what they guard.
 
 ## Permissions, and why
 
@@ -90,6 +101,7 @@ Four content scripts. The heavy one runs in the **MAIN** world, the page's own c
 | `storage` | your keys, saved niches, tracked channels, growth snapshots, the niche index |
 | `scripting` | the popup reads the live session out of the open YouTube tab's MAIN world, and the bubble is put back into open tabs after an install or update |
 | `activeTab` | putting the bubble back into the tab you are on when you open the popup or press Alt+X there after an update |
+| `declarativeNetRequestWithHostAccess` | one session rule that removes the `Origin` header from this extension's own InnerTube requests: YouTube answers `403` to `chrome-extension://`, and a service worker cannot drop that header itself. It never touches the page's requests |
 | `tabs` | opening the hub, the Command Center and a market search, and knowing which tab is active |
 | `sidePanel` | the chat in Chrome's side panel, where no content script can run (Alt+X on a `chrome://` page, or CHAT in the popup there) |
 | content script on `http://*/*`, `https://*/*` | the bubble. It draws itself and reads nothing on the page; Chrome still lists it as access to every site |
@@ -100,23 +112,22 @@ Four content scripts. The heavy one runs in the **MAIN** world, the page's own c
 | `downloads` | the chat's niche export; the other CSV and JSON exports use a blob and `<a download>` |
 | `https://www.youtube.com/*`, `https://*.youtube.com/*` | where the overlay runs, and the InnerTube endpoint |
 | `https://studio.youtube.com/*` | the Studio agent |
-| `https://www.googleapis.com/*` | the YouTube Data API, for comments and channel reads |
+| `https://www.googleapis.com/*` | the YouTube Data API, a path that is off until it has a key (see Limits) |
 | `https://generativelanguage.googleapis.com/*` | Gemini, when you have pasted a Gemini key |
 | `https://api.groq.com/*` | Groq, when you have pasted a Groq key |
 | `https://translate.googleapis.com/*` | translating a foreign-language title before scoring it |
 | `https://i.ytimg.com/*`, `https://img.youtube.com/*` | reading thumbnail pixels for the face and contrast checks |
 | `http://localhost/*`, `http://127.0.0.1/*` | Ollama running on your own machine, if you enable it |
-| `https://image.pollinations.ai/*`, `https://*.pollinations.ai/*`, `https://api.openverse.org/*` | declared and not called by any file in this repo. Drop them before publishing |
 
-`AIzaSyAO_FJ2…` in `background/service-worker.js:1593` and `content/nsp-bundle.js:16085` is the public InnerTube WEB key that YouTube itself ships in every page it serves. It is not a credential and it is not ours.
+`AIzaSyAO_FJ2…` in `background/service-worker.js` and `content/nsp-bundle.js` is the public InnerTube WEB key that YouTube itself ships in every page it serves. It is not a credential and it is not ours.
 
 ## Limits
 
 Run `node smoke.mjs` for the machine-checkable list. These are the ones a checker cannot see:
 
 - **The policy engine has no button.** `nsp-policy.js` and `data/policies.json` are loaded and reachable at `policy:evaluate`, and no page in this build sends that message. The engine is real, the surface is missing.
-- **`content/nsp-bundle.js` is one file of about 24,400 lines.** It works. It is not pleasant.
-- **The YouTube Data API key has no opt-in and no home.** `content/nsp-bundle.js:7286` reads `nsp_yt_data_api_key` out of `localStorage` on youtube.com, where any script on the page can read it, Options has no field to set it, and the three call sites that use it spend quota with no gate. Leave it empty until that is rebuilt.
+- **`content/nsp-bundle.js` is one file of about 24,000 lines.** It works. It is not pleasant.
+- **The YouTube Data API path is off.** `YT_API_KEY` in `content/nsp-bundle.js` is empty and Options has no field for it, so the scan validates channels with its local filters and the comment reader reads the comments on the page. A key for it needs an Options field, an opt-in and a route through the service worker first.
 - **The popup's tier counters and its *Analyzed* number have different denominators.** `Analyzed` counts every card scored; `RISING+` and `VIRAL` are counted over the session's top 20, so they stop climbing at 20.
 - **Five of the nine tool pages have no link.** `autopilot`, `brandforge`, `competitorfinder`, `help` and `nichemaster` under `ashlyv/tools/` only open if you type the address.
 - **Strings are not all English yet.** `node smoke.mjs` names every file with Spanish or emoji left in a string the user reads. Spanish inside search queries, YouTube DOM matchers and language detection tables is data and stays; the smoke exempts those tables by name.

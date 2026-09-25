@@ -9,7 +9,7 @@ cd cashcow-radar-agent
 
 `chrome://extensions`, **Developer mode** on, **Load unpacked**, pick this folder. Nothing to build, nothing to install, no dependencies. After an edit press the reload arrow on the extension card, then reload the YouTube tab: a content script does not re-inject on its own.
 
-You do not need `scripts/fetch-assets.sh`. It fetches four large binaries into `lib/whisper/`, which nothing in the extension imports today.
+You only need `scripts/fetch-assets.sh` for the local voice fallback. It fetches four large binaries into `lib/whisper/` (they are in `.gitignore`); `offscreen/voice.js` loads that model only when Chrome's own speech recognition cannot run, and without the binaries the fallback says it is unavailable.
 
 Three consoles, and a change can be invisible in the wrong one:
 
@@ -29,11 +29,13 @@ node smoke.mjs
 node niche-detector.test.js
 ```
 
+`tests/*.test.mjs` load the real service worker and bridge in a Node `vm` with a fake `chrome` and send them the messages Chrome would, with the sender Chrome would pass. The smoke runs them all (check 18), so a green smoke includes them.
+
 `node --check` on each file you touched, every time. A syntax error in the bundle takes the whole overlay down with nothing in the console but silence.
 
-`node smoke.mjs` is the gate. It exits 0 green and 1 red, takes no arguments and no dependencies, and reads files only. It checks, in this order: syntax of every first party script; that the manifest declares nothing missing and that every `web_accessible_resources` pattern matches something; that every `src` and `href` in every page resolves on disk; that no page carries inline script or an inline `on*` handler, both of which the CSP kills silently; that the five entry points of the scan engine are still defined; that no string the user reads is in Spanish or carries an emoji; that every message a screen sends has a handler; that every storage key the page world touches is on the bridge allowlist and that no page-world script pulls a key out of `localStorage`; that the model catalog is loaded before everything that reads it; that no file starts with an underscore, which makes Chrome refuse the whole extension; that no script builds a server address out of `location`; and that every host permission has a caller. It also warns about pages nothing links to.
+`node smoke.mjs` is the gate. It exits 0 green and 1 red, takes no arguments and no dependencies, and reads files only. It checks, in this order: syntax of every first party script; that the manifest declares nothing missing and that every `web_accessible_resources` pattern matches something; that every `src` and `href` in every page resolves on disk; that no page carries inline script or an inline `on*` handler, both of which the CSP kills silently; that the five entry points of the scan engine are still defined; that no string the user reads is in Spanish or carries an emoji; that every message a screen sends has a handler; that every storage key the page world touches is on the bridge allowlist and that no page-world script pulls a key out of `localStorage`; that the model catalog is loaded before everything that reads it; that no file starts with an underscore, which makes Chrome refuse the whole extension; that no script builds a server address out of `location`; that every host permission has a caller; that nothing registers a `default` Trusted Types policy; that no regex literal has an empty alternative, which matches every string; that every message the service worker routes names who may send it, tab control is for extension pages only and spending from youtube.com needs a grant; and that the behaviour tests in `tests/` pass. It also warns about pages nothing links to.
 
-The same smoke runs on every push and pull request through `.github/workflows/smoke.yml`.
+A GitHub Actions workflow for the same smoke is ready in `ci/smoke.yml` and is not active yet; see *Continuous integration* below.
 
 `node niche-detector.test.js` replays the niche classifier over its fixtures and prints pass and fail counts.
 
@@ -44,8 +46,8 @@ Before you claim a change works, paste the command and its output. A claim witho
 | Path | What it is |
 |---|---|
 | `manifest.json` | MV3. Four content script blocks, the side panel, the CSP, the web accessible resources |
-| `content/nsp-bundle.js` | the engine. MAIN world, about 24,400 lines. Scoring, badges, the scan, every in-page panel |
-| `content/ashlyv-bridge.js` | ISOLATED world. The only way out of MAIN. Two allowlists: `NSP_RELAY_CALLS`, `NSP_RELAY_KEYS` |
+| `content/nsp-bundle.js` | the engine. MAIN world, about 24,000 lines. Scoring, badges, the scan, every in-page panel |
+| `content/ashlyv-bridge.js` | ISOLATED world. The only way out of MAIN, and it speaks for any script on youtube.com: a fixed list of forwarded messages rebuilt field by field, the relay allowlists `NSP_RELAY_CALLS` and `NSP_RELAY_KEYS`, and the grant requests it sends only on a trusted press |
 | `content/nsp-studio.js` | ISOLATED world on studio.youtube.com. Title scoring against your own corpus |
 | `content/zerack-bubble.js` | ISOLATED world, top frame of every http and https page. The bubble: click opens the chat overlay, hold talks, drag moves. Reads nothing on the page |
 | `chat/` | the private chat. `chat.js` the page (the service worker runs each turn and writes it to the store, so an answer survives the page under the chat navigating), `chat-tools.js` the answer loop and tool labels the service worker runs, `chat-render.js` the safe markdown-lite renderer |
@@ -62,8 +64,7 @@ Before you claim a change works, paste the command and its output. A claim witho
 | `lib/nsp-text.js` | text helpers shared by the policy engine and Studio |
 | `lib/nsp-faceless-data.js` | niche matchers and their RPM, and the faceless title patterns |
 | `lib/face-api/` | face-api.js and the `tinyFaceDetector` weights, served through the bridge |
-| `lib/mobilenet/` | TensorFlow.js and MobileNet, in the frame at `lib/mobilenet/mnet-frame.html` |
-| `lib/whisper/` | local transcription, imported by nothing today |
+| `lib/whisper/` | local transcription, the voice's fallback when Chrome's recognizer cannot run; its binaries come from `scripts/fetch-assets.sh` |
 | `popup/` | the popup: session counters, top videos, the doors to every other surface |
 | `options/` | keys, the model picker, the paid-call opt-in, the RPM table, the badge switches |
 | `dashboard/` | Command Center: saved channels, filters, *Measure growth*, exports |
@@ -73,6 +74,7 @@ Before you claim a change works, paste the command and its output. A claim witho
 | `niche-index/` | the niche table your own scans filled in |
 | `icons/` | the three PNGs, and the logo marks and the bubble as SVG |
 | `smoke.mjs` | the gate |
+| `tests/` | behaviour tests of the service worker door, the bridge, the YouTube readers and the hub client, run by the smoke |
 | `niche-detector.test.js` | the niche classifier fixtures |
 
 ## Four rules that are not negotiable
@@ -83,7 +85,7 @@ Before you claim a change works, paste the command and its output. A claim witho
 
 **A number on screen is a number that was measured.** If it cannot be measured, print nothing and say why. `-` with *Never measured*, or *not enough scores*, is a correct answer; a plausible substitute is not. An estimate is allowed and says so in the label, the way the revenue badge prints `est.`. Growth needs two readings; with one, `computeGrowth` returns no rate and the cell stays empty on purpose. Do not compute a rate from one reading, do not default a score to 50, and do not count two numbers over different denominators and show them side by side.
 
-**Anything that spends money or quota needs an opt-in the user can see and switch off.** A stored key is not permission to spend it. The pattern here is a stored flag read immediately before the call, and a call that refuses when the flag is not exactly `true`: `nsp_vision_allowed` in `background/service-worker.js:1160`, `ashlyv_thumbnail_consent` in the in-page analyzer. A new paid path gets its own flag, its own checkbox in Options, and a refusal that names the flag. Never a fallback that quietly reaches a billed provider after a free one failed.
+**Anything that spends money or quota needs an opt-in the user can see and switch off.** A stored key is not permission to spend it. The pattern here is a stored flag read immediately before the call, and a call that refuses when the flag is not exactly `true`, like `nsp_vision_allowed` in the service worker's vision judge; the page world may read such a flag and never write it. On youtube.com a paid call also needs a grant (see the README), so a new paid control there needs a `data-nsp-grant` kind in both the bridge and `NSP_GRANT_KINDS`. A new paid path gets its own flag, its own checkbox in Options, and a refusal that names the flag. Never a fallback that quietly reaches a billed provider after a free one failed.
 
 ## Renaming
 
