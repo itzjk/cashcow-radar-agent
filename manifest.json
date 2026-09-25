@@ -124,21 +124,12 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "ashlyv/ashlyv.html",
-        "ashlyv/*",
-        "ashlyv/tools/*",
-        "country-feed/country-feed.html",
-        "country-feed/*",
-        "niche-index/niche-index.html",
-        "niche-index/*",
-        "lib/face-api/*",
-        "lib/mobilenet/*",
-        "lib/whisper/*",
-        "lib/whisper/models/*"
+        "lib/face-api/*"
       ],
       "matches": [
-        "<all_urls>"
-      ]
+        "https://www.youtube.com/*"
+      ],
+      "use_dynamic_url": true
     },
     {
       "resources": [

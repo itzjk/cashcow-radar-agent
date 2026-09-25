@@ -1,31 +1,62 @@
 ﻿console.log('[NSP] v4.92.1 starting');
 
-// Only path allowed to write HTML into the youtube.com DOM: Trusted Types blocks a bare innerHTML there.
-var _nspTTPolicy = null, _nspTTTried = false;
-function nspSetHTML(el, html) {
-  if (!el) return;
-  var s = String(html == null ? '' : html);
-  if (typeof window === 'undefined' || !window.trustedTypes) { el['innerHTML'] = s; return; }
-  if (!_nspTTTried) {
-    _nspTTTried = true;
-    try { _nspTTPolicy = window.trustedTypes.createPolicy('nsp-html', { createHTML: function (x) { return x; } }); } catch (ePol) { _nspTTPolicy = null; }
-  }
-  if (_nspTTPolicy) { try { el['innerHTML'] = _nspTTPolicy.createHTML(s); return; } catch (eAsg) {} }
-  try { el.textContent = s; } catch (eTxt) {}
-}
+// Only path that writes HTML into the youtube.com DOM. YouTube enforces Trusted Types, and this file never registers a
+// 'default' policy: one that passes every string would switch that protection off for every script on the page. The
+// markup is parsed inert in a template through a policy only this closure holds, whatever can run code is removed,
+// and the clean nodes are moved in. So a title, a comment or a model answer that carries markup renders as text or not at all.
+var nspSetHTML = (function () {
+  var raw = null, tried = false;
+  var DROP = { SCRIPT: 1, IFRAME: 1, FRAME: 1, FRAMESET: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1, BASE: 1, FORM: 1, NOSCRIPT: 1, TEMPLATE: 1, FOREIGNOBJECT: 1 };
+  var URL_ATTRS = { href: 1, src: 1, 'xlink:href': 1, action: 1, formaction: 1, poster: 1, background: 1 };
 
-
-
-// Global style 
-(function () {
-  // Without a default Trusted Types policy every innerHTML on youtube.com throws and the panels die silently.
-  try {
-    if (window.trustedTypes && window.trustedTypes.createPolicy && !window.__nspTTDefault) {
-      window.trustedTypes.createPolicy('default', { createHTML: function (str) { return str; } });
-      window.__nspTTDefault = true;
+  function parse(html) {
+    var tpl = document.createElement('template');
+    if (window.trustedTypes && window.trustedTypes.createPolicy) {
+      if (!tried) {
+        tried = true;
+        try { raw = window.trustedTypes.createPolicy('nsp-html', { createHTML: function (x) { return x; } }); } catch (ePol) { raw = null; }
+      }
+      if (!raw) return null;
+      tpl['innerHTML'] = raw.createHTML(html);
+    } else {
+      tpl['innerHTML'] = html;
     }
-  } catch (e) {}
+    return tpl.content;
+  }
+
+  function urlAllowed(name, value, tag) {
+    var v = String(value || '').replace(/[\x00-\x20]+/g, '').toLowerCase();
+    var scheme = /^([a-z][a-z0-9+.\-]*):/.exec(v);
+    if (!scheme) return true;
+    if (scheme[1] === 'http' || scheme[1] === 'https' || scheme[1] === 'mailto') return true;
+    return scheme[1] === 'data' && tag === 'IMG' && name === 'src' && /^data:image\/(?:png|jpe?g|gif|webp);/.test(v);
+  }
+
+  function clean(node) {
+    Array.prototype.slice.call(node.childNodes).forEach(function (kid) {
+      if (kid.nodeType === 3) return;
+      if (kid.nodeType !== 1 || DROP[String(kid.tagName).toUpperCase()]) { kid.remove(); return; }
+      var tag = String(kid.tagName).toUpperCase();
+      Array.prototype.slice.call(kid.attributes).forEach(function (a) {
+        var n = a.name.toLowerCase();
+        if (n.indexOf('on') === 0 || n === 'srcdoc' || (URL_ATTRS[n] === 1 && !urlAllowed(n, a.value, tag))) kid.removeAttribute(a.name);
+      });
+      clean(kid);
+    });
+  }
+
+  return function (el, html) {
+    if (!el) return;
+    var s = String(html == null ? '' : html);
+    var frag = s ? parse(s) : null;
+    if (!s) { el.textContent = ''; return; }
+    if (!frag) { el.textContent = s.replace(/<[^>]*>/g, ''); return; }
+    clean(frag);
+    el.replaceChildren(frag);
+  };
 })();
+
+
 
 (function() {
   var s = document.createElement('style');
@@ -1211,10 +1242,6 @@ function ashlyv_validateStorageValue(key, value) {
         });
         return stats;
       }
-      case 'ashlyv_api_key':
-        if (typeof value !== 'string') return null;
-        if (!/^sk-ant-[a-zA-Z0-9\-_]{20,180}$/.test(value)) return null;
-        return value;
       case 'ashlyv_thumbnail_history':
         if (!Array.isArray(value)) return [];
         return value.filter(function(item) { return ashlyv_isPlainObject(item); }).map(function(item) {
@@ -1243,8 +1270,6 @@ function ashlyv_validateStorageValue(key, value) {
         var unread = parseInt(value, 10);
         return isNaN(unread) || unread < 0 ? 0 : Math.min(unread, 999);
       }
-      case 'ashlyv_thumbnail_consent':
-        return value === true;
       default:
         return value;
     }
@@ -1280,27 +1305,6 @@ function ashlyv_safeStorageSet(key, value, callback) {
   }
 }
 
-// SECURITY: Masks sensitive API keys if they ever need display.
-function ashlyv_maskKey(key) {
-  if (!key || key.length < 12) return '••••••••';
-  return key.slice(0, 10) + '••••••••' + key.slice(-4);
-}
-
-var _ashlyv_api_last_call = 0;
-var _ashlyv_api_call_count = 0;
-// SECURITY: Rate-limits paid AI API usage and abuse attempts.
-function ashlyv_checkApiRateLimit() {
-  var now = Date.now();
-  if (now - _ashlyv_api_last_call < 2000) return false;
-  if (_ashlyv_api_call_count > 20) {
-    if (now - _ashlyv_api_last_call < 60000) return false;
-    _ashlyv_api_call_count = 0;
-  }
-  _ashlyv_api_last_call = now;
-  _ashlyv_api_call_count++;
-  return true;
-}
-
 var _ashlyv_network_log = [];
 var _ashlyv_log_network = false;
 // SECURITY: Enforces fetch allowlist before any network request.
@@ -1309,9 +1313,7 @@ function ashlyv_isSafeDomain(url) {
   var allowed = [
     'https://www.youtube.com',
     'https://translate.googleapis.com',
-    'https://www.googleapis.com',
-    'https://api.groq.com',
-    'https://api.anthropic.com'
+    'https://www.googleapis.com'
   ];
   return allowed.some(function(d) { return url.indexOf(d) === 0; });
 }
@@ -2264,6 +2266,29 @@ var NSP_AGE_UNIT_RES = NSP_AGE_UNITS.map(function(row) {
 var NSP_AGE_PHRASE_RE = new RegExp('((?:hace\\s+)?\\d+(?:[.,]\\d+)?\\s*(?:'
   + NSP_AGE_UNITS.map(function(row) { return row.u; }).join('|')
   + ')(?:\\s+ago)?)', 'i');
+
+// Months since a channel joined, from YouTube's own words ("Joined Mar 3, 2021", "Se unió el 3 mar 2021", "03.03.2021").
+// null when no year can be read: a guess would be a made up age.
+var NSP_MONTH_WORDS = [/^(?:jan|ene|jän|janv)/, /^(?:feb|fév|fev)/, /^(?:mar|mär)/, /^(?:apr|abr|avr)/, /^(?:may|mai|mayo|maio)/, /^(?:jun|juin)/, /^(?:jul|juil)/, /^(?:aug|ago|aoû|aou)/, /^(?:sep|set)/, /^(?:oct|okt|out)/, /^nov/, /^(?:dec|dic|déc|dez)/];
+function nspChannelAgeMonths(joinedText, now) {
+  var t = String(joinedText || '').toLowerCase();
+  var iso = t.match(/^((?:19|20)\d{2})-(\d{2})-\d{2}$/);
+  if (iso) t = iso[2] + '/' + iso[2] + '/' + iso[1];
+  var y = t.match(/\b(19|20)\d{2}\b/);
+  if (!y) return null;
+  var year = Number(y[0]), month = -1;
+  var num = t.match(/\b(\d{1,2})[.\/-](\d{1,2})[.\/-](?:19|20)\d{2}\b/);
+  if (num) month = Number(num[2]) - 1;
+  if (month < 0) {
+    var words = t.replace(/[^a-zà-ÿ\s]/g, ' ').split(/\s+/);
+    for (var i = 0; i < words.length && month < 0; i++) {
+      for (var m = 0; m < 12; m++) { if (words[i].length >= 3 && NSP_MONTH_WORDS[m].test(words[i])) { month = m; break; } }
+    }
+  }
+  var d = new Date(Number(now) || Date.now());
+  var months = (d.getFullYear() - year) * 12 + (d.getMonth() - (month < 0 ? 0 : month));
+  return { months: Math.max(0, months), yearOnly: month < 0 };
+}
 
 function pHours(t) {
   if (!t) return null;
@@ -3297,14 +3322,14 @@ function makeBadge(views, sc) {
   var comp = keywordCompetition(sc.title);
 
   r2.appendChild(monoBadgeChip('RPM $' + sc.rpm.toFixed(2), false));
-  r2.appendChild(monoBadgeChip(seo.text, false));
+  r2.appendChild(monoBadgeChip('' + seo.text, false));
   r2.appendChild(monoBadgeChip('CTR ~' + ctr + '%', false));
   r2.appendChild(monoBadgeChip('Comp: ' + comp.level, false));
 
   if (sc.totalRev > 0) {
     var fmtRD = function(n) { return '$' + Math.round(n).toLocaleString('en-US'); };
-    r3.appendChild(monoBadgeChip(fmtRD(sc.totalRev) + ' total', true));
-    if (sc.rev != null) r3.appendChild(monoBadgeChip(fmtRD(sc.rev) + '/mo est.', true));
+    r3.appendChild(monoBadgeChip('' + fmtRD(sc.totalRev) + ' total', true));
+    r3.appendChild(monoBadgeChip('' + fmtRD(sc.rev) + '/mo est.', true));
   }
 
   if (sc._outlierTier && sc._outlierTier.label) {
@@ -3766,9 +3791,9 @@ function getChannelOutlierTier(views, channelAvgViews) {
   if (!views || !channelAvgViews || channelAvgViews < 100) return null;
   var ratio = views / channelAvgViews;
   if (ratio >= 100) return { ratio: ratio, tier: 'GIGA', label: '100x', color: '#E040FF' };
-  if (ratio >= 20)  return { ratio: ratio, tier: 'MEGA', label: Math.round(ratio) + 'x', color: '#E040FF' };
-  if (ratio >= 10)  return { ratio: ratio, tier: 'STRONG', label: Math.round(ratio) + 'x', color: '#FF6B35' };
-  if (ratio >= 5)   return { ratio: ratio, tier: 'GOOD', label: ratio.toFixed(1) + 'x', color: '#FFD700' };
+  if (ratio >= 20)  return { ratio: ratio, tier: 'MEGA', label: '' + Math.round(ratio) + 'x', color: '#E040FF' };
+  if (ratio >= 10)  return { ratio: ratio, tier: 'STRONG', label: '' + Math.round(ratio) + 'x', color: '#FF6B35' };
+  if (ratio >= 5)   return { ratio: ratio, tier: 'GOOD', label: '' + ratio.toFixed(1) + 'x', color: '#FFD700' };
   if (ratio >= 2)   return { ratio: ratio, tier: 'ABOVE', label: ratio.toFixed(1) + 'x', color: '#00DC82' };
   return null; // do not show below 2x to avoid badge spam
 }
@@ -4248,184 +4273,15 @@ function sanitizeAshlyVNichoEntry(entry) {
   };
 }
 
-var ASHLYV_DASHBOARD_PATH = 'ashlyv/ashlyv.html';
-
-function getAshlyVDashboardBaseUrl() {
-  try {
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
-      return chrome.runtime.getURL(ASHLYV_DASHBOARD_PATH);
-    }
-  } catch(e) {}
-
-  // MAIN world has no chrome.runtime, so the ISOLATED bridge publishes the extension id on this DOM attribute.
-  try {
-    var domExtId = document.documentElement.getAttribute('data-nsp-ext-id');
-    if (domExtId && /^[a-z]{32}$/i.test(domExtId)) {
-      return 'chrome-extension://' + domExtId + '/' + ASHLYV_DASHBOARD_PATH;
-    }
-  } catch(eDom) {}
-
-  try {
-    if (typeof window.__ASHLYV_DASHBOARD_URL === 'string' && /^chrome-extension:\/\/[a-z]{32}\/ashlyv\/ashlyv\.html$/i.test(window.__ASHLYV_DASHBOARD_URL)) {
-      return window.__ASHLYV_DASHBOARD_URL;
-    }
-  } catch(e2) {}
-
-  try {
-    if (typeof window.__ASHLYV_EXTENSION_ID === 'string' && /^[a-z]{32}$/i.test(window.__ASHLYV_EXTENSION_ID)) {
-      return 'chrome-extension://' + window.__ASHLYV_EXTENSION_ID + '/' + ASHLYV_DASHBOARD_PATH;
-    }
-  } catch(e3) {}
-
-  return '';
-}
-
-function rememberAshlyVBridgeReady(data) {
-  if (!data || data.type !== 'ASHLYV_BRIDGE_READY') return false;
-  var dashboardUrl = String(data.dashboardUrl || '');
-  var extensionId = String(data.extensionId || '');
-  if (!/^chrome-extension:\/\/[a-z]{32}\/ashlyv\/ashlyv\.html$/i.test(dashboardUrl)) return false;
-  if (!/^[a-z]{32}$/i.test(extensionId)) {
-    var m = dashboardUrl.match(/^chrome-extension:\/\/([a-z]{32})\//i);
-    extensionId = m ? m[1] : '';
-  }
-  if (!extensionId) return false;
-  try {
-    window.__ASHLYV_DASHBOARD_URL = dashboardUrl;
-    window.__ASHLYV_EXTENSION_ID = extensionId;
-  } catch(e) {}
-  return true;
-}
-
-window.addEventListener('message', function(event) {
-  if (!event || event.source !== window) return;
-  if (event.origin && event.origin !== window.location.origin) return;
-  rememberAshlyVBridgeReady(event.data);
-});
-
-// SECURITY: Saves/opens niches through extension messaging instead of leaking data via window.postMessage.
-function buildAshlyVDashboardUrl(channelQuery, urlQuery) {
-  try {
-    var base = getAshlyVDashboardBaseUrl();
-    if (!base) return '';
-    var params = [];
-    channelQuery = String(channelQuery || '').slice(0, 500);
-    urlQuery = String(urlQuery || '').slice(0, 500);
-    if (channelQuery) params.push('channel=' + encodeURIComponent(channelQuery));
-    if (urlQuery && /^https:\/\/(www\.)?youtube\.com\//i.test(urlQuery)) params.push('url=' + encodeURIComponent(urlQuery));
-    if (params.length) base += '?' + params.join('&');
-    return base;
-  } catch(e) {
-    return '';
-  }
-}
-
-function openAshlyVDashboardSecure(url) {
-  url = String(url || getAshlyVDashboardBaseUrl()).slice(0, 1200);
-  if (!url) return Promise.resolve({ ok: false, error: 'missing_url' });
-  return sendRuntimeMessage({ type: 'ASHLYV_OPEN', url: url }).then(function(res) {
-    if (res && res.ok) return res;
-    try {
-      var opened = window.open(url, '_blank', 'noopener');
-      if (opened) return { ok: true, fallback: 'window_open' };
-    } catch(e) {}
-    return res || { ok: false, error: 'open_failed_youtube_tab_preserved' };
-  });
-}
-
-function postAshlyVBridgeSaveOpen(entry, openPage, channelQuery, urlQuery) {
-  try {
-    var payload = {
-      type: 'ASHLYV_OPEN_URL',
-      ashlyvBridgeRequest: true,
-      nichoData: entry,
-      openPage: !!openPage,
-      channelQuery: String(channelQuery || '').slice(0, 500),
-      urlQuery: String(urlQuery || '').slice(0, 500)
-    };
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
-      payload.ashlyvInternal = chrome.runtime.id;
-    }
-    window.postMessage(payload, window.location.origin);
-    return true;
-  } catch(e) {}
-  return false;
-}
-
+// Saving and opening the hub go through the service worker: it rebuilds the entry field by field, keeps one row
+// per video or channel, and builds the hub address itself. The page never needs the extension id for this.
 function saveAshlyVNichoSecure(nichoEntry, openPage, channelQuery, urlQuery) {
   var entry = sanitizeAshlyVNichoEntry(nichoEntry);
- // FAST PATH (MAIN world) 
-  // In MAIN world there is no chrome.runtime, so the bridge is the only channel: one message saves and opens the dashboard at once.
-  if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.id) {
-    var bridgedNow = postAshlyVBridgeSaveOpen(entry, !!openPage, channelQuery, urlQuery);
-    return Promise.resolve({ ok: !!bridgedNow, bridged: bridgedNow, viaBridge: true });
-  }
-  var dashboardUrl = openPage ? buildAshlyVDashboardUrl(channelQuery, urlQuery) : '';
-  function fallbackLocalSave() {
-    return new Promise(function(resolve) {
-      try {
-        nspStore.get(['ashlyv_nichos', 'ashlyv_nichos_backup']).then(function(res) {
-          var saved = Array.isArray(res.ashlyv_nichos) ? res.ashlyv_nichos.slice(0, 240) : [];
-          saved.unshift(entry);
-          var deduped = [];
-          var seen = {};
-          saved.forEach(function(item) {
-            var key = String((item && (item.channelId || item.channelUrl || item.vidId || item.title || item.savedAt)) || '');
-            if (!key || seen[key]) return;
-            seen[key] = true;
-            deduped.push(item);
-          });
-          deduped = deduped.slice(0, 240);
-          nspStore.set({
-            ashlyv_nichos: deduped,
-            ashlyv_nichos_backup: deduped
-          }).then(function() {
-            resolve({ ok: !chrome.runtime.lastError, localFallback: true });
-          });
-        });
-      } catch (e) {
-        resolve({ ok: false, error: e && e.message ? e.message : 'local_save_failed' });
-      }
-    });
-  }
   return sendRuntimeMessage({ type: 'ASHLYV_SAVE_NICHO', data: entry }).then(function(saveRes) {
-    if (!saveRes || saveRes.ok !== true) {
-      postAshlyVBridgeSaveOpen(entry, false, channelQuery, urlQuery);
-      return fallbackLocalSave().then(function(localRes) {
-        saveRes = saveRes || localRes;
-        if (!openPage) return saveRes || { ok: false };
-        return openAshlyVDashboardSecure(dashboardUrl).then(function(openRes) {
-          var bridged = false;
-          if (!openRes || openRes.ok !== true) {
-            bridged = postAshlyVBridgeSaveOpen(entry, true, channelQuery, urlQuery);
-          }
-          return { ok: !!((openRes && openRes.ok === true) || bridged || (localRes && localRes.ok)), save: saveRes, open: openRes, bridged: bridged, local: localRes };
-        });
-      });
-    }
-    if (!openPage) return saveRes || { ok: false };
-    return openAshlyVDashboardSecure(dashboardUrl).then(function(openRes) {
-      var bridged = false;
-      if (!openRes || openRes.ok !== true) {
-        bridged = postAshlyVBridgeSaveOpen(entry, true, channelQuery, urlQuery);
-      }
-      return { ok: !!((openRes && openRes.ok === true) || bridged), save: saveRes, open: openRes, bridged: bridged };
-    });
-  }).catch(function(err) {
-    var bridged = postAshlyVBridgeSaveOpen(entry, !!openPage, channelQuery, urlQuery);
-    return fallbackLocalSave().then(function(localRes) {
-      if (!openPage) {
-        return { ok: !!(bridged || (localRes && localRes.ok)), bridged: bridged, local: localRes, error: err && err.message ? err.message : 'save_open_failed' };
-      }
-      return openAshlyVDashboardSecure(dashboardUrl || buildAshlyVDashboardUrl(channelQuery, urlQuery)).then(function(openRes) {
-        return {
-          ok: !!(bridged || (localRes && localRes.ok) || (openRes && openRes.ok)),
-          bridged: bridged,
-          local: localRes,
-          open: openRes,
-          error: err && err.message ? err.message : 'save_open_failed'
-        };
-      });
+    if (!saveRes || saveRes.ok !== true) return { ok: false, error: (saveRes && (saveRes.detail || saveRes.error)) || 'save_failed' };
+    if (!openPage) return saveRes;
+    return sendRuntimeMessage({ type: 'ASHLYV_OPEN', page: 'hub', channel: String(channelQuery || '').slice(0, 500), url: String(urlQuery || '').slice(0, 500) }).then(function(openRes) {
+      return { ok: true, total: saveRes.total, opened: !!(openRes && openRes.ok), openError: openRes && openRes.ok ? '' : ((openRes && openRes.error) || 'open_failed') };
     });
   });
 }
@@ -7560,7 +7416,6 @@ var ASHLYV_ALERTS_UNREAD_KEY = 'ashlyv_alerts_unread';
 var ASHLYV_NICHE_STATS_KEY = 'ashlyv_niche_stats';
 var ASHLYV_THUMBNAIL_HISTORY_KEY = 'ashlyv_thumbnail_history';
 var ASHLYV_PHASE_PROGRESS_KEY = 'ashlyv_phase_progress';
-var ASHLYV_API_KEY_STORAGE_KEY = 'ashlyv_api_key';
 
 function ashlyVStorageGet(keys) {
   return new Promise(function(resolve) {
@@ -7869,306 +7724,6 @@ function appendAshlyVText(parent, tag, text, style) {
   el.textContent = text == null ? '' : String(text);
   parent.appendChild(el);
   return el;
-}
-
-/* Creates a labeled horizontal score bar. */
-function createAshlyVScoreBar(label, value) {
-  var val = Math.max(0, Math.min(10, Number(value || 0)));
-  var line = document.createElement('div');
-  line.style.cssText = 'margin-top:10px;';
-  var head = document.createElement('div');
-  head.style.cssText = 'display:flex;justify-content:space-between;font-size:10px;margin-bottom:5px;';
-  appendAshlyVText(head, 'span', label);
-  appendAshlyVText(head, 'span', val + '/10');
-  var track = document.createElement('div');
-  track.style.cssText = 'height:8px;background:rgba(255,255,255,.09);border-radius:999px;overflow:hidden;';
-  var fill = document.createElement('div');
-  fill.style.cssText = 'height:100%;width:' + (val * 10) + '%;background:#7B5CFF;';
-  track.appendChild(fill);
-  line.appendChild(head);
-  line.appendChild(track);
-  return line;
-}
-
-/* Shows a tiny confetti burst after high scoring thumbnail analysis. */
-function showAshlyVConfetti() {
-  var wrap = document.createElement('div');
-  wrap.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;overflow:hidden;';
-  document.body.appendChild(wrap);
-  for (var i = 0; i < 36; i++) {
-    var p = document.createElement('div');
-    var color = ['#00DC82', '#7B5CFF', '#FFD166', '#2EE9FF', '#FF4D6D'][i % 5];
-    p.style.cssText = 'position:absolute;left:' + (48 + Math.random() * 4) + '%;top:42%;width:7px;height:12px;background:' + color + ';border-radius:2px;opacity:.95;transition:transform 900ms ease-out,opacity 900ms ease-out;';
-    wrap.appendChild(p);
-    (function(el) {
-      setTimeout(function() {
-        el.style.transform = 'translate(' + ((Math.random() - .5) * 620) + 'px,' + ((Math.random() * 360) + 120) + 'px) rotate(' + (Math.random() * 720) + 'deg)';
-        el.style.opacity = '0';
-      }, 20);
-    })(p);
-  }
-  setTimeout(function() { if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 1200);
-}
-
-function extractAshlyVJson(text) {
-  text = String(text || '').trim();
-  var start = text.indexOf('{');
-  var end = text.lastIndexOf('}');
-  if (start >= 0 && end > start) text = text.slice(start, end + 1);
-  try { return JSON.parse(text); } catch(e) {}
-  try { return JSON.parse(text.replace(/'/g, '"')); } catch(e2) {}
-  return null;
-}
-
-/* Converts an uploaded file to a data URL for preview/history. */
-function fileToAshlyVDataUrl(file) {
-  return new Promise(function(resolve, reject) {
-    var reader = new FileReader();
-    reader.onload = function() { resolve(String(reader.result || '')); };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-/* Extracts the base64 payload from a data URL. */
-function getAshlyVBase64FromDataUrl(dataUrl) {
-  var raw = String(dataUrl || '');
-  return raw.indexOf(',') >= 0 ? raw.split(',')[1] : raw;
-}
-
-/* Sends the Anthropic Vision request through the background service worker. */
-function requestAshlyVAnthropic(payload) {
-  return new Promise(function(resolve, reject) {
-    try {
-      if (window._ashlyv_disable_api_calls) {
-        reject(new Error('API calls are disabled for safety'));
-        return;
-      }
-      if (!ashlyv_checkApiRateLimit()) {
-        reject(new Error('Wait a few seconds before analyzing another thumbnail'));
-        return;
-      }
-      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-        reject(new Error('Background worker not available'));
-        return;
-      }
-      payload = payload || {};
-      var safePayload = {
-        model: String(payload.model || 'claude-sonnet-4-20250514').slice(0, 64),
-        imageBase64: String(payload.imageBase64 || '').slice(0, 12000000),
-        mediaType: /^image\/(png|jpeg|jpg|webp)$/i.test(String(payload.mediaType || '')) ? String(payload.mediaType || '').toLowerCase().replace('jpg', 'jpeg') : 'image/png',
-        competitorUrl: String(payload.competitorUrl || '').slice(0, 500)
-      };
-      chrome.runtime.sendMessage({ type: 'ASHLYV_ANTHROPIC_REQUEST', payload: safePayload }, function(res) {
-        try {
-          var err = chrome.runtime && chrome.runtime.lastError;
-          if (err) {
-            reject(new Error(err.message || 'Could not reach the background worker'));
-            return;
-          }
-        } catch(e) {}
-        if (!res || !res.ok) {
-          reject(new Error(res && res.error ? res.error : 'Could not analyze the thumbnail'));
-          return;
-        }
-        resolve(res.data);
-      });
-    } catch(e) {
-      reject(e);
-    }
-  });
-}
-
-/* SECURITY: Requires one-time consent before user thumbnail pixels leave the browser. */
-function ensureAshlyVThumbnailConsent() {
-  return ashlyVStorageGet('ashlyv_thumbnail_consent').then(function(res) {
-    if (res.ashlyv_thumbnail_consent === true) return true;
-    return new Promise(function(resolve) {
-      var consent = createAshlyVModal('ashlyv-thumbnail-consent-modal', 'AI CONSENT', false);
-      appendAshlyVText(consent.body, 'div', 'This feature sends your image to the Anthropic API for analysis.', 'font-size:13px;line-height:1.7;margin-bottom:8px;color:#EAF0FF;');
-      appendAshlyVText(consent.body, 'div', 'No data from your YouTube account is sent.', 'font-size:12px;line-height:1.7;color:rgba(234,240,255,.72);margin-bottom:18px;');
-      var actions = document.createElement('div');
-      actions.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;';
-      var cancel = ashlyVThemeButton('CANCEL');
-      var ok = ashlyVThemeButton('CONTINUE');
-      cancel.onclick = function() { consent.close(); resolve(false); };
-      ok.onclick = function() {
-        var payload = {};
-        payload.ashlyv_thumbnail_consent = true;
-        ashlyVStorageSet(payload).then(function() {
-          consent.close();
-          resolve(true);
-        });
-      };
-      actions.appendChild(cancel);
-      actions.appendChild(ok);
-      consent.body.appendChild(actions);
-    });
-  });
-}
-
-/* Renders the thumbnail AI response safely with DOM nodes. */
-function renderAshlyVThumbnailResult(host, result) {
-  clearAshlyVNode(host);
-  var score = Math.max(0, Math.min(100, Number(result.overallScore || 0)));
-  var color = score >= 80 ? '#00DC82' : (score >= 50 ? '#FFD166' : '#FF4D6D');
-  var top = document.createElement('div');
-  top.style.cssText = 'display:flex;gap:16px;align-items:center;margin-top:16px;';
-  var circle = document.createElement('div');
-  circle.textContent = score;
-  circle.style.cssText = 'width:94px;height:94px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;color:' + color + ';border:4px solid ' + color + ';box-shadow:0 0 28px ' + color + '55;';
-  var badge = document.createElement('div');
-  badge.textContent = result.verdict || 'NEEDS WORK';
-  badge.style.cssText = 'display:inline-flex;padding:7px 10px;border-radius:999px;background:' + color + '22;border:1px solid ' + color + '88;color:' + color + ';font-weight:900;';
-  top.appendChild(circle); top.appendChild(badge); host.appendChild(top);
-
-  function pills(title, items, pillColor) {
-    var wrap = document.createElement('div');
-    wrap.style.marginTop = '16px';
-    var h = document.createElement('div');
-    h.textContent = title;
-    h.style.cssText = 'font-size:11px;color:rgba(234,240,255,.7);font-weight:900;margin-bottom:8px;';
-    wrap.appendChild(h);
-    (items || []).forEach(function(txt) {
-      var p = document.createElement('span');
-      p.textContent = txt;
-      p.style.cssText = 'display:inline-block;margin:0 6px 6px 0;padding:6px 8px;border-radius:999px;background:' + pillColor + '18;border:1px solid ' + pillColor + '66;color:#EAF0FF;font-size:10px;';
-      wrap.appendChild(p);
-    });
-    host.appendChild(wrap);
-  }
-  pills('STRENGTHS', result.strengths || [], '#00DC82');
-  pills('WEAKNESSES', result.weaknesses || [], '#FF4D6D');
-
-  var ol = document.createElement('ol');
-  ol.style.cssText = 'margin-top:12px;color:#EAF0FF;font-size:11px;line-height:1.7;';
-  (result.improvements || []).forEach(function(txt) { var li = document.createElement('li'); li.textContent = txt; ol.appendChild(li); });
-  host.appendChild(ol);
-
-  [
-    ['Emotion', result.emotionScore],
-    ['Readability', result.textReadability],
-    ['Contrast', result.colorContrast],
-    ['Curiosity', result.curiosityHook]
-  ].forEach(function(row) {
-    var val = Math.max(0, Math.min(10, Number(row[1] || 0)));
-    var line = document.createElement('div');
-    host.appendChild(createAshlyVScoreBar(row[0], val));
-  });
-  if (score >= 80) showAshlyVConfetti();
-}
-
-/* Renders the thumbnail analysis history tab with stored previews and scores. */
-function renderAshlyVThumbnailHistory(host) {
-  clearAshlyVNode(host);
-  ashlyVStorageGet(ASHLYV_THUMBNAIL_HISTORY_KEY).then(function(res) {
-    var history = res[ASHLYV_THUMBNAIL_HISTORY_KEY] || [];
-    if (!history.length) {
-      appendAshlyVText(host, 'div', 'No thumbnails analyzed yet.', 'padding:14px;color:rgba(234,240,255,.6);font-size:11px;');
-      return;
-    }
-    history.slice(0, 10).forEach(function(entry) {
-      var row = document.createElement('div');
-      row.style.cssText = 'display:flex;gap:10px;align-items:center;padding:10px;border-bottom:1px solid rgba(255,255,255,.08);';
-      if (entry.preview) {
-        var img = document.createElement('img');
-        img.src = entry.preview;
-        img.style.cssText = 'width:76px;height:44px;object-fit:cover;border-radius:8px;border:1px solid rgba(255,255,255,.15);';
-        row.appendChild(img);
-      }
-      var info = document.createElement('div');
-      var score = entry.result && entry.result.overallScore;
-      appendAshlyVText(info, 'div', 'Score: ' + (score || 0) + ' | ' + ((entry.result && entry.result.verdict) || 'N/A'), 'font-size:11px;font-weight:900;');
-      appendAshlyVText(info, 'div', timeAgoAshlyV(entry.timestamp), 'font-size:10px;color:rgba(234,240,255,.55);margin-top:4px;');
-      row.appendChild(info);
-      host.appendChild(row);
-    });
-  });
-}
-
-/* Opens the thumbnail analyzer modal and handles upload/history tabs. */
-function showAshlyVThumbnailAnalyzerModal() {
-  var modal = createAshlyVModal('ashlyv-thumbnail-modal', 'ANALYZE THUMBNAIL', false);
-  var body = modal.body;
-  var tabs = document.createElement('div');
-  tabs.style.cssText = 'display:flex;gap:8px;margin-bottom:14px;';
-  var analyzeTab = ashlyVThemeButton('Analyze');
-  var historyTab = ashlyVThemeButton('History');
-  tabs.appendChild(analyzeTab);
-  tabs.appendChild(historyTab);
-  var analyzeWrap = document.createElement('div');
-  var historyWrap = document.createElement('div');
-  historyWrap.style.display = 'none';
-  body.appendChild(tabs);
-  body.appendChild(analyzeWrap);
-  body.appendChild(historyWrap);
-  analyzeTab.onclick = function() {
-    analyzeWrap.style.display = 'block';
-    historyWrap.style.display = 'none';
-  };
-  historyTab.onclick = function() {
-    analyzeWrap.style.display = 'none';
-    historyWrap.style.display = 'block';
-    renderAshlyVThumbnailHistory(historyWrap);
-  };
-  var label1 = document.createElement('label');
-  label1.textContent = 'Upload your thumbnail';
-  label1.style.cssText = 'display:block;font-size:11px;font-weight:900;margin-bottom:8px;';
-  var file = document.createElement('input');
-  file.type = 'file'; file.accept = 'image/*';
-  file.style.cssText = 'width:100%;padding:10px;border-radius:10px;background:#0d1020;border:1px solid rgba(255,255,255,.14);color:#EAF0FF;margin-bottom:14px;';
-  var label2 = document.createElement('label');
-  label2.textContent = 'Or paste a competitor channel URL';
-  label2.style.cssText = 'display:block;font-size:11px;font-weight:900;margin-bottom:8px;';
-  var competitor = document.createElement('input');
-  competitor.type = 'text';
-  competitor.placeholder = 'https://youtube.com/@channel';
-  competitor.style.cssText = file.style.cssText;
-  var submit = ashlyVThemeButton('ANALYZE WITH AI');
-  var status = document.createElement('div');
-  status.style.cssText = 'margin-top:12px;font-size:11px;color:rgba(234,240,255,.72);line-height:1.6;';
-  var resultBox = document.createElement('div');
-  analyzeWrap.appendChild(label1); analyzeWrap.appendChild(file); analyzeWrap.appendChild(label2); analyzeWrap.appendChild(competitor); analyzeWrap.appendChild(submit); analyzeWrap.appendChild(status); analyzeWrap.appendChild(resultBox);
-
-  submit.onclick = function() {
-    var imageFile = file.files && file.files[0];
-    if (!imageFile) { status.textContent = 'Upload a thumbnail first.'; return; }
-    if (!/^image\//i.test(imageFile.type || '') || imageFile.size > 8 * 1024 * 1024) {
-      status.textContent = 'That file is not an image, or it is larger than 8 MB.';
-      return;
-    }
-    submit.disabled = true;
-    status.textContent = 'Analyzing with Claude';
-    var previewUrl = '';
-    ensureAshlyVThumbnailConsent().then(function(allowed) {
-      if (!allowed) throw new Error('Analysis cancelled');
-      return fileToAshlyVDataUrl(imageFile);
-    }).then(function(dataUrl) {
-      previewUrl = dataUrl;
-      return requestAshlyVAnthropic({
-        model: 'claude-sonnet-4-20250514',
-        imageBase64: getAshlyVBase64FromDataUrl(dataUrl),
-        mediaType: imageFile.type || 'image/png',
-        competitorUrl: competitor.value || ''
-      });
-    }).then(function(data) {
-      var text = data && data.content && data.content[0] && data.content[0].text;
-      var parsed = extractAshlyVJson(text);
-      if (!parsed) throw new Error('Could not read the response');
-      status.textContent = '';
-      renderAshlyVThumbnailResult(resultBox, parsed);
-      return ashlyVStorageGet(ASHLYV_THUMBNAIL_HISTORY_KEY).then(function(res) {
-        var h = res[ASHLYV_THUMBNAIL_HISTORY_KEY] || [];
-        h.unshift({ result: parsed, competitorUrl: competitor.value || '', preview: previewUrl, timestamp: Date.now() });
-        var payload = {}; payload[ASHLYV_THUMBNAIL_HISTORY_KEY] = h.slice(0, 10);
-        return ashlyVStorageSet(payload);
-      });
-    }).catch(function(err) {
-      status.textContent = err && err.message ? err.message : 'Could not analyze the thumbnail.';
-    }).then(function() {
-      submit.disabled = false;
-    });
-  };
 }
 
 function getAshlyVPhaseDefs() {
@@ -8486,7 +8041,7 @@ function showAshlyVRPMLeaderboardModal() {
         appendAshlyVText(row, 'b', '$' + r.avgRpm.toFixed(2));
         appendAshlyVText(row, 'span', '$' + r.bestRpm.toFixed(2));
         appendAshlyVText(row, 'span', r.timesSeen);
- appendAshlyVText(row,'b', trend,'color:'+ (trend ===''?'#00DC82': (trend ===''?'#FF4D6D':'rgba(234,240,255,.55)')) +';');
+        appendAshlyVText(row, 'b', trend.label, 'color:' + trend.color + ';');
         table.appendChild(row);
       });
       body.appendChild(table);
@@ -12471,7 +12026,8 @@ function nspVisionJudgeItem(item) {
       var to = setTimeout(function () { delete _nspVisionPending[rid]; resolve(null); }, 25000);
       _nspVisionPending[rid] = function (d) {
         clearTimeout(to); delete _nspVisionPending[rid];
-        var v = (d && d.ok) ? (d.verdict || null) : null;
+        if (!d || !d.ok) { resolve({ error: String((d && d.error) || 'no_answer') }); return; }
+        var v = d.verdict || null;
         if (v) _nspVisionCache[vid] = v;
         resolve(v);
       };
@@ -12537,14 +12093,25 @@ function nspRunVisionPass(topResults, listEl) {
         try { listEl.appendChild(row); } catch (e) {}
       }
     }
-    var queue = topResults.slice(0, 12), qi = 0, active = 0;
+    var queue = topResults.slice(0, 12), qi = 0, active = 0, refused = '';
+    // A judge the worker refused (no grant, no key, no quota) leaves the local verdict in place, and the panel says why once.
+    function tellRefused(code) {
+      if (refused) return;
+      refused = code;
+      var why = code === 'no_grant' ? 'the vision check runs only on a scan started with a press on SCAN, the globe or FACELESS' : (code === 'vision_not_allowed' ? 'it is switched off in Options' : code);
+      var n = document.createElement('div');
+      n.style.cssText = 'padding:8px 12px;font-size:10px;color:rgba(255,255,255,.5);';
+      n.textContent = 'Vision check skipped, badges are the local verdict: ' + why + '.';
+      try { listEl.appendChild(n); } catch (e) {}
+    }
     function pump() {
       while (active < 3 && qi < queue.length) {
         active++;
         (function (item) {
           nspVisionJudgeItem(item).then(function (v) {
             active--;
-            if (v) { try { apply(item, v); } catch (e) {} }
+            if (v && v.error) { tellRefused(v.error); if (v.error === 'no_grant') { qi = queue.length; return; } }
+            else if (v) { try { apply(item, v); } catch (e) {} }
             pump();
           });
         })(queue[qi++]);
@@ -13228,7 +12795,8 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
         };
 
         saveAshlyVNichoSecure(nichoEntry, true, sc.title || '', sc.channelUrl || '').then(function(res) {
-          saveBtn.textContent = res && res.ok ? 'OK' : 'OPEN ASHLYV';
+          saveBtn.textContent = res && res.ok ? 'SAVED' : 'NOT SAVED';
+          if (!(res && res.ok)) saveBtn.title = String((res && res.error) || 'save_failed');
           setTimeout(function() {
             saveBtn.disabled = false;
             saveBtn.textContent = 'SAVE';
@@ -13341,8 +12909,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
       try { if (ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } catch(e3) {}
       proBtn.textContent = 'PRO OPEN';
       try {
-        // toggleProPanel is skipped because it uses innerHTML, which YouTube Trusted Types blocks.
-        // This inline panel builds nodes with createElement instead.
+        // The panel is built with createElement, so no markup goes through the Trusted Types path.
         var oldPanel = shadow.querySelector('#nsp-pro-panel');
         if (oldPanel) {
           oldPanel.style.display = 'flex';
@@ -13457,10 +13024,6 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           grid: '1fr 54px',
           items: [proInput('pro-title-keywords', 'keywords'), proBtnSmall('pro-title-btn', 'GO', '#4DDCFF', '#000')]
         }, 'pro-title-result');
-        card(toolsView, '#FFD93D', 'GLOBAL NICHE SCORE', {
-          grid: '1fr 54px',
-          items: [proInput('pro-global-niche', 'niche'), proBtnSmall('pro-global-btn', 'GO', '#FFD93D', '#000')]
-        }, 'pro-global-result');
         card(replicateView, '#00DC82', 'REPLICATE CONTENT', {
           grid: '1fr 82px 96px',
           items: [proInput('pro-rep-channel', 'channel/url'), proSelect('pro-rep-language', [['es','ES'], ['en','EN'], ['pt','PT'], ['de','DE']]), proBtnSmall('pro-rep-btn', 'REPLICATE', '#00DC82', '#000')]
@@ -13478,31 +13041,6 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           if (!el) return;
           el.textContent = String(html == null ? '' : html).replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
         };
-        var esc = function(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function(c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
-        // PRO calls the model directly; each path becomes a prompt and the answer is parsed as JSON.
-        var post = async function(path, body) {
-          body = body || {};
-          var prompts = {
-            '/niche/channel-age': 'Analyze the YouTube channel "' + (body.channel || '') + '" for faceless replicability with maxMonths=' + (body.maxMonths || 3) + '. With no data, estimate the age of the channel in months from its name or URL. Return ONLY JSON: {"pass": true|false, "monthsOld": number, "createdDate": "YYYY-MM"}. pass is true when monthsOld <= maxMonths.',
-            '/niche/viral-metrics': 'Estimate viral metrics for the YouTube channel "' + (body.channel || '') + '". Return ONLY JSON: {"viralVideoCount": number, "velocityTier": "HOT"|"WARM"|"COLD", "viralRatio": whole percent}.',
-            '/niche/search-titles': 'Return the top 5 YouTube channels in the niche "' + (body.keywords || '') + '" for language ' + (body.language || 'es') + '. ONLY JSON: {"count": number, "channels": [{"name":"...", "totalViews": number}]}.',
-            '/niche/score-by-language': 'Score the niche "' + (body.niche || '') + '" across 5 languages (es/en/pt/de/fr). ONLY JSON: {"bestLanguage": "es", "languages": [{"language":"es", "score": 0-100, "verdict":"one short line"}]}.',
-            '/niche/replicate-content': 'Give 3 replicable video ideas from the channel "' + (body.channel || '') + '" in language ' + (body.language || 'es') + '. ONLY JSON: {"source": {"name":"..."}, "videos": [{"title":"...", "hook":"the first 5 seconds"}]}.',
-            '/niche/build-brand': 'Design a brand for the niche "' + (body.niche || '') + '" with tone ' + (body.tone || 'pro') + ' in language ' + (body.language || 'es') + '. ONLY JSON: {"channelNames": ["op1","op2","op3"], "bio": "one line", "strategySummary": "2-3 sentences"}.'
-          };
-          var prompt = prompts[path];
-          if (!prompt) throw new Error('Unknown path: ' + path);
-          if (typeof nspCoachSendApi !== 'function') throw new Error('Coach API not available, reload the extension');
-          var resp = await nspCoachSendApi([{ role:'user', content: prompt }], 'You are an expert in faceless YouTube automation. Answer with valid JSON only: no extra text, no markdown, no code fence. When a value is unknown, estimate it from patterns in the niche.', false);
-          var text = String(resp && resp.text || '').trim();
-          text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-          try {
-            return JSON.parse(text);
-          } catch(eJson) {
-            // The model did not return valid JSON, so the raw text is passed back.
-            return { _rawText: text, _parseError: true };
-          }
-        };
         var selectedScanItem = function() {
           var idx = Number(val('#pro-scan-item') || 0);
           return scanProItems[idx] || null;
@@ -13511,10 +13049,15 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           var item = selectedScanItem();
           return (item && item.sc) || item || {};
         };
+        // The readers in the worker take a full channel address, so a relative link, a handle or a UC id is completed here.
         var selectedScanChannel = function() {
           var item = selectedScanItem() || {};
           var sc = selectedScanSc();
-          return String(sc.channelUrl || item.channelUrl || sc.channelHandle || item.channelId || '').trim();
+          var raw = String(sc.channelUrl || item.channelUrl || sc.channelHandle || sc.channelId || item.channelId || '').trim();
+          if (/^\/(?:@|channel\/|c\/|user\/)/.test(raw)) return 'https://www.youtube.com' + raw;
+          if (/^@[^\s\/]+$/.test(raw)) return 'https://www.youtube.com/' + raw;
+          if (/^UC[A-Za-z0-9_-]{22}$/.test(raw)) return 'https://www.youtube.com/channel/' + raw;
+          return raw;
         };
         var selectedScanNiche = function() {
           var item = selectedScanItem() || {};
@@ -13541,7 +13084,7 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
             var el = q(sel);
             if (el) { el.value = ch; el.readOnly = true; el.title = 'Locked to the niche selected in the scan'; }
           });
-          ['#pro-title-keywords', '#pro-global-niche', '#pro-brand-niche'].forEach(function(sel) {
+          ['#pro-title-keywords', '#pro-brand-niche'].forEach(function(sel) {
             var el = q(sel);
             if (el) { el.value = niche; el.readOnly = true; el.title = 'Locked to the niche selected in the scan'; }
           });
@@ -13565,50 +13108,78 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
             return false;
           };
         });
-        q('#pro-age-btn').onclick = async function() {
-          out('#pro-age-result', 'Loading');
-          try {
-            var d = await post('/niche/channel-age', { channel: selectedScanChannel(), maxMonths: Number(val('#pro-age-months') || 3) });
-            out('#pro-age-result', '<b>' + esc(d.pass === false ? 'FAIL' : 'PASS') + '</b> · ' + esc(d.monthsOld || d.ageMonths || '?') + ' months · ' + esc(d.createdDate || d.created || ''));
-          } catch(err) { out('#pro-age-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
+        // TOOLS read real data through the worker. REPLICATE and BRAND ask the model, inside the grant a press on their button opens.
+        q('#pro-rep-btn').setAttribute('data-nsp-grant', 'replicate');
+        q('#pro-brand-btn').setAttribute('data-nsp-grant', 'brand');
+        var lines = function(sel, list) { out(sel, list.filter(function(x) { return x != null && x !== ''; }).join('\n')); };
+        var failed = function(sel, res) { lines(sel, ['Not available: ' + String((res && (res.detail || res.error)) || 'no answer')]); };
+        q('#pro-age-btn').onclick = function() {
+          out('#pro-age-result', 'Reading the channel About page');
+          var maxMonths = Number(val('#pro-age-months') || 3);
+          nspCoachBridgeRequest('NSP_COACH_TOOL_CHANNEL_STATS', { channelUrl: selectedScanChannel() }).then(function(res) {
+            if (!res || !res.ok) { failed('#pro-age-result', res); return; }
+            var age = nspChannelAgeMonths(res.joinedDate || res.joined);
+            if (!age) { lines('#pro-age-result', ['Joined date could not be read from YouTube: "' + String(res.joined || 'missing') + '"', res.note || '']); return; }
+            lines('#pro-age-result', [
+              (age.months <= maxMonths ? 'PASS' : 'FAIL') + ' · ' + age.months + ' months old' + (age.yearOnly ? ' (YouTube gave the year only)' : '') + ' · limit ' + maxMonths,
+              'Joined: ' + String(res.joined) + ' · ' + String(res.subscribers || 'subscribers hidden') + ' · ' + (res.videoCount == null ? 'video count not shown' : res.videoCount.toLocaleString() + ' videos')
+            ]);
+          });
         };
-        q('#pro-viral-btn').onclick = async function() {
-          out('#pro-viral-result', 'Loading');
-          try {
-            var d = await post('/niche/viral-metrics', { channel: selectedScanChannel() });
-            out('#pro-viral-result', '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;"><div><b>' + esc(d.viralVideoCount || 0) + '</b><br>viral</div><div><b>' + esc(d.velocityTier || '-') + '</b><br>tier</div><div><b>' + esc(d.viralRatio || 0) + '%</b><br>ratio</div></div>');
-          } catch(err) { out('#pro-viral-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
+        q('#pro-viral-btn').onclick = function() {
+          out('#pro-viral-result', 'Reading the latest uploads');
+          nspCoachBridgeRequest('NSP_COACH_TOOL_CHANNEL_VIDEOS', { channelUrl: selectedScanChannel() }).then(function(res) {
+            if (!res || !res.ok) { failed('#pro-viral-result', res); return; }
+            var vids = (res.videos || []).map(function(v) { return { title: String(v.title || ''), views: pViews(v.views) }; }).filter(function(v) { return v.views > 0; });
+            if (!vids.length) { lines('#pro-viral-result', [res.count + ' uploads read, none with a view count yet.']); return; }
+            var sorted = vids.map(function(v) { return v.views; }).sort(function(x, y) { return x - y; });
+            var median = sorted[Math.floor(sorted.length / 2)] || 1;
+            var outliers = vids.filter(function(v) { return v.views >= median * 3; });
+            var best = vids.slice().sort(function(x, y) { return y.views - x.views; })[0];
+            lines('#pro-viral-result', [
+              vids.length + ' latest uploads · median ' + median.toLocaleString() + ' views',
+              outliers.length + ' at 3x the median or more',
+              'Best: ' + best.title.slice(0, 80) + ' · ' + best.views.toLocaleString() + ' views · ' + (best.views / median).toFixed(1) + 'x'
+            ]);
+          });
         };
-        q('#pro-title-btn').onclick = async function() {
-          out('#pro-title-result', 'Loading');
-          try {
-            var d = await post('/niche/search-titles', { keywords: selectedScanNiche(), language: selectedScanLanguage() });
-            var arr = d.channels || d.results || [];
-            out('#pro-title-result', '<b>' + esc(d.count || arr.length || 0) + ' results</b><br>' + arr.slice(0,5).map(function(c) { return esc(c.name || c.channel || '-') + ' · ' + esc(c.totalViews || c.views || 0); }).join('<br>'));
-          } catch(err) { out('#pro-title-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
+        q('#pro-title-btn').onclick = function() {
+          var query = selectedScanNiche();
+          out('#pro-title-result', 'Searching YouTube for ' + query);
+          nspCoachBridgeRequest('NSP_COACH_TOOL_SEARCH_MARKET', { query: query }).then(function(res) {
+            if (!res || !res.ok) { failed('#pro-title-result', res); return; }
+            var byChannel = {};
+            (res.videos || []).forEach(function(v) {
+              var name = String(v.channelName || '').trim();
+              if (!name) return;
+              var c = byChannel[name] = byChannel[name] || { name: name, views: 0, videos: 0 };
+              c.views += Number(v.views) || 0;
+              c.videos++;
+            });
+            var top = Object.keys(byChannel).map(function(k) { return byChannel[k]; }).sort(function(x, y) { return y.views - x.views; }).slice(0, 5);
+            if (!top.length) { lines('#pro-title-result', ['YouTube returned no videos for "' + query + '".']); return; }
+            lines('#pro-title-result', ['Top channels in the first ' + (res.videos || []).length + ' search results for "' + query + '":'].concat(top.map(function(c, i) {
+              return (i + 1) + '. ' + c.name + ' · ' + c.videos + ' video' + (c.videos === 1 ? '' : 's') + ' · ' + c.views.toLocaleString() + ' views';
+            })));
+          });
         };
-        q('#pro-global-btn').onclick = async function() {
-          out('#pro-global-result', 'Loading');
-          try {
-            var d = await post('/niche/score-by-language', { niche: selectedScanNiche() });
-            var langs = d.languages || d.scores || [];
-            out('#pro-global-result', '<b>Best: ' + esc(d.bestLanguage || d.best || '-') + '</b><br>' + (Array.isArray(langs) ? langs.map(function(l) { return esc(l.language || l.lang || '-') + ': ' + esc(l.score || 0) + ' · ' + esc(l.verdict || ''); }).join('<br>') : esc(JSON.stringify(langs))));
-          } catch(err) { out('#pro-global-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
+        q('#pro-rep-btn').onclick = function() {
+          out('#pro-rep-result', 'Reading the channel uploads, then asking the model');
+          nspAiTask('replicate', { channelUrl: selectedScanChannel(), language: val('#pro-rep-language') }).then(function(res) {
+            if (!res || !res.ok) { lines('#pro-rep-result', [nspAiErrorText(res)]); return; }
+            var r = res.result;
+            lines('#pro-rep-result', ['AI ideas based on the ' + r.basedOn.length + ' latest uploads of ' + (r.source.name || r.source.url)].concat(r.videos.map(function(v, i) {
+              return '\n' + (i + 1) + '. ' + v.title + '\n   Hook: ' + v.hook + (v.basedOn ? '\n   Follows: ' + v.basedOn : '');
+            })));
+          });
         };
-        q('#pro-rep-btn').onclick = async function() {
-          out('#pro-rep-result', 'Loading');
-          try {
-            var d = await post('/niche/replicate-content', { channel: selectedScanChannel(), language: val('#pro-rep-language'), targetVideos: 3 });
-            var vids = d.videos || d.items || [];
-            out('#pro-rep-result', '<b>' + esc((d.source && d.source.name) || d.sourceChannel || 'Source') + '</b><br>' + vids.map(function(v) { return '<div style="margin-top:8px;padding:8px;border:1px solid rgba(255,255,255,.08);border-radius:8px;">' + esc(v.title || '-') + '<br><span style="color:#00DC82;">' + esc(v.hook || v.angle || '') + '</span></div>'; }).join(''));
-          } catch(err) { out('#pro-rep-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
-        };
-        q('#pro-brand-btn').onclick = async function() {
-          out('#pro-brand-result', 'Loading');
-          try {
-            var d = await post('/niche/build-brand', { niche: selectedScanNiche(), language: val('#pro-brand-language'), tone: val('#pro-brand-tone') });
-            out('#pro-brand-result', '<b>' + esc((d.channelNames || d.names || []).join(', ') || d.name || '-') + '</b><br>' + esc(d.bio || d.strategySummary || d.strategy || ''));
-          } catch(err) { out('#pro-brand-result', '<span style="color:#FF6B6B;">' + esc(err.message) + '</span>'); }
+        q('#pro-brand-btn').onclick = function() {
+          out('#pro-brand-result', 'Asking the model');
+          nspAiTask('brand', { niche: selectedScanNiche(), language: val('#pro-brand-language'), tone: val('#pro-brand-tone') }).then(function(res) {
+            if (!res || !res.ok) { lines('#pro-brand-result', [nspAiErrorText(res)]); return; }
+            var r = res.result;
+            lines('#pro-brand-result', ['AI suggestion', 'Names: ' + r.channelNames.join(', '), r.bio ? 'Bio: ' + r.bio : '', r.strategySummary]);
+          });
         };
       } catch(e4) {
         console.error('[NSP] PRO direct open failed:', e4);
@@ -16321,55 +15892,6 @@ function verifyChannelMonetizationReal(ch, cb) {
   });
 }
 
-// Claude API helpers (client-side, requires user API key) 
-function nspAskModel(prompt, opts) {
-  opts = opts || {};
-  return sendRuntimeMessage({
-    type: 'ASHLYV_CHAT_REQUEST',
-    payload: {
-      messages: [{ role: 'user', content: String(prompt || '') }],
-      temperature: typeof opts.temperature === 'number' ? opts.temperature : 0.6,
-      maxTokens: opts.maxTokens || 1200
-    }
-  }).then(function (res) {
-    if (!res || !res.ok) throw new Error((res && (res.detail || res.error)) || 'no_provider');
-    var text = res.text || res.content || '';
-    if (!text) throw new Error('empty_answer');
-    return text;
-  });
-}
-
-function getClaudeApiKey() {
-  return Promise.resolve('');
-}
-
-
-function callClaudeMessages(opts) {
-  // opts: { apiKey, model, system, userText, maxTokens }
-  if (!ashlyv_checkApiRateLimit()) return Promise.reject(new Error('rate_limited'));
-  var payload = {
-    model: opts.model || 'claude-sonnet-4-20250514',
-    max_tokens: opts.maxTokens || 1500,
-    system: opts.system || '',
-    messages: [{ role: 'user', content: opts.userText || '' }]
-  };
-  return ashlyv_safeFetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-      'x-api-key': opts.apiKey
-    },
-    body: JSON.stringify(payload)
-  }, 60000).then(function(r) { return r.json(); }).then(function(data) {
-    if (data && data.error) throw new Error(data.error.message || 'claude_error');
-    var content = data && data.content && data.content[0] && data.content[0].text;
-    if (!content) throw new Error('empty_content');
-    return content;
-  });
-}
-
 // Thumbnail Lab: analyze + niche gallery + A/B compare 
 function getNicheThumbnailGallery(label, limit) {
   limit = limit || 12;
@@ -16501,6 +16023,37 @@ function showThumbLabPanel(ch) {
     btn.style.color = '#fff'; btn.style.borderBottomColor = '#fff';
   }
 
+  // Measured here, in this browser: faces, contrast and brightness. There is no score out of 100: no model can know a
+  // thumbnail's click rate from its pixels, so none is shown.
+  function statRows(host, stats) {
+    var rows = [
+      ['Faces detected', stats.faces.supported ? String(stats.faces.count) : 'this browser has no face detector'],
+      ['Contrast', stats.canvas ? stats.canvas.contrast + ' / 255' + (stats.canvas.contrast < 120 ? ', low' : '') : 'could not be read'],
+      ['Average brightness', stats.canvas ? stats.canvas.brightness + ' / 255' : 'could not be read']
+    ];
+    rows.forEach(function(r) {
+      var line = document.createElement('div');
+      line.style.cssText = 'display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px;';
+      var k = document.createElement('span'); k.style.color = 'rgba(255,255,255,.6)'; k.textContent = r[0];
+      var v = document.createElement('b'); v.textContent = r[1];
+      line.appendChild(k); line.appendChild(v);
+      host.appendChild(line);
+    });
+  }
+
+  function measure(dataUrl) {
+    return dataUrlToImage(dataUrl).then(function(img) {
+      return detectFacesInImage(img).then(function(faces) { return { canvas: analyzeThumbCanvas(img), faces: faces }; });
+    });
+  }
+
+  function note(host, text, color) {
+    var n = document.createElement('div');
+    n.style.cssText = 'font-size:11px;padding:8px 0;color:' + (color || 'rgba(255,255,255,.6)') + ';';
+    n.textContent = text;
+    host.appendChild(n);
+  }
+
   function renderAnalyzeTab() {
     nspSetHTML(body, '');
     setActive(tAnalyze);
@@ -16515,106 +16068,31 @@ function showThumbLabPanel(ch) {
     var preview = document.createElement('div');
     preview.style.cssText = 'margin:10px 0;';
     body.appendChild(preview);
-    var btn = document.createElement('button');
- btn.textContent ='ANALYZE WITH AI';
-    btn.style.cssText = 'width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;letter-spacing:.12em;';
-    body.appendChild(btn);
     var out = document.createElement('div');
     out.style.cssText = 'margin-top:14px;';
     body.appendChild(out);
 
-    var dataUrl = '';
     input.addEventListener('change', function() {
+      nspSetHTML(preview, ''); nspSetHTML(out, '');
       var f = input.files && input.files[0];
-      if (!f || !/^image\//i.test(f.type) || f.size > 8 * 1024 * 1024) {
-        nspSetHTML(preview, '<div style="color:#FF6B6B;font-size:11px;">Invalid file, or larger than 8MB.</div>'); return;
-      }
+      if (!f || !/^image\//i.test(f.type) || f.size > 8 * 1024 * 1024) { note(out, 'Invalid file, or larger than 8MB.', '#FF6B6B'); return; }
       fileToImageBlob(f).then(function(d) {
-        dataUrl = d;
-        nspSetHTML(preview, '<img src="' + d + '" style="max-width:100%;border-radius:10px;border:1px solid rgba(255,255,255,.14);"/>');
-      });
-    });
-
-    btn.addEventListener('click', function() {
-      if (!dataUrl) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Upload a thumbnail first.</div>'); return; }
-      btn.disabled = true; btn.style.opacity = '.6';
- nspSetHTML(out,'<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">Local analysis and Claude Vision</div>');
-
-      Promise.all([dataUrlToImage(dataUrl), getClaudeApiKey()]).then(function(arr) {
-        var img = arr[0], apiKey = arr[1];
-        var canvasStats = analyzeThumbCanvas(img);
-        return detectFacesInImage(img).then(function(faces) {
-          var localBlock = '<div style="padding:10px;background:rgba(255,255,255,.025);border-radius:10px;margin-bottom:10px;">'
-            + '<div style="font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">LOCAL ANALYSIS</div>'
-            + '<div style="font-size:11px;line-height:1.6;">'
- +'Faces detected: <b>'+ (faces.supported ? faces.count :'not supported') +'</b><br/>'
- +'Contrast: <b>'+ (canvasStats ? canvasStats.contrast :'?') +'/255</b>'+ (canvasStats && canvasStats.contrast >= 180 ?'': canvasStats && canvasStats.contrast >= 120 ?'':'') +'<br/>'
- +'Average brightness: <b>'+ (canvasStats ? canvasStats.brightness :'?') +'/255</b>'
-            + '</div></div>';
-          if (!apiKey) { nspSetHTML(out, localBlock + '<div style="padding:10px;color:rgba(255,217,61,.9);font-size:11px;">Paste your API key under ASHLYV, API Key, to run Claude Vision.</div>'); btn.disabled = false; btn.style.opacity = ''; return; }
- nspSetHTML(out, localBlock +'<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">Claude Vision...</div>');
-
-          // Build Claude Vision request with references
-          var gallery = getNicheThumbnailGallery(niche.label, 3);
-          var imgB64 = dataUrl.split(',')[1];
-          var mediaType = (dataUrl.match(/data:(image\/[^;]+);/) || [])[1] || 'image/png';
-          var payload = {
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1500,
-            system: 'You are a YouTube thumbnail CTR expert for the ' + niche.label + ' niche. Analyze the thumbnail and return ONLY JSON, no markdown.',
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'text', text: 'Analyze this thumbnail for the ' + niche.label + ' niche (RPM $' + niche.rpm + '). Return JSON:\n{"score":0-100,"verdict":"VIRAL POTENTIAL|GOOD|NEEDS WORK|POOR","ctrScore":0-100,"strengths":["..."],"weaknesses":["..."],"improvements":["..."],"emotion":0-10,"readability":0-10,"contrast":0-10,"curiosity":0-10}' },
-                { type: 'image', source: { type: 'base64', media_type: mediaType, data: imgB64 } }
-              ]
-            }]
-          };
-
-          ashlyv_safeFetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'anthropic-version': '2023-06-01',
-              'anthropic-dangerous-direct-browser-access': 'true',
-              'x-api-key': apiKey
-            },
-            body: JSON.stringify(payload)
-          }, 60000).then(function(r) { return r.json(); }).then(function(d) {
-            btn.disabled = false; btn.style.opacity = '';
-            if (d && d.error) { nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Claude error: ' + d.error.message + '</div>'); return; }
-            var text = d && d.content && d.content[0] && d.content[0].text;
-            if (!text) { nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">No response.</div>'); return; }
-            var parsed;
-            try { var m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch(e) { nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Could not parse the response.</div>'); return; }
-            var col = parsed.score >= 75 ? '#00DC82' : parsed.score >= 55 ? '#FFD93D' : '#FF6B6B';
-            var html = localBlock + '<div style="padding:14px;border-radius:12px;background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.08);">'
-              + '<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">'
-              + '<div style="font-size:38px;font-weight:900;color:' + col + ';line-height:1;">' + parsed.score + '</div>'
-              + '<div><div style="font-size:13px;font-weight:900;color:' + col + ';">' + parsed.verdict + '</div><div style="font-size:10px;color:rgba(255,255,255,.55);margin-top:3px;">CTR potential: ' + parsed.ctrScore + '/100</div></div>'
-              + '</div>';
-            ['strengths', 'weaknesses', 'improvements'].forEach(function(key) {
-              var arr = parsed[key];
-              if (!arr || !arr.length) return;
- var ttl = { strengths:'STRENGTHS', weaknesses:'WEAKNESSES', improvements:'IMPROVEMENTS'}[key];
-              html += '<div style="font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin:10px 0 5px;">' + ttl + '</div>';
-              arr.forEach(function(it) { html += '<div style="padding:6px 9px;margin:3px 0;border-radius:7px;background:rgba(255,255,255,.04);font-size:11px;">' + String(it).replace(/[<>]/g, '') + '</div>'; });
-            });
-            html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:12px;font-size:10.5px;">'
- +'<div>Emotion: <b>'+ (parsed.emotion || 0) +'/10</b></div>'
- +'<div>Readability: <b>'+ (parsed.readability || 0) +'/10</b></div>'
- +'<div>Contrast: <b>'+ (parsed.contrast || 0) +'/10</b></div>'
- +'<div>Curiosity: <b>'+ (parsed.curiosity || 0) +'/10</b></div>'
-              + '</div></div>';
-            nspSetHTML(out, html);
-          }).catch(function(err) {
-            btn.disabled = false; btn.style.opacity = '';
-            nspSetHTML(out, localBlock + '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Error: ' + (err && err.message || 'unknown') + '</div>');
-          });
-        });
+        var img = document.createElement('img');
+        img.src = d;
+        img.style.cssText = 'max-width:100%;border-radius:10px;border:1px solid rgba(255,255,255,.14);';
+        preview.appendChild(img);
+        note(out, 'Measuring');
+        return measure(d);
+      }).then(function(stats) {
+        nspSetHTML(out, '');
+        var head = document.createElement('div');
+        head.style.cssText = 'font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;';
+        head.textContent = 'MEASURED IN THIS BROWSER';
+        out.appendChild(head);
+        statRows(out, stats);
       }).catch(function(err) {
-        btn.disabled = false; btn.style.opacity = '';
-        nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Error: ' + (err && err.message || 'unknown') + '</div>');
+        nspSetHTML(out, '');
+        note(out, 'The image could not be read: ' + String((err && err.message) || err || 'unknown error'), '#FF6B6B');
       });
     });
   }
@@ -16628,9 +16106,10 @@ function showThumbLabPanel(ch) {
     body.appendChild(lbl);
     var gallery = getNicheThumbnailGallery(niche.label, 12);
     if (!gallery.length) {
-      body.appendChild(Object.assign(document.createElement('div'), {
-        innerHTML: '<div style="padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;">No niche data yet. Run a scan, or browse the faceless feed for this niche, to fill the gallery.</div>'
-      }));
+      var noGallery = document.createElement('div');
+      noGallery.style.cssText = 'padding:24px;text-align:center;font-size:11px;color:rgba(255,255,255,.5);line-height:1.7;';
+      noGallery.textContent = 'No niche data yet. Run a scan, or browse the faceless feed for this niche, to fill the gallery.';
+      body.appendChild(noGallery);
       return;
     }
     var grid = document.createElement('div');
@@ -16658,79 +16137,38 @@ function showThumbLabPanel(ch) {
     setActive(tCompare);
     var lbl = document.createElement('div');
     lbl.style.cssText = 'font-size:10px;color:rgba(255,255,255,.5);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;';
-    lbl.textContent = 'Upload 2 to 4 variants. Claude ranks them against the niche gallery.';
+    lbl.textContent = 'Upload 2 to 4 variants to measure them side by side';
     body.appendChild(lbl);
     var input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
     input.style.cssText = 'width:100%;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#fff;font-family:inherit;font-size:11px;margin-bottom:10px;';
     body.appendChild(input);
-    var thumbs = document.createElement('div');
-    thumbs.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px;';
-    body.appendChild(thumbs);
-    var btn = document.createElement('button');
- btn.textContent ='COMPARE WITH AI';
-    btn.style.cssText = 'width:100%;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;letter-spacing:.12em;';
-    body.appendChild(btn);
-    var out = document.createElement('div');
-    out.style.cssText = 'margin-top:14px;';
-    body.appendChild(out);
+    var grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(2,1fr);gap:10px;';
+    body.appendChild(grid);
+    var foot = document.createElement('div');
+    body.appendChild(foot);
 
-    var dataUrls = [];
     input.addEventListener('change', function() {
-      dataUrls = [];
-      nspSetHTML(thumbs, '');
-      var files = input.files || [];
-      var batch = [];
-      for (var i = 0; i < Math.min(files.length, 4); i++) batch.push(files[i]);
-      Promise.all(batch.map(fileToImageBlob)).then(function(urls) {
-        dataUrls = urls;
-        urls.forEach(function(u, idx) {
-          var w = document.createElement('div');
-          nspSetHTML(w, '<div style="font-size:9px;color:rgba(255,255,255,.5);margin-bottom:4px;">VARIANT ' + String.fromCharCode(65 + idx) + '</div><img src="' + u + '" style="width:100%;border-radius:8px;border:1px solid rgba(255,255,255,.14);"/>');
-          thumbs.appendChild(w);
-        });
+      nspSetHTML(grid, ''); nspSetHTML(foot, '');
+      var files = Array.prototype.slice.call(input.files || [], 0, 4).filter(function(f) { return /^image\//i.test(f.type) && f.size <= 8 * 1024 * 1024; });
+      if (files.length < 2) { note(foot, 'Pick at least 2 images under 8MB each.', '#FF6B6B'); return; }
+      files.forEach(function(f, idx) {
+        var cell = document.createElement('div');
+        var name = document.createElement('div');
+        name.style.cssText = 'font-size:9px;color:rgba(255,255,255,.5);margin-bottom:4px;';
+        name.textContent = 'VARIANT ' + String.fromCharCode(65 + idx);
+        cell.appendChild(name);
+        grid.appendChild(cell);
+        fileToImageBlob(f).then(function(d) {
+          var img = document.createElement('img');
+          img.src = d;
+          img.style.cssText = 'width:100%;border-radius:8px;border:1px solid rgba(255,255,255,.14);';
+          cell.appendChild(img);
+          return measure(d);
+        }).then(function(stats) { statRows(cell, stats); }, function(err) { note(cell, 'Could not be read: ' + String((err && err.message) || err), '#FF6B6B'); });
       });
-    });
-
-    btn.addEventListener('click', function() {
-      if (dataUrls.length < 2) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Upload at least 2 thumbnails.</div>'); return; }
-      btn.disabled = true; btn.style.opacity = '.6';
- nspSetHTML(out,'<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">Comparing'+ dataUrls.length +'variants</div>');
-      getClaudeApiKey().then(function(apiKey) {
-        if (!apiKey) { nspSetHTML(out, '<div style="color:rgba(255,217,61,.9);font-size:11px;padding:10px;">No AI provider configured. Add a key in Options and pick a modelng in ASHLYV.</div>'); btn.disabled = false; btn.style.opacity = ''; return; }
-        var content = [{
-          type: 'text',
-          text: 'Compare these ' + dataUrls.length + ' thumbnails for the ' + niche.label + ' niche (RPM $' + niche.rpm + '). The first ' + dataUrls.length + ' images are the variants to score.\nReturn JSON: {"ranked":[{"rank":1,"variant":"A","score":0-100,"reason":"..."}],"winner":"A|B|C|D","why":"1-2 sentences"}'
-        }];
-        dataUrls.forEach(function(d) {
-          var mt = (d.match(/data:(image\/[^;]+);/) || [])[1] || 'image/png';
-          content.push({ type: 'image', source: { type: 'base64', media_type: mt, data: d.split(',')[1] } });
-        });
-        return ashlyv_safeFetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true', 'x-api-key': apiKey },
-          body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1500, system: 'You are a YouTube CTR expert for the ' + niche.label + ' niche. JSON only.', messages: [{ role: 'user', content: content }] })
-        }, 60000).then(function(r) { return r.json(); });
-      }).then(function(d) {
-        btn.disabled = false; btn.style.opacity = '';
-        if (!d) return;
-        if (d.error) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Claude: ' + d.error.message + '</div>'); return; }
-        var text = d.content && d.content[0] && d.content[0].text;
-        var parsed; try { var m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch(e) { nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Could not parse the response.</div>'); return; }
-        nspSetHTML(out, '');
-        var head = document.createElement('div');
-        head.style.cssText = 'padding:12px;margin-bottom:10px;border-radius:12px;background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.14);';
- nspSetHTML(head,'<div style="font-size:24px;font-weight:900;">WINNER:'+ parsed.winner +'</div><div style="font-size:11px;color:rgba(255,255,255,.7);margin-top:6px;line-height:1.5;">'+ (parsed.why ||'').replace(/[<>]/g,'') +'</div>');
-        out.appendChild(head);
-        (parsed.ranked || []).forEach(function(r) {
-          var col = r.score >= 75 ? '#00DC82' : r.score >= 55 ? '#FFD93D' : '#FF6B6B';
-          var row = document.createElement('div');
-          row.style.cssText = 'padding:10px 12px;margin:5px 0;border-radius:10px;background:rgba(255,255,255,.025);border-left:3px solid ' + col + ';display:flex;justify-content:space-between;align-items:center;gap:10px;';
-          nspSetHTML(row, '<div style="flex:1;"><div style="font-size:12px;font-weight:700;">#' + r.rank + ' · VARIANT ' + r.variant + '</div><div style="font-size:10.5px;color:rgba(255,255,255,.7);margin-top:4px;">' + (r.reason || '').replace(/[<>]/g, '') + '</div></div>'
-            + '<div style="font-size:20px;font-weight:900;color:' + col + ';">' + r.score + '</div>');
-          out.appendChild(row);
-        });
-      }).catch(function(err) { btn.disabled = false; btn.style.opacity = ''; nspSetHTML(out, '<div style="color:#FF6B6B;font-size:11px;">Error: ' + (err && err.message) + '</div>'); });
+      note(foot, 'Measured values only. Which one gets more clicks is decided by the audience: YouTube Studio can test up to 3 thumbnails on the same video.');
     });
   }
 
@@ -16840,7 +16278,8 @@ function showTitleLabPanel(ch) {
   var actions = document.createElement('div');
   actions.style.cssText = 'display:flex;gap:8px;margin-top:12px;';
   var rankBtn = document.createElement('button');
- rankBtn.textContent ='RANK WITH AI';
+  rankBtn.setAttribute('data-nsp-grant', 'titles');
+  rankBtn.textContent = 'RANK WITH AI';
   rankBtn.style.cssText = 'flex:1;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;letter-spacing:.12em;';
   actions.appendChild(rankBtn);
   body.appendChild(actions);
@@ -16867,64 +16306,54 @@ function showTitleLabPanel(ch) {
     });
   });
 
+  function tlabNote(text, color) {
+    nspSetHTML(result, '');
+    var n = document.createElement('div');
+    n.style.cssText = 'padding:14px;text-align:center;font-size:11px;color:' + (color || 'rgba(255,255,255,.6)') + ';';
+    n.textContent = text;
+    result.appendChild(n);
+  }
+
   rankBtn.onclick = function() {
     var raw = ta.value.trim();
-    if (!raw) { nspSetHTML(result, '<div style="color:rgba(255,107,107,.85);font-size:11px;">Paste at least one title.</div>'); return; }
-    var variants = raw.split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean).slice(0, 12);
+    if (!raw) { tlabNote('Paste at least one title.', 'rgba(255,107,107,.85)'); return; }
+    var variants = raw.split(/\r?\n/).map(function(x) { return x.trim(); }).filter(Boolean).slice(0, 12);
     if (!variants.length) return;
- nspSetHTML(result,'<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,255,255,.6);">Asking Claude about'+ variants.length +'variants</div>');
+    tlabNote('Asking the model about ' + variants.length + ' variants');
     rankBtn.disabled = true; rankBtn.style.opacity = '.6';
-
-    Promise.all([getClaudeApiKey(), getOutlierTitlesForNiche(niche.label, 6)]).then(function(arr) {
-      var apiKey = arr[0];
-      var anchorTitles = arr[1].map(function(p) { return p.title; });
-      if (!apiKey) {
-        nspSetHTML(result, '<div style="padding:14px;text-align:center;font-size:11px;color:rgba(255,217,61,.9);">No AI provider configured. Add a key in Options and pick a modelng. Open the ASHLYV dashboard, API Key, and paste your sk-ant- key.</div>');
-        rankBtn.disabled = false; rankBtn.style.opacity = '';
-        return null;
-      }
-      var system = 'You are a YouTube CTR expert for faceless niches. Rank the titles by how likely they are to go viral in the given niche. Return ONLY valid JSON, no markdown.';
-      var userText = 'NICHE: ' + niche.label + ' (estimated RPM $' + niche.rpm + ')\n\n'
-        + (anchorTitles.length ? 'REAL OUTLIER TITLES FROM THIS NICHE (ground truth):\n' + anchorTitles.map(function(t, i) { return (i + 1) + '. ' + t; }).join('\n') + '\n\n' : '')
-        + 'VARIANTS TO RANK:\n' + variants.map(function(t, i) { return (i + 1) + '. ' + t; }).join('\n')
-        + '\n\nReturn strict JSON: {"ranked":[{"rank":1,"title":"...","score":0-100,"hook":0-10,"fit":0-10,"specificity":0-10,"emotional":0-10,"reason":"one line"}]}';
-      return callClaudeMessages({ apiKey: apiKey, system: system, userText: userText, maxTokens: 1800 });
-    }).then(function(text) {
+    getOutlierTitlesForNiche(niche.label, 6).then(function(anchors) {
+      return nspAiTask('titles', { niche: niche.label, variants: variants, anchors: anchors.map(function(p) { return p.title; }) });
+    }).then(function(res) {
       rankBtn.disabled = false; rankBtn.style.opacity = '';
-      if (!text) return;
-      var parsed;
-      try {
-        var m = text.match(/\{[\s\S]*\}/);
-        parsed = JSON.parse(m ? m[0] : text);
-      } catch(e) { nspSetHTML(result, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Could not parse the Claude response.</div>'); return; }
-      var ranked = (parsed && parsed.ranked) || [];
-      if (!ranked.length) { nspSetHTML(result, '<div style="color:rgba(255,255,255,.5);font-size:11px;padding:10px;">No results.</div>'); return; }
+      if (!res || !res.ok) { tlabNote(nspAiErrorText(res), '#FF6B6B'); return; }
+      var ranked = res.result.ranked;
       nspSetHTML(result, '');
       var head = document.createElement('div');
       head.style.cssText = 'font-size:10px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;';
-      head.textContent = 'RESULTS · ' + ranked.length + ' variants';
+      head.textContent = 'AI OPINION, NOT MEASURED · ' + ranked.length + ' variants · ' + (res.provider || 'model');
       result.appendChild(head);
       ranked.forEach(function(r) {
-        var row = document.createElement('div');
         var col = r.score >= 75 ? '#00DC82' : r.score >= 55 ? '#FFD93D' : '#FF6B6B';
-        row.style.cssText = 'padding:10px 12px;margin:6px 0;border-radius:10px;background:rgba(255,255,255,.025);border-left:3px solid ' + col + ';';
-        var rt = document.createElement('div');
-        rt.style.cssText = 'display:flex;align-items:flex-start;justify-content:space-between;gap:8px;';
-        var rl = document.createElement('div');
-        rl.style.cssText = 'flex:1;min-width:0;';
-        nspSetHTML(rl, '<div style="font-size:11.5px;font-weight:700;line-height:1.4;">#' + r.rank + ' · ' + (r.title || '').replace(/[<>]/g, '') + '</div>'
-          + '<div style="font-size:9.5px;color:rgba(255,255,255,.55);margin-top:5px;">Hook ' + (r.hook || 0) + '/10 · Fit ' + (r.fit || 0) + '/10 · Specificity ' + (r.specificity || 0) + '/10 · Emotional ' + (r.emotional || 0) + '/10</div>'
-          + '<div style="font-size:10px;color:rgba(255,255,255,.7);margin-top:6px;">' + (r.reason || '').replace(/[<>]/g, '') + '</div>');
-        var rs = document.createElement('div');
-        rs.style.cssText = 'font-size:22px;font-weight:900;color:' + col + ';flex-shrink:0;line-height:1;';
-        rs.textContent = r.score;
-        rt.appendChild(rl); rt.appendChild(rs);
-        row.appendChild(rt);
+        var row = document.createElement('div');
+        row.style.cssText = 'padding:10px 12px;margin:6px 0;border-radius:10px;background:rgba(255,255,255,.025);border-left:3px solid ' + col + ';display:flex;align-items:flex-start;justify-content:space-between;gap:8px;';
+        var left = document.createElement('div');
+        left.style.cssText = 'flex:1;min-width:0;';
+        var t = document.createElement('div');
+        t.style.cssText = 'font-size:11.5px;font-weight:700;line-height:1.4;';
+        t.textContent = '#' + r.rank + ' · ' + r.title;
+        var m = document.createElement('div');
+        m.style.cssText = 'font-size:9.5px;color:rgba(255,255,255,.55);margin-top:5px;';
+        m.textContent = 'Hook ' + r.hook + '/10 · Fit ' + r.fit + '/10 · Specificity ' + r.specificity + '/10 · Emotional ' + r.emotional + '/10';
+        var why = document.createElement('div');
+        why.style.cssText = 'font-size:10px;color:rgba(255,255,255,.7);margin-top:6px;';
+        why.textContent = r.reason;
+        left.appendChild(t); left.appendChild(m); left.appendChild(why);
+        var sc = document.createElement('div');
+        sc.style.cssText = 'font-size:22px;font-weight:900;color:' + col + ';flex-shrink:0;line-height:1;';
+        sc.textContent = String(r.score);
+        row.appendChild(left); row.appendChild(sc);
         result.appendChild(row);
       });
-    }).catch(function(err) {
-      rankBtn.disabled = false; rankBtn.style.opacity = '';
-      nspSetHTML(result, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Error: ' + (err && err.message || 'unknown') + '</div>');
     });
   };
 }
@@ -17080,19 +16509,19 @@ function showTranscriptPanel(videoId) {
 }
 
 // Comment Sentiment + Themes 
-function fetchVideoComments(videoId, max) {
-  max = max || 50;
-  if (!videoId) return Promise.reject(new Error('no_video_id'));
-  var url = 'https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&order=relevance&maxResults=' + Math.min(max, 100) + '&videoId=' + encodeURIComponent(videoId) + '&key=' + YT_API_KEY;
-  return ashlyv_safeFetch(url, { method: 'GET' }, 12000).then(function(r) { return r.json(); }).then(function(data) {
-    if (data && data.error) throw new Error(data.error.message || 'api_error');
-    var items = (data && data.items) || [];
-    return items.map(function(it) {
-      var sn = it.snippet && it.snippet.topLevelComment && it.snippet.topLevelComment.snippet;
-      if (!sn) return null;
-      return { text: sn.textOriginal || sn.textDisplay || '', likes: sn.likeCount || 0, author: sn.authorDisplayName || '' };
-    }).filter(Boolean);
-  });
+// The comments YouTube has already loaded on this watch page. The Data API needs a key this build does not ship, so
+// the page itself is the source: nothing is read that the user cannot scroll to.
+function readLoadedComments(max) {
+  var out = [];
+  var threads = document.querySelectorAll('ytd-comment-thread-renderer');
+  for (var i = 0; i < threads.length && out.length < (max || 50); i++) {
+    var textEl = threads[i].querySelector('#content-text');
+    var text = textEl ? String(textEl.textContent || '').replace(/\s+/g, ' ').trim() : '';
+    if (!text) continue;
+    var likeEl = threads[i].querySelector('#vote-count-middle');
+    out.push({ text: text.slice(0, 300), likes: pViews(likeEl ? likeEl.textContent : '') });
+  }
+  return out;
 }
 
 function showCommentsPanel(videoId) {
@@ -17128,44 +16557,32 @@ function showCommentsPanel(videoId) {
   document.body.appendChild(panel);
   makeDraggable(panel, hdr);
 
-  Promise.all([fetchVideoComments(videoId, 50), getClaudeApiKey()]).then(function(arr) {
-    var comments = arr[0];
-    var apiKey = arr[1];
-    if (!comments.length) {
-      loading.textContent = 'No comments on this video, or they are turned off.';
-      return;
-    }
-    if (!apiKey) {
-      nspSetHTML(loading, '<div style="color:rgba(255,217,61,.9);">No AI provider answered. Pick a model in the assistant or add a key in Options- key.</div><div style="margin-top:10px;color:rgba(255,255,255,.5);">Top 5 comments raw:</div>'
-        + '<div style="text-align:left;margin-top:8px;">' + comments.slice(0, 5).map(function(c, i) { return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:10.5px;line-height:1.5;">' + (i + 1) + '. ' + (c.text || '').slice(0, 200).replace(/[<>]/g, '') + ' <span style="color:rgba(255,255,255,.4);">(' + c.likes + ' likes)</span></div>'; }).join('') + '</div>');
-      return;
-    }
- loading.textContent ='Analyzing'+ comments.length +'comments with Claude';
-    var system = 'You are a YouTube audience analyst. Analyze the comments and return ONLY JSON, no markdown.';
-    var userText = 'Analyze these ' + comments.length + ' comments. Return JSON:\n{"sentiment":{"positive":N,"neutral":N,"negative":N},"themes":[{"label":"...","count":N,"sentiment":"+/-/="}],"painPoints":["..."],"requests":["..."],"summary":"1-2 sentences"}\n\nCOMMENTS:\n'
-      + comments.slice(0, 50).map(function(c, i) { return (i + 1) + '. [' + c.likes + ' likes] ' + c.text.slice(0, 300); }).join('\n');
-    return callClaudeMessages({ apiKey: apiKey, system: system, userText: userText, maxTokens: 1500 });
-  }).then(function(text) {
-    if (!text) return;
+  var comments = readLoadedComments(50);
+  if (!comments.length) {
+    loading.textContent = 'YouTube has not loaded any comments on this page yet, or they are turned off. Scroll down to the comments, then press COMMENTS AI again.';
+    return;
+  }
+  loading.textContent = 'Reading the ' + comments.length + ' comments loaded on this page';
+  nspAiTask('comments', { comments: comments }).then(function(res) {
+    if (!res || !res.ok) { loading.style.color = '#FF6B6B'; loading.textContent = nspAiErrorText(res); return; }
     loading.remove();
-    var parsed;
-    try { var m = text.match(/\{[\s\S]*\}/); parsed = JSON.parse(m ? m[0] : text); } catch(e) { nspSetHTML(body, '<div style="color:#FF6B6B;font-size:11px;padding:10px;">Could not parse the response.</div>'); return; }
-    var s = parsed.sentiment || {};
-    var pos = s.positive || 0, neu = s.neutral || 0, neg = s.negative || 0;
+    var parsed = res.result;
+    // The counts are the model's reading of the comments, already clamped to numbers by the service worker; Number() again because they land in attributes.
+    var sent = parsed.sentiment || {};
+    var pos = Number(sent.positive) || 0, neu = Number(sent.neutral) || 0, neg = Number(sent.negative) || 0;
     var total = pos + neu + neg || 1;
     nspSetHTML(body, '');
 
-    // Sentiment bar
     var sb = document.createElement('div');
     sb.style.cssText = 'margin-bottom:14px;';
-    nspSetHTML(sb, '<div style="font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">SENTIMENT</div>'
+    nspSetHTML(sb, '<div style="font-size:9.5px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">SENTIMENT, AI READING OF ' + Number(parsed.read || 0) + ' COMMENTS</div>'
       + '<div style="display:flex;height:10px;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.04);">'
       + '<div style="width:' + Math.round(pos / total * 100) + '%;background:#00DC82;" title="' + pos + ' positive"></div>'
       + '<div style="width:' + Math.round(neu / total * 100) + '%;background:rgba(255,255,255,.3);" title="' + neu + ' neutral"></div>'
       + '<div style="width:' + Math.round(neg / total * 100) + '%;background:#FF6B6B;" title="' + neg + ' negative"></div>'
       + '</div>'
       + '<div style="display:flex;justify-content:space-between;margin-top:5px;font-size:9.5px;color:rgba(255,255,255,.55);">'
-      + '<span>+ ' + pos + '</span><span>= ' + neu + '</span><span>− ' + neg + '</span></div>');
+      + '<span>+ ' + pos + '</span><span>= ' + neu + '</span><span>- ' + neg + '</span></div>');
     body.appendChild(sb);
 
     if (parsed.summary) {
@@ -17197,7 +16614,9 @@ function showCommentsPanel(videoId) {
     section('PAIN POINTS', parsed.painPoints || [], 'rgba(255,107,107,.08)');
     section('REQUESTS', parsed.requests || [], 'rgba(0,220,130,.06)');
   }).catch(function(err) {
-    nspSetHTML(loading, '<div style="color:#FF6B6B;font-size:11px;">Error: ' + (err && err.message || 'unknown') + '</div>');
+    loading.style.color = '#FF6B6B';
+    loading.textContent = 'Error: ' + String((err && err.message) || 'unknown');
+    if (!loading.parentNode) body.appendChild(loading);
   });
 }
 
@@ -17211,7 +16630,8 @@ function injectCommentsButton() {
   if (document.getElementById('nsp-comments-btn-floating')) return;
   var btn = document.createElement('button');
   btn.id = 'nsp-comments-btn-floating';
- btn.textContent ='COMMENTS AI';
+  btn.setAttribute('data-nsp-grant', 'comments');
+  btn.textContent = 'COMMENTS AI';
   btn.style.cssText = 'position:fixed;bottom:60px;right:18px;z-index:9999;padding:10px 14px;border-radius:14px;'
     + 'border:1px solid rgba(255,255,255,.22);background:linear-gradient(135deg,#0a0a0a,#1a1a2e);color:#fff;'
     + 'font-family:ui-monospace,monospace;font-size:10px;font-weight:900;cursor:pointer;letter-spacing:.12em;'
@@ -18854,6 +18274,7 @@ function injectBatmanButton() {
 
   var btn = document.createElement('button');
   btn.id = 'nsp-batman-scan-btn';
+  btn.setAttribute('data-nsp-grant', 'vision');
   btn.style.cssText = 'display:flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:18px;'
     + 'background:linear-gradient(135deg,#0a0a0a,#1a1a2e);border:1.5px solid rgba(255,255,255,0.15);'
     + 'color:#fff;font-size:11px;font-weight:900;cursor:pointer;font-family:Roboto,Arial,sans-serif;'
@@ -19767,6 +19188,7 @@ function injectGlobeButton() {
 
   var btn = document.createElement('button');
   btn.id = 'nsp-globe-btn';
+  btn.setAttribute('data-nsp-grant', 'vision');
   btn.className = 'nsp-globe-btn nsp-globe-compact';
   btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:none;background:transparent;'
     + 'color:#fff;cursor:pointer;outline:none;transition:transform .18s ease,filter .18s ease;position:relative;box-shadow:none;';
@@ -20157,6 +19579,7 @@ function injectFacelessButton() {
 
   var btn = document.createElement('button');
   btn.id = 'nsp-faceless-btn';
+  btn.setAttribute('data-nsp-grant', 'vision');
   btn.type = 'button';
   styleNSPMonoButton(btn, { compact: true, active: false });
   btn.style.marginLeft = '12px';
@@ -21261,42 +20684,59 @@ function nspCoachPersistCurrentSession() {
   nspCoachSessionsSave(_nspCoachState.sessions);
 }
 
-function nspCoachSendApi(messages, systemParts, includeTools) {
-  return new Promise(function(resolve, reject) {
-    var reqId = nspCoachReqId();
- console.log('[NSP COACH] sendApi reqId:', reqId,'msgs:', messages.length,'tools:', !!includeTools);
-    // 120s, because a rate limited provider can hold the request for a full minute.
-    var timeout = setTimeout(function() {
-      delete _nspCoachPendingResponses[reqId];
-      reject(new Error('Timed out after 120s. The AI provider did not answer. Set up Groq in Options, which is much faster, or wait a minute.'));
-    }, 120000);
-    _nspCoachPendingResponses[reqId] = function(data) {
-      clearTimeout(timeout);
-      delete _nspCoachPendingResponses[reqId];
-      if (data && data.ok) {
-        resolve({ text: String(data.text || ''), functionCalls: Array.isArray(data.functionCalls) ? data.functionCalls : [] });
-      } else {
-        reject(new Error((data && data.error) || 'Unknown Coach error'));
-      }
-    };
-    try {
-      var payload = {
-        type: 'NSP_COACH_SEND',
-        requestId: reqId,
-        messages: messages,
-        model: 'gemini-1.5-flash',
-        maxTokens: 700
-      };
-      if (typeof systemParts === 'string') payload.system = systemParts;
-      else payload.systemParts = systemParts;
-      if (includeTools) payload.tools = nspCoachGetToolDefinitions();
-      window.postMessage(payload, window.location.origin);
-    } catch(ePost) {
-      clearTimeout(timeout);
-      delete _nspCoachPendingResponses[reqId];
-      reject(new Error('postMessage failed: ' + (ePost && ePost.message || 'unknown')));
-    }
+// One model call for the agent. The page sends the conversation and the data it holds (the brief); the service
+// worker writes the system prompt, picks the tools and the model, and answers only inside a grant: a press on Send
+// here, or a turn handed over from the ZERACK chat or the voice.
+function nspCoachSendApi(messages, brief, includeTools) {
+  brief = brief || {};
+  return nspAiTask('coach', {
+    messages: messages,
+    tools: !!includeTools,
+    query: String(brief.query || ''),
+    spoken: brief.spoken === true,
+    context: brief.context || {}
+  }, 120000).then(function(data) {
+    if (data && data.ok) return { text: String(data.text || ''), functionCalls: Array.isArray(data.functionCalls) ? data.functionCalls : [] };
+    throw new Error((data && (data.error || data.detail)) || 'Unknown Coach error');
   });
+}
+
+// Every AI call from YouTube goes through here. 120s by default, because a rate limited provider can hold a request for a full minute.
+var _nspAiPending = {};
+function nspAiTask(task, data, timeoutMs) {
+  return new Promise(function(resolve) {
+    var reqId = 'ai-' + task + '-' + Date.now() + '-' + Math.floor(Math.random() * 1e9);
+    var timer = setTimeout(function() {
+      delete _nspAiPending[reqId];
+      resolve({ ok: false, error: 'timeout', detail: 'The AI provider did not answer within ' + Math.round((timeoutMs || 120000) / 1000) + ' seconds.' });
+    }, timeoutMs || 120000);
+    _nspAiPending[reqId] = function(res) {
+      clearTimeout(timer);
+      delete _nspAiPending[reqId];
+      resolve(res || { ok: false, error: 'no_response' });
+    };
+    window.postMessage({ type: 'NSP_AI_TASK', requestId: reqId, task: task, data: data || {} }, window.location.origin);
+  });
+}
+
+window.addEventListener('message', function(event) {
+  if (event.source !== window) return;
+  if (event.origin && event.origin !== window.location.origin) return;
+  var data = event.data;
+  if (!data || data.type !== 'NSP_AI_TASK_RESULT') return;
+  var done = _nspAiPending[String(data.requestId || '')];
+  if (done) { try { done(data); } catch (e) { console.warn('[NSP AI] handler error:', e && e.message); } }
+});
+
+// What a refused or failed AI call means, in words the user can act on.
+function nspAiErrorText(res) {
+  var code = String((res && res.error) || '');
+  if (code === 'no_grant') return 'Nothing was sent: the AI only runs after you press the button for it, or from the ZERACK chat.';
+  if (code === 'no_provider_configured') return 'No AI provider is set up. Add a Groq, Gemini or OpenAI key in Options, or turn on Ollama.';
+  if (code === 'all_busy') return 'Every configured provider is rate limited right now. Try again in about 15 seconds.';
+  if (code === 'unparsed_answer') return 'The model answered in a shape that could not be read. Try again.';
+  if (code === 'extension_reloaded' || code === 'service_worker_unreachable') return 'The extension is not reachable from this tab. Reload YouTube.';
+  return String((res && (res.detail || res.error)) || 'unknown error');
 }
 
 // Global listener for bridge replies, ISOLATED to MAIN.
@@ -21366,31 +20806,27 @@ function nspCoachBuildContextLean() {
   }).join('\n');
 }
 
-function nspCoachSystemParts(opts) {
+// The data the worker puts in the agent's system prompt: the question and the scan this tab holds.
+function nspCoachBrief(opts) {
   opts = opts || {};
-  if (!_nspBrain) return [];
-  return _nspBrain.parts({
-    surface: 'youtube',
-    maxSteps: NSP_AGENT_MAX_STEPS,
+  return {
     spoken: opts.spoken === true,
     query: String(opts.query || ''),
     context: { text: nspCoachBuildContextSummary(), lean: nspCoachBuildContextLean() }
-  });
-}
-
-// System prompt for the ZERACK coach, plus its tool list.
-function nspCoachBuildSystemPrompt(opts) {
-  return _nspBrain ? _nspBrain.fit(nspCoachSystemParts(opts), 24000) : '';
+  };
 }
 
 // Agent tool executors, each returning a Promise. The MAIN world delegates chrome.tabs calls to the ISOLATED bridge.
+// The readers that fetch YouTube pages in the worker wait up to 20 s for them, so their answer is waited for longer than a storage read.
+var NSP_BRIDGE_WAIT_MS = { NSP_COACH_TOOL_CHANNEL_STATS: 25000, NSP_COACH_TOOL_CHANNEL_VIDEOS: 25000, NSP_COACH_TOOL_SEARCH_MARKET: 25000 };
 function nspCoachBridgeRequest(type, payload) {
+  var waitMs = NSP_BRIDGE_WAIT_MS[type] || 8000;
   return new Promise(function(resolve) {
     var reqId = nspCoachReqId();
     var timeout = setTimeout(function() {
       delete _nspCoachPendingResponses[reqId];
-      resolve({ ok: false, error: 'timeout 8s' });
-    }, 8000);
+      resolve({ ok: false, error: 'no answer from the extension within ' + Math.round(waitMs / 1000) + ' s' });
+    }, waitMs);
     _nspCoachPendingResponses[reqId] = function(data) {
       clearTimeout(timeout);
       delete _nspCoachPendingResponses[reqId];
@@ -22000,7 +21436,8 @@ function _zRenderPredictionResult(container, pred) {
 
   // Hand off to the ZERACK chat.
   var chatBtn = document.createElement('button');
- chatBtn.textContent ='Ask ZERACK to rewrite my title';
+  chatBtn.setAttribute('data-nsp-grant', 'coach');
+  chatBtn.textContent = 'Ask ZERACK to rewrite my title';
   chatBtn.style.cssText = 'width:100%;margin-top:15px;padding:11px;border:1px solid rgba(0,220,130,0.4);border-radius:10px;background:rgba(0,220,130,0.08);color:#00DC82;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;';
   chatBtn.onclick = function() {
     try {
@@ -22147,7 +21584,8 @@ var NSP_AGENT_CARRY_KEY = 'nsp_agent_carry';
 var NSP_AGENT_CARRY_TTL_MS = 60000;
 var NSP_AGENT_NAV_WATCHDOG_MS = 30000;
 // Mirrors the browsable origins in manifest host_permissions, checked in code so no prompt can widen it.
-var NSP_AGENT_ALLOWED_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com', 'studio.youtube.com', 'localhost', '127.0.0.1'];
+// The service worker enforces the same list for tabs opened from here (NSP_PAGE_OPEN_HOSTS); this copy only words the refusal early.
+var NSP_AGENT_ALLOWED_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'studio.youtube.com'];
 var NSP_AGENT_SENSITIVE_FIELD = /pass|pwd|\botp\b|one.?time|\b2fa\b|\bmfa\b|totp|verification code|security code|\bcvv|\bcvc|\bcsc\b|credit ?card|card ?number|cardnumber|\biban\b|routing number|account number|secret|token|\bssn\b|social security|\bpin\b|contrasena|clave de acceso|codigo de verificacion|codigo de seguridad|numero de tarjeta|tarjeta de credito|passwort|kennwort|mot de passe/;
 var NSP_AGENT_CANDIDATES = 'a[href],button,input:not([type="hidden"]),textarea,select,summary,label,[role],[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"],[aria-label],[title],[placeholder],[tabindex="0"],tp-yt-paper-item,tp-yt-paper-tab,yt-tab-shape,yt-chip-cloud-chip-renderer,ytd-menu-service-item-renderer,ytd-compact-link-renderer';
 var NSP_AGENT_EDITABLE = 'input:not([type="hidden"]),textarea,[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"]';
@@ -22199,9 +21637,6 @@ var NSP_AGENT_TOOL_LABELS = {
   nspNavigateTo: 'Go to',
   nspOpenNewTab: 'Open a new tab at',
   nspOpenYouTubeSearch: 'Search YouTube for',
-  nspListTabs: 'List open tabs',
-  nspSwitchToTab: 'Switch to',
-  nspCloseTab: 'Close',
   nspGetCurrentPage: 'Read the page address',
   nspClickElement: 'Click',
   nspTypeIntoInput: 'Type into',
@@ -23103,16 +22538,16 @@ function nspAgentAct(a) {
   return Promise.resolve({ ok: false, error: 'unknown action "' + nspAgentClip(a.action, 30) + '", use click, type, paste, select, scroll, navigate, wait or read' });
 }
 
-function nspAgentTabCheck(tabId) {
-  return nspCoachBridgeRequest('NSP_COACH_TOOL_LISTTABS', {}).then(function(res) {
-    var tabs = (res && Array.isArray(res.tabs)) ? res.tabs : [];
-    for (var i = 0; i < tabs.length; i++) {
-      if (tabs[i] && Number(tabs[i].id) === Number(tabId)) {
-        return { found: true, allowed: nspAgentHostAllowed(nspAgentUrlHost(tabs[i].url)), label: nspAgentClip(tabs[i].title || tabs[i].url || ('tab ' + tabId), 80), host: nspAgentUrlHost(tabs[i].url) };
-      }
-    }
-    return { found: false };
-  });
+// Reads a www.youtube.com page the way the page itself would, without cookies. Other hosts and other tabs are the chat's.
+function nspAgentFetchYouTube(raw) {
+  var u;
+  try { u = new URL(raw, window.location.href); } catch (e) { return Promise.resolve({ ok: false, error: 'not a valid address' }); }
+  if (u.protocol !== 'https:' || u.hostname !== 'www.youtube.com') return Promise.resolve({ ok: false, code: 'host', error: 'from this panel only www.youtube.com pages can be read; other sites are read from the ZERACK chat' });
+  return fetch(u.href, { credentials: 'omit' }).then(function(r) {
+    return r.text().then(function(text) {
+      return { ok: r.ok, status: r.status, text: String(text || '').slice(0, 8000), truncated: text.length > 8000 };
+    });
+  }, function(e) { return { ok: false, error: 'fetch failed: ' + String((e && e.message) || e) }; });
 }
 
 function nspAgentStepLabel(name, args) {
@@ -23377,7 +22812,7 @@ function nspAgentBuildCarry(live) {
     sessionId: _nspCoachState.currentSessionId || null,
     messages: (_nspCoachState.messages || []).slice(-60),
     apiMessages: (live.ctx.apiMessages || []).slice(-30),
-    systemParts: Array.isArray(live.ctx.systemParts) ? live.ctx.systemParts : [],
+    brief: live.ctx.brief && typeof live.ctx.brief === 'object' ? live.ctx.brief : null,
     iteration: live.ctx.iteration || 1,
     capNotice: !!live.ctx.capNotice,
     stepsUsed: _nspAgentState.stepsUsed,
@@ -23431,7 +22866,7 @@ window.addEventListener('pageshow', function(ev) {
 
 var NSP_AGENT_WRITE_TOOLS_GATED = {
   nspRunPlan: 1, nspClickElement: 1, nspTypeIntoInput: 1, nspNavigateTo: 1, nspOpenNewTab: 1,
-  nspCloseTab: 1, nspSwitchToTab: 1, nspRunNewScan: 1, nspSaveNiche: 1, nspAddToTracking: 1, nspOpenYouTubeSearch: 1
+  nspRunNewScan: 1, nspSaveNiche: 1, nspAddToTracking: 1, nspOpenYouTubeSearch: 1
 };
 var NSP_AGENT_READ_ACTIONS = { read: 1, scroll: 1, wait: 1 };
 
@@ -23538,30 +22973,11 @@ function nspAgentRunTool(toolName, args) {
     if (toolName === 'nspNavigateTo') {
       return nspAgentNavigate({ url: args.url });
     }
-    if (toolName === 'nspListTabs') {
-      return nspCoachBridgeRequest('NSP_COACH_TOOL_LISTTABS', {});
-    }
-    if (toolName === 'nspSwitchToTab' || toolName === 'nspCloseTab') {
-      var tabIdArg = Number(args.tabId) || 0;
-      return nspAgentTabCheck(tabIdArg).then(function(tab) {
-        if (!tab.found) return { ok: false, error: 'no tab with id ' + tabIdArg + ' among the tabs nspListTabs returns' };
-        if (!tab.allowed) return { ok: false, code: 'host', error: 'refused: that tab is on ' + (tab.host || 'another site') + ', outside the extension host permissions' };
-        var msgType = toolName === 'nspCloseTab' ? 'NSP_COACH_TOOL_CLOSETAB' : 'NSP_COACH_TOOL_SWITCHTAB';
-        return nspCoachBridgeRequest(msgType, { tabId: tabIdArg }).then(function(res) {
-          if (res && res.ok) res.tab = tab.label;
-          return res;
-        });
-      });
-    }
     if (toolName === 'nspGetSavedNiches') {
       return nspCoachBridgeRequest('NSP_COACH_TOOL_GETSAVED', {});
     }
     if (toolName === 'nspFetchUrl') {
-      var fetchUrl = String(args.url || '');
-      if (!/^https:\/\//i.test(fetchUrl)) {
-        return Promise.resolve({ ok: false, error: 'URL must be https://' });
-      }
-      return nspCoachBridgeRequest('NSP_COACH_TOOL_FETCHURL', { url: fetchUrl });
+      return nspAgentFetchYouTube(String(args.url || ''));
     }
     if (toolName === 'nspClickElement') {
       if (!String(args.selector || '')) return Promise.resolve({ ok: false, error: 'empty selector' });
@@ -24173,6 +23589,7 @@ function openNspCoachChat(opts) {
   quickActions.forEach(function(qa) {
     var chip = document.createElement('button');
     chip.className = 'quick-chip';
+    chip.setAttribute('data-nsp-grant', 'coach');
     chip.textContent = qa[0];
     chip.style.cssText = 'flex-shrink:0;padding:6px 10px;border-radius:14px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.8);font-family:ui-monospace,monospace;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;';
     chip.onmouseenter = function() { chip.style.background = 'rgba(255,255,255,0.12)'; chip.style.color = '#fff'; };
@@ -24193,8 +23610,11 @@ function openNspCoachChat(opts) {
   input.id = 'input';
   input.placeholder = 'Ask about a niche or a channel, or ask for ideas';
   input.rows = 1;
+  // A real press here (Enter in the box or the SEND button) is what lets this tab spend on the model, see ashlyv-bridge.js.
+  input.setAttribute('data-nsp-grant', 'coach');
   var sendBtn = document.createElement('button');
   sendBtn.id = 'send-btn'; sendBtn.textContent = 'SEND';
+  sendBtn.setAttribute('data-nsp-grant', 'coach');
   // STOP button, cancels a turn in progress.
   var stopBtn = document.createElement('button');
   stopBtn.id = 'stop-btn';
@@ -24393,7 +23813,7 @@ function openNspCoachChat(opts) {
     _nspCoachState.spokenText = '';
     var ctx = {
       apiMessages: apiHistoryFromState(),
-      systemParts: nspCoachSystemParts({ query: text, spoken: spoken }),
+      brief: nspCoachBrief({ query: text, spoken: spoken }),
       iteration: 0,
       capNotice: false
     };
@@ -24451,7 +23871,7 @@ function openNspCoachChat(opts) {
     typingEl.textContent = ctx.iteration === 1 ? 'Coach is thinking' : 'Thinking, ' + _nspAgentState.stepsUsed + ' of ' + NSP_AGENT_MAX_STEPS + ' steps used';
     if (_nspAgentState.live) _nspAgentState.live.phase = 'model';
 
-    nspCoachSendApi(nspAgentCompactMessages(ctx.apiMessages), ctx.systemParts, !capReached).then(function(response) {
+    nspCoachSendApi(nspAgentCompactMessages(ctx.apiMessages), ctx.brief, !capReached).then(function(response) {
       if (_nspCoachState.cancelled) return;
       var replyText = response.text || '';
       var calls = response.functionCalls || [];
@@ -24481,7 +23901,9 @@ function openNspCoachChat(opts) {
       _finishTurn();
         var errMsg = String(err && err.message || err || 'error');
         // With automatic fallthrough between providers, a rate limit only reaches here when every provider is saturated at once.
-        if (/no_provider_configured/i.test(errMsg)) {
+        if (/^no_grant$/.test(errMsg)) {
+          errMsg = 'Nothing was sent. This panel runs the model only after a press on its Send button or a question from the ZERACK chat, so a script on the page cannot spend your keys.';
+        } else if (/no_provider_configured/i.test(errMsg)) {
           errMsg = 'ZERACK needs an AI provider.\n\nFastest option, Groq, free:\n1) console.groq.com/keys, create an API key (gsk_...)\n2) Options, GROQ section, paste the key, save\n\nOr Gemini: aistudio.google.com/apikey (AIza...), then Options. Both are free, no card needed.';
         } else if (/all_busy/i.test(errMsg) || /rate_limited/i.test(errMsg) || /RESOURCE_EXHAUSTED/i.test(errMsg) || /quota/i.test(errMsg)) {
           errMsg = 'Your providers are saturated for a moment. Try again in about 15 seconds. ZERACK already tried switching between Groq and Gemini. Set up both in Options so you never run out of turns.';
@@ -24527,7 +23949,7 @@ function openNspCoachChat(opts) {
     });
     var ctx = {
       apiMessages: carry.apiMessages.slice(),
-      systemParts: Array.isArray(carry.systemParts) && carry.systemParts.length ? carry.systemParts : nspCoachSystemParts({}),
+      brief: carry.brief && typeof carry.brief === 'object' ? carry.brief : nspCoachBrief({}),
       iteration: Number(carry.iteration) || 1,
       capNotice: !!carry.capNotice
     };
@@ -24546,25 +23968,6 @@ function openNspCoachChat(opts) {
       prior.push({ name: String((c && c.name) || ''), args: (c && c.args) || {}, result: { ok: false, code: 'not_run', error: carry.planned ? 'not run: the page landed on ' + landed + ' instead of ' + carry.url : 'not run: the page reloaded before it, plan it again from this page' } });
     });
     agentContinue(ctx, { results: prior });
-  }
-
-  function _handleSendOldUnused() {
-    // Kept for reference, never executed.
-    nspCoachSendApi([], '').then(function(replyText) {
-      console.log(replyText);
-    }).catch(function(err) {
-      _nspCoachState.pending = false;
-      sendBtn.disabled = false;
-      typingEl.style.display = 'none';
-      var errMsg = String(err && err.message || err || 'error');
-      if (/missing_or_invalid_gemini_key/i.test(errMsg)) {
-        errMsg = 'ZERACK needs an AI provider set up.\n\nFastest option, Groq, free:\n1) console.groq.com/keys, create an API key (gsk_...)\n2) Extension options, GROQ section, paste the key, save\n\nOr Gemini: aistudio.google.com/apikey (AIza...), then Options.\n\nBoth are free, no card needed.';
-      } else if (/missing_or_invalid_api_key/i.test(errMsg)) {
-        errMsg = 'No API key set. Open Options and paste your Gemini API key, free at aistudio.google.com/apikey.';
-      }
- _nspCoachState.messages.push({ role:'error', content:''+ errMsg });
-      renderMessages();
-    });
   }
 
   sendBtn.onclick = handleSend;
@@ -24670,11 +24073,8 @@ window.addEventListener('message', function(event) {
   if (!event || event.source !== window) return;
   if (event.origin && event.origin !== window.location.origin) return;
   var data = event.data;
-  if (!ashlyv_validateMessage(data, ['ASHLYV_OPEN_URL', 'ASHLYV_TRIGGER_SCAN', 'ASHLYV_RESULT', 'ASHLYV_PING'])) return;
-  var extId = '';
-  try { extId = document.documentElement.getAttribute('data-nsp-ext-id') || ''; } catch (eId) {}
-  if (!extId || data.ashlyvInternal !== extId) return;
-  if (data.type !== 'ASHLYV_TRIGGER_SCAN') return;
+  // No token: any script here can post this, and all it can do is start a scan, which a click on SCAN does too.
+  if (!ashlyv_validateMessage(data, ['ASHLYV_TRIGGER_SCAN'])) return;
   var query = typeof data.query === 'string' ? data.query.slice(0, 2000) : '';
   var nicheId = typeof data.nicheId === 'string' ? data.nicheId.slice(0, 200) : '';
   var languageCode = typeof data.languageCode === 'string' ? data.languageCode.slice(0, 20) : 'auto';
@@ -24840,1077 +24240,8 @@ setTimeout(function() {
   })();
 }, 1000);
 
-// ASHLYV NSP-BUNDLE — ALL FEATURES ACTIVE
-
-function injectProButton() {
-  try {
-    var oldProxy = document.getElementById('nsp-pro-click-proxy');
-    if (oldProxy) oldProxy.remove();
-    var oldDocPanel = document.getElementById('nsp-pro-panel');
-    if (oldDocPanel) oldDocPanel.remove();
-    var oldOverlay = document.getElementById('nsp-pro-modal-overlay');
-    if (oldOverlay) oldOverlay.remove();
-  } catch(e) {}
-  return;
-  var oldTopBtn = document.getElementById('nsp-pro-btn');
-  if (oldTopBtn) {
-    var oldTopWrap = document.getElementById('nsp-pro-wrap');
-    if (oldTopWrap && oldTopWrap.parentNode) oldTopWrap.parentNode.removeChild(oldTopWrap);
-    else if (oldTopBtn.parentNode) oldTopBtn.parentNode.removeChild(oldTopBtn);
-  }
-
-  var shadowHost = document.getElementById('nsp-shadow-host');
-  var shadowRoot = shadowHost && shadowHost.shadowRoot ? shadowHost.shadowRoot : null;
-  var footer = shadowRoot ? shadowRoot.getElementById('footer') : null;
-  if (!footer) {
-    syncProClickProxy(null);
-    return;
-  }
-  var existingShadowBtn = shadowRoot.getElementById('nsp-pro-btn');
-  if (existingShadowBtn) {
-    var freshBtn = existingShadowBtn.cloneNode(true);
-    try { delete freshBtn.dataset.nspProBoundVersion; } catch(e) { freshBtn.dataset.nspProBoundVersion = ''; }
-    if (existingShadowBtn.parentNode) existingShadowBtn.parentNode.replaceChild(freshBtn, existingShadowBtn);
-    bindProButtonHandlers(freshBtn);
-    bindProDelegatedHandlers(shadowRoot, footer);
-    syncProClickProxy(freshBtn);
-    return;
-  }
-
-  var wrap = document.createElement('div');
-  wrap.id = 'nsp-pro-wrap';
-  wrap.style.cssText = 'display:block;margin-top:8px;width:100%;';
-
-  var btn = document.createElement('button');
-  btn.id = 'nsp-pro-btn';
-  btn.type = 'button';
-  styleProButtonActive(btn, false);
-  btn.dataset.nspBaseLabel = 'PRO';
-
-  var txt = document.createElement('span');
-  txt.textContent = 'PRO';
-  txt.style.textShadow = '0 0 8px rgba(0,220,130,0.36)';
-
-  btn.appendChild(txt);
-  bindProButtonHandlers(btn);
-
-  wrap.appendChild(btn);
-  footer.appendChild(wrap);
-  bindProDelegatedHandlers(shadowRoot, footer);
-  syncProClickProxy(btn);
-}
-
-var nspProOutsideClickHandler = null;
-var nspProLastOpenAt = 0;
-var nspProDelegatedBound = false;
-var nspProProxyTimer = null;
-
-function getProClickProxy() {
-  var proxy = document.getElementById('nsp-pro-click-proxy');
-  if (!proxy) {
-    proxy = document.createElement('button');
-    proxy.id = 'nsp-pro-click-proxy';
-    proxy.type = 'button';
-    document.body.appendChild(proxy);
-  }
-  proxy.setAttribute('aria-label', 'Open PRO tools');
-  proxy.textContent = 'PRO';
-  proxy.style.cssText = 'position:fixed;z-index:2147483647;display:flex;align-items:center;justify-content:center;'
-    + 'height:38px;border-radius:8px;border:1px solid rgba(255,255,255,.24);'
-    + 'background:linear-gradient(180deg,rgba(255,255,255,.12),rgba(255,255,255,.04));'
-    + 'color:#eafff5;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;'
-    + 'font-size:11px;font-weight:900;letter-spacing:.14em;text-shadow:0 0 10px rgba(0,220,130,.55);'
-    + 'box-shadow:0 0 18px rgba(0,220,130,.18),inset 0 1px 0 rgba(255,255,255,.08);'
-    + 'padding:0 18px;margin:0;cursor:pointer;pointer-events:auto;outline:none;box-sizing:border-box;';
-  if (proxy.dataset.nspProProxyBound !== '2') {
-    proxy.dataset.nspProProxyBound = '2';
-    proxy.onclick = handleProButtonEvent;
-    proxy.addEventListener('click', handleProButtonEvent, true);
-    proxy.addEventListener('pointerup', handleProButtonEvent, true);
-    proxy.addEventListener('keydown', function(ev) {
-      if (!ev || (ev.key !== 'Enter' && ev.key !== ' ')) return;
-      handleProButtonEvent(ev);
-    }, true);
-  }
-  return proxy;
-}
-
-function syncProClickProxy(btn) {
-  if (!nspProProxyTimer) {
-    nspProProxyTimer = setInterval(function() {
-      syncProClickProxy(getProButton());
-    }, 500);
-  }
-  try {
-    btn = btn || getProButton();
-    var proxy = getProClickProxy();
-    if (!proxy) return;
-    if (!btn) {
-      proxy.style.display = 'flex';
-      proxy.style.left = 'auto';
-      proxy.style.top = 'auto';
-      proxy.style.right = '24px';
-      proxy.style.bottom = '78px';
-      proxy.style.width = '240px';
-      proxy.style.height = '38px';
-      return;
-    }
-    var rect = btn.getBoundingClientRect();
-    if (!rect || rect.width < 8 || rect.height < 8) {
-      proxy.style.display = 'flex';
-      proxy.style.left = 'auto';
-      proxy.style.top = 'auto';
-      proxy.style.right = '24px';
-      proxy.style.bottom = '78px';
-      proxy.style.width = '240px';
-      proxy.style.height = '38px';
-      return;
-    }
-    proxy.style.display = 'flex';
-    proxy.style.left = Math.round(rect.left) + 'px';
-    proxy.style.top = Math.round(rect.top) + 'px';
-    proxy.style.right = 'auto';
-    proxy.style.bottom = 'auto';
-    proxy.style.width = Math.round(rect.width) + 'px';
-    proxy.style.height = Math.round(rect.height) + 'px';
-  } catch(e) {}
-}
-
-function isProButtonEvent(ev) {
-  try {
-    var path = ev && ev.composedPath ? ev.composedPath() : [];
-    for (var i = 0; i < path.length; i++) {
-      if (path[i] && path[i].id === 'nsp-pro-btn') return true;
-    }
-  } catch(e) {}
-  try {
-    var node = ev && ev.target;
-    while (node) {
-      if (node.id === 'nsp-pro-btn') return true;
-      node = node.parentNode || node.host;
-    }
-  } catch(e2) {}
-  return false;
-}
-
-function bindProDelegatedHandlers(shadowRoot, footer) {
-  if (footer && footer.dataset.nspProDelegated !== '1') {
-    footer.dataset.nspProDelegated = '1';
-    footer.addEventListener('click', function(ev) {
-      if (isProButtonEvent(ev)) handleProButtonEvent(ev);
-    }, true);
-    footer.addEventListener('pointerup', function(ev) {
-      if (isProButtonEvent(ev)) handleProButtonEvent(ev);
-    }, true);
-  }
-  if (shadowRoot && !shadowRoot.__nspProDelegated) {
-    shadowRoot.__nspProDelegated = true;
-    shadowRoot.addEventListener('click', function(ev) {
-      if (isProButtonEvent(ev)) handleProButtonEvent(ev);
-    }, true);
-    shadowRoot.addEventListener('pointerup', function(ev) {
-      if (isProButtonEvent(ev)) handleProButtonEvent(ev);
-    }, true);
-  }
-  if (!nspProDelegatedBound) {
-    nspProDelegatedBound = true;
-    document.addEventListener('click', function(ev) {
-      if (isProButtonEvent(ev)) handleProButtonEvent(ev);
-    }, true);
-    document.addEventListener('pointerup', function(ev) {
-      if (isProButtonEvent(ev)) handleProButtonEvent(ev);
-    }, true);
-  }
-}
-
-function bindProButtonHandlers(btn) {
-  if (!btn) return;
-  if (btn.dataset.nspProBoundVersion === '4') return;
-  btn.dataset.nspProBoundVersion = '4';
-  btn.onclick = handleProButtonEvent;
-  btn.addEventListener('click', handleProButtonEvent, true);
-  btn.addEventListener('pointerup', handleProButtonEvent, true);
-  btn.addEventListener('mousedown', function(ev) {
-    try { ev.stopPropagation(); } catch(e) {}
-  }, true);
-  btn.addEventListener('keydown', function(ev) {
-    if (!ev || (ev.key !== 'Enter' && ev.key !== ' ')) return;
-    handleProButtonEvent(ev);
-  }, true);
-}
-
-function handleProButtonEvent(ev) {
-  try { if (ev) ev.preventDefault(); } catch(e) {}
-  try { if (ev) ev.stopPropagation(); } catch(e) {}
-  try { if (ev && ev.stopImmediatePropagation) ev.stopImmediatePropagation(); } catch(e) {}
-  var now = Date.now();
-  if (now - nspProLastOpenAt < 220) return false;
-  nspProLastOpenAt = now;
-  openProPanelSafe();
-  return false;
-}
-
-function getProButton() {
-  var btn = document.getElementById('nsp-pro-btn');
-  if (btn) return btn;
-  var shadowHost = document.getElementById('nsp-shadow-host');
-  var shadowRoot = shadowHost && shadowHost.shadowRoot ? shadowHost.shadowRoot : null;
-  return shadowRoot ? shadowRoot.getElementById('nsp-pro-btn') : null;
-}
-
-function getProRoot() {
-  return document;
-}
-
-function getProPanel() {
-  var panel = document.getElementById('nsp-pro-panel');
-  if (panel) return panel;
-  var overlayPanel = document.querySelector('#nsp-pro-modal-overlay #nsp-pro-panel');
-  if (overlayPanel) return overlayPanel;
-  var root = getProRoot();
-  return root && root.getElementById ? root.getElementById('nsp-pro-panel') : null;
-}
-
-function styleProButtonActive(btn, active) {
-  if (!btn) return;
-  setNSPMonoButtonActive(btn, active);
-  btn.style.width = '100%';
-  btn.style.height = '38px';
-  btn.style.marginTop = '0';
-  btn.style.borderRadius = '8px';
-  btn.style.justifyContent = 'center';
-  btn.style.pointerEvents = 'auto';
-}
-
-function showProFallbackPanel(message) {
-  try {
-    var oldOverlay = document.getElementById('nsp-pro-modal-overlay');
-    if (oldOverlay) oldOverlay.remove();
-    var old = document.getElementById('nsp-pro-panel');
-    if (old) old.remove();
-    var panel = document.createElement('div');
-    panel.id = 'nsp-pro-panel';
-    panel.style.cssText = 'position:fixed;top:76px;right:20px;width:360px;max-width:calc(100vw - 24px);'
-      + 'z-index:2147483647;background:#050505;color:#fff;border:1px solid rgba(255,255,255,.18);border-radius:16px;'
-      + 'box-shadow:0 24px 90px rgba(0,0,0,.88);font-family:ui-monospace,monospace;padding:16px;box-sizing:border-box;';
-    nspSetHTML(panel, '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">'
-      + '<div style="font-size:13px;font-weight:900;letter-spacing:.14em;">QUICK INTEL PANEL</div>'
-      + '<button id="nsp-pro-close" type="button" style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:#fff;cursor:pointer;">X</button>'
-      + '</div>'
-      + '<div style="margin-top:12px;font-size:11px;line-height:1.6;color:rgba(255,255,255,.72);">Quick Intel loaded in safe mode.</div>'
-      + '<button id="nsp-pro-retry" type="button" style="margin-top:14px;width:100%;height:40px;border-radius:8px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-weight:900;cursor:pointer;box-shadow:0 0 18px rgba(255,255,255,.22);">OPEN PRO</button>'
-      + '<div style="margin-top:10px;font-size:10px;color:rgba(255,255,255,.72);">' + String(message || '').replace(/[<>]/g, '') + '</div>');
-    document.body.appendChild(panel);
-    var close = document.getElementById('nsp-pro-close');
-    if (close) close.onclick = function() { panel.remove(); var btn = getProButton(); if (btn) styleProButtonActive(btn, false); };
-    var retry = document.getElementById('nsp-pro-retry');
-    if (retry) retry.onclick = function(ev) {
-      try { ev.stopPropagation(); } catch(e) {}
-      try { panel.remove(); } catch(e2) {}
-      setTimeout(function() { openProPanelSafe(); }, 20);
-    };
-    var btn = getProButton();
-    if (btn) styleProButtonActive(btn, true);
-  } catch(e) {}
-}
-
-function openProPanelSafe() {
-  try {
-    var existing = getProPanel();
-    if (existing) {
-      existing.style.display = 'block';
-      existing.style.zIndex = '2147483647';
-      var btn = getProButton();
-      if (btn) styleProButtonActive(btn, true);
-      return;
-    }
-    toggleProPanel();
-    setTimeout(function() {
-      if (!getProPanel()) showProFallbackPanel('The main panel could not be opened.');
-    }, 80);
-  } catch(e) {
-    showProFallbackPanel(e && e.message ? e.message : 'Could not open PRO.');
-  }
-}
-
-function toggleProPanel() {
-  var existing = getProPanel();
-  var btn = getProButton();
-  if (existing) {
-    var existingOverlay = document.getElementById('nsp-pro-modal-overlay');
-    if (existingOverlay) existingOverlay.remove();
-    else existing.remove();
-    if (btn) styleProButtonActive(btn, false);
-    if (nspProOutsideClickHandler) {
-      document.removeEventListener('click', nspProOutsideClickHandler, true);
-      nspProOutsideClickHandler = null;
-    }
-    return;
-  }
-
-  if (btn) styleProButtonActive(btn, true);
-
-  var panel = document.createElement('div');
-  panel.id = 'nsp-pro-panel';
-  panel.style.cssText = 'position:fixed;top:56px;right:20px;width:420px;max-width:calc(100vw - 24px);max-height:calc(100vh - 80px);'
-    + 'overflow:auto;background:#050505;border:1px solid rgba(255,255,255,0.26);'
-    + 'border-radius:16px;box-shadow:0 28px 90px rgba(0,0,0,0.86),0 0 38px rgba(255,255,255,0.14),inset 0 0 38px rgba(255,255,255,0.035);z-index:2147483647;'
-    + 'color:#fff;font-family:Inter,Arial,sans-serif;box-sizing:border-box;';
-  nspSetHTML(panel, buildProPanelHTML());
-  panel.addEventListener('click', function(ev) { try { ev.stopPropagation(); } catch(e) {} }, true);
-  document.body.appendChild(panel);
-
-  setTimeout(function() { attachProPanelListeners(document); }, 50);
-  setTimeout(function() {
-    nspProOutsideClickHandler = function(ev) {
-      var livePanel = getProPanel();
-      if (!livePanel) return;
-      if (livePanel.contains(ev.target) || isProButtonEvent(ev) || (ev.target && ev.target.id === 'nsp-pro-click-proxy')) return;
-      toggleProPanel();
-    };
-    document.addEventListener('click', nspProOutsideClickHandler, true);
-  }, 350);
-}
-
-function nspProNormalizeScanText(value) {
-  var text = String(value || '').toLowerCase();
-  try { text = text.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch(e) {}
-  return text.replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function getNspProFallbackScanItems(limit) {
-  limit = limit || 10;
-  var raw = [];
-  try { raw = raw.concat(window._ashlyv_final_feed_results || []); } catch(e) {}
-  try { raw = raw.concat(window._ashlyv_last_top_results || []); } catch(e) {}
-  try { raw = raw.concat(window._ashlyv_last_all_results || []); } catch(e) {}
-  if (typeof nspProGetLocalPool === 'function') return nspProGetLocalPool(raw).slice(0, limit);
-  var seen = {};
-  var out = [];
-  raw.forEach(function(item) {
-    var sc = (item && item.sc) || item || {};
-    var title = sc.title || item.title || '';
-    var channelName = sc.channelName || sc.channel || item.channelName || item.channel || '';
-    var videoId = sc.videoId || sc.vidId || item.videoId || item.sourceVideoId || '';
-    var key = nspProNormalizeScanText(videoId || title);
-    if (!key || seen[key]) return;
-    seen[key] = true;
-    out.push(Object.assign({}, item || {}, {
-      title: title,
-      channelName: channelName,
-      channelUrl: sc.channelUrl || item.channelUrl || '',
-      videoId: videoId,
-      sourceVideoId: videoId,
-      niche: item.niche || item._nicheLabel || sc.niche || '',
-      sc: Object.assign({}, sc, {
-        title: title,
-        channelName: channelName,
-        channelUrl: sc.channelUrl || item.channelUrl || '',
-        videoId: videoId
-      })
-    }));
-  });
-  return out.slice(0, limit);
-}
-
-function getNspProVisibleScanItems(limit) {
-  limit = limit || 10;
-  var host = document.getElementById('nsp-shadow-host');
-  var root = host && host.shadowRoot;
-  var rows = root ? Array.prototype.slice.call(root.querySelectorAll('#list [data-niche-card], #list .row, [data-niche-card]')) : [];
-  var fallback = getNspProFallbackScanItems(120);
-  var out = [];
-
-  function findMatch(title, channel) {
-    var titleKey = nspProNormalizeScanText(title);
-    var channelKey = nspProNormalizeScanText(channel);
-    if (!titleKey) return null;
-    for (var i = 0; i < fallback.length; i++) {
-      var item = fallback[i] || {};
-      var sc = item.sc || item || {};
-      var itemTitle = nspProNormalizeScanText(sc.title || item.title || '');
-      var itemChannel = nspProNormalizeScanText(sc.channelName || sc.channel || item.channelName || item.channel || '');
-      var titleMatch = itemTitle === titleKey || itemTitle.indexOf(titleKey) !== -1 || titleKey.indexOf(itemTitle.slice(0, Math.min(itemTitle.length, 34))) !== -1;
-      var channelMatch = !channelKey || !itemChannel || itemChannel.indexOf(channelKey) !== -1 || channelKey.indexOf(itemChannel) !== -1;
-      if (titleMatch && channelMatch) return item;
-    }
-    return null;
-  }
-
-  rows.forEach(function(row) {
-    if (!row || out.length >= limit) return;
-    var titleEl = row.querySelector && row.querySelector('.title');
-    var title = row.getAttribute('data-title') || (titleEl && titleEl.textContent) || '';
-    title = String(title || '').replace(/\s+/g, ' ').trim();
-    if (!title) return;
-
-    var channel = row.getAttribute('data-channel') || '';
-    var niche = '';
-    var metas = row.querySelectorAll ? Array.prototype.slice.call(row.querySelectorAll('.meta')) : [];
-    metas.forEach(function(meta) {
-      var text = String((meta && meta.textContent) || '').replace(/\s+/g, ' ').trim();
-      if (/^NICHE\s*:/i.test(text)) niche = text.replace(/^NICHE\s*:\s*/i, '').trim();
-      else if (!channel && text) channel = text.split(' | ')[0].split(' · ')[0].replace(/\s+-\s+hace.*$/i, '').trim();
-    });
-
-    var videoId = row.getAttribute('data-video-id') || '';
-    var match = findMatch(title, channel);
-    var msc = (match && match.sc) || match || {};
-    var channelName = channel || msc.channelName || msc.channel || (match && (match.channelName || match.channel)) || '';
-    var finalVideoId = videoId || msc.videoId || msc.vidId || (match && (match.videoId || match.sourceVideoId)) || '';
-    var finalNiche = niche || (match && (match.niche || match._nicheLabel)) || msc.niche || '';
-    out.push(Object.assign({}, match || {}, {
-      title: title,
-      channelName: channelName,
-      channelUrl: msc.channelUrl || (match && match.channelUrl) || '',
-      videoId: finalVideoId,
-      sourceVideoId: finalVideoId,
-      niche: finalNiche,
-      _nicheLabel: finalNiche,
-      sc: Object.assign({}, msc, {
-        title: title,
-        channelName: channelName,
-        channelUrl: msc.channelUrl || (match && match.channelUrl) || '',
-        videoId: finalVideoId,
-        vidId: finalVideoId,
-        niche: finalNiche
-      })
-    }));
-  });
-
-  return out.length ? out : fallback.slice(0, limit);
-}
-
-function nspProIntelEsc(v) {
-  if (typeof nspProEsc === 'function') return nspProEsc(v);
-  if (typeof ashlyv_sanitize === 'function') return ashlyv_sanitize(String(v === undefined || v === null ? '' : v));
-  return String(v === undefined || v === null ? '' : v).replace(/[&<>"']/g, function(ch) {
-    return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch];
-  });
-}
-
-function buildProPanelHTML() {
-  var inputStyle = 'background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);color:#fff;font-size:11px;border-radius:6px;padding:8px;outline:none;box-sizing:border-box;';
-  var cardStyle = 'background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid rgba(255,255,255,0.06);padding:12px;margin-bottom:12px;';
-  var labelStyle = 'font-size:10px;font-weight:900;letter-spacing:.08em;margin-bottom:8px;text-transform:uppercase;';
-  var smallBtn = 'border:1px solid rgba(255,255,255,.72);border-radius:8px;padding:10px 12px;font-weight:900;font-size:10px;cursor:pointer;white-space:nowrap;background:#fff;color:#000;box-shadow:0 0 18px rgba(255,255,255,.22);letter-spacing:.08em;';
-  var scanItems = getNspProVisibleScanItems(10);
-  var scanOptions = scanItems.length ? scanItems.map(function(item, idx) {
-    var sc = (item && item.sc) || item || {};
-    return '<option value="' + idx + '">#' + (idx + 1) + ' · ' + nspProIntelEsc(String(sc.channelName || item.channelName || 'Channel')).slice(0, 28) + ' · ' + nspProIntelEsc(String(sc.title || item.title || item._nicheLabel || 'Niche')).slice(0, 52) + '</option>';
-  }).join('') : '<option value="0">No scan result selected</option>';
-  return ''
-    + '<button id="nsp-pro-collapse-toggle" type="button" title="Collapse or expand" style="position:absolute;left:-18px;top:78px;width:28px;height:42px;border-radius:12px 0 0 12px;border:1px solid rgba(255,255,255,.28);border-right:0;background:#050505;color:#fff;font-size:15px;font-weight:950;cursor:pointer;box-shadow:0 0 18px rgba(255,255,255,.14);z-index:2;">›</button>'
-    + '<div style="padding:14px 14px 12px;border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:space-between;gap:12px;">'
-    +   '<div style="font-size:15px;font-weight:950;letter-spacing:.12em;color:#fff;">QUICK INTEL PANEL</div>'
- +'<button id="nsp-pro-close" type="button" style="width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:#fff;font-size:16px;line-height:1;cursor:pointer;"></button>'
-    + '</div>'
-    + '<div id="nsp-pro-intel-shell" style="padding:12px 14px 0;">'
-    +   '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">'
-    +     '<button class="nsp-pro-mode" type="button" data-target="pro-trend-card" style="border:1px solid rgba(255,255,255,0.55);background:#fff;color:#000;border-radius:8px;padding:9px 6px;font-size:10px;font-weight:900;cursor:pointer;box-shadow:0 0 16px rgba(255,255,255,.22);">TREND STATUS</button>'
-    +     '<button class="nsp-pro-mode" type="button" data-target="pro-face-card" style="border:1px solid rgba(255,255,255,0.35);background:rgba(255,255,255,0.04);color:#fff;border-radius:8px;padding:9px 6px;font-size:10px;font-weight:900;cursor:pointer;">FACE ANALYSIS</button>'
-    +     '<button class="nsp-pro-mode" type="button" data-target="pro-gap-card" style="border:1px solid rgba(255,255,255,0.35);background:rgba(255,255,255,0.04);color:#fff;border-radius:8px;padding:9px 6px;font-size:10px;font-weight:900;cursor:pointer;">GAP ALERT</button>'
-    +   '</div>'
-    +   '<div style="' + cardStyle + 'padding:10px;margin-bottom:12px;">'
-    +     '<div style="' + labelStyle + 'color:#fff;margin-bottom:7px;">SELECTED SCAN RESULT</div>'
-    +     '<select id="pro-scan-item" style="' + inputStyle + 'width:100%;">' + scanOptions + '</select>'
-    +     '<div id="pro-scan-picked" style="font-size:9px;color:rgba(255,255,255,.56);line-height:1.45;margin-top:7px;">Select a channel to view intel.</div>'
-    +   '</div>'
-    +   '<div id="pro-trend-card" style="' + cardStyle + '">'
-    +     '<div style="' + labelStyle + 'color:#fff;">TREND STATUS</div>'
-    +     '<div id="pro-trend-result" style="font-size:11px;line-height:1.45;color:rgba(255,255,255,.86);">Select a channel to view intel.</div>'
-    +   '</div>'
-    +   '<div id="pro-face-card" style="' + cardStyle + '">'
-    +     '<div style="' + labelStyle + 'color:#fff;">FACE ANALYSIS SCORE</div>'
-    +     '<div id="pro-face-result" style="font-size:11px;line-height:1.45;color:rgba(255,255,255,.86);">Select a channel to view intel.</div>'
-    +   '</div>'
-    +   '<div id="pro-gap-card" style="' + cardStyle + '">'
-    +     '<div style="' + labelStyle + 'color:#fff;">GAP ALERT</div>'
-    +     '<div id="pro-gap-result" style="font-size:11px;line-height:1.45;color:rgba(255,255,255,.86);">Select a channel to view intel.</div>'
-    +   '</div>'
-    +   '<button id="pro-deep-btn" type="button" style="' + smallBtn + 'width:100%;margin-bottom:14px;">OPEN DEEP ANALYSIS</button>'
-    + '</div>';
-}
-
-function attachProPanelListeners(root) {
-  root = root || getProRoot() || document;
-  function byId(id) {
-    return root && root.getElementById ? root.getElementById(id) : document.getElementById(id);
-  }
-  function queryAll(sel) {
-    return root && root.querySelectorAll ? root.querySelectorAll(sel) : document.querySelectorAll(sel);
-  }
-
-  var closeBtn = byId('nsp-pro-close');
-  if (closeBtn) closeBtn.onclick = function(ev) {
-    if (ev) {
-      try { ev.preventDefault(); } catch(e) {}
-      try { ev.stopPropagation(); } catch(e) {}
-    }
-    toggleProPanel();
-  };
-
-  function intelSetHTML(id, html) {
-    var el = byId(id);
-    if (!el) return;
-    if (typeof setNSPTrustedHTML === 'function') setNSPTrustedHTML(el, html);
-    else nspSetHTML(el, html);
-  }
-
-  function intelClamp(n, min, max) {
-    n = Number(n || 0);
-    return Math.max(min, Math.min(max, n));
-  }
-
-  function intelNum(v, fallback) {
-    v = Number(v);
-    return isFinite(v) ? v : (fallback || 0);
-  }
-
-  function intelSc(item) {
-    return (item && item.sc) || item || {};
-  }
-
-  function intelText(item) {
-    var sc = intelSc(item);
-    return String((sc.title || item.title || '') + ' ' + (sc.channelName || item.channelName || '') + ' ' + (item.niche || item._nicheLabel || sc.niche || '')).toLowerCase();
-  }
-
-  function intelAgeHours(item) {
-    var sc = intelSc(item);
-    try {
-      if (typeof getAshlyVAgeHours === 'function') {
-        var age = getAshlyVAgeHours(sc);
-        if (age != null && isFinite(age)) return age;
-      }
-    } catch(e) {}
-    return intelNum(sc.ageHours || item.ageHours || 72, 72);
-  }
-
-  function intelMetric(label, value) {
-    return '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:9px;text-align:center;box-shadow:inset 0 0 12px rgba(255,255,255,.03);">'
-      + '<div style="font-size:8px;color:rgba(255,255,255,.46);font-weight:900;letter-spacing:.08em;text-transform:uppercase;">' + nspProIntelEsc(label) + '</div>'
-      + '<div style="font-size:14px;color:#fff;font-weight:950;margin-top:4px;text-shadow:0 0 10px rgba(255,255,255,.22);">' + nspProIntelEsc(value) + '</div>'
-      + '</div>';
-  }
-
-  function analyzeProTrend(item) {
-    var sc = intelSc(item);
-    var views = intelNum(sc.views || item.views, 0);
-    var vph = intelNum(sc.vph || item.vph, 0);
-    var age = Math.max(1, intelAgeHours(item));
-    var text = intelText(item);
-    var velocity = Math.round(intelClamp((Math.log10(vph + 1) * 28) + Math.min(22, views / 50000), 0, 100));
-    var momentum = Math.round(intelClamp((vph / Math.max(1, views / 90000)) + (age < 72 ? 18 : age < 720 ? 8 : -12), 0, 100));
-    var saturatedSignal = /(podcast|entrevista|noticias|news|celebrity|famos|pol[ií]tica|official video|music video|highlights)/i.test(text);
-    var status = 'STABLE';
-    if (saturatedSignal && velocity < 65) status = 'SATURATED';
-    else if (velocity >= 82 || momentum >= 82) status = 'EXPLODING';
-    else if (velocity >= 58 || momentum >= 55) status = 'RISING';
-    else if (velocity <= 22 && momentum <= 25) status = 'DEAD';
-    var direction = status === 'EXPLODING' ? 'fast upward' : status === 'RISING' ? 'upward' : status === 'SATURATED' ? 'crowded' : status === 'DEAD' ? 'down / cold' : 'flat stable';
-    var desc = status === 'EXPLODING'
-      ? 'This niche is accelerating hard and can still capture demand.'
-      : status === 'RISING'
-        ? 'This niche has not fully broken out yet, but it is trending up.'
-        : status === 'SATURATED'
-          ? 'This niche already shows saturation, or leans on one repeated format.'
-          : status === 'DEAD'
-            ? 'This niche looks cold: low velocity and little recent momentum.'
-            : 'This niche looks stable, but it is not accelerating.';
-    return { status: status, velocity: velocity, momentum: momentum, direction: direction, desc: desc };
-  }
-
-  function analyzeProFace(item) {
-    var text = intelText(item);
-    var rawScore = intelNum(item && (item.facelessScore || item._facelessScore || item.automationPotential), 0);
-    if (!rawScore) rawScore = intelNum(intelSc(item).facelessScore, 0);
-    if (!rawScore) {
-      rawScore = /(documental|documentary|historia|history|misterio|mystery|ciencia|science|space|espacio|survival|supervivencia|ancient|civiliz|map|animated|animation)/i.test(text) ? 88 : 68;
-    }
-    var personRisk = /(podcast|entrevista|interview|vlog|stream|facecam|reaction|celebrity|famos|influencer|official video|music video|presidente|trump|biden)/i.test(text) ? 45 : 10;
-    var faceless = Math.round(intelClamp(rawScore - personRisk + 8, 0, 100));
-    var faceDetected = personRisk >= 35 ? 'FACE DETECTED' : 'NO FACE DETECTED';
-    var aiFriendly = faceless >= 86 ? 'HIGH' : faceless >= 68 ? 'MEDIUM' : 'LOW';
-    var automation = faceless >= 82 ? 'EASY' : faceless >= 62 ? 'MEDIUM' : 'HARD';
-    var replication = faceless >= 80 && personRisk < 35 ? 'LOW' : faceless >= 62 ? 'MEDIUM' : 'HIGH';
-    var safety = personRisk > 40 ? 'MEDIUM' : faceless >= 75 ? 'LOW RISK' : 'CHECK';
-    return { faceless: faceless, faceDetected: faceDetected, aiFriendly: aiFriendly, automation: automation, replication: replication, safety: safety };
-  }
-
-  function analyzeProGaps(item) {
-    var text = intelText(item);
-    var niche = selectedProNiche();
-    var gaps = [];
-    if (/historia|history|civiliz|biblia|bible|relig/i.test(text + ' ' + niche)) {
-      gaps.push('Sleep-format missing in this niche');
-      gaps.push('New angle opportunity: documentary storytelling');
-      gaps.push('Potential subniche: Biblical mysteries for sleep');
-    } else if (/supervivencia|survival|depresion|depression/i.test(text + ' ' + niche)) {
-      gaps.push('Low competition angle detected: practical survival stories');
-      gaps.push('Format gap: narrated case studies with checklists');
-      gaps.push('Competitors are repeating the same titles');
-    } else if (/ciencia|science|space|espacio|tecnolog|ai|inteligencia/i.test(text + ' ' + niche)) {
-      gaps.push('Animation explainer angle is underused');
-      gaps.push('Opportunity: scary science mysteries');
-      gaps.push('Low competition format: short documentary sequences');
-    } else {
-      gaps.push('Low competition angle detected');
-      gaps.push('Competitors are repeating the same titles');
-      gaps.push('New angle opportunity: faceless documentary storytelling');
-    }
-    gaps.push('Subniche test recommended before scaling');
-    return gaps.slice(0, 4);
-  }
-
-  function renderProIntel(item) {
-    var picked = byId('pro-scan-picked');
-    if (!item) {
-      if (picked) picked.textContent = 'Select a channel to view intel.';
-      intelSetHTML('pro-trend-result', 'Select a channel to view intel.');
-      intelSetHTML('pro-face-result', 'Select a channel to view intel.');
-      intelSetHTML('pro-gap-result', 'Select a channel to view intel.');
-      return;
-    }
-    var sc = intelSc(item);
-    if (picked) picked.textContent = (sc.channelName || item.channelName || 'Channel') + ' · ' + (sc.title || item.title || selectedProNiche());
-    var trend = analyzeProTrend(item);
-    var face = analyzeProFace(item);
-    var gaps = analyzeProGaps(item);
-    intelSetHTML('pro-trend-result',
-      '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">'
-      + '<div style="font-size:20px;font-weight:950;color:#fff;text-shadow:0 0 14px rgba(255,255,255,.28);">' + nspProIntelEsc(trend.status) + '</div>'
-      + '<div style="font-size:9px;color:rgba(255,255,255,.58);text-transform:uppercase;letter-spacing:.08em;">' + nspProIntelEsc(trend.direction) + '</div>'
-      + '</div>'
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-      + intelMetric('velocity score', trend.velocity + '/100')
-      + intelMetric('momentum score', trend.momentum + '/100')
-      + '</div>'
-      + '<div style="color:rgba(255,255,255,.78);font-size:10px;line-height:1.5;">' + nspProIntelEsc(trend.desc) + '</div>');
-    intelSetHTML('pro-face-result',
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">'
-      + intelMetric('faceless', face.faceless + '%')
-      + intelMetric('face signal', face.faceDetected)
-      + intelMetric('ai friendly', face.aiFriendly)
-      + intelMetric('automation', face.automation)
-      + intelMetric('replication', face.replication)
-      + intelMetric('risk', face.safety)
-      + '</div>');
-    intelSetHTML('pro-gap-result',
-      '<div style="display:grid;gap:7px;">' + gaps.map(function(gap) {
-        return '<div style="border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.035);border-radius:8px;padding:8px 9px;color:#fff;font-size:10px;line-height:1.35;">' + nspProIntelEsc(gap) + '</div>';
-      }).join('') + '</div>');
-  }
-
-  var proScanItems = getNspProVisibleScanItems(10);
-  function selectedProScanItem() {
-    var idx = Number(val('pro-scan-item') || 0);
-    return proScanItems[idx] || proScanItems[0] || null;
-  }
-  function selectedProNiche() {
-    var item = selectedProScanItem() || {};
-    var sc = intelSc(item);
-    var text = String(item.niche || item._nicheLabel || sc.niche || '').trim();
-    if (!text && typeof detectNicheLabel === 'function') text = detectNicheLabel((sc.title || item.title || '') + ' ' + (sc.channelName || item.channelName || ''));
-    return String(text || sc.title || item.title || 'General').replace(/[^\w\s\-&.,]/g, '').replace(/\s+/g, ' ').trim();
-  }
-
-  function markProRowActive(idx) {
-    var host = document.getElementById('nsp-shadow-host');
-    var sr = host && host.shadowRoot;
-    var rows = sr ? Array.prototype.slice.call(sr.querySelectorAll('#list [data-niche-card], #list .row, [data-niche-card]')) : [];
-    rows.forEach(function(row, rowIdx) {
-      row.style.outline = rowIdx === idx ? '1px solid rgba(255,255,255,.72)' : '';
-      row.style.boxShadow = rowIdx === idx ? 'inset 0 0 0 1px rgba(255,255,255,.20),0 0 18px rgba(255,255,255,.18)' : '';
-      row.style.background = rowIdx === idx ? 'rgba(255,255,255,.055)' : '';
-    });
-  }
-
-  function syncProIntelSelection() {
-    proScanItems = getNspProVisibleScanItems(10);
-    var idx = Number(val('pro-scan-item') || 0);
-    markProRowActive(idx);
-    renderProIntel(selectedProScanItem());
-  }
-
-  function bindProRows() {
-    var host = document.getElementById('nsp-shadow-host');
-    var sr = host && host.shadowRoot;
-    var rows = sr ? Array.prototype.slice.call(sr.querySelectorAll('#list [data-niche-card], #list .row, [data-niche-card]')) : [];
-    rows.forEach(function(row, idx) {
-      if (row.__nspProIntelBound) return;
-      row.__nspProIntelBound = true;
-      row.addEventListener('click', function() {
-        var select = byId('pro-scan-item');
-        if (select) select.value = String(idx);
-        syncProIntelSelection();
-      }, false);
-    });
-  }
-
-  var modes = queryAll('#nsp-pro-panel .nsp-pro-mode');
-  function showProIntelTab(targetId, activeButton) {
-    ['pro-trend-card', 'pro-face-card', 'pro-gap-card'].forEach(function(id) {
-      var card = byId(id);
-      if (card) card.style.display = id === targetId ? 'block' : 'none';
-    });
-    for (var m = 0; m < modes.length; m++) {
-      var active = activeButton ? modes[m] === activeButton : modes[m].getAttribute('data-target') === targetId;
-      modes[m].style.background = active ? '#fff' : 'rgba(255,255,255,0.04)';
-      modes[m].style.color = active ? '#000' : '#fff';
-      modes[m].style.borderColor = active ? 'rgba(255,255,255,.55)' : 'rgba(255,255,255,.35)';
-      modes[m].style.boxShadow = active ? '0 0 16px rgba(255,255,255,.22)' : 'none';
-    }
-  }
-  for (var i = 0; i < modes.length; i++) {
-    modes[i].onclick = function(ev) {
-      if (ev) {
-        try { ev.preventDefault(); } catch(e) {}
-        try { ev.stopPropagation(); } catch(e) {}
-      }
-      showProIntelTab(this.getAttribute('data-target'), this);
-    };
-  }
-  showProIntelTab('pro-trend-card');
-
-  var collapseBtn = byId('nsp-pro-collapse-toggle');
-  if (collapseBtn) collapseBtn.onclick = function(ev) {
-    if (ev) {
-      try { ev.preventDefault(); } catch(e) {}
-      try { ev.stopPropagation(); } catch(e) {}
-    }
-    var panel = getProPanel ? getProPanel() : document.getElementById('nsp-pro-panel');
-    var shell = byId('nsp-pro-intel-shell');
-    if (!panel) return;
-    var collapsed = panel.getAttribute('data-collapsed') === '1';
-    panel.setAttribute('data-collapsed', collapsed ? '0' : '1');
-    panel.style.width = collapsed ? '420px' : '58px';
-    panel.style.overflow = collapsed ? 'auto' : 'visible';
-    if (shell) shell.style.display = collapsed ? 'block' : 'none';
-    collapseBtn.textContent = collapsed ? '›' : '‹';
-  };
-
-  function openProDeepAnalysis(item) {
-    item = item || selectedProScanItem();
-    if (!item) return;
-    var sc = intelSc(item);
-    var trend = analyzeProTrend(item);
-    var face = analyzeProFace(item);
-    var gaps = analyzeProGaps(item);
-    var old = document.getElementById('nsp-pro-deep-overlay');
-    if (old) old.remove();
-    var overlay = document.createElement('div');
-    overlay.id = 'nsp-pro-deep-overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:2147483647;display:flex;align-items:center;justify-content:center;color:#fff;font-family:Inter,Arial,sans-serif;';
-    var html = '<div style="width:560px;max-width:calc(100vw - 28px);max-height:calc(100vh - 48px);overflow:auto;background:#050505;border:1px solid rgba(255,255,255,.26);border-radius:16px;box-shadow:0 28px 90px rgba(0,0,0,.86),0 0 38px rgba(255,255,255,.14);">'
-      + '<div style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.12);display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">'
-      + '<div><div style="font-size:14px;font-weight:950;letter-spacing:.12em;">DEEP ANALYSIS</div><div style="font-size:10px;color:rgba(255,255,255,.6);margin-top:5px;">' + nspProIntelEsc(sc.channelName || item.channelName || 'Channel') + ' · ' + nspProIntelEsc(sc.title || item.title || selectedProNiche()) + '</div></div>'
-      + '<button id="nsp-pro-deep-close" type="button" style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.04);color:#fff;font-size:16px;cursor:pointer;">X</button>'
-      + '</div>'
-      + '<div style="padding:14px 16px;display:grid;gap:12px;">'
-      + '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">' + intelMetric('trend', trend.status) + intelMetric('faceless', face.faceless + '%') + intelMetric('risk', face.safety) + '</div>'
-      + '<div style="border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:12px;background:rgba(255,255,255,.035);"><div style="font-size:10px;font-weight:950;letter-spacing:.08em;margin-bottom:8px;">STRATEGIC READ</div><div style="font-size:11px;line-height:1.55;color:rgba(255,255,255,.78);">' + nspProIntelEsc(trend.desc) + ' Use this as a fast validation layer before scripting or cloning the format.</div></div>'
-      + '<div style="border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:12px;background:rgba(255,255,255,.035);"><div style="font-size:10px;font-weight:950;letter-spacing:.08em;margin-bottom:8px;">CONTENT GAPS</div>' + gaps.map(function(g) { return '<div style="font-size:11px;line-height:1.5;color:#fff;margin:5px 0;">- ' + nspProIntelEsc(g) + '</div>'; }).join('') + '</div>'
-      + '</div></div>';
-    nspSetHTML(overlay, html);
-    document.body.appendChild(overlay);
-    var closeDeep = document.getElementById('nsp-pro-deep-close');
-    if (closeDeep) closeDeep.onclick = function() { overlay.remove(); };
-    overlay.addEventListener('click', function(ev) { if (ev.target === overlay) overlay.remove(); });
-  }
-
-  var scanSelect = byId('pro-scan-item');
-  if (scanSelect) scanSelect.onchange = syncProIntelSelection;
-  var deepBtn = byId('pro-deep-btn');
-  if (deepBtn) deepBtn.onclick = function(ev) {
-    if (ev) {
-      try { ev.preventDefault(); } catch(e) {}
-      try { ev.stopPropagation(); } catch(e) {}
-    }
-    openProDeepAnalysis(selectedProScanItem());
-  };
-  bindProRows();
-  syncProIntelSelection();
-  return;
-
-  var modes = queryAll('#nsp-pro-panel .nsp-pro-mode');
-  for (var i = 0; i < modes.length; i++) {
-    modes[i].onclick = function(ev) {
-      if (ev) {
-        try { ev.preventDefault(); } catch(e) {}
-        try { ev.stopPropagation(); } catch(e) {}
-      }
-      var target = this.getAttribute('data-panel');
-      var panels = ['tools', 'replicate', 'brand'];
-      for (var p = 0; p < panels.length; p++) {
-        var panel = byId('nsp-pro-' + panels[p]);
-        if (panel) panel.style.display = panels[p] === target ? 'block' : 'none';
-      }
-      for (var m = 0; m < modes.length; m++) {
-        var color = modes[m].getAttribute('data-color') || '#00DC82';
-        var active = modes[m].getAttribute('data-panel') === target;
-        modes[m].style.background = active ? color : 'rgba(255,255,255,0.04)';
-        modes[m].style.color = active ? '#000' : color;
-        modes[m].style.borderColor = active ? color : color + '59';
-      }
-    };
-  }
-
-  async function proPost() {
-    throw new Error('This panel needs a local server that does not ship with the extension.');
-  }
-
-  function esc(v) {
-    return String(v === undefined || v === null ? '' : v).replace(/[&<>"']/g, function(ch) {
-      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch];
-    });
-  }
-
-  function val(id) {
-    var el = byId(id);
-    return el ? String(el.value || '').trim() : '';
-  }
-
-  var proScanItems = getNspProVisibleScanItems(10);
-  function selectedProScanItem() {
-    var idx = Number(val('pro-scan-item') || 0);
-    return proScanItems[idx] || proScanItems[0] || null;
-  }
-  function selectedProSc() {
-    var item = selectedProScanItem();
-    return (item && item.sc) || item || {};
-  }
-  function selectedProChannel() {
-    var item = selectedProScanItem() || {};
-    var sc = selectedProSc();
-    return String(sc.channelUrl || item.channelUrl || sc.channelId || item.channelId || sc.channelName || item.channelName || '').trim();
-  }
-  function selectedProNiche() {
-    var item = selectedProScanItem() || {};
-    var sc = selectedProSc();
-    var niche = item._nicheLabel || sc.niche || '';
-    if (!niche && typeof detectNicheLabel === 'function') niche = detectNicheLabel((sc.title || item.title || '') + ' ' + (sc.channelName || item.channelName || ''));
-    return String(niche || sc.title || item.title || 'General').replace(/[^\w\s\-&.,]/g, '').replace(/\s+/g, ' ').trim();
-  }
-  function selectedProLanguage() {
-    var item = selectedProScanItem() || {};
-    var sc = selectedProSc();
-    try { return (typeof detectTextLanguage === 'function' ? detectTextLanguage((sc.title || item.title || '') + ' ' + (sc.channelName || item.channelName || '')) : '') || 'es'; }
-    catch(e) { return 'es'; }
-  }
-  function syncProScanSelection() {
-    var item = selectedProScanItem() || {};
-    var sc = selectedProSc();
-    var channel = selectedProChannel();
-    var niche = selectedProNiche();
-    var picked = byId('pro-scan-picked');
-    if (picked) picked.textContent = (sc.channelName || item.channelName || 'Channel') + ' · ' + (sc.title || item.title || niche || '');
-    ['pro-age-channel', 'pro-viral-channel', 'pro-rep-channel'].forEach(function(id) {
-      var el = byId(id);
-      if (el) el.value = channel;
-    });
-    ['pro-title-keywords', 'pro-global-niche', 'pro-brand-niche'].forEach(function(id) {
-      var el = byId(id);
-      if (el) el.value = niche;
-    });
-    var lang = selectedProLanguage().slice(0, 2).toUpperCase();
-    ['pro-rep-language', 'pro-brand-language'].forEach(function(id) {
-      var el = byId(id);
-      if (el && ['ES', 'EN', 'PT', 'DE'].indexOf(lang) !== -1) el.value = lang;
-    });
-  }
-
-  function setResult(id, html, color) {
-    var el = byId(id);
-    if (!el) return;
-    el.style.color = color || 'rgba(255,255,255,0.86)';
-    nspSetHTML(el, html);
-  }
-
-  function loading(id) {
- setResult(id,'<div style="color:#FFD93D;font-weight:800;">Loading...</div>');
-  }
-
-  function showError(id, err) {
-    setResult(id, '<div style="color:#FF6B6B;font-weight:800;">Error: ' + esc(err && err.message ? err.message : err) + '</div>', '#FF6B6B');
-  }
-
-  function metricBox(label, value, color) {
-    return '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:9px;text-align:center;">'
-      + '<div style="font-size:9px;color:rgba(255,255,255,0.48);font-weight:800;text-transform:uppercase;">' + esc(label) + '</div>'
-      + '<div style="font-size:13px;color:' + color + ';font-weight:950;margin-top:4px;">' + esc(value) + '</div>'
-      + '</div>';
-  }
-
-  function firstPresent(obj, keys, fallback) {
-    if (!obj) return fallback;
-    for (var i = 0; i < keys.length; i++) {
-      if (obj[keys[i]] !== undefined && obj[keys[i]] !== null && obj[keys[i]] !== '') return obj[keys[i]];
-    }
-    return fallback;
-  }
-
-  function asArray(v) {
-    if (!v) return [];
-    return Object.prototype.toString.call(v) === '[object Array]' ? v : [];
-  }
-
-  var scanSelect = byId('pro-scan-item');
-  if (scanSelect) scanSelect.onchange = syncProScanSelection;
-  syncProScanSelection();
-
-  var ageBtn = byId('pro-age-btn');
-  if (ageBtn) ageBtn.onclick = async function() {
-    loading('pro-age-result');
-    try {
-      var data = await proPost('/niche/channel-age', { channel: selectedProChannel(), maxMonths: Number(val('pro-age-months') || 3) });
-      var pass = !!firstPresent(data, ['pass', 'passes', 'isPass', 'ok'], false);
-      var months = firstPresent(data, ['monthsOld', 'ageMonths', 'months'], 'n/a');
-      var created = firstPresent(data, ['createdDate', 'createdAt', 'publishedAt'], 'n/a');
- setResult('pro-age-result','<div style="font-weight:900;color:'+ (pass ?'#00DC82':'#FF6B6B') +';">'+ (pass ?'':'') +''+ months +'months old ·'+ esc(created) +'·'+ (pass ?'PASS':'FAIL') +'</div>');
-    } catch(err) { showError('pro-age-result', err); }
-  };
-
-  var viralBtn = byId('pro-viral-btn');
-  if (viralBtn) viralBtn.onclick = async function() {
-    loading('pro-viral-result');
-    try {
-      var data = await proPost('/niche/viral-metrics', { channel: selectedProChannel() });
-      var ratio = firstPresent(data, ['viralRatio', 'viralRatioPct', 'ratio'], 0);
-      if (typeof ratio === 'number' && ratio <= 1) ratio = Math.round(ratio * 100);
-      setResult('pro-viral-result', '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">'
-        + metricBox('Viral videos', firstPresent(data, ['viralVideoCount', 'viralVideos', 'count'], 0), '#FF6B6B')
-        + metricBox('Velocity', firstPresent(data, ['velocityTier', 'tier', 'velocity'], 'n/a'), '#FFD93D')
-        + metricBox('Ratio', String(ratio) + '%', '#00DC82')
-        + '</div>');
-    } catch(err) { showError('pro-viral-result', err); }
-  };
-
-  var titleBtn = byId('pro-title-btn');
-  if (titleBtn) titleBtn.onclick = async function() {
-    loading('pro-title-result');
-    try {
-      var data = await proPost('/niche/search-titles', { keywords: selectedProNiche(), language: selectedProLanguage() });
-      var channels = asArray(firstPresent(data, ['channels', 'topChannels', 'results'], []));
-      var html = '<div style="font-weight:900;color:#4DD0E1;margin-bottom:8px;">'
-        + esc(firstPresent(data, ['resultCount', 'count', 'total'], channels.length)) + ' results · '
-        + esc(firstPresent(data, ['subNiche', 'subniche'], 'n/a')) + ' · RPM '
-        + esc(firstPresent(data, ['rpm', 'RPM'], 'n/a')) + '</div>';
-      for (var i = 0; i < Math.min(5, channels.length); i++) {
-        var ch = channels[i];
-        html += '<div style="padding:8px;border-top:1px solid rgba(255,255,255,0.06);display:flex;justify-content:space-between;gap:8px;">'
-          + '<span style="font-weight:800;">' + esc(firstPresent(ch, ['name', 'channel', 'title'], 'Channel')) + '</span>'
-          + '<span style="color:rgba(255,255,255,0.62);">' + esc(firstPresent(ch, ['totalViews', 'views'], 'n/a')) + ' views</span>'
-          + '</div>';
-      }
-      setResult('pro-title-result', html);
-    } catch(err) { showError('pro-title-result', err); }
-  };
-
-  var globalBtn = byId('pro-global-btn');
-  if (globalBtn) globalBtn.onclick = async function() {
-    loading('pro-global-result');
-    try {
-      var data = await proPost('/niche/score-by-language', { niche: selectedProNiche() });
-      var rows = asArray(firstPresent(data, ['languages', 'scores', 'results'], []));
-      var best = firstPresent(data, ['bestLanguage', 'best', 'winner'], rows[0] || {});
-      var bestLabel = typeof best === 'string' ? best : firstPresent(best, ['language', 'code', 'name'], 'n/a');
-      var html = '<div style="background:rgba(0,220,130,0.1);border:1px solid rgba(0,220,130,0.28);border-radius:8px;padding:9px;margin-bottom:9px;font-weight:900;color:#00DC82;">Best: ' + esc(bestLabel) + '</div>';
-      html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">';
-      for (var i = 0; i < rows.length; i++) {
-        var row = rows[i];
-        var verdict = String(firstPresent(row, ['verdict', 'status'], 'TEST CAREFULLY')).toUpperCase();
-        var color = verdict === 'ATTACK NOW' ? '#00DC82' : (verdict === 'TEST CAREFULLY' ? '#FFD93D' : '#FF6B6B');
-        html += '<div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);border-radius:8px;padding:8px;">'
-          + '<div style="font-size:10px;font-weight:950;color:#fff;">' + esc(firstPresent(row, ['language', 'code', 'name'], 'n/a')) + '</div>'
-          + '<div style="font-size:16px;font-weight:950;color:' + color + ';">' + esc(firstPresent(row, ['score', 'value'], 'n/a')) + '</div>'
-          + '<div style="font-size:8px;font-weight:900;color:' + color + ';">' + esc(verdict) + '</div>'
-          + '</div>';
-      }
-      html += '</div>';
-      setResult('pro-global-result', html);
-    } catch(err) { showError('pro-global-result', err); }
-  };
-
-  var batchBtn = byId('pro-batch-btn');
-  if (batchBtn) batchBtn.onclick = async function() {
-    loading('pro-batch-result');
-    try {
-      var raw = val('pro-batch-channels');
-      var channels = raw.split(/\r?\n/).map(function(x) { return x.trim(); }).filter(Boolean);
-      var data = await proPost('/niche/batch-scan', { channels: channels });
-      var rows = asArray(firstPresent(data, ['results', 'ranked', 'channels'], []));
-      var html = '<div style="font-weight:900;color:#00DC82;margin-bottom:8px;">Scanned '
-        + esc(firstPresent(data, ['scanned', 'scannedCount'], rows.length)) + ' · Passing '
-        + esc(firstPresent(data, ['passing', 'passingCount'], 0)) + '</div>';
-      for (var i = 0; i < rows.length; i++) {
-        var row = rows[i];
-        var verdict = String(firstPresent(row, ['verdict', 'badge', 'tier'], 'SKIP')).toUpperCase();
-        var color = verdict === 'GOLD' ? '#FFD700' : (verdict === 'SILVER' ? '#C0C0C0' : (verdict === 'BRONZE' ? '#CD7F32' : '#FF6B6B'));
-        html += '<div style="padding:8px;border-top:1px solid rgba(255,255,255,0.06);display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;">'
-          + '<span style="font-weight:800;">' + esc(firstPresent(row, ['channel', 'name', 'url'], 'Channel')) + '</span>'
-          + '<span style="font-weight:950;color:#fff;">' + esc(firstPresent(row, ['score'], 'n/a')) + '</span>'
-          + '<span style="border-radius:999px;background:' + color + ';color:#000;font-size:8px;font-weight:950;padding:4px 7px;">' + esc(verdict) + '</span>'
-          + '</div>';
-      }
-      setResult('pro-batch-result', html);
-    } catch(err) { showError('pro-batch-result', err); }
-  };
-
-  var repBtn = byId('pro-rep-btn');
-  if (repBtn) repBtn.onclick = async function() {
-    loading('pro-rep-result');
-    try {
-      var data = await proPost('/niche/replicate-content', { channel: selectedProChannel(), language: val('pro-rep-language'), targetVideos: 3 });
-      var videos = asArray(firstPresent(data, ['videos', 'replications', 'ideas'], []));
-      var source = firstPresent(data, ['source', 'sourceInfo', 'channel'], {});
-      var html = '<div style="font-weight:900;color:#00DC82;margin-bottom:8px;">Source: ' + esc(typeof source === 'string' ? source : firstPresent(source, ['name', 'channel', 'title'], 'n/a')) + '</div>';
-      for (var i = 0; i < videos.length; i++) {
-        var v = videos[i];
-        html += '<div style="background:rgba(179,136,255,0.08);border:1px solid rgba(179,136,255,0.2);border-radius:9px;padding:10px;margin-bottom:9px;">'
-          + '<div style="font-weight:950;color:#fff;margin-bottom:6px;">' + esc(firstPresent(v, ['title'], 'Untitled')) + '</div>'
-          + '<div><b>Angle:</b> ' + esc(firstPresent(v, ['angle'], 'n/a')) + '</div>'
-          + '<div><b>Hook:</b> ' + esc(firstPresent(v, ['hook'], 'n/a')) + '</div>'
-          + '<div><b>Intro:</b> ' + esc(firstPresent(v, ['introPreview', 'intro'], 'n/a')) + '</div>'
-          + '<div><b>Thumbnail:</b> ' + esc(firstPresent(v, ['thumbnailConcept', 'thumbnail'], 'n/a')) + '</div>'
-          + '<div><b>Tags:</b> ' + esc(asArray(firstPresent(v, ['tags'], [])).join(', ') || firstPresent(v, ['tags'], 'n/a')) + '</div>'
-          + '</div>';
-      }
-      setResult('pro-rep-result', html);
-    } catch(err) { showError('pro-rep-result', err); }
-  };
-
-  var brandBtn = byId('pro-brand-btn');
-  if (brandBtn) brandBtn.onclick = async function() {
-    loading('pro-brand-result');
-    try {
-      var data = await proPost('/niche/build-brand', { niche: selectedProNiche(), language: val('pro-brand-language'), tone: val('pro-brand-tone') });
-      var names = asArray(firstPresent(data, ['channelNames', 'names'], []));
-      var colors = asArray(firstPresent(data, ['colorPalette', 'palette', 'colors'], []));
-      var html = '<div style="font-weight:900;color:#FFD93D;margin-bottom:8px;">Names: ' + esc(names.join(', ') || firstPresent(data, ['channelName', 'name'], 'n/a')) + '</div>';
-      html += '<div style="display:flex;gap:6px;margin-bottom:9px;">';
-      for (var i = 0; i < colors.length; i++) {
-        html += '<span title="' + esc(colors[i]) + '" style="display:inline-block;width:24px;height:24px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:' + esc(colors[i]) + ';"></span>';
-      }
-      html += '</div>';
-      html += '<div style="font-style:italic;color:rgba(255,255,255,0.82);margin-bottom:8px;">"' + esc(firstPresent(data, ['bio', 'bioQuote'], '')) + '"</div>';
-      html += '<div><b>Strategy:</b> ' + esc(firstPresent(data, ['strategySummary', 'strategy'], 'n/a')) + '</div>';
-      html += '<div><b>Monetization:</b> ' + esc(firstPresent(data, ['monetizationForecast', 'forecast'], 'n/a')) + '</div>';
-      setResult('pro-brand-result', html);
-    } catch(err) { showError('pro-brand-result', err); }
-  };
-}
-
-try {
-  window.__nspOpenProPanel = openProPanelSafe;
-  window.__nspInjectProButton = injectProButton;
-} catch(e) {}
-
-setTimeout(injectProButton, 1500);
-setTimeout(injectProButton, 4000);
 nspLoadDisplayPrefs();
 nspLoadVisionConsent();
 
-setInterval(injectProButton, 1000);
 setTimeout(injectAshlyVScanNavigatorBar, 1200);
 setTimeout(injectAshlyVScanNavigatorBar, 3500);

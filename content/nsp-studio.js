@@ -410,7 +410,8 @@
     host.id = 'nsp-studio-panel-host';
     host.style.cssText = 'all:initial;position:fixed;top:64px;right:24px;z-index:2147483647;width:460px;height:80vh;font-family:ui-monospace,monospace;';
     document.documentElement.appendChild(host);
-    var shadow = host.attachShadow({ mode: 'open' });
+    // Closed, and the send path answers real presses only: a script on studio.youtube.com must not be able to press SEND and spend the user's keys.
+    var shadow = host.attachShadow({ mode: 'closed' });
     _shadow = shadow;
     var st = document.createElement('style');
     st.textContent = [
@@ -478,8 +479,8 @@
     var input = document.createElement('textarea'); input.id = 'in'; input.placeholder = 'Ask about your channel, video or comments'; input.rows = 1; _input = input;
     var send = el('button'); send.id = 'send'; send.textContent = 'SEND'; _sendBtn = send;
     function doSend() { var v = (input.value || '').trim(); if (!v || S.pending) return; input.value = ''; input.style.height = 'auto'; agentTurn(v, body); }
-    send.onclick = doSend;
-    input.onkeydown = function(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); } };
+    send.onclick = function(e) { if (e && e.isTrusted === true) doSend(); };
+    input.onkeydown = function(e) { if (e.key === 'Enter' && !e.shiftKey && e.isTrusted === true) { e.preventDefault(); doSend(); } };
     input.oninput = function() { input.style.height = 'auto'; input.style.height = Math.min(120, input.scrollHeight) + 'px'; };
     inwrap.appendChild(input); inwrap.appendChild(send); p.appendChild(inwrap);
 
@@ -1254,7 +1255,7 @@
     try { injectButton(); } catch(e) {}
     try { injectTitlePredictorBtn(); } catch(e) {}
     try { injectThumbAnalyzerBtn(); } catch(e) {}
-    try { var host = document.getElementById('nsp-studio-panel-host'); if (host && host.shadowRoot && S.panelOpen) { var hs = host.shadowRoot.getElementById('hs'); if (hs) hs.textContent = pageLabel(pageType()); } } catch(e) {}
+    try { if (_shadow && S.panelOpen) { var hs = _shadow.getElementById('hs'); if (hs) hs.textContent = pageLabel(pageType()); } } catch(e) {}
   }
 
   loadConv(function(resumeAfterNav) {
@@ -1262,8 +1263,8 @@
     if (resumeAfterNav && S.messages.length) {
       try { chrome.storage.local.set({ 'nsp_studio_conv': { messages: S.messages, ts: Date.now() } }); } catch(e) {}
       setTimeout(function() {
-        var host = showPanel();
-        var body = host.shadowRoot && host.shadowRoot.getElementById('body');
+        showPanel();
+        var body = _shadow && _shadow.getElementById('body');
         if (body && !S.pending) {
           S.messages.push({ role: 'tool-status', content: 'Page reloaded, reading the new section' });
           renderMessages(body);

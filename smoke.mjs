@@ -291,7 +291,7 @@ function isData(entry) {
   return false;
 }
 
-const shipped = f => !/^(?:icons|scripts)\//.test(rel(f)) && !TOOLING.has(rel(f));
+const shipped = f => !/^(?:icons|scripts|tests)\//.test(rel(f)) && !TOOLING.has(rel(f));
 const userStrings = [
   ...jsFiles.filter(shipped).flatMap(jsStrings),
   ...htmlFiles.filter(shipped).flatMap(htmlStrings)
@@ -528,7 +528,16 @@ section("14. Pages nobody can reach");
   else unreachable.forEach(p => warn(p + " has no link from any page or script, so it only opens by typing the address"));
 }
 
-section("15. No regex with an empty alternative");
+section("15. Nothing turns Trusted Types off on youtube.com");
+{
+  // YouTube requires Trusted Types. A policy named "default" that returns its input unchanged makes every
+  // innerHTML on the page, YouTube's own and any third party's, accept markup again.
+  const hits = jsFiles.filter(f => /createPolicy\s*\(\s*['"]default['"]/.test(read(f))).map(rel);
+  if (hits.length) hits.forEach(f => fail(f + " registers a Trusted Types policy named default, which switches the protection off for every script on youtube.com; write HTML through nspSetHTML instead"));
+  else ok("no script registers a default Trusted Types policy");
+}
+
+section("16. No regex with an empty alternative");
 {
   // An empty branch, as in /a||b/, matches every string. A text purge once left dozens of them, and a
   // reject list that matches everything rejects every video without a word.
@@ -545,6 +554,47 @@ section("15. No regex with an empty alternative");
     });
   }
   if (!bad) ok("no regex literal has an empty alternative");
+}
+
+section("17. The service worker names who may send every message it routes");
+{
+  const sw = read(join(EXT, "background/service-worker.js"));
+  const block = /var\s+NSP_MESSAGE_CALLERS\s*=\s*\{([\s\S]*?)\n\};/.exec(sw);
+  if (!block) fail("background/service-worker.js has no NSP_MESSAGE_CALLERS table, so no message is checked for who sent it");
+  else {
+    const table = new Map([...block[1].matchAll(/^\s*'?([A-Za-z_:]+)'?\s*:\s*(.+?),?\s*$/gm)].map(m => [m[1], m[2].trim()]));
+    const routed = new Set([...sw.matchAll(/msg\.type === '([A-Za-z_:]+)'/g)].map(m => m[1]));
+    const missing = [...routed].filter(t => !table.has(t));
+    const stale = [...table.keys()].filter(t => !routed.has(t));
+    missing.forEach(t => fail("the worker routes " + t + " but NSP_MESSAGE_CALLERS does not name who may send it, so the door lets it fall through unanswered"));
+    stale.forEach(t => fail("NSP_MESSAGE_CALLERS lists " + t + " and no handler routes it"));
+    const EXT_ONLY_TYPES = ["NSP_AGENT_LIST_TABS", "NSP_AGENT_SWITCH_TAB", "NSP_AGENT_CLOSE_TAB", "NSP_AGENT_NAVIGATE", "NSP_AGENT_FETCH_URL"];
+    EXT_ONLY_TYPES.forEach(t => { if (table.get(t) !== "NSP_EXT_ONLY") fail(t + " must be NSP_EXT_ONLY: a content script on youtube.com speaks for every script on the page"); });
+    ["ASHLYV_CHAT_REQUEST"].forEach(t => { if (/youtube/.test(table.get(t) || "")) fail(t + " takes a free prompt and spends the user's keys, so youtube.com must not have a seat on it"); });
+    ["NSP_AI_TASK", "ASHLYV_VISION_JUDGE", "NSP_AGENT_OPEN_TAB"].forEach(t => { if (!/youtube:\s*'grant'/.test(table.get(t) || "")) fail(t + " must be youtube: 'grant', so a YouTube tab spends only inside a grant"); });
+    const bridge = read(join(EXT, "content/ashlyv-bridge.js"));
+    const relay = /var\s+NSP_RELAY_CALLS\s*=\s*\{([\s\S]*?)\}\s*;/.exec(bridge);
+    const forwarded = new Set([...bridge.matchAll(/nspBridgeSend\(\s*\{\s*type:\s*'([A-Z_]+)'/g)].map(m => m[1]).concat(relay ? [...relay[1].matchAll(/([A-Z_]+)\s*:\s*1/g)].map(m => m[1]) : []));
+    const unseated = [...forwarded].filter(t => !/youtube|NSP_EXT_AND_YOUTUBE|NSP_ALL_CALLERS/.test(table.get(t) || ""));
+    unseated.forEach(t => fail("content/ashlyv-bridge.js forwards " + t + " and the worker gives youtube.com no seat on it, so that page control fails"));
+    if (!missing.length && !stale.length && !unseated.length) ok("the " + table.size + " message types each name their callers, and the " + forwarded.size + " the bridge forwards all have a seat for youtube.com");
+  }
+}
+
+section("18. Behaviour tests");
+{
+  const dir = join(EXT, "tests");
+  const tests = existsSync(dir) ? readdirSync(dir).filter(n => /\.test\.mjs$/.test(n)).sort() : [];
+  if (!tests.length) warn("no tests/*.test.mjs to run");
+  for (const t of tests) {
+    try {
+      const outText = execFileSync(process.execPath, [join(dir, t)], { stdio: "pipe", encoding: "utf8", timeout: 180000 });
+      ok(t + ": " + String(outText).trim().split("\n").pop());
+    } catch (e) {
+      const lines = String(e.stdout || "").split("\n").filter(l => /FAIL/.test(l)).slice(0, 6);
+      fail(t + " is red" + (lines.length ? ":\n        " + lines.join("\n        ") : ": " + String(e.stderr || e.message).split("\n").slice(0, 3).join(" ")));
+    }
+  }
 }
 
 console.log("");
