@@ -265,7 +265,7 @@ async function nspAutoEnableLocalProvider() {
     chrome.storage.local.get(['nsp_ollama_url', 'nsp_ollama_enabled', 'nsp_ollama_model', 'nsp_ollama_optout'], resolve);
   });
   if (stored && stored.nsp_ollama_optout === true) return;
-  var url = (stored && stored.nsp_ollama_url) || 'http://localhost:11434';
+  var url = NSP_MODELS.ollamaUrl((stored && stored.nsp_ollama_url)) || 'http://localhost:11434';
   var names = await nspDetectLocalModels(url);
   if (!names.length) {
     if (stored && stored.nsp_ollama_enabled === true && !stored.nsp_ollama_model) {
@@ -1053,7 +1053,7 @@ function nspChatCascade(chatPayload, sendResponse) {
     var openaiModel = (r && r.nsp_openai_model) || 'gpt-4o-mini';
     if (chosenProvider === 'openai' && chosenModel) openaiModel = chosenModel;
     var ollamaEnabled = r && r.nsp_ollama_enabled === true;
-    var ollamaUrl = (r && r.nsp_ollama_url) || 'http://localhost:11434';
+    var ollamaUrl = NSP_MODELS.ollamaUrl((r && r.nsp_ollama_url)) || 'http://localhost:11434';
     var ollamaModel = (r && r.nsp_ollama_model) || 'llama3.2:3b';
 
     var geminiKey = r && typeof r.nsp_gemini_api_key === 'string' ? r.nsp_gemini_api_key.trim() : '';
@@ -2913,6 +2913,41 @@ function nspBubbleInject(tabId, cb) {
     chrome.scripting.executeScript({ target: { tabId: tabId }, files: ['content/zerack-bubble.js'] }).then(function() { cb(true); }, function() { cb(false); });
   } catch (e) { cb(false); }
 }
+
+// The bubble runs on YouTube and Studio from the manifest. On every other site it needs access Chrome only
+// gives when the user asks for it (optional_host_permissions, requested from the popup). With that access the
+// worker registers the same script for every site; without it, the registration is removed.
+var NSP_BUBBLE_EVERYWHERE = { origins: ['http://*/*', 'https://*/*'] };
+var NSP_BUBBLE_SCRIPT_ID = 'zerack-bubble-everywhere';
+
+function nspBubbleSync() {
+  try {
+    chrome.permissions.contains(NSP_BUBBLE_EVERYWHERE, function(has) {
+      chrome.scripting.getRegisteredContentScripts({ ids: [NSP_BUBBLE_SCRIPT_ID] }, function(list) {
+        var registered = !chrome.runtime.lastError && Array.isArray(list) && list.length > 0;
+        if (has && !registered) {
+          chrome.scripting.registerContentScripts([{
+            id: NSP_BUBBLE_SCRIPT_ID,
+            matches: NSP_BUBBLE_EVERYWHERE.origins,
+            excludeMatches: ['https://www.youtube.com/*', 'https://studio.youtube.com/*'],
+            js: ['content/zerack-bubble.js'],
+            runAt: 'document_idle',
+            world: 'ISOLATED'
+          }]).then(function() { nspBubbleReinject(); }, function(e) { console.warn('[NSP SW] bubble: not registered on every site:', e && e.message); });
+        } else if (!has && registered) {
+          chrome.scripting.unregisterContentScripts({ ids: [NSP_BUBBLE_SCRIPT_ID] }).catch(function(e) { console.warn('[NSP SW] bubble: not unregistered:', e && e.message); });
+        }
+      });
+    });
+  } catch (eSync) { console.warn('[NSP SW] bubble: sync failed:', eSync && eSync.message); }
+}
+
+try {
+  chrome.permissions.onAdded.addListener(nspBubbleSync);
+  chrome.permissions.onRemoved.addListener(nspBubbleSync);
+  chrome.runtime.onStartup.addListener(nspBubbleSync);
+  chrome.runtime.onInstalled.addListener(nspBubbleSync);
+} catch (eBubblePerm) {}
 
 function nspBubbleReinject() {
   chrome.tabs.query({ url: ['http://*/*', 'https://*/*'] }, function(tabs) {

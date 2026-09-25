@@ -384,7 +384,12 @@ function nspOptionsBoot() {
     const modelEl = document.getElementById('nsp-ollama-model');
     const status = document.getElementById('nsp-ollama-status');
     if (!status) return;
-    const url = (urlEl && urlEl.value || 'http://localhost:11434').trim().replace(/\/$/, '');
+    const url = NSP_MODELS.ollamaUrl((urlEl && urlEl.value) || 'http://localhost:11434');
+    if (!url) {
+      status.textContent = 'Use ' + NSP_MODELS.ollamaAddresses.join(' or ') + ': the extension may reach only that port on this computer.';
+      status.style.color = '#FF4F8E';
+      return;
+    }
     const model = (modelEl && modelEl.value || 'llama3.2:3b').trim();
     const isOn = !!(enabled && enabled.checked);
     status.textContent = 'Saving the Ollama settings';
@@ -410,7 +415,12 @@ function nspOptionsBoot() {
     const status = document.getElementById('nsp-ollama-status');
     const testBtn = document.getElementById('nsp-ollama-test-btn');
     if (!status) return;
-    const url = (urlEl && urlEl.value || 'http://localhost:11434').trim().replace(/\/$/, '');
+    const url = NSP_MODELS.ollamaUrl((urlEl && urlEl.value) || 'http://localhost:11434');
+    if (!url) {
+      status.textContent = 'Use ' + NSP_MODELS.ollamaAddresses.join(' or ') + ': the extension may reach only that port on this computer.';
+      status.style.color = '#FF4F8E';
+      return;
+    }
     const model = (modelEl && modelEl.value || 'llama3.2:3b').trim();
     if (testBtn) { testBtn.disabled = true; testBtn.textContent = 'TESTING'; }
     status.textContent = 'Pinging Ollama at ' + url;

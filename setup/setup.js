@@ -284,40 +284,16 @@ function saveFish() {
   });
 }
 
-function saveTypesafe() {
-  var raw = (el('typesafe-key').value || '').trim();
-  var st = el('typesafe-status');
-  if (!raw) { st.textContent = 'Paste the key first.'; st.className = 'status bad'; return; }
-  if (raw.length < 20 || /\s/.test(raw)) { st.textContent = 'That does not look like a TypeSafe key.'; st.className = 'status bad'; return; }
-  chrome.storage.local.set({ nsp_typesafe_api_key: raw }, function () {
-    lockField('typesafe-key', 'typesafe-status', raw, 'Saved. Commands will be routed through Jev.');
-  });
-}
-
-function saveGateway() {
-  var raw = (el('gateway-key').value || '').trim();
-  var st = el('gateway-status');
-  if (!raw) { st.textContent = 'Paste the key first.'; st.className = 'status bad'; return; }
-  if (raw.length < 20 || /\s/.test(raw)) { st.textContent = 'That does not look like a Vercel AI Gateway key.'; st.className = 'status bad'; return; }
-  chrome.storage.local.set({ nsp_ai_gateway_api_key: raw }, function () {
-    lockField('gateway-key', 'gateway-status', raw, 'Saved. Commands will be routed through Jev on Vercel.');
-  });
-}
-
 function loadExtraKeys() {
-  chrome.storage.local.get(['nsp_fish_api_key', 'nsp_fish_voice_id', 'nsp_typesafe_api_key', 'nsp_ai_gateway_api_key'], function (r) {
+  chrome.storage.local.get(['nsp_fish_api_key', 'nsp_fish_voice_id'], function (r) {
     r = r || {};
     el('fish-voice').value = r.nsp_fish_voice_id || ZERACK_DEFAULT_VOICE;
     if (r.nsp_fish_api_key) lockField('fish-key', 'fish-status', r.nsp_fish_api_key, 'A key is already stored.');
-    if (r.nsp_typesafe_api_key) lockField('typesafe-key', 'typesafe-status', r.nsp_typesafe_api_key, 'A key is already stored.');
-    if (r.nsp_ai_gateway_api_key) lockField('gateway-key', 'gateway-status', r.nsp_ai_gateway_api_key, 'A key is already stored.');
   });
 }
 
 document.addEventListener('DOMContentLoaded', function () {
   el('save-fish').addEventListener('click', saveFish);
-  el('save-typesafe').addEventListener('click', saveTypesafe);
-  el('save-gateway').addEventListener('click', saveGateway);
   loadExtraKeys();
 });
 
@@ -350,10 +326,13 @@ function voiceSet(obj, done) {
 }
 
 // The voice runs in an offscreen document, which has no chrome.storage, so it reads this copy when the service worker does not hand it the settings.
+// The copy holds preferences only. API keys stay in chrome.storage and reach the voice from the service worker
+// (NSP_VOICE_PREFS); an older build copied the OpenAI and Fish keys here too, and voiceMirror rewrites that copy without them.
+var VOICE_MIRROR_SECRET = [VOICE_KEYS.openai, VOICE_KEYS.fishKey];
 function voiceMirror() {
   chrome.storage.local.get(voiceKeyList(), function (r) {
     var copy = {};
-    voiceKeyList().forEach(function (k) { if (r && r[k] != null && k !== VOICE_KEYS.wake) copy[k] = r[k]; });
+    voiceKeyList().forEach(function (k) { if (r && r[k] != null && k !== VOICE_KEYS.wake && VOICE_MIRROR_SECRET.indexOf(k) === -1) copy[k] = r[k]; });
     try { localStorage.setItem(VOICE_MIRROR, JSON.stringify(copy)); } catch (e) {}
   });
 }

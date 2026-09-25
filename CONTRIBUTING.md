@@ -49,7 +49,7 @@ Before you claim a change works, paste the command and its output. A claim witho
 | `content/nsp-bundle.js` | the engine. MAIN world, about 24,000 lines. Scoring, badges, the scan, every in-page panel |
 | `content/ashlyv-bridge.js` | ISOLATED world. The only way out of MAIN, and it speaks for any script on youtube.com: a fixed list of forwarded messages rebuilt field by field, the relay allowlists `NSP_RELAY_CALLS` and `NSP_RELAY_KEYS`, and the grant requests it sends only on a trusted press |
 | `content/nsp-studio.js` | ISOLATED world on studio.youtube.com. Title scoring against your own corpus |
-| `content/zerack-bubble.js` | ISOLATED world, top frame of every http and https page. The bubble: click opens the chat overlay, hold talks, drag moves. Reads nothing on the page |
+| `content/zerack-bubble.js` | ISOLATED world, top frame of YouTube and Studio, and of every http and https page once the user grants that access from the popup. The bubble: click opens the chat overlay, hold talks, drag moves. Reads nothing on the page |
 | `chat/` | the private chat. `chat.js` the page (the service worker runs each turn and writes it to the store, so an answer survives the page under the chat navigating), `chat-tools.js` the answer loop and tool labels the service worker runs, `chat-render.js` the safe markdown-lite renderer |
 | `background/service-worker.js` | every privileged call: messages, providers, InnerTube, cookies, tabs, alarms, the `policy:*` routes |
 | `nsp-policy.js` | the demonetization engine. Pure functions, no DOM. Attaches to `globalThis` |

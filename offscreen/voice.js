@@ -192,6 +192,16 @@
   function fromMirror() {
     try { var r = JSON.parse(localStorage.getItem(MIRROR_KEY) || 'null'); return hasAny(r) ? r : null; } catch (e) { return null; }
   }
+  // An older Setup copied the OpenAI and Fish keys into this preferences copy. Keys come from the service worker, so any copy left is removed.
+  (function scrubMirror() {
+    try {
+      var r = JSON.parse(localStorage.getItem(MIRROR_KEY) || 'null');
+      if (!r || typeof r !== 'object' || !('nsp_openai_api_key' in r || 'nsp_fish_api_key' in r)) return;
+      delete r.nsp_openai_api_key;
+      delete r.nsp_fish_api_key;
+      localStorage.setItem(MIRROR_KEY, JSON.stringify(r));
+    } catch (e) {}
+  })();
   function refreshPrefs(maxAgeMs) {
     if (prefsAt && now() - prefsAt < maxAgeMs) return Promise.resolve(prefs);
     return fromStorage().then(function (r) {

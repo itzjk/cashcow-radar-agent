@@ -275,26 +275,46 @@ function bindChat() {
   });
 }
 
+// The bubble shows on YouTube and Studio with the access the extension already has. Every other site needs the
+// optional access Chrome grants only on a request from a click; the service worker registers the bubble for all
+// sites once it is granted (nspBubbleSync) and removes it when it is taken back.
+const BUBBLE_EVERYWHERE = { origins: ['http://*/*', 'https://*/*'] };
+
 function bindBubbleSwitch() {
   const btn = document.getElementById('btn-bubble');
   const hint = document.getElementById('bubble-hint');
   const here = document.getElementById('bubble-here');
+  const everywhere = document.getElementById('bubble-everywhere');
   if (!btn) return;
   let host = '';
   let scriptable = true;
   let key = 'Alt+X';
-  const paint = (on, hidden) => {
+  let refused = false;
+  const paint = (on, hidden, all) => {
     btn.setAttribute('aria-checked', on ? 'true' : 'false');
     const hiddenHere = on && host && hidden.indexOf(host) >= 0;
-    if (hint) hint.textContent = !on ? 'Off. ' + key + ' still opens the chat.' : (!scriptable ? 'Chrome keeps the bubble off this page. ' + key + ' or CHAT opens the chat here.' : (hiddenHere ? 'Hidden on ' + host + '.' : 'Click it to chat, hold it to talk.'));
+    let text;
+    if (!on) text = 'Off. ' + key + ' still opens the chat.';
+    else if (!all) text = refused ? 'Chrome did not allow other sites, so it shows on YouTube and Studio only.' : 'On YouTube and Studio. Other sites need your permission once.';
+    else if (!scriptable) text = 'Chrome keeps the bubble off this page. ' + key + ' or CHAT opens the chat here.';
+    else text = hiddenHere ? 'Hidden on ' + host + '.' : 'Click it to chat, hold it to talk.';
+    if (hint) hint.textContent = text;
     if (here) here.hidden = !hiddenHere;
+    if (everywhere) everywhere.hidden = !on || all;
   };
   chrome.commands.getAll((list) => {
     const chat = (list || []).find((c) => c.name === 'chat');
     if (chat && chat.shortcut) { key = chat.shortcut; read(); }
   });
   const read = () => chrome.storage.local.get(['nsp_bubble_on', 'nsp_bubble_hidden_sites'], (r) => {
-    paint(!(r && r.nsp_bubble_on === false), (r && Array.isArray(r.nsp_bubble_hidden_sites)) ? r.nsp_bubble_hidden_sites : []);
+    chrome.permissions.contains(BUBBLE_EVERYWHERE, (all) => {
+      paint(!(r && r.nsp_bubble_on === false), (r && Array.isArray(r.nsp_bubble_hidden_sites)) ? r.nsp_bubble_hidden_sites : [], all === true);
+    });
+  });
+  // Called straight from the click: Chrome shows its permission prompt only inside a user gesture.
+  const askEverywhere = () => chrome.permissions.request(BUBBLE_EVERYWHERE, (granted) => {
+    refused = !granted;
+    read();
   });
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs && tabs[0];
@@ -310,8 +330,11 @@ function bindBubbleSwitch() {
   });
   btn.addEventListener('click', () => {
     const next = btn.getAttribute('aria-checked') !== 'true';
+    if (next) askEverywhere();
+    else chrome.permissions.remove(BUBBLE_EVERYWHERE, () => { void chrome.runtime.lastError; read(); });
     chrome.storage.local.set({ nsp_bubble_on: next }, read);
   });
+  if (everywhere) everywhere.addEventListener('click', askEverywhere);
   if (here) here.addEventListener('click', () => {
     chrome.storage.local.get('nsp_bubble_hidden_sites', (r) => {
       const list = (r && Array.isArray(r.nsp_bubble_hidden_sites)) ? r.nsp_bubble_hidden_sites.filter((h) => h !== host) : [];

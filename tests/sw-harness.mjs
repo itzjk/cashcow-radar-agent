@@ -47,6 +47,7 @@ export function loadWorker(opts = {}) {
   const local = Object.assign({}, opts.local || {});
   const session = {};
   const fetches = [];
+  const registered = (opts.registered || []).slice();
   const tabs = new Proxy({}, {
     get(t, name) {
       if (name === "onRemoved" || name === "onUpdated" || name === "onActivated") return { addListener() {}, removeListener() {}, hasListener() { return false; } };
@@ -71,6 +72,16 @@ export function loadWorker(opts = {}) {
     storage: { local: area(local), session: area(session), sync: area({}), onChanged: { addListener() {} } },
     declarativeNetRequest: { updateSessionRules: rules => { calls.push({ api: "dnr.updateSessionRules", args: [rules] }); return Promise.resolve(); } },
     notifications: { create: (o, cb) => { calls.push({ api: "notifications.create", args: [o] }); if (cb) setImmediate(cb); } },
+    permissions: {
+      contains: (p, cb) => { const has = !!opts.allSites; if (cb) setImmediate(() => cb(has)); return Promise.resolve(has); },
+      onAdded: { addListener() {} }, onRemoved: { addListener() {} }
+    },
+    scripting: {
+      getRegisteredContentScripts: (f, cb) => { const list = registered.filter(r => !f || !f.ids || f.ids.includes(r.id)); if (cb) setImmediate(() => cb(list)); return Promise.resolve(list); },
+      registerContentScripts: list => { calls.push({ api: "scripting.registerContentScripts", args: [list] }); registered.push(...list); return Promise.resolve(); },
+      unregisterContentScripts: f => { calls.push({ api: "scripting.unregisterContentScripts", args: [f] }); for (const id of f.ids) { const i = registered.findIndex(r => r.id === id); if (i >= 0) registered.splice(i, 1); } return Promise.resolve(); },
+      executeScript: () => Promise.resolve([])
+    },
     tabs
   }, { get(t, k) { return k in t ? t[k] : stub(); } });
 
@@ -118,7 +129,7 @@ export function loadWorker(opts = {}) {
       if (!pending) setTimeout(() => respond(undefined), 30);
     });
   }
-  return { context, calls, local, session, fetches, send };
+  return { context, calls, local, session, fetches, send, registered };
 }
 
 export const SENDERS = {

@@ -34,8 +34,13 @@
     "https://api.groq.com/*",
     "https://i.ytimg.com/*",
     "https://img.youtube.com/*",
-    "http://localhost/*",
-    "http://127.0.0.1/*"
+    "http://localhost:11434/*",
+    "http://127.0.0.1:11434/*",
+    "http://127.0.0.1:7788/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js"
@@ -82,8 +87,8 @@
     },
     {
       "matches": [
-        "http://*/*",
-        "https://*/*"
+        "https://www.youtube.com/*",
+        "https://studio.youtube.com/*"
       ],
       "js": [
         "content/zerack-bubble.js"

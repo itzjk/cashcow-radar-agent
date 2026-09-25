@@ -145,36 +145,6 @@
 
   <section class="card">
     <div class="card-head">
-      <h2>Instant decisions</h2>
-      <span class="tag" id="extra-state">optional</span>
-    </div>
-    <p class="note">
-      Optional. The assistant works without it. Each key is stored on this machine and is sent only to its own provider.
-    </p>
-
-    <div class="field">
-      <label for="typesafe-key">TypeSafe key, for Jev instant decisions</label>
-      <div class="row">
-        <input id="typesafe-key" type="text" placeholder="Paste your TypeSafe API key" autocomplete="off" spellcheck="false"/>
-        <button class="btn" id="save-typesafe">Save</button>
-      </div>
-      <p class="note">Jev picks the action for a spoken or typed command in about a third of a second, and only the command text is sent. Get a key at <a href="https://console.typesafe.ai" target="_blank" rel="noopener">console.typesafe.ai</a>.</p>
-      <p class="status" id="typesafe-status"></p>
-    </div>
-
-    <div class="field">
-      <label for="gateway-key">Or a Vercel AI Gateway key, for the same Jev through Vercel</label>
-      <div class="row">
-        <input id="gateway-key" type="text" placeholder="Paste your Vercel AI Gateway API key" autocomplete="off" spellcheck="false"/>
-        <button class="btn" id="save-gateway">Save</button>
-      </div>
-      <p class="note">Use this when TypeSafe is not taking new signups. Vercel serves the same model. Create a key under AI Gateway at <a href="https://vercel.com/dashboard" target="_blank" rel="noopener">vercel.com</a>. You only need one of the two.</p>
-      <p class="status" id="gateway-status"></p>
-    </div>
-  </section>
-
-  <section class="card">
-    <div class="card-head">
       <h2>Local files for the offline features</h2>
       <span class="tag" id="assets-state">optional</span>
     </div>
