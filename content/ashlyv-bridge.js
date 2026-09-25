@@ -4,7 +4,7 @@
 // is trusted. This bridge forwards only the messages in PAGE_CALLS, rebuilt field by field, and the service worker
 // checks the sender again at its own door. What spends the user's AI keys needs a grant the page cannot open: the
 // worker opens one for a turn handed over from the chat or the voice, and this file asks for one when it sees a real
-// press (isTrusted) on a ZERACK control marked data-nsp-grant. Listing, switching or closing tabs is never forwarded.
+// press (isTrusted) on a control this file created for the page. Listing, switching or closing tabs is never forwarded.
 
 // MV3 MAIN world content scripts have no chrome.runtime, so face-api.js reads its model folder from this attribute.
 try {
@@ -39,17 +39,47 @@ function nspBridgeFromPage(event, type) {
 }
 
 // ── Grants from a real press ────────────────────────────────────────────────
-var NSP_GRANT_KINDS = { coach: 1, vision: 1, titles: 1, comments: 1, replicate: 1, brand: 1 };
+// Only a control this file made counts. The page world asks for one with the nsp-grant-control event and gets a
+// button or a textarea created here and remembered in a WeakMap, which no page script can reach or fill. A
+// data-nsp-grant attribute or an id means nothing: a script could put either on <body> and turn every click of
+// the user into a grant. At the press the control must also be shown: connected, visible, of a button's size,
+// and the element under the pointer.
+var NSP_GRANT_KINDS = { coach: 1, vision: 1, titles: 1, comments: 1, replicate: 1, brand: 1, model: 1 };
+var NSP_GRANT_TAGS = { button: 1, textarea: 1 };
+var _nspGrantControls = new WeakMap();
+
+window.addEventListener('nsp-grant-control', function(e) {
+  var want = null;
+  try { want = JSON.parse(String(e.detail || '')); } catch (eJson) { want = null; }
+  var slot = e.target;
+  if (!want || NSP_GRANT_KINDS[want.kind] !== 1 || NSP_GRANT_TAGS[want.tag] !== 1 || !slot || typeof slot.appendChild !== 'function') return;
+  var control = document.createElement(want.tag);
+  _nspGrantControls.set(control, want.kind);
+  slot.appendChild(control);
+}, true);
+
+function nspGrantShown(el, e) {
+  if (!el.isConnected) return false;
+  if (typeof el.checkVisibility === 'function' && !el.checkVisibility({ opacityProperty: true, visibilityProperty: true })) return false;
+  var box = el.getBoundingClientRect();
+  if (box.width < 8 || box.height < 8 || box.width * box.height > 600 * 400) return false;
+  // A click from a pointer must land on the control itself, not on something laid over it.
+  if (e.type === 'click' && e.detail > 0) {
+    var root = el.getRootNode();
+    var hit = root && typeof root.elementFromPoint === 'function' ? root.elementFromPoint(e.clientX, e.clientY) : null;
+    if (hit && hit !== el && !el.contains(hit)) return false;
+  }
+  return true;
+}
 
 function nspGrantFromEvent(e) {
   if (!e || e.isTrusted !== true) return;
   if (e.type === 'keydown' && (e.key !== 'Enter' || e.shiftKey || e.isComposing)) return;
   var path = typeof e.composedPath === 'function' ? e.composedPath() : [];
-  for (var i = 0; i < path.length && i < 40; i++) {
-    var el = path[i];
-    var kind = el && typeof el.getAttribute === 'function' ? el.getAttribute('data-nsp-grant') : null;
+  for (var i = 0; i < path.length && i < 8; i++) {
+    var kind = _nspGrantControls.get(path[i]);
     if (kind) {
-      if (NSP_GRANT_KINDS[kind] === 1) nspGrantAsk(kind);
+      if (nspGrantShown(path[i], e)) nspGrantAsk(kind);
       return;
     }
   }
@@ -236,11 +266,23 @@ window.addEventListener('message', function(event) {
 });
 
 // ── NSP AI COACH storage bridge ──────────────────────────────────────────────
+// Conversations are text the page wrote, so they are stored as text: roles from a short list, bounded content,
+// and the whole store under a size cap, instead of whatever objects the page sends.
+var NSP_COACH_STORE_MAX_CHARS = 1500000;
+var NSP_COACH_ROLES = { user: 1, assistant: 1, tool: 1, error: 1 };
+
+function nspCoachTurns(list, max) {
+  return (Array.isArray(list) ? list : []).slice(-max).map(function(m) {
+    m = m && typeof m === 'object' ? m : {};
+    return { role: NSP_COACH_ROLES[m.role] === 1 ? m.role : 'user', content: String(m.content == null ? '' : m.content).slice(0, 20000) };
+  });
+}
+
 // MAIN cannot use chrome.storage directly. Bridge for read/write conversation history.
 window.addEventListener('message', function(event) {
   if (event.source !== window) return;
   if (event.origin && event.origin !== window.location.origin) return;
-  if (!event.data || (event.data.type !== 'NSP_COACH_STORAGE_GET' && event.data.type !== 'NSP_COACH_STORAGE_SET' && event.data.type !== 'NSP_COACH_SESSIONS_GET' && event.data.type !== 'NSP_COACH_SESSIONS_SET' && event.data.type !== 'NSP_COACH_GET_PREFERRED_PROVIDER' && event.data.type !== 'NSP_COACH_SET_PREFERRED_PROVIDER' && event.data.type !== 'NSP_COACH_PROVIDER_CHECK')) return;
+  if (!event.data || (event.data.type !== 'NSP_COACH_STORAGE_GET' && event.data.type !== 'NSP_COACH_STORAGE_SET' && event.data.type !== 'NSP_COACH_SESSIONS_GET' && event.data.type !== 'NSP_COACH_SESSIONS_SET' && event.data.type !== 'NSP_COACH_GET_PREFERRED_PROVIDER' && event.data.type !== 'NSP_COACH_PROVIDER_CHECK')) return;
   if (typeof chrome === 'undefined' || !chrome.storage) return;
   var data = event.data;
   var reqId = String(data.requestId || '').slice(0, 80);
@@ -255,12 +297,6 @@ window.addEventListener('message', function(event) {
       var pref = r && r.nsp_preferred_provider;
       if (['openai', 'groq', 'ollama', 'gemini', 'auto'].indexOf(pref) === -1) pref = 'auto';
       window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, preferredProvider: pref }, window.location.origin);
-    });
-  } else if (data.type === 'NSP_COACH_SET_PREFERRED_PROVIDER') {
-    var prefValue = String(data.provider || 'auto');
-    if (['openai', 'groq', 'ollama', 'gemini', 'auto'].indexOf(prefValue) === -1) prefValue = 'auto';
-    chrome.storage.local.set({ nsp_preferred_provider: prefValue }, function() {
-      window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, saved: true, preferredProvider: prefValue }, window.location.origin);
     });
   } else if (data.type === 'NSP_COACH_PROVIDER_CHECK') {
     // Reports which providers are configured without ever exposing the keys.
@@ -299,14 +335,21 @@ window.addEventListener('message', function(event) {
         title: String(s && s.title || 'Conversation').slice(0, 120),
         createdAt: Number(s && s.createdAt) || Date.now(),
         updatedAt: Number(s && s.updatedAt) || Date.now(),
-        messages: Array.isArray(s && s.messages) ? s.messages.slice(-100) : []
+        messages: nspCoachTurns(s && s.messages, 100)
       };
     }) : [];
+    // Oldest conversations go first until the whole history fits; a single one still too long loses its oldest turns.
+    while (newSessions.length && JSON.stringify(newSessions).length > NSP_COACH_STORE_MAX_CHARS) {
+      if (newSessions.length > 1) newSessions.shift();
+      else if (newSessions[0].messages.length > 1) newSessions[0].messages.shift();
+      else newSessions.shift();
+    }
     chrome.storage.local.set({ nsp_coach_sessions: newSessions }, function() {
       window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, saved: true }, window.location.origin);
     });
   } else {
-    var newHist = Array.isArray(data.history) ? data.history.slice(-50) : [];
+    var newHist = nspCoachTurns(data.history, 50);
+    while (newHist.length && JSON.stringify(newHist).length > NSP_COACH_STORE_MAX_CHARS) newHist.shift();
     chrome.storage.local.set({ nsp_coach_history: newHist }, function() {
       window.postMessage({ type: 'NSP_COACH_STORAGE_RESULT', requestId: reqId, saved: true }, window.location.origin);
     });
@@ -404,35 +447,47 @@ var NSP_RELAY_CALLS = {
   ASHLYV_ALERTS_READ: 1,
   ASHLYV_SHOW_NOTIFICATION: 1,
   ASHLYV_OPEN: 1,
-  NSP_FETCH_COUNTRY_FACELESS_FEED: 1
+  NSP_FETCH_COUNTRY_FACELESS_FEED: 1,
+  NSP_MODEL_SELECT: 1
 };
 
+// What the page may write. The bridge does not write these itself: it hands them to the service worker, which
+// rebuilds each value against the key's shape (NSP_PAGE_STORE) and refuses what does not fit.
 var NSP_RELAY_KEYS = {
-  nsp_pending_action: 1,
   nsp_watching: 1,
-  nsp_all_channels: 1,
-  nsp_scan_memory: 1,
-  ashlyv_nichos: 1,
   ashlyv_installed_version: 1,
-  ashlyv_thumbnail_history: 1,
   ashlyv_niche_stats: 1,
   ashlyv_rpm_baselines: 1,
   ashlyv_alert_history: 1,
   ashlyv_alerts_unread: 1,
   nsp_channel_faceless_v2: 1,
-  ashlyv_nichos_backup: 1,
   ashlyv_phase_progress: 1,
   ashlyv_phase_ops_v1: 1,
-  ashlyv_phase_notes_v1: 1,
-  nsp_session_prefs: 1,
-  zerack_channel_snapshots_v1: 1,
-  nsp_selected_model: 1
+  ashlyv_phase_notes_v1: 1
 };
 
-// Switches and consents the page reads and only Options writes: a page that could set them could grant itself the spend they guard.
+// Read only from the page. The switches and consents guard spending; the model decides what a turn costs and
+// changes only through NSP_MODEL_SELECT on a real press; saved niches are written through ASHLYV_SAVE_NICHO, which
+// rebuilds the entry; the rest the page only reads.
 var NSP_RELAY_READONLY = {
   nsp_agent_enabled: 1,
-  nsp_vision_allowed: 1
+  nsp_vision_allowed: 1,
+  nsp_selected_model: 1,
+  nsp_pending_action: 1,
+  nsp_all_channels: 1,
+  nsp_scan_memory: 1,
+  ashlyv_nichos: 1,
+  ashlyv_nichos_backup: 1,
+  ashlyv_thumbnail_history: 1,
+  nsp_session_prefs: 1,
+  zerack_channel_snapshots_v1: 1
+};
+
+// The page may clear these, never fill them: the dashboard's hand-off once it ran, and history it shows.
+var NSP_RELAY_CLEARABLE = {
+  nsp_pending_action: 1,
+  ashlyv_thumbnail_history: 1,
+  ashlyv_alert_history: 1
 };
 
 function nspRelayKeyAllowed(key) {
@@ -445,6 +500,11 @@ function nspRelayReadAllowed(key) {
   key = String(key || '');
   if (/key|token|secret|password|auth/i.test(key)) return false;
   return NSP_RELAY_KEYS[key] === 1 || NSP_RELAY_READONLY[key] === 1;
+}
+
+function nspRelayClearAllowed(key) {
+  key = String(key || '');
+  return NSP_RELAY_KEYS[key] === 1 || NSP_RELAY_CLEARABLE[key] === 1;
 }
 
 function nspRelayReply(reqId, payload) {
@@ -492,14 +552,11 @@ window.addEventListener('message', function(event) {
     var clean = {};
     Object.keys(items).forEach(function(k) { if (nspRelayKeyAllowed(k)) clean[k] = items[k]; });
     if (!Object.keys(clean).length) { nspRelayReply(reqId, { ok: false, error: 'no_allowed_keys' }); return; }
-    chrome.storage.local.set(clean, function() {
-      var err = chrome.runtime && chrome.runtime.lastError;
-      nspRelayReply(reqId, err ? { ok: false, error: String(err.message || err) } : { ok: true });
-    });
+    nspBridgeSend({ type: 'NSP_PAGE_STORE_SET', items: clean }, function(res) { nspRelayReply(reqId, res); });
     return;
   }
   if (op === 'remove') {
-    var rk = (Array.isArray(data.keys) ? data.keys : [data.keys]).filter(nspRelayKeyAllowed);
+    var rk = (Array.isArray(data.keys) ? data.keys : [data.keys]).filter(nspRelayClearAllowed);
     if (!rk.length) { nspRelayReply(reqId, { ok: false, error: 'no_allowed_keys' }); return; }
     chrome.storage.local.remove(rk, function() { nspRelayReply(reqId, { ok: true }); });
     return;

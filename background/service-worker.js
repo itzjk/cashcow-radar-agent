@@ -2997,6 +2997,8 @@ var NSP_MESSAGE_CALLERS = {
   ASHLYV_CHAT_REQUEST: { ext: 1, studio: 1 },
   NSP_AI_TASK: { ext: 1, youtube: 'grant' },
   NSP_GRANT_OPEN: { youtube: 1 },
+  NSP_PAGE_STORE_SET: { youtube: 1 },
+  NSP_MODEL_SELECT: { ext: 1, youtube: 'grant' },
   NSP_VOICE_HEARD: NSP_EXT_ONLY,
   NSP_VOICE_DROP: NSP_EXT_ONLY,
   NSP_VOICE_PTT_START: NSP_ALL_CALLERS,
@@ -3074,7 +3076,8 @@ var NSP_GRANT_KINDS = {
   titles: { uses: 1, ms: 2 * 60000 },
   comments: { uses: 1, ms: 2 * 60000 },
   replicate: { uses: 1, ms: 2 * 60000 },
-  brand: { uses: 1, ms: 2 * 60000 }
+  brand: { uses: 1, ms: 2 * 60000 },
+  model: { uses: 1, ms: 60000 }
 };
 var NSP_GRANT_KEY = 'nsp_page_grants';
 var _nspGrantChain = Promise.resolve();
@@ -3136,6 +3139,7 @@ function nspPageOpenUrl(msg) {
 function nspGrantKindFor(msg) {
   if (msg.type === 'ASHLYV_VISION_JUDGE') return 'vision';
   if (msg.type === 'NSP_AGENT_OPEN_TAB') return 'coach';
+  if (msg.type === 'NSP_MODEL_SELECT') return 'model';
   if (msg.type === 'NSP_AI_TASK') return NSP_AI_TASKS[String(msg.task || '')] ? String(msg.task) : '';
   return '';
 }
@@ -3143,6 +3147,154 @@ function nspGrantKindFor(msg) {
 var NSP_GRANT_REFUSAL = 'This needs a press on the ZERACK button that runs it, or a turn handed over from the ZERACK chat. The page asked on its own, so nothing was spent.';
 
 try { chrome.tabs.onRemoved.addListener(function(tabId) { nspGrantDrop(tabId); }); } catch (eGrantTabs) {}
+
+// ── Notices the YouTube page may raise ─────────────────────────────────────
+var NSP_NOTICE_PER_TAB = 3;
+var NSP_NOTICE_WINDOW_MS = 15 * 60000;
+var _nspNoticeLog = {};
+
+function nspNoticeNiche(v) {
+  var t = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  return /^[\p{L}\p{N} &'\-]{1,40}$/u.test(t) ? t : '';
+}
+
+function nspNoticeMoney(v) {
+  var n = Number(v);
+  return isFinite(n) && n >= 0 && n < 1000 ? n.toFixed(2) : '';
+}
+
+function nspNoticeText(msg) {
+  var niche = nspNoticeNiche(msg.niche);
+  if (!niche) return null;
+  if (msg.code === 'niche_rising') {
+    var before = nspNoticeMoney(msg.rpmBefore), after = nspNoticeMoney(msg.rpmAfter);
+    if (!before || !after) return null;
+    return { title: 'Niche on the rise: ' + niche, message: 'RPM went from $' + before + ' to $' + after + ', this niche is paying more' };
+  }
+  if (msg.code === 'niche_new') {
+    var rpm = nspNoticeMoney(msg.rpm);
+    if (!rpm) return null;
+    var vph = Math.round(Number(msg.vph));
+    return { title: 'New niche detected: ' + niche, message: 'Estimated RPM: $' + rpm + (isFinite(vph) && vph >= 0 && msg.vph != null ? ' | VPH: ' + vph : '') + ' | first time seen' };
+  }
+  return null;
+}
+
+function nspNoticeAllowed(tabId) {
+  var now = Date.now();
+  var log = (_nspNoticeLog[tabId] || []).filter(function(t) { return now - t < NSP_NOTICE_WINDOW_MS; });
+  if (log.length >= NSP_NOTICE_PER_TAB) { _nspNoticeLog[tabId] = log; return false; }
+  log.push(now);
+  _nspNoticeLog[tabId] = log;
+  return true;
+}
+
+// ── What the YouTube page may store ────────────────────────────────────────
+// The bridge sends the page's writes here instead of writing them itself. Each key has its shape: values are
+// rebuilt field by field, text loses markup, numbers are bounded, lists and maps are capped, and a key that is
+// not in this table, or a value that does not fit, is refused with the reason. Keys that decide what is spent
+// (nsp_selected_model) or what runs next (nsp_pending_action) are not here: the page reads them only.
+var NSP_PAGE_STORE_MAX_CHARS = 200000;
+
+function nspPsText(v, max) { return String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, max); }
+function nspPsNum(v, min, max) { var n = Number(v); return isFinite(n) ? Math.max(min, Math.min(max, n)) : min; }
+function nspPsMap(v, maxEntries, each) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  var out = {};
+  Object.keys(v).slice(0, maxEntries).forEach(function(k) {
+    var key = nspPsText(k, 200);
+    if (!key || key === '__proto__' || key === 'constructor' || key === 'prototype') return;
+    var item = each(v[k]);
+    if (item !== undefined) out[key] = item;
+  });
+  return out;
+}
+function nspPsList(v, max, each) {
+  if (!Array.isArray(v)) return undefined;
+  return v.slice(0, max).map(each).filter(function(x) { return x !== undefined; });
+}
+function nspPsObj(v) { return v && typeof v === 'object' && !Array.isArray(v) ? v : null; }
+
+var NSP_PAGE_STORE = {
+  nsp_watching: function(v) {
+    return nspPsMap(v, 200, function(w) {
+      w = nspPsObj(w); if (!w) return undefined;
+      var url = String(w.channelUrl || '');
+      if (!/^https:\/\/(?:www\.)?youtube\.com\//i.test(url)) return undefined;
+      return {
+        channelUrl: url.slice(0, 300), channelId: nspPsText(w.channelId, 40), name: nspPsText(w.name, 120),
+        addedAt: nspPsNum(w.addedAt, 0, 1e13), lastChecked: nspPsNum(w.lastChecked, 0, 1e13),
+        knownVideoIds: nspPsList(w.knownVideoIds, 300, function(id) { return /^[A-Za-z0-9_-]{11}$/.test(String(id)) ? String(id) : undefined; }) || []
+      };
+    });
+  },
+  ashlyv_installed_version: function(v) { return /^\d+(?:\.\d+){0,3}$/.test(String(v)) ? String(v) : undefined; },
+  ashlyv_niche_stats: function(v) {
+    return nspPsMap(v, 500, function(it) {
+      it = nspPsObj(it); if (!it) return undefined;
+      return {
+        avgRpm: nspPsNum(it.avgRpm, 0, 1000), bestRpm: nspPsNum(it.bestRpm, 0, 1000), timesSeen: nspPsNum(it.timesSeen, 0, 1e7),
+        lastSeen: nspPsNum(it.lastSeen, 0, 1e13), trend: /^(?:up|down|flat|new)$/.test(String(it.trend)) ? String(it.trend) : 'new',
+        rpmHistory: nspPsList(it.rpmHistory, 5, function(n) { return nspPsNum(n, 0, 1000); }) || []
+      };
+    });
+  },
+  ashlyv_rpm_baselines: function(v) { return nspPsMap(v, 200, function(n) { return nspPsNum(n, 0, 1000); }); },
+  ashlyv_alert_history: function(v) {
+    return nspPsList(v, 50, function(it) {
+      it = nspPsObj(it); if (!it) return undefined;
+      return {
+        nicheTitle: nspPsText(it.nicheTitle, 200), rpmBefore: nspPsNum(it.rpmBefore, 0, 1000), rpmAfter: nspPsNum(it.rpmAfter, 0, 1000),
+        alertType: it.alertType === 'new_high_rpm' ? 'new_high_rpm' : 'rpm_increase', timestamp: nspPsNum(it.timestamp, 0, 1e13),
+        facelessScore: nspPsNum(it.facelessScore, 0, 100), vph: nspPsNum(it.vph, 0, 1e9)
+      };
+    });
+  },
+  ashlyv_alerts_unread: function(v) { return Math.round(nspPsNum(v, 0, 999)); },
+  ashlyv_phase_progress: function(v) {
+    v = nspPsObj(v); if (!v) return undefined;
+    var out = {};
+    ['phase1', 'phase2', 'phase3', 'phase4'].forEach(function(id) { out[id] = Array.isArray(v[id]) ? v[id].slice(0, 8).map(Boolean) : []; });
+    return out;
+  },
+  ashlyv_phase_ops_v1: function(v) {
+    v = nspPsObj(v); if (!v) return undefined;
+    var out = {};
+    ['weeklyVideos', 'hoursPerWeek', 'revenueGoal', 'currentRevenue', 'currentSubscribers'].forEach(function(k) { out[k] = nspPsNum(v[k], 0, 1e9); });
+    return out;
+  },
+  ashlyv_phase_notes_v1: function(v) {
+    v = nspPsObj(v); if (!v) return undefined;
+    var out = {};
+    ['phase1', 'phase2', 'phase3', 'phase4'].forEach(function(id) { if (typeof v[id] === 'string') out[id] = v[id].slice(0, 3000); });
+    return out;
+  },
+  nsp_channel_faceless_v2: function(v) {
+    return nspPsMap(v, 5000, function(it) {
+      it = nspPsObj(it); if (!it) return undefined;
+      return { score: nspPsNum(it.score, 0, 100), ts: nspPsNum(it.ts, 0, 1e13), unverified: it.unverified ? 1 : 0 };
+    });
+  }
+};
+
+function nspPageStoreSet(items, sendResponse) {
+  items = items && typeof items === 'object' && !Array.isArray(items) ? items : {};
+  var write = {}, refused = [];
+  Object.keys(items).slice(0, 20).forEach(function(key) {
+    var shape = Object.prototype.hasOwnProperty.call(NSP_PAGE_STORE, key) ? NSP_PAGE_STORE[key] : null;
+    if (!shape) { refused.push({ key: String(key).slice(0, 60), reason: 'not writable from the page' }); return; }
+    var value;
+    try { value = shape(items[key]); } catch (eShape) { value = undefined; }
+    if (value === undefined) { refused.push({ key: key, reason: 'value does not fit the key' }); return; }
+    if (JSON.stringify(value).length > NSP_PAGE_STORE_MAX_CHARS) { refused.push({ key: key, reason: 'larger than ' + NSP_PAGE_STORE_MAX_CHARS + ' characters' }); return; }
+    write[key] = value;
+  });
+  if (!Object.keys(write).length) { sendResponse({ ok: false, error: 'nothing_written', refused: refused }); return; }
+  chrome.storage.local.set(write, function() {
+    if (chrome.runtime.lastError) { sendResponse({ ok: false, error: chrome.runtime.lastError.message, refused: refused }); return; }
+    sendResponse(refused.length ? { ok: false, error: 'partly_refused', written: Object.keys(write), refused: refused } : { ok: true, written: Object.keys(write) });
+  });
+}
 
 // ── Message router ──────────────────────────────────────────────────────────
 
@@ -3607,6 +3759,22 @@ function nspRoute(msg, sender, sendResponse, who) {
     return true;
   }
 
+  if (msg.type === 'NSP_PAGE_STORE_SET') {
+    nspPageStoreSet(msg.items, sendResponse);
+    return true;
+  }
+
+  // The model decides what a turn costs, so it is an entry of the catalog and, from YouTube, one real press.
+  if (msg.type === 'NSP_MODEL_SELECT') {
+    var modelId = String(msg.id || '');
+    var entry = (self.NSP_MODELS && NSP_MODELS.list || []).filter(function(m) { return m.id === modelId; })[0];
+    if (!entry) { sendResponse({ ok: false, error: 'unknown_model' }); return false; }
+    chrome.storage.local.set({ nsp_selected_model: entry.id, nsp_preferred_provider: entry.provider === 'auto' ? 'auto' : entry.provider }, function() {
+      sendResponse(chrome.runtime.lastError ? { ok: false, error: chrome.runtime.lastError.message } : { ok: true, id: entry.id });
+    });
+    return true;
+  }
+
   if (msg.type === 'NSP_VOICE_HEARD') {
     if (!nspVoiceFromEar(sender)) return false;
     nspVoiceHeard(msg, sendResponse);
@@ -3922,21 +4090,20 @@ function nspRoute(msg, sender, sendResponse, who) {
   }
 
   // — Notifications
+  // The page names what happened and the numbers; the words are the worker's, and each tab gets a few per quarter hour.
+  // A page that wrote its own title and text could raise a phishing notice with the ZERACK icon.
   if (msg.type === 'ASHLYV_SHOW_NOTIFICATION') {
+    var notice = nspNoticeText(msg);
+    if (!notice) { sendResponse({ ok: false, error: 'unknown_notice' }); return false; }
+    var noticeTab = sender && sender.tab && sender.tab.id >= 0 ? sender.tab.id : -1;
+    if (who !== 'ext' && !nspNoticeAllowed(noticeTab)) { sendResponse({ ok: false, error: 'notice_rate_limited' }); return false; }
     try {
-      if (chrome.notifications && chrome.notifications.create) {
-        chrome.notifications.create({
-          type: 'basic',
-          iconUrl: chrome.runtime.getURL('icons/icon128.png'),
-          title: String(msg.title || 'ZERACK').slice(0, 100),
-          message: String(msg.message || '').slice(0, 300),
-          priority: 1
-        }, function() { sendResponse({ ok: true }); });
-        return true;
-      }
-    } catch (e) {}
-    sendResponse({ ok: false });
-    return false;
+      chrome.notifications.create({ type: 'basic', iconUrl: chrome.runtime.getURL('icons/icon128.png'), title: notice.title, message: notice.message, priority: 1 }, function() { sendResponse({ ok: true }); });
+      return true;
+    } catch (eNote) {
+      sendResponse({ ok: false, error: String(eNote && eNote.message || eNote) });
+      return false;
+    }
   }
 
   return false;

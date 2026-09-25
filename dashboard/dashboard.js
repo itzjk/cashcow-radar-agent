@@ -910,7 +910,11 @@ function openIdeasPanelFor(channels) {
       btn.textContent = 'Generate another round';
       btn.disabled = false;
     }).catch(function(err) {
-      out.innerHTML = '<div class="ideas-error">' + (err && err.message ? err.message : 'Error') + '</div>';
+      out.textContent = '';
+      var outErr = document.createElement('div');
+      outErr.className = 'ideas-error';
+      outErr.textContent = err && err.message ? err.message : 'Error';
+      out.appendChild(outErr);
       btn.textContent = 'Try again';
       btn.disabled = false;
     });
@@ -1172,8 +1176,15 @@ function openIdeasPanel() {
       btn.textContent = 'Generate another round';
       btn.disabled = false;
     }).catch(function(err) {
-      output.innerHTML = '<div class="ideas-error">' + (err && err.message ? err.message : 'Error') + '</div>'
-        + '<div class="ideas-help">Open Options, pick a model and add its key. Groq, Gemini and a local Ollama all work.</div>';
+      output.textContent = '';
+      var outputErr = document.createElement('div');
+      outputErr.className = 'ideas-error';
+      outputErr.textContent = err && err.message ? err.message : 'Error';
+      output.appendChild(outputErr);
+      var outputHelp = document.createElement('div');
+      outputHelp.className = 'ideas-help';
+      outputHelp.textContent = 'Open Options, pick a model and add its key. Groq, Gemini and a local Ollama all work.';
+      output.appendChild(outputHelp);
       btn.textContent = 'Try again';
       btn.disabled = false;
     });

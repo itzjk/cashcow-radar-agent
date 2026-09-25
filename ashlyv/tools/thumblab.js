@@ -312,7 +312,7 @@
 
   function loadQuery(query, label) {
     _label = label; _view = 'discover'; setActive($('tl-views'), 'data-view', 'discover');
-    resultEl.innerHTML = ''; TK.status(statusEl, '', ''); statusEl.innerHTML = '<span class="tk-spin"></span>Loading the winning thumbnails in ' + label; statusEl.style.color = '#FFD93D';
+    resultEl.innerHTML = ''; TK.status(statusEl, '', ''); statusEl.textContent = ''; var spin = document.createElement('span'); spin.className = 'tk-spin'; statusEl.appendChild(spin); statusEl.appendChild(document.createTextNode('Loading the winning thumbnails in ' + label)); statusEl.style.color = '#FFD93D';
     var mk = (marketEl.value || 'US|en').split('|');
     ittSearch(query, mk[0], mk[1]).then(function (list) {
       _vids = (list || []).filter(function (v) { return v.vn > 0; });

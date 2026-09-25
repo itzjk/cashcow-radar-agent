@@ -2,12 +2,15 @@
 
 // Only path that writes HTML into the youtube.com DOM. YouTube enforces Trusted Types, and this file never registers a
 // 'default' policy: one that passes every string would switch that protection off for every script on the page. The
-// markup is parsed inert in a template through a policy only this closure holds, whatever can run code is removed,
-// and the clean nodes are moved in. So a title, a comment or a model answer that carries markup renders as text or not at all.
+// markup is parsed inert in a template through a policy only this closure holds, only listed tags and attributes
+// stay, and the clean nodes are moved in. So a title, a comment or a model answer that carries markup renders as text or not at all.
 var nspSetHTML = (function () {
   var raw = null, tried = false;
-  var DROP = { SCRIPT: 1, IFRAME: 1, FRAME: 1, FRAMESET: 1, OBJECT: 1, EMBED: 1, LINK: 1, META: 1, BASE: 1, FORM: 1, NOSCRIPT: 1, TEMPLATE: 1, FOREIGNOBJECT: 1 };
-  var URL_ATTRS = { href: 1, src: 1, 'xlink:href': 1, action: 1, formaction: 1, poster: 1, background: 1 };
+  // Allow lists, not block lists: a tag or attribute nobody listed here is gone, so a new way to run code (an
+  // SVG animation, a <use> pointing out, a <style> that restyles YouTube) is out before anyone names it.
+  var TAGS = { DIV: 1, SPAN: 1, P: 1, B: 1, STRONG: 1, I: 1, EM: 1, SMALL: 1, BR: 1, HR: 1, IMG: 1, A: 1, UL: 1, OL: 1, LI: 1,
+    TABLE: 1, THEAD: 1, TBODY: 1, TR: 1, TD: 1, TH: 1, H1: 1, H2: 1, H3: 1, H4: 1, CODE: 1, PRE: 1, LABEL: 1, BUTTON: 1, SECTION: 1, HEADER: 1, FOOTER: 1 };
+  var ATTRS = { style: 1, 'class': 1, id: 1, title: 1, alt: 1, src: 1, href: 1, target: 1, rel: 1, width: 1, height: 1, colspan: 1, rowspan: 1, role: 1, type: 1, disabled: 1 };
 
   function parse(html) {
     var tpl = document.createElement('template');
@@ -25,21 +28,27 @@ var nspSetHTML = (function () {
   }
 
   function urlAllowed(name, value, tag) {
+    if (!((name === 'href' && tag === 'A') || (name === 'src' && tag === 'IMG'))) return false;
     var v = String(value || '').replace(/[\x00-\x20]+/g, '').toLowerCase();
     var scheme = /^([a-z][a-z0-9+.\-]*):/.exec(v);
     if (!scheme) return true;
-    if (scheme[1] === 'http' || scheme[1] === 'https' || scheme[1] === 'mailto') return true;
-    return scheme[1] === 'data' && tag === 'IMG' && name === 'src' && /^data:image\/(?:png|jpe?g|gif|webp);/.test(v);
+    if (scheme[1] === 'http' || scheme[1] === 'https' || (scheme[1] === 'mailto' && tag === 'A')) return true;
+    return scheme[1] === 'data' && tag === 'IMG' && /^data:image\/(?:png|jpe?g|gif|webp);/.test(v);
+  }
+
+  function attrAllowed(name, value, tag) {
+    if (name === 'href' || name === 'src') return urlAllowed(name, value, tag);
+    if (name === 'style') return !/url\s*\(|expression\s*\(|@import|behavior\s*:|-moz-binding/i.test(String(value || ''));
+    return ATTRS[name] === 1 || /^aria-[a-z]+$/.test(name) || /^data-[a-z0-9-]+$/.test(name);
   }
 
   function clean(node) {
     Array.prototype.slice.call(node.childNodes).forEach(function (kid) {
       if (kid.nodeType === 3) return;
-      if (kid.nodeType !== 1 || DROP[String(kid.tagName).toUpperCase()]) { kid.remove(); return; }
-      var tag = String(kid.tagName).toUpperCase();
+      var tag = kid.nodeType === 1 ? String(kid.tagName).toUpperCase() : '';
+      if (TAGS[tag] !== 1) { kid.remove(); return; }
       Array.prototype.slice.call(kid.attributes).forEach(function (a) {
-        var n = a.name.toLowerCase();
-        if (n.indexOf('on') === 0 || n === 'srcdoc' || (URL_ATTRS[n] === 1 && !urlAllowed(n, a.value, tag))) kid.removeAttribute(a.name);
+        if (!attrAllowed(a.name.toLowerCase(), a.value, tag)) kid.removeAttribute(a.name);
       });
       clean(kid);
     });
@@ -7540,14 +7549,10 @@ function getAshlyVFacelessScore(item) {
   ));
 }
 
-/* Sends niche notifications through the MV3 service worker. */
-function fireAshlyVNotification(title, message) {
+/* Niche notifications: the page names what happened and the numbers, the service worker writes the words. */
+function fireAshlyVNotification(code, fields) {
   try {
-    var hasChrome = typeof chrome !== 'undefined';
-    var iconUrl = hasChrome && chrome.runtime && chrome.runtime.getURL ? chrome.runtime.getURL('icons/icon128.png') : '';
-    if (typeof sendRuntimeMessage === 'function') {
-      sendRuntimeMessage({ type: 'ASHLYV_SHOW_NOTIFICATION', title: title, message: message, iconUrl: iconUrl });
-    }
+    sendRuntimeMessage(Object.assign({ type: 'ASHLYV_SHOW_NOTIFICATION', code: code }, fields || {}));
   } catch(e) {}
 }
 
@@ -7622,7 +7627,7 @@ function checkAshlyVNicheAlerts(results) {
           facelessScore: getAshlyVFacelessScore(item),
           vph: (sc.vph == null ? null : Math.round(sc.vph))
         };
-        fireAshlyVNotification('Niche on the rise: ' + nicheTitle, 'RPM went from $' + alert.rpmBefore + ' to $' + alert.rpmAfter + ', this niche is paying more');
+        fireAshlyVNotification('niche_rising', { niche: nicheTitle, rpmBefore: alert.rpmBefore, rpmAfter: alert.rpmAfter });
       } else if (!before && rpm >= 8) {
         alert = {
           nicheTitle: nicheTitle,
@@ -7633,7 +7638,7 @@ function checkAshlyVNicheAlerts(results) {
           facelessScore: getAshlyVFacelessScore(item),
           vph: (sc.vph == null ? null : Math.round(sc.vph))
         };
-        fireAshlyVNotification('New niche detected: ' + nicheTitle, 'Estimated RPM: $' + alert.rpmAfter + (alert.vph == null ? '' : ' | VPH: ' + alert.vph) + ' | first time seen');
+        fireAshlyVNotification('niche_new', { niche: nicheTitle, rpm: alert.rpmAfter, vph: alert.vph });
       }
       if (alert) alerts.push(alert);
       baselines[nicheId] = before ? Number(((before * 0.75) + (rpm * 0.25)).toFixed(2)) : Number(rpm.toFixed(2));
@@ -12932,8 +12937,10 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           el.placeholder = placeholder || '';
           return el;
         };
-        var proBtnSmall = function(id, text, bg, fg) {
-          var el = proEl('button', 'background:' + bg + ';color:' + (fg || '#000') + ';border:0;border-radius:6px;font-size:10px;font-weight:950;cursor:pointer;', text);
+        var proBtnSmall = function(id, text, bg, fg, grant) {
+          var el = grant ? nspGrantControl(grant, 'button') : document.createElement('button');
+          el.style.cssText = 'background:' + bg + ';color:' + (fg || '#000') + ';border:0;border-radius:6px;font-size:10px;font-weight:950;cursor:pointer;';
+          el.textContent = text;
           el.id = id;
           el.type = 'button';
           return el;
@@ -13028,11 +13035,11 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
         }, 'pro-title-result');
         card(replicateView, '#00DC82', 'REPLICATE CONTENT', {
           grid: '1fr 82px 96px',
-          items: [proInput('pro-rep-channel', 'channel/url'), proSelect('pro-rep-language', [['es','ES'], ['en','EN'], ['pt','PT'], ['de','DE']]), proBtnSmall('pro-rep-btn', 'REPLICATE', '#00DC82', '#000')]
+          items: [proInput('pro-rep-channel', 'channel/url'), proSelect('pro-rep-language', [['es','ES'], ['en','EN'], ['pt','PT'], ['de','DE']]), proBtnSmall('pro-rep-btn', 'REPLICATE', '#00DC82', '#000', 'replicate')]
         }, 'pro-rep-result');
         card(brandView, '#FFD93D', 'BUILD BRAND', {
           grid: '1fr 80px 72px 62px',
-          items: [proInput('pro-brand-niche', 'niche'), proSelect('pro-brand-tone', [['pro','Pro'], ['drama','Drama'], ['casual','Casual'], ['edu','Edu']]), proSelect('pro-brand-language', [['es','ES'], ['en','EN'], ['pt','PT'], ['de','DE']]), proBtnSmall('pro-brand-btn', 'BUILD', '#FFD93D', '#000')]
+          items: [proInput('pro-brand-niche', 'niche'), proSelect('pro-brand-tone', [['pro','Pro'], ['drama','Drama'], ['casual','Casual'], ['edu','Edu']]), proSelect('pro-brand-language', [['es','ES'], ['en','EN'], ['pt','PT'], ['de','DE']]), proBtnSmall('pro-brand-btn', 'BUILD', '#FFD93D', '#000', 'brand')]
         }, 'pro-brand-result');
         panel.appendChild(proPanel);
         var q = function(sel) { return proPanel.querySelector(sel); };
@@ -13111,8 +13118,6 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           };
         });
         // TOOLS read real data through the worker. REPLICATE and BRAND ask the model, inside the grant a press on their button opens.
-        q('#pro-rep-btn').setAttribute('data-nsp-grant', 'replicate');
-        q('#pro-brand-btn').setAttribute('data-nsp-grant', 'brand');
         var lines = function(sel, list) { out(sel, list.filter(function(x) { return x != null && x !== ''; }).join('\n')); };
         var failed = function(sel, res) { lines(sel, ['Not available: ' + String((res && (res.detail || res.error)) || 'no answer')]); };
         q('#pro-age-btn').onclick = function() {
@@ -16279,8 +16284,7 @@ function showTitleLabPanel(ch) {
 
   var actions = document.createElement('div');
   actions.style.cssText = 'display:flex;gap:8px;margin-top:12px;';
-  var rankBtn = document.createElement('button');
-  rankBtn.setAttribute('data-nsp-grant', 'titles');
+  var rankBtn = nspGrantControl('titles', 'button');
   rankBtn.textContent = 'RANK WITH AI';
   rankBtn.style.cssText = 'flex:1;padding:11px;border-radius:10px;border:1px solid rgba(255,255,255,.62);background:#fff;color:#000;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;letter-spacing:.12em;';
   actions.appendChild(rankBtn);
@@ -16630,9 +16634,8 @@ function injectCommentsButton() {
     return;
   }
   if (document.getElementById('nsp-comments-btn-floating')) return;
-  var btn = document.createElement('button');
+  var btn = nspGrantControl('comments', 'button');
   btn.id = 'nsp-comments-btn-floating';
-  btn.setAttribute('data-nsp-grant', 'comments');
   btn.textContent = 'COMMENTS AI';
   btn.style.cssText = 'position:fixed;bottom:60px;right:18px;z-index:9999;padding:10px 14px;border-radius:14px;'
     + 'border:1px solid rgba(255,255,255,.22);background:linear-gradient(135deg,#0a0a0a,#1a1a2e);color:#fff;'
@@ -18274,9 +18277,8 @@ function injectBatmanButton() {
   wrap.id = 'nsp-batman-scan-wrap';
   wrap.style.cssText = 'display:inline-flex;align-items:center;margin:0 8px;';
 
-  var btn = document.createElement('button');
+  var btn = nspGrantControl('vision', 'button');
   btn.id = 'nsp-batman-scan-btn';
-  btn.setAttribute('data-nsp-grant', 'vision');
   btn.style.cssText = 'display:flex;align-items:center;gap:7px;height:36px;padding:0 14px;border-radius:18px;'
     + 'background:linear-gradient(135deg,#0a0a0a,#1a1a2e);border:1.5px solid rgba(255,255,255,0.15);'
     + 'color:#fff;font-size:11px;font-weight:900;cursor:pointer;font-family:Roboto,Arial,sans-serif;'
@@ -19188,9 +19190,8 @@ function injectGlobeButton() {
   wrap.id = 'nsp-globe-wrap';
   wrap.style.cssText = 'position:relative;display:inline-flex;align-items:center;margin:0 8px 0 6px;flex:0 0 auto;';
 
-  var btn = document.createElement('button');
+  var btn = nspGrantControl('vision', 'button');
   btn.id = 'nsp-globe-btn';
-  btn.setAttribute('data-nsp-grant', 'vision');
   btn.className = 'nsp-globe-btn nsp-globe-compact';
   btn.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border:none;background:transparent;'
     + 'color:#fff;cursor:pointer;outline:none;transition:transform .18s ease,filter .18s ease;position:relative;box-shadow:none;';
@@ -19579,9 +19580,8 @@ function injectFacelessButton() {
   var start = document.querySelector('ytd-masthead #start') || document.querySelector('#masthead #start');
   if (!start) return;
 
-  var btn = document.createElement('button');
+  var btn = nspGrantControl('vision', 'button');
   btn.id = 'nsp-faceless-btn';
-  btn.setAttribute('data-nsp-grant', 'vision');
   btn.type = 'button';
   styleNSPMonoButton(btn, { compact: true, active: false });
   btn.style.marginLeft = '12px';
@@ -20703,6 +20703,18 @@ function nspCoachSendApi(messages, brief, includeTools) {
   });
 }
 
+// A button or textarea whose real press lets this tab spend on the model. The bridge creates it and keeps it in a
+// map no page script can touch; an attribute or an id would let any script mark <body> and turn every click into
+// a grant. Without the bridge (the extension reloaded) the control still works as a control and grants nothing.
+function nspGrantControl(kind, tag) {
+  var slot = document.createElement('span');
+  (document.body || document.documentElement).appendChild(slot);
+  try { slot.dispatchEvent(new CustomEvent('nsp-grant-control', { bubbles: true, detail: JSON.stringify({ kind: kind, tag: tag }) })); } catch (eGrant) {}
+  var control = slot.firstElementChild || document.createElement(tag);
+  slot.remove();
+  return control;
+}
+
 // Every AI call from YouTube goes through here. 120s by default, because a rate limited provider can hold a request for a full minute.
 var _nspAiPending = {};
 function nspAiTask(task, data, timeoutMs) {
@@ -21437,8 +21449,7 @@ function _zRenderPredictionResult(container, pred) {
   }
 
   // Hand off to the ZERACK chat.
-  var chatBtn = document.createElement('button');
-  chatBtn.setAttribute('data-nsp-grant', 'coach');
+  var chatBtn = nspGrantControl('coach', 'button');
   chatBtn.textContent = 'Ask ZERACK to rewrite my title';
   chatBtn.style.cssText = 'width:100%;margin-top:15px;padding:11px;border:1px solid rgba(0,220,130,0.4);border-radius:10px;background:rgba(0,220,130,0.08);color:#00DC82;font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;';
   chatBtn.onclick = function() {
@@ -23589,9 +23600,8 @@ function openNspCoachChat(opts) {
     ['Export niches', 'Export my saved niches to CSV.']
   ];
   quickActions.forEach(function(qa) {
-    var chip = document.createElement('button');
+    var chip = nspGrantControl('coach', 'button');
     chip.className = 'quick-chip';
-    chip.setAttribute('data-nsp-grant', 'coach');
     chip.textContent = qa[0];
     chip.style.cssText = 'flex-shrink:0;padding:6px 10px;border-radius:14px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.8);font-family:ui-monospace,monospace;font-size:10px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;';
     chip.onmouseenter = function() { chip.style.background = 'rgba(255,255,255,0.12)'; chip.style.color = '#fff'; };
@@ -23608,15 +23618,13 @@ function openNspCoachChat(opts) {
   // Input area
   var inputWrap = document.createElement('div');
   inputWrap.id = 'inputwrap';
-  var input = document.createElement('textarea');
+  // A real press here (Enter in the box or the SEND button) is what lets this tab spend on the model, see ashlyv-bridge.js.
+  var input = nspGrantControl('coach', 'textarea');
   input.id = 'input';
   input.placeholder = 'Ask about a niche or a channel, or ask for ideas';
   input.rows = 1;
-  // A real press here (Enter in the box or the SEND button) is what lets this tab spend on the model, see ashlyv-bridge.js.
-  input.setAttribute('data-nsp-grant', 'coach');
-  var sendBtn = document.createElement('button');
+  var sendBtn = nspGrantControl('coach', 'button');
   sendBtn.id = 'send-btn'; sendBtn.textContent = 'SEND';
-  sendBtn.setAttribute('data-nsp-grant', 'coach');
   // STOP button, cancels a turn in progress.
   var stopBtn = document.createElement('button');
   stopBtn.id = 'stop-btn';
@@ -23678,7 +23686,8 @@ function openNspCoachChat(opts) {
   }
 
   MODEL_LIST.forEach(function (entry) {
-    var row = document.createElement('button');
+    // The model decides what a turn costs: the worker changes it only on a real press of one of these rows.
+    var row = nspGrantControl('model', 'button');
     row.dataset.modelId = entry.id;
     row.style.cssText = 'display:block;width:100%;text-align:left;padding:9px 11px;border:none;border-radius:8px;background:transparent;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;';
     var name = document.createElement('div');
@@ -23693,10 +23702,9 @@ function openNspCoachChat(opts) {
     row.onclick = function () {
       paintModelLabel(entry.id);
       modelMenu.style.display = 'none';
-      nspStore.set({ nsp_selected_model: entry.id });
-      var prefReqId = nspCoachReqId();
-      _nspCoachPendingResponses[prefReqId] = function () { delete _nspCoachPendingResponses[prefReqId]; };
-      window.postMessage({ type: 'NSP_COACH_SET_PREFERRED_PROVIDER', requestId: prefReqId, provider: entry.provider || 'auto' }, window.location.origin);
+      sendRuntimeMessage({ type: 'NSP_MODEL_SELECT', id: entry.id }).then(function (res) {
+        if (!res || res.ok !== true) console.warn('[NSP COACH] the model did not change:', res && (res.detail || res.error));
+      });
       t2.textContent = entry.label.toUpperCase();
       t2.style.color = 'rgba(255,255,255,0.55)';
     };

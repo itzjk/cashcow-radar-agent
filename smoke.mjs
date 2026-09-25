@@ -364,6 +364,8 @@ section("9. Every storage key the page world touches is on the bridge allowlist"
     const allowed = new Set([...block[1].matchAll(/([A-Za-z0-9_]+)\s*:\s*1/g)].map(m => m[1]));
     const roBlock = /var\s+NSP_RELAY_READONLY\s*=\s*\{([\s\S]*?)\}\s*;/.exec(read(bridge));
     const readOnly = new Set(roBlock ? [...roBlock[1].matchAll(/([A-Za-z0-9_]+)\s*:\s*1/g)].map(m => m[1]) : []);
+    const clBlock = /var\s+NSP_RELAY_CLEARABLE\s*=\s*\{([\s\S]*?)\}\s*;/.exec(read(bridge));
+    const clearable = new Set(clBlock ? [...clBlock[1].matchAll(/([A-Za-z0-9_]+)\s*:\s*1/g)].map(m => m[1]) : []);
     const written = new Set();
     const writtenAt = new Map();
     const refused = /key|token|secret|password|auth/i;
@@ -376,7 +378,9 @@ section("9. Every storage key the page world touches is on the bridge allowlist"
       const lineAt = offset => src.slice(0, offset).split("\n").length;
       for (const m of src.matchAll(CALLS)) {
         const window = src.slice(m.index, m.index + 400);
-        const isWrite = /\.\s*(?:set|remove)\s*\(|StorageSet|safeStorageSet/.test(m[0]);
+        // Clearing a key the bridge lists as clearable is not a write: the page can empty it, never fill it.
+        const isClear = /\.\s*remove\s*\(/.test(m[0]);
+        const isWrite = /\.\s*set\s*\(|StorageSet|safeStorageSet/.test(m[0]) || isClear;
         const found = [...window.matchAll(/['"]([a-z0-9_]+)['"]/g)].map(x => x[1]);
         if (isWrite) {
           const call = window.slice(0, window.indexOf(")") + 1 || window.length);
@@ -384,7 +388,7 @@ section("9. Every storage key the page world touches is on the bridge allowlist"
         }
         for (const key of found) {
           if (!KEY_SHAPE.test(key)) continue;
-          if (isWrite) { written.add(key); if (!writtenAt.has(key)) writtenAt.set(key, script + ":" + lineAt(m.index)); }
+          if (isWrite && !(isClear && clearable.has(key))) { written.add(key); if (!writtenAt.has(key)) writtenAt.set(key, script + ":" + lineAt(m.index)); }
           if (!used.has(key)) used.set(key, script + ":" + lineAt(m.index));
         }
       }

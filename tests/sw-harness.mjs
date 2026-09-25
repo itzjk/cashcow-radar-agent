@@ -70,6 +70,7 @@ export function loadWorker(opts = {}) {
     }, { get(t, k) { return k in t ? t[k] : stub(); } }),
     storage: { local: area(local), session: area(session), sync: area({}), onChanged: { addListener() {} } },
     declarativeNetRequest: { updateSessionRules: rules => { calls.push({ api: "dnr.updateSessionRules", args: [rules] }); return Promise.resolve(); } },
+    notifications: { create: (o, cb) => { calls.push({ api: "notifications.create", args: [o] }); if (cb) setImmediate(cb); } },
     tabs
   }, { get(t, k) { return k in t ? t[k] : stub(); } });
 
