@@ -6,7 +6,7 @@ import { dirname, join, relative, resolve as resolvePath } from "node:path";
 
 const EXT = process.env.ZERACK_EXT ? resolvePath(process.env.ZERACK_EXT) : dirname(fileURLToPath(import.meta.url));
 
-const SKIP_DIRS = ["/.git/", "/node_modules/", "/docs/", "/lib/face-api/", "/lib/mobilenet/", "/lib/whisper/models/"];
+const SKIP_DIRS = ["/.git/", "/node_modules/", "/docs/", "/lib/face-api/", "/lib/whisper/models/"];
 const SKIP_FILES = [/\.min\.js$/, /\.bak$/, /\.before-restore$/, /\.pre-mono$/];
 
 let failures = 0, warnings = 0;
