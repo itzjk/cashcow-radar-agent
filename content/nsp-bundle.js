@@ -1467,30 +1467,6 @@ function sendRuntimeMessage(msg) {
   });
 }
 
-function sendRuntimeMessageLegacy(msg) {
-  return new Promise(function(resolve) {
-    try {
-      chrome.runtime.sendMessage(msg, function(res) {
-        try {
-          var err = chrome.runtime && chrome.runtime.lastError;
-          if (err) {
-            var message = String(err.message || '');
-            if (/receiving end does not exist|could not establish connection|no sw/i.test(message)) {
-              resolve({ ok: false, noServiceWorker: true, error: message });
-              return;
-            }
-            resolve({ ok: false, error: message });
-            return;
-          }
-        } catch(e) {}
-        resolve(res || { ok: false });
-      });
-    } catch(e) {
-      resolve({ ok: false, error: e && e.message });
-    }
-  });
-}
-
 var NspScanPrefs = (function() {
   var _prefs = normalizeUserScanPrefs(NSP_PREFS_DEFAULTS);
   var _loading = null;
@@ -7262,25 +7238,10 @@ function getChannelFacelessScoreBatch(channelIds, callback) {
   var batchPromises = batches.map(function(batch) {
     // Use service-worker to bypass CORS issues (MAIN world content script fetch
     // to googleapis.com is unreliable; SW with host_permissions works always)
-    return new Promise(function(resolve) {
-      try {
-        if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
-          resolve({ ok: false, error: 'no chrome.runtime' });
-          return;
-        }
-        chrome.runtime.sendMessage({
-          type: 'NSP_FETCH_YT_CHANNELS',
-          channelIds: batch,
-          apiKey: YT_API_KEY
-        }, function(response) {
-          if (chrome.runtime.lastError) {
-            resolve({ ok: false, error: chrome.runtime.lastError.message });
-            return;
-          }
-          resolve(response || { ok: false, error: 'no response' });
-        });
-      } catch(e) { resolve({ ok: false, error: e.message }); }
-    })
+    // The YouTube Data API key lives in the extension pages and NSP_FETCH_YT_CHANNELS serves them only: from
+    // youtube.com there is no key to send and no seat at the door. This page world has no chrome.runtime either, so
+    // the old call here threw every time; the batch now says so plainly and the scan keeps its neutral score.
+    return Promise.resolve({ ok: false, error: 'channel data is read from the extension pages, not from youtube.com' })
       .then(function(swResponse) {
         // Handle errors at SW level
         if (!swResponse || !swResponse.ok) {
@@ -10761,23 +10722,7 @@ var AshlyVMemory = (function() {
   }
 
   function _sendMessage(msg) {
-    if (typeof sendRuntimeMessage === 'function') return sendRuntimeMessage(msg);
-    return new Promise(function(resolve) {
-      try {
-        chrome.runtime.sendMessage(msg, function(res) {
-          try {
-            var err = chrome.runtime && chrome.runtime.lastError;
-            if (err) {
-              resolve({ ok: false, noServiceWorker: true, error: String(err.message || err) });
-              return;
-            }
-          } catch(e) {}
-          resolve(res || { ok: false });
-        });
-      } catch(e) {
-        resolve({ ok: false, error: e && e.message });
-      }
-    });
+    return sendRuntimeMessage(msg);
   }
 
   function ensureLoaded(forceRefresh) {

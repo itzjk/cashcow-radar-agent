@@ -3267,6 +3267,46 @@ function nspOpenAllowed(tabId, now) {
   return true;
 }
 
+// A channel saved from YouTube. The hub paints it, so text loses markup, numbers are bounded, the avatar must come
+// from YouTube's image hosts, and the page cannot set "blocked" (blocking a channel belongs to the hub).
+function nspPageText(v, max) { return String(v == null ? '' : v).replace(/[<>]/g, '').slice(0, max || 200); }
+function nspPageTexts(v, n, max) { return (Array.isArray(v) ? v : []).slice(0, n).map(function(t) { return nspPageText(t, max); }).filter(Boolean); }
+function nspChannelToSave(e) {
+  e = e && typeof e === 'object' && !Array.isArray(e) ? e : {};
+  var url = String(e.channelUrl || '');
+  if (!/^https:\/\/(www\.)?youtube\.com\/(@|channel\/|c\/|user\/)/i.test(url)) return null;
+  var avatar = String(e.avatarUrl || '');
+  var out = {
+    channelUrl: url.slice(0, 300),
+    channelId: /^[A-Za-z0-9_-]{10,40}$/.test(String(e.channelId || '')) ? String(e.channelId) : '',
+    channelKey: nspPageText(e.channelKey, 120),
+    name: nspPageText(e.name, 120),
+    avatarUrl: /^https:\/\/yt[0-9]\.(ggpht|googleusercontent)\.com\//i.test(avatar) ? avatar.slice(0, 500) : '',
+    source: e.source === 'manual' ? 'manual' : nspPageText(e.source || 'youtube', 40),
+    niche: nspPageText(e.niche, 120),
+    topTier: nspPageText(e.topTier, 20),
+    avgTier: nspPageText(e.avgTier, 20),
+    joinedDate: nspPageText(e.joinedDate, 40)
+  };
+  if (e.monetized != null) out.monetized = e.monetized === true;
+  [['subGrowth', 1e9], ['subs', 1e10], ['revMonth', 1e9], ['avgOS', 1e9], ['channelAgeDays', 1e5], ['totalViews', 1e13], ['videoCount', 1e7],
+   ['topVPH', 1e9], ['avgVPH', 1e9], ['videosSeen', 1e6], ['outliers', 1e6]].forEach(function(pair) { if (e[pair[0]] != null) out[pair[0]] = nspBounded(e[pair[0]], 0, pair[1]); });
+  return out;
+}
+
+// One scan-memory entry from the page: each field with its shape.
+function nspSeenEntry(e) {
+  e = e && typeof e === 'object' && !Array.isArray(e) ? e : {};
+  return {
+    title: nspPageText(e.title, 120),
+    videoId: /^[A-Za-z0-9_-]{11}$/.test(String(e.videoId || '')) ? String(e.videoId) : '',
+    channelUrl: /^https:\/\/(www\.)?youtube\.com\//i.test(String(e.channelUrl || '')) ? String(e.channelUrl).slice(0, 300) : '',
+    channelKey: nspPageText(e.channelKey, 120),
+    topicKey: nspPageText(e.topicKey, 120),
+    nicheLabel: nspPageText(e.nicheLabel, 120)
+  };
+}
+
 function nspPageOpenUrl(msg) {
   if (String(msg.page || 'hub') !== 'hub') return '';
   var q = [];
@@ -3502,8 +3542,8 @@ function nspRoute(msg, sender, sendResponse, who) {
 
   // — Save channel (manual + scout)
   if (msg.type === 'NSP_SAVE_CHANNEL') {
-    var entry = msg.data;
-    if (!entry || !entry.channelUrl) { sendResponse({ ok: false }); return false; }
+    var entry = nspChannelToSave(msg.data);
+    if (!entry) { sendResponse({ ok: false, error: 'bad_channel' }); return false; }
     nspStorageUpdate('nsp_all_channels', function(stored) {
       var all = stored || [];
       var idx = -1;
@@ -3650,9 +3690,12 @@ function nspRoute(msg, sender, sendResponse, who) {
   // This is the only way to see "Germany's actual feed" while logged-in elsewhere.
   // Caches 15min in chrome.storage to respect rate limits.
   if (msg.type === 'NSP_FETCH_COUNTRY_FACELESS_FEED') {
+    // gl and hl become part of a storage key name: country and language codes only.
     var gl = String(msg.gl || 'US').toUpperCase();
     var hl = String(msg.hl || 'en').toLowerCase();
-    var queries = Array.isArray(msg.queries) ? msg.queries.slice(0, 18) : [];
+    if (!/^[A-Z]{2}$/.test(gl)) gl = 'US';
+    if (!/^[a-z]{2,3}(-[a-z]{2,4})?$/.test(hl)) hl = 'en';
+    var queries = nspPageTexts(msg.queries, 18, 120);
     var force = !!msg.force; // bypass cache
     var maxAgeHours = Number(msg.maxAgeHours) || 0;
     var cacheKey = nspCountryFeedCacheKey(gl, hl, maxAgeHours, queries);
@@ -3718,7 +3761,7 @@ function nspRoute(msg, sender, sendResponse, who) {
       // Merge optional legacy data passed by the client one-shot
       if (msg.legacyData && typeof msg.legacyData === 'object') {
         ['seenTitles', 'seenVideoIds', 'seenChannelUrls', 'seenChannelKeys', 'seenTopicKeys', 'seenNicheLabels'].forEach(function(k) {
-          mem[k] = uniqueSlice((mem[k] || []).concat(msg.legacyData[k] || []), 2500);
+          mem[k] = uniqueSlice((mem[k] || []).concat(nspPageTexts(msg.legacyData[k], 2500, 200)), 2500);
         });
         mem.legacyMigrated = true;
       }
@@ -3740,7 +3783,7 @@ function nspRoute(msg, sender, sendResponse, who) {
   if (msg.type === 'NSP_SCAN_MARK_SEEN') {
     chrome.storage.local.get('nsp_scan_memory', function(r) {
       var mem = r.nsp_scan_memory || {};
-      (msg.entries || []).forEach(function(e) {
+      (Array.isArray(msg.entries) ? msg.entries.slice(0, 200) : []).map(nspSeenEntry).forEach(function(e) {
         if (e.title) mem.seenTitles = uniqueSlice([(e.title || '').toLowerCase().slice(0, 120)].concat(mem.seenTitles || []), 2500);
         if (e.videoId) mem.seenVideoIds = uniqueSlice([e.videoId].concat(mem.seenVideoIds || []), 2500);
         if (e.channelUrl) mem.seenChannelUrls = uniqueSlice([e.channelUrl].concat(mem.seenChannelUrls || []), 2500);

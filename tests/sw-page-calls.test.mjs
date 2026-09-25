@@ -59,4 +59,29 @@ import { ROOT, loadWorker, SENDERS, check, done } from "./sw-harness.mjs";
   check("the scanner sends the opportunity, not a ready-made alert", /type: 'ASHLYV_ALERT_PUSH', opportunity: top/.test(bundle));
 }
 
+// Saved channels, scan memory and the country feed are rebuilt against their shape.
+{
+  const w = loadWorker();
+  let res = await w.send({ type: "NSP_SAVE_CHANNEL", data: { channelUrl: "https://www.youtube.com/@deep", name: "<img src=x onerror=alert(1)>Deep", subs: 5e12, blocked: true, avatarUrl: "https://evil.example/a.png", extra: "x" } }, SENDERS.youtube);
+  const c = (w.local.nsp_all_channels || [])[0] || {};
+  check("a saved channel loses markup, gets bounded numbers and a YouTube-only avatar", res && res.ok === true && c.name === "img src=x onerror=alert(1)Deep" && c.subs === 1e10 && c.avatarUrl === "" && !("extra" in c), JSON.stringify(c));
+  check("and the page cannot block hub channels", !("blocked" in c));
+  res = await w.send({ type: "NSP_SAVE_CHANNEL", data: { channelUrl: "https://evil.example/@x", name: "x" } }, SENDERS.youtube);
+  check("a channel outside YouTube is not saved", res && res.ok === false && w.local.nsp_all_channels.length === 1, res);
+  await w.send({ type: "NSP_SCAN_MARK_SEEN", entries: [{ title: "<b>Title</b>", videoId: "abcdefghijk", channelUrl: "javascript:x", nicheLabel: "Space" }] }, SENDERS.youtube);
+  const m = w.local.nsp_scan_memory || {};
+  check("scan memory keeps only shaped fields", (m.seenTitles || [])[0] === "btitle/b" && (m.seenVideoIds || [])[0] === "abcdefghijk" && !(m.seenChannelUrls || []).length, JSON.stringify(m));
+  await w.send({ type: "NSP_FETCH_COUNTRY_FACELESS_FEED", gl: "X/../", hl: "<>", queries: ["space facts"] }, SENDERS.youtube);
+  await new Promise(r => setTimeout(r, 50));
+  const keys = Object.keys(w.local).filter(k => k.startsWith("nsp_country_feed_"));
+  check("the country feed cannot name odd storage keys", keys.every(k => /^nsp_country_feed_[A-Z]{2}_[a-z-]+$/.test(k)), keys.join(","));
+}
+
+// The page world has no chrome.runtime: nothing in the bundle may still call it directly.
+{
+  const bundle = readFileSync(join(ROOT, "content/nsp-bundle.js"), "utf8");
+  const live = bundle.split("\n").filter(l => /chrome\.runtime\.sendMessage\(|chrome\.storage\.local\.(get|set|remove)\(/.test(l) && !/^\s*\/\//.test(l));
+  check("no direct chrome.runtime or chrome.storage call is left in the page-world bundle", live.length === 0, live.join(" | ").slice(0, 200));
+}
+
 done("sw-page-calls");
