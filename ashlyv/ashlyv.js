@@ -4,9 +4,6 @@ var currentBlueprintPrompt = '';
 var currentRobaPrompt = '';
 var currentRobaSnapshot = null;
 var targetLang = 'en';
-var currentChannelName = '';
-var lastThumbnailAnalysisPayload = null;
-var lastChannelAnalysisName = '';
 var ashlyvToastCount = 0;
 var ashlyvToastTimers = [];
 
@@ -351,32 +348,11 @@ function averageRpm() {
 }
 
 function requestRuntimeMessage(message) {
-  return new Promise(function(resolve) {
-    try {
-      chrome.runtime.sendMessage(message, function(res) { resolve(res || { ok: false }); });
-    } catch (err) {
-      resolve({ ok: false, error: err && err.message });
-    }
-  });
-}
-
-function requestAnthropicProxy(message) {
-  return new Promise(function(resolve, reject) {
-    try {
-      chrome.runtime.sendMessage(message, function(res) {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message || 'runtime_error'));
-          return;
-        }
-        if (!res) {
-          reject(new Error('No response from the service worker'));
-          return;
-        }
-        resolve(res);
-      });
-    } catch (err) {
-      reject(err);
-    }
+  var fields = Object.assign({}, message);
+  var type = fields.type;
+  delete fields.type;
+  return window.AshlyVAPI.sendToSW(type, fields).catch(function(err) {
+    return { ok: false, error: err && err.reason ? err.reason : 'runtime_error', detail: err && err.message ? err.message : String(err) };
   });
 }
 
@@ -1844,12 +1820,11 @@ function showAshlyVToolComingSoon(toolUrl) {
   ov.addEventListener('click', function (e) { if (e.target === ov) ov.parentNode.removeChild(ov); });
   var box = document.createElement('div');
   box.style.cssText = 'width:min(440px,92vw);background:#0d1014;border:1px solid rgba(255,255,255,0.18);border-radius:16px;padding:26px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.6);';
- var ic = document.createElement('div'); ic.textContent =''; ic.style.cssText ='font-size:40px;margin-bottom:10px;';
   var t = document.createElement('div'); t.textContent = 'Could not open that tool'; t.style.cssText = 'font-size:16px;font-weight:900;color:#00DC82;margin-bottom:9px;';
   var d = document.createElement('div'); d.textContent = 'If you just updated, reload the extension in chrome://extensions and try again.'; d.style.cssText = 'font-size:12px;color:rgba(255,255,255,0.62);line-height:1.55;margin-bottom:16px;';
   var c = document.createElement('button'); c.textContent = 'Close'; c.style.cssText = 'display:block;margin:12px auto 0;background:transparent;border:none;color:rgba(255,255,255,0.4);font-size:11px;cursor:pointer;font-family:inherit;';
   c.addEventListener('click', function () { if (ov.parentNode) ov.parentNode.removeChild(ov); });
-  box.appendChild(ic); box.appendChild(t); box.appendChild(d); box.appendChild(c);
+  box.appendChild(t); box.appendChild(d); box.appendChild(c);
   ov.appendChild(box); document.documentElement.appendChild(ov);
 }
 
@@ -2267,17 +2242,11 @@ function buildAshlyVToolModal(route, options) {
   function clearNode(node) {
     while (node && node.firstChild) node.removeChild(node.firstChild);
   }
-  function renderJsonBlock(target, data) {
-    var pre = document.createElement('pre');
-    pre.style.cssText = 'white-space:pre-wrap;word-break:break-word;padding:12px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:#050505;color:rgba(255,255,255,.82);font-size:11px;line-height:1.55;';
-    pre.textContent = JSON.stringify(data, null, 2);
-    target.appendChild(pre);
-  }
-  function renderBackendRows(target, titleText, rows, mapper) {
+  function renderResultRows(target, titleText, rows, mapper) {
     target.appendChild(el('div', '', titleText));
     target.lastChild.style.cssText = 'font-size:12px;font-weight:900;letter-spacing:.12em;margin:14px 0 8px;';
     if (!rows || !rows.length) {
-      target.appendChild(el('div', '', 'No real results for this search.'));
+      target.appendChild(el('div', '', 'Nothing to show for this search.'));
       target.lastChild.style.cssText = 'font-size:12px;color:rgba(255,255,255,.62);';
       return;
     }
@@ -2292,18 +2261,30 @@ function buildAshlyVToolModal(route, options) {
       copy.appendChild(el('div', '', mapped.meta || ''));
       copy.lastChild.style.cssText = 'font-size:11px;color:rgba(255,255,255,.62);line-height:1.55;margin-top:5px;';
       item.appendChild(copy);
-      if (mapped.search || mapped.copy || mapped.url) {
+      var url = /^https:\/\/(?:www\.)?youtube\.com\//i.test(String(mapped.url || '')) ? mapped.url : '';
+      if (mapped.search || mapped.copy || url) {
         var actions = document.createElement('div');
         actions.style.cssText = 'display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end;';
-        if (mapped.copy) actions.appendChild(toolButton('COPY', function() { copyToolText(mapped.copy, 'Result copied'); }));
-        if (mapped.url) actions.appendChild(toolButton('OPEN', function() { try { window.open(mapped.url, '_blank', 'noopener'); } catch (e) {} }, true));
-        if (mapped.search) actions.appendChild(toolButton('SEARCH', function() { searchNicheTerm(mapped.search, 'es'); }, true));
+        if (mapped.copy) actions.appendChild(toolButton('COPY', function() { copyToolText(mapped.copy, 'Copied'); }));
+        if (url) actions.appendChild(toolButton('OPEN', function() { try { window.open(url, '_blank', 'noopener'); } catch (e) {} }, true));
+        if (mapped.search) actions.appendChild(toolButton('SEARCH', function() { searchNicheTerm(mapped.search, app.state.selectedLanguage || 'auto'); }, true));
         item.appendChild(actions);
       }
       target.appendChild(item);
     });
   }
-  function buildBackendRunner(titleText, subtitleText, defaultValue, buttonLabel, runFn, renderFn) {
+  function toolNote(target, text) {
+    target.appendChild(el('div', '', text));
+    target.lastChild.style.cssText = 'font-size:12px;color:rgba(255,255,255,.62);line-height:1.6;margin-bottom:6px;';
+  }
+  function toolLocale() {
+    return getYouTubeLocale(app.state.selectedLanguage || 'auto');
+  }
+  function toolLanguage() {
+    var code = String(app.state.selectedLanguage || 'auto');
+    return code === 'auto' ? 'en' : code;
+  }
+  function buildLiveRunner(titleText, subtitleText, defaultValue, buttonLabel, runFn, renderFn) {
     var wrap = buildWorkbench(titleText, subtitleText);
     var input = document.createElement('textarea');
     input.rows = 2;
@@ -2314,20 +2295,22 @@ function buildAshlyVToolModal(route, options) {
     controls.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;';
     var out = document.createElement('div');
     out.style.cssText = 'margin-top:14px;';
-    controls.appendChild(toolButton(buttonLabel || 'RUN FOR REAL', function() {
+    controls.appendChild(toolButton(buttonLabel || 'RUN', function() {
       clearNode(out);
       if (!window.AshlyVAPI) {
-        out.appendChild(el('div', '', 'AshlyVAPI is not loaded on this page.'));
+        out.appendChild(el('div', '', 'The data client did not load on this page. Reload it.'));
         return;
       }
-      out.appendChild(el('div', '', 'Processing real data'));
+      out.appendChild(el('div', '', 'Working, this reads YouTube live'));
       out.lastChild.style.cssText = 'font-size:12px;color:rgba(255,255,255,.62);';
-      Promise.resolve(runFn(String(input.value || '').trim())).then(function(response) {
+      Promise.resolve().then(function() {
+        return runFn(String(input.value || '').trim());
+      }).then(function(response) {
         clearNode(out);
-        renderFn(out, response && response.data ? response.data : response);
+        renderFn(out, response);
       }).catch(function(error) {
         clearNode(out);
-        out.appendChild(el('div', '', 'Backend error: ' + (error && error.message ? error.message : error)));
+        out.appendChild(el('div', '', 'Error: ' + (error && error.message ? error.message : error)));
         out.lastChild.style.cssText = 'font-size:12px;color:#ff8f8f;line-height:1.6;';
       });
     }, true));
@@ -2379,22 +2362,23 @@ function buildAshlyVToolModal(route, options) {
           return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); }, secondaryLabel: 'COPY', secondaryAction: function() { copyToolText(item.title || '', 'Title copied'); } };
         }));
         buildMarketWorkbench();
-        buildBackendRunner(
-          'REAL MARKET RADAR',
-          'Searches real keywords on YouTube, scores demand and competition, and puts faceless first without leaning on saved data.',
+        buildLiveRunner(
+          'MARKET RADAR, LIVE',
+          'Searches each keyword on YouTube and measures what ranks: views, how many channels share the results and how much of it is recent. Separate keywords with commas.',
           topByRpm[0] ? (topByRpm[0].niche || topByRpm[0].title || 'mystery documentary') : 'mystery documentary, hidden history, wild nature',
           'SCAN THE MARKET',
           function(value) {
             var seeds = value.split(/[\n,]+/).map(function(x) { return x.trim(); }).filter(Boolean);
-            return window.AshlyVAPI.marketRadar(seeds, 'es', 10);
+            return window.AshlyVAPI.marketRadar(seeds, toolLocale());
           },
-          function(out, data) {
-            renderBackendRows(out, 'REAL OPPORTUNITIES', data || [], function(item) {
+          function(out, rows) {
+            renderResultRows(out, 'MEASURED IN YOUTUBE SEARCH', rows || [], function(item) {
+              if (item.error) return { title: item.keyword, meta: 'Error: ' + item.error };
               return {
-                title: item.keyword || 'Keyword',
-                meta: 'Sub ' + (item.subNiche || 'general') + ' | ' + (item.language || 'auto') + ' | vol ' + compactNumber(item.estimatedMonthlySearchVolume || 0) + '/mo | RPM ' + rpmLabel(item.estimatedRpm || 0) + ' | CPM ' + rpmLabel(item.estimatedCpm || 0) + ' | comp ' + (item.competitionLevel || Math.round(item.competitionScore || 0)) + ' | sat ' + (item.saturationLevel || Math.round(item.saturationScore || 0)) + ' | faceless ' + Math.round(item.facelessScore || 0) + ' | OS ' + Math.round(item.opportunityScore || 0),
+                title: item.keyword,
+                meta: item.results + ' results | median views ' + hubCount(item.medianViews) + ' | top ' + hubCount(item.topViews) + ' | ' + item.distinctChannels + ' channels, the biggest holds ' + hubPct(item.leadChannelShare) + ' of the views | ' + item.recentCount + ' from the last 30 days' + (item.recentCount ? ', median ' + hubCount(item.recentMedianViews) : ''),
                 search: item.keyword,
-                copy: JSON.stringify(item)
+                copy: item.keyword
               };
             });
           }
@@ -2434,17 +2418,20 @@ function buildAshlyVToolModal(route, options) {
         section('PRIORITY CHANNELS', topChannels.map(function(item) {
           return { title: item.name || item.channelName || 'Channel', meta: 'Subs ' + compactNumber(item.subs || 0) + ' | Top VPH ' + compactNumber(item.topVPH || 0) + '/h | Rev ' + moneyLabel(item.revMonth || 0), actionLabel: item.channelUrl ? 'OPEN' : 'SEARCH', action: function() { openChannelTarget(item); }, secondaryLabel: 'COPY', secondaryAction: function() { copyToolText(item.channelUrl || item.name || item.channelName || '', 'Channel copied'); } };
         }));
-        buildBackendRunner(
-          'REAL COMPETITOR MAP',
-          'Paste an @channel, a URL or a keyword. The backend finds real competitors on YouTube and sorts them into direct, emerging and adjacent.',
+        buildLiveRunner(
+          'COMPETITOR MAP, LIVE',
+          'Paste an @channel, a channel link or a keyword. A channel is searched by the words its titles repeat most; the channels that rank for them are grouped and ranked by views in the results.',
           topChannels[0] ? (topChannels[0].channelUrl || topChannels[0].name || topChannels[0].channelName || '') : 'mystery documentary',
           'MAP COMPETITORS',
-          function(value) { return window.AshlyVAPI.competitorMap(value || 'mystery documentary', 'es'); },
+          function(value) { return window.AshlyVAPI.competitorMap(value || 'mystery documentary', toolLocale()); },
           function(out, data) {
-            renderBackendRows(out, 'REAL COMPETITORS', (data && data.competitors) || [], function(item) {
+            toolNote(out, data.basis === 'channel'
+              ? 'Searched "' + data.query + '", built from the titles of ' + data.channel + '. ' + data.sample + ' results, that channel left out.'
+              : data.sample + ' results for "' + data.query + '".');
+            renderResultRows(out, 'CHANNELS IN THE RESULTS', data.competitors, function(item) {
               return {
-                title: (item.type ? item.type.toUpperCase() + ' | ' : '') + (item.name || 'Channel'),
-                meta: 'score ' + Math.round(item.competitorScore || item.facelessSignal || 0) + ' | ' + (item.subscribersText || '') + ' | ' + (item.description || '').slice(0, 120),
+                title: item.name || 'Channel',
+                meta: item.videosInResults + ' videos in the results | ' + hubCount(item.totalViews) + ' views across them | median ' + hubCount(item.medianViews) + (item.topVideo ? ' | top: ' + item.topVideo.title : ''),
                 url: item.url,
                 search: item.name,
                 copy: item.url || item.name
@@ -2479,19 +2466,20 @@ function buildAshlyVToolModal(route, options) {
           return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | RPM ' + rpmLabel(item.rpm || 0) + ' | OS ' + Math.round(toNumber(item.os || 0)), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); } };
         }));
         buildGapWorkbench(gaps);
-        buildBackendRunner(
-          'REAL GAP FINDER',
-          'Analyzes real videos for a keyword or channel and finds uncovered topics with an opportunity score.',
+        buildLiveRunner(
+          'GAP FINDER, LIVE',
+          'Searches a keyword on YouTube and lists the words that few of the ranking videos use but that pull at least twice the median views of the search.',
           gaps[0] ? (gaps[0].niche || gaps[0].title || 'hidden history') : 'hidden history',
           'FIND GAPS',
-          function(value) { return window.AshlyVAPI.gapFinder(value || 'hidden history', 'es'); },
+          function(value) { return window.AshlyVAPI.gapFinder(value || 'hidden history', toolLocale()); },
           function(out, data) {
-            renderBackendRows(out, 'REAL GAPS', (data && data.gaps) || [], function(item) {
+            toolNote(out, 'Median views across ' + data.sample + ' results for "' + data.query + '": ' + hubCount(data.overallMedianViews) + '. A small sample, so read these as leads to check.');
+            renderResultRows(out, 'UNDER-SERVED WORDS', data.gaps, function(item) {
               return {
-                title: item.topic || 'Gap',
-                meta: 'OS ' + Math.round(item.opportunityScore || 0) + ' | demand ' + Math.round(item.demandScore || 0) + ' | competition ' + Math.round(item.competitionScore || 0),
-                search: item.topic,
-                copy: item.topic
+                title: item.term,
+                meta: 'in ' + item.videos + ' of ' + data.sample + ' results | median views ' + hubCount(item.medianViews) + ' | ' + item.lift.toFixed(1) + 'x the search median',
+                search: data.query + ' ' + item.term,
+                copy: item.term
               };
             });
           }
@@ -2514,21 +2502,27 @@ function buildAshlyVToolModal(route, options) {
           return { title: item.word, meta: item.count + ' appearances in saved titles', actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.word, 'es'); } };
         }));
         buildPatternWorkbench();
-        buildBackendRunner(
-          'REAL PATTERN FINDER',
-          'Takes a keyword or a channel, reads real videos and returns repeated hooks, best length and viral formats.',
+        buildLiveRunner(
+          'PATTERN FINDER, LIVE',
+          'Takes a keyword or a channel, reads the real titles and measures their length, the devices they use and the words they repeat, next to the views they got.',
           keywordStats[0] ? keywordStats[0].word : 'mystery',
           'DETECT PATTERNS',
-          function(value) { return window.AshlyVAPI.patternFinder(value || 'mystery', 'es'); },
+          function(value) { return window.AshlyVAPI.patternFinder(value || 'mystery', toolLocale()); },
           function(out, data) {
-            var patterns = data && data.patterns ? data.patterns : data;
-            renderBackendRows(out, 'REPEATED HOOKS', (patterns && patterns.repeatedHooks) || [], function(item) {
-              return { title: item.format || 'Format', meta: (item.matches || 0) + ' matches', search: item.format, copy: JSON.stringify(item) };
+            var p = data.patterns;
+            toolNote(out, 'Measured on ' + p.sample + ' titles from ' + (data.source === 'channel' ? 'the channel ' + data.label : 'the search "' + data.label + '"') + '. Average ' + (p.avgWords === null ? '?' : p.avgWords.toFixed(1)) + ' words.');
+            renderResultRows(out, 'TITLE DEVICES', p.features, function(f) {
+              return {
+                title: hubPct(f.share) + ' use ' + f.feature,
+                meta: f.medianViewsWith !== null && f.medianViewsWithout !== null ? 'median views with it ' + hubCount(f.medianViewsWith) + ', without it ' + hubCount(f.medianViewsWithout) : 'too few titles on one side to compare views'
+              };
             });
-            renderBackendRows(out, 'FORMULAS', (patterns && patterns.topTitleFormulas) || [], function(item) {
-              return { title: String(item), meta: 'Formula detected from real titles', copy: String(item) };
+            renderResultRows(out, 'REPEATED WORDS', p.topTerms, function(t) {
+              return { title: t.term, meta: t.count + ' titles | median views ' + hubCount(t.medianViews), search: t.term, copy: t.term };
             });
-            renderJsonBlock(out, patterns || {});
+            renderResultRows(out, 'TOP VIDEOS', data.top, function(v) {
+              return { title: v.title, meta: (v.viewsText || hubCount(v.views)) + (v.publishedText ? ' | ' + v.publishedText : ''), url: v.url, copy: v.title };
+            });
           }
         );
       }
@@ -2598,23 +2592,25 @@ function buildAshlyVToolModal(route, options) {
           { label: 'COPY TOP 5', onClick: function() { copyToolText(collectTopTitles(topByRpm, 5), 'Top copied'); } }
         ]);
         section('WHAT IT DOES', [
-          { title: 'Generates titles, hooks and thumbnail concepts', meta: 'Everything runs from the internal panel, with no dependency on localhost:3000.', actionLabel: 'OPEN IDEAS', action: function() { closeAshlyVToolWorkspace(); openThumbnailModal(); setTimeout(function() { thumbSetTab('ideas'); }, 40); } },
-          { title: 'Uses your local AI or Anthropic', meta: 'If Ollama is already running, the route stays inside the extension.', actionLabel: 'OPEN SCAN', action: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } }
+          { title: 'Generates titles, hooks and thumbnail concepts', meta: 'Runs inside the extension, no server needed.', actionLabel: 'OPEN IDEAS', action: function() { closeAshlyVToolWorkspace(); openThumbnailModal(); setTimeout(function() { thumbSetTab('ideas'); }, 40); } },
+          { title: 'Uses the AI provider you pick in Options', meta: 'OpenAI, Groq, Gemini or a local Ollama, always through the extension.', actionLabel: 'OPEN SCAN', action: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } }
         ]);
-        buildBackendRunner(
-          'REAL AI CONTENT ENGINE',
-          'Generates a full script package from the backend with OpenAI, Claude or Ollama. With no AI provider it returns a real error.',
+        buildLiveRunner(
+          'AI CONTENT ENGINE',
+          'Writes a title, a hook and an outline with the AI provider you set in Options. It is a suggestion to edit, not a finished script.',
           topByRpm[0] ? (topByRpm[0].niche || topByRpm[0].title || 'faceless historical mysteries') : 'faceless historical mysteries',
-          'GENERATE SCRIPT',
-          function(value) { return window.AshlyVAPI.generateContentScript(value || 'faceless historical mysteries', 'documentary faceless', 8, 'es'); },
+          'GENERATE OUTLINE',
+          function(value) { return window.AshlyVAPI.generateContentScript(value || 'faceless historical mysteries', { language: toolLanguage(), minutes: 8 }); },
           function(out, data) {
-            renderBackendRows(out, 'SCRIPT PACKAGE', [
-              { title: data && data.title, meta: data && data.hook },
-              { title: 'Thumbnail', meta: data && data.thumbnailConcept }
-            ], function(item) {
-              return { title: item.title || 'Result', meta: item.meta || '', copy: JSON.stringify(data || {}) };
+            toolNote(out, 'AI suggestion' + (data.provider ? ' by ' + [data.provider, data.model].filter(Boolean).join(' ') : '') + '. Check it before you record.');
+            var rows = [{ title: data.title || 'Title', meta: data.hook }].concat(data.outline.map(function(s) {
+              return { title: hubTextOf(s.section), meta: hubTextOf(s.summary) };
+            }));
+            if (data.thumbnailConcept) rows.push({ title: 'Thumbnail', meta: data.thumbnailConcept });
+            var full = rows.map(function(r) { return r.title + (r.meta ? '\n' + r.meta : ''); }).join('\n\n');
+            renderResultRows(out, 'SCRIPT OUTLINE', rows, function(item) {
+              return { title: item.title, meta: item.meta || '', copy: full };
             });
-            renderJsonBlock(out, data || {});
           }
         );
       }
@@ -2649,38 +2645,13 @@ function closeToolsModal() {
 }
 
 var THUMB_HISTORY_KEY = 'ashlyv_thumbnail_history';
-var THUMB_CONSENT_KEY = 'ashlyv_thumbnail_consent';
+// YouTube's published thumbnail guidance: 1280x720 recommended, 640 px minimum width, 16:9, under 2 MB, JPG, PNG or GIF.
+var THUMB_GUIDE = { width: 1280, height: 720, minWidth: 640, maxBytes: 2 * 1024 * 1024, types: /^image\/(?:jpeg|png|gif)$/i };
+// The size YouTube uses for thumbnails in side lists and search on desktop.
+var THUMB_LIST_SIZE = { width: 168, height: 94 };
 
 function thumbClear(node) {
   while (node && node.firstChild) node.removeChild(node.firstChild);
-}
-
-function thumbStorageGet(key) {
-  return new Promise(function(resolve) {
-    try {
-      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) { resolve(null); return; }
-      chrome.storage.local.get([key], function(res) { resolve(res ? res[key] : null); });
-    } catch (e) {
-      resolve(null);
-    }
-  });
-}
-
-function thumbStorageSet(key, value) {
-  return new Promise(function(resolve) {
-    try {
-      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) { resolve(false); return; }
-      var payload = {};
-      payload[key] = value;
-      chrome.storage.local.set(payload, function() { resolve(!chrome.runtime.lastError); });
-    } catch (e) {
-      resolve(false);
-    }
-  });
-}
-
-function getApiKeyInput() {
-  return document.getElementById('ashlyv-api-key-input') || document.getElementById('thumb-api-key-input');
 }
 
 function setThumbnailStatus(message, tone) {
@@ -2736,57 +2707,18 @@ function showAshlyVToast(message, type, durationMs) {
   ashlyvToastTimers.push(timer);
 }
 
-function showApiKeyError(message) {
-  var box = document.getElementById('ashlyv-api-error');
-  if (!box) return;
-  box.textContent = String(message || 'API key error');
-  box.style.display = 'block';
-  setTimeout(function() {
-    if (box.textContent === String(message || 'API key error')) {
-      box.style.display = 'none';
-    }
-  }, 8000);
-}
-
-function clearApiKeyError() {
-  var box = document.getElementById('ashlyv-api-error');
-  if (!box) return;
-  box.style.display = 'none';
-  box.textContent = '';
-}
-
-function updateApiKeyStatusIndicator() {
-  var dot = document.getElementById('ashlyv-api-status-dot');
-  var textNode = document.getElementById('ashlyv-api-status-text');
-  var input = getApiKeyInput();
-  var validateBtn = document.getElementById('ashlyv-validate-api') || document.getElementById('thumb-save-api-btn');
-  if (!dot || !textNode) return;
-  if (!window.AshlyVAPI || typeof window.AshlyVAPI.getProviderStatus !== 'function') return;
+// Names the providers the cascade will try, never the keys.
+function updateAiStatus() {
+  var box = document.getElementById('ai-provider-status');
+  if (!box || !window.AshlyVAPI) return;
   window.AshlyVAPI.getProviderStatus().then(function(status) {
-    if (status && status.localAvailable) {
-      dot.style.background = '#00DC82';
-      dot.style.boxShadow = '0 0 12px rgba(0,220,130,.35)';
-      textNode.textContent = 'Local Ollama running';
-      if (validateBtn) validateBtn.textContent = 'OLLAMA';
-      setThumbnailStatus('Local AI detected. Analysis runs with no credits.', 'success');
-      return;
+    if (status.configured) {
+      box.textContent = 'AI provider ready: ' + status.providers.join(', ') + '. Model: ' + (status.selectedModel === 'auto' ? 'automatic' : status.selectedModel) + '.';
+      box.setAttribute('data-tone', 'success');
+    } else {
+      box.textContent = 'No AI provider configured. Add an OpenAI, Groq or Gemini key, or enable Ollama, in Options.';
+      box.setAttribute('data-tone', 'warning');
     }
-    return window.AshlyVAPI.getApiKey().then(function(key) {
-    if (key) {
-      dot.style.background = '#00DC82';
-      dot.style.boxShadow = '0 0 12px rgba(0,220,130,.35)';
-      textNode.textContent = 'API key saved';
-      if (validateBtn && validateBtn.textContent === 'OLLAMA') validateBtn.textContent = 'VALIDATE API';
-      if (input && !input.value) input.value = key;
-      setThumbnailStatus('API detected and ready to use.', 'success');
-      return;
-    }
-    dot.style.background = '#FF3D71';
-    dot.style.boxShadow = '0 0 12px rgba(255,61,113,.35)';
-    textNode.textContent = 'API key required for AI analysis';
-    if (validateBtn) validateBtn.textContent = 'VALIDATE API';
-    setThumbnailStatus('Paste your key, validate it, then analyze.', 'muted');
-    });
   });
 }
 
@@ -2794,943 +2726,281 @@ function openThumbnailModal() {
   closeToolsModal();
   openScanModal('thumbnail');
   thumbSetTab('analyze');
-  loadThumbnailHistory();
-  updateApiKeyStatusIndicator();
-}
-
-function closeThumbnailModal() {
-  closeScanModal();
 }
 
 function thumbSetTab(tab) {
-  var analyzeTab = document.getElementById('thumb-tab-analyze');
-  var historyTab = document.getElementById('thumb-tab-history');
-  var ideasTab = document.getElementById('thumb-tab-ideas');
-  var analyzePanel = document.getElementById('thumb-analyze-panel');
-  var historyPanel = document.getElementById('thumb-history-panel');
-  var ideasPanel = document.getElementById('thumb-ideas-panel');
-  if (analyzeTab) analyzeTab.classList.toggle('active', tab === 'analyze');
-  if (historyTab) historyTab.classList.toggle('active', tab === 'history');
-  if (ideasTab) ideasTab.classList.toggle('active', tab === 'ideas');
-  if (analyzePanel) analyzePanel.style.display = tab === 'analyze' ? 'block' : 'none';
-  if (historyPanel) historyPanel.style.display = tab === 'history' ? 'block' : 'none';
-  if (ideasPanel) ideasPanel.style.display = tab === 'ideas' ? 'block' : 'none';
+  var tabs = { analyze: 'thumb-analyze-panel', history: 'thumb-history-panel', ideas: 'thumb-ideas-panel' };
+  Object.keys(tabs).forEach(function(name) {
+    var btn = document.getElementById('thumb-tab-' + name);
+    var panel = document.getElementById(tabs[name]);
+    if (btn) btn.classList.toggle('active', tab === name);
+    if (panel) panel.style.display = tab === name ? 'block' : 'none';
+  });
   if (tab === 'history') loadThumbnailHistory();
-  if (tab === 'analyze') updateApiKeyStatusIndicator();
+  if (tab === 'ideas') updateAiStatus();
 }
 
 function thumbFileToDataUrl(file) {
   return new Promise(function(resolve, reject) {
     var reader = new FileReader();
     reader.onload = function() { resolve(String(reader.result || '')); };
-    reader.onerror = reject;
+    reader.onerror = function() { reject(new Error('Could not read the file.')); };
     reader.readAsDataURL(file);
   });
 }
 
-function normalizeImageDataUrl(dataUrl, maxDimension) {
+function thumbLoadImage(dataUrl) {
   return new Promise(function(resolve, reject) {
     var img = new Image();
     img.onload = function() {
-      try {
-        var width = img.naturalWidth || img.width || 0;
-        var height = img.naturalHeight || img.height || 0;
-        if (!width || !height) {
-          reject(new Error('Could not read the image.'));
-          return;
-        }
-        var limit = Number(maxDimension) || 1568;
-        var scale = Math.min(1, limit / Math.max(width, height));
-        var canvas = document.createElement('canvas');
-        canvas.width = Math.max(1, Math.round(width * scale));
-        canvas.height = Math.max(1, Math.round(height * scale));
-        var ctx = canvas.getContext('2d');
-        if (!ctx) {
-          reject(new Error('Could not prepare the image.'));
-          return;
-        }
-        ctx.fillStyle = '#000000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        var chosen = canvas.toDataURL('image/png');
-        resolve(chosen);
-      } catch (e) {
-        reject(e);
-      }
+      if (!img.naturalWidth || !img.naturalHeight) reject(new Error('The image has no readable size.'));
+      else resolve(img);
     };
-    img.onerror = function() {
-      reject(new Error('Could not process the thumbnail.'));
-    };
-    img.src = String(dataUrl || '');
+    img.onerror = function() { reject(new Error('The browser could not decode this image.')); };
+    img.src = dataUrl;
   });
 }
 
-function thumbBase64(dataUrl) {
-  var raw = String(dataUrl || '');
-  return raw.indexOf(',') >= 0 ? raw.split(',')[1] : raw;
+function thumbPixels(img, width, height) {
+  var canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  var ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas is not available in this browser.');
+  ctx.drawImage(img, 0, 0, width, height);
+  return ctx.getImageData(0, 0, width, height).data;
 }
 
-function normalizeThumbnailResult(result) {
-  result = result && typeof result === 'object' ? result : {};
-  function num(value, max) {
-    var n = Number(value);
-    if (!isFinite(n)) n = 0;
-    return Math.max(0, Math.min(max, n));
+// Pure pixel statistics over RGBA data. Contrast is the RMS contrast of luma, colorfulness the
+// Hasler and Suesstrunk metric, detail the share of pixels on a strong luma edge.
+function measurePixels(data, width, height) {
+  var n = width * height;
+  var luma = new Float32Array(n);
+  var sumL = 0, sumL2 = 0, sumSat = 0, clipped = 0;
+  var sumRg = 0, sumRg2 = 0, sumYb = 0, sumYb2 = 0;
+  var buckets = {};
+  for (var i = 0, p = 0; p < n; i += 4, p++) {
+    var r = data[i], g = data[i + 1], b = data[i + 2];
+    var l = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    luma[p] = l;
+    sumL += l;
+    sumL2 += l * l;
+    if (l < 8 || l > 247) clipped++;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    sumSat += mx ? (mx - mn) / mx : 0;
+    var rg = r - g, yb = 0.5 * (r + g) - b;
+    sumRg += rg; sumRg2 += rg * rg; sumYb += yb; sumYb2 += yb * yb;
+    var key = (r >> 5) + ',' + (g >> 5) + ',' + (b >> 5);
+    buckets[key] = (buckets[key] || 0) + 1;
   }
-  function list(value, max) {
-    return Array.isArray(value) ? value.slice(0, max || 4).map(function(item) { return String(item || '').slice(0, 220); }) : [];
-  }
-  var verdict = String(result.verdict || 'NEEDS WORK').toUpperCase();
-  if (!/^(VIRAL POTENTIAL|GOOD|NEEDS WORK|POOR)$/.test(verdict)) verdict = 'NEEDS WORK';
-  return {
-    ctrScore: num(result.ctrScore, 100),
-    overallScore: num(result.overallScore, 100),
-    facelessCompatible: result.facelessCompatible === true,
-    verdict: verdict,
-    emotionScore: num(result.emotionScore, 10),
-    textReadability: num(result.textReadability, 10),
-    colorContrast: num(result.colorContrast, 10),
-    curiosityHook: num(result.curiosityHook, 10),
-    strengths: list(result.strengths, 3),
-    weaknesses: list(result.weaknesses, 3),
-    improvements: list(result.improvements, 4),
-    nicheRecommendation: String(result.nicheRecommendation || '').slice(0, 220)
-  };
-}
-
-function normalizeChannelResult(result) {
-  result = result && typeof result === 'object' ? result : {};
-  function num(value, max) {
-    var n = Number(value);
-    if (!isFinite(n)) n = 0;
-    return Math.max(0, Math.min(max, n));
-  }
-  function list(value) {
-    return Array.isArray(value) ? value.slice(0, 4).map(function(item) { return String(item || '').slice(0, 220); }) : [];
-  }
-  function pickEnum(value, allowed, fallback) {
-    value = String(value || '').toUpperCase();
-    return allowed.indexOf(value) >= 0 ? value : fallback;
-  }
-  return {
-    facelessScore: num(result.facelessScore, 100),
-    replicable: result.replicable === true,
-    niche: String(result.niche || 'Niche not detected').slice(0, 160),
-    rpmEstimate: num(result.rpmEstimate, 9999),
-    monthlyRevenueEstimate: String(result.monthlyRevenueEstimate || '$0-$0').slice(0, 80),
-    growthPotential: pickEnum(result.growthPotential, ['HIGH', 'MEDIUM', 'LOW'], 'MEDIUM'),
-    facelessTechnique: String(result.facelessTechnique || 'No description').slice(0, 400),
-    strengths: list(result.strengths),
-    weaknesses: list(result.weaknesses),
-    replicationStrategy: String(result.replicationStrategy || 'No strategy').slice(0, 500),
-    contentGaps: list(result.contentGaps),
-    recommendedPostingFrequency: String(result.recommendedPostingFrequency || '2 videos per week').slice(0, 120),
-    competitionLevel: pickEnum(result.competitionLevel, ['HIGH', 'MEDIUM', 'LOW'], 'MEDIUM')
-  };
-}
-
-function getScoreColor(score) {
-  if (score >= 80) return '#00DC82';
-  if (score >= 50) return '#FFD700';
-  return '#FF3D71';
-}
-
-function createScoreCircle(score, label, size) {
-  var safeScore = Math.max(0, Math.min(100, Math.round(Number(score) || 0)));
-  var color = getScoreColor(safeScore);
-  var wrap = document.createElement('div');
-  wrap.style.width = (size || 140) + 'px';
-  wrap.style.height = (size || 140) + 'px';
-  wrap.style.borderRadius = '50%';
-  wrap.style.display = 'flex';
-  wrap.style.alignItems = 'center';
-  wrap.style.justifyContent = 'center';
-  wrap.style.position = 'relative';
-  wrap.style.background = 'conic-gradient(' + color + ' 0deg, rgba(255,255,255,.08) 0deg)';
-  wrap.style.boxShadow = '0 18px 30px rgba(0,0,0,.28)';
-
-  var inner = document.createElement('div');
-  inner.style.width = (size ? size - 18 : 122) + 'px';
-  inner.style.height = (size ? size - 18 : 122) + 'px';
-  inner.style.borderRadius = '50%';
-  inner.style.background = '#090909';
-  inner.style.border = '1px solid rgba(255,255,255,.08)';
-  inner.style.display = 'flex';
-  inner.style.flexDirection = 'column';
-  inner.style.alignItems = 'center';
-  inner.style.justifyContent = 'center';
-
-  var value = document.createElement('div');
-  value.style.fontSize = size && size < 80 ? '18px' : '34px';
-  value.style.fontWeight = '900';
-  value.style.color = '#fff';
-  value.textContent = '0';
-
-  var caption = document.createElement('div');
-  caption.style.marginTop = '4px';
-  caption.style.fontSize = size && size < 80 ? '8px' : '10px';
-  caption.style.letterSpacing = '.16em';
-  caption.style.color = 'rgba(255,255,255,.62)';
-  caption.textContent = String(label || 'OVERALL').toUpperCase();
-
-  inner.appendChild(value);
-  inner.appendChild(caption);
-  wrap.appendChild(inner);
-
-  var current = 0;
-  var timer = setInterval(function() {
-    current += Math.max(1, Math.ceil((safeScore - current) / 8));
-    if (current >= safeScore) {
-      current = safeScore;
-      clearInterval(timer);
+  var meanL = sumL / n;
+  var sdL = Math.sqrt(Math.max(0, sumL2 / n - meanL * meanL));
+  var mRg = sumRg / n, mYb = sumYb / n;
+  var sdRg = Math.sqrt(Math.max(0, sumRg2 / n - mRg * mRg));
+  var sdYb = Math.sqrt(Math.max(0, sumYb2 / n - mYb * mYb));
+  var edges = 0, cells = 0;
+  for (var y = 1; y < height - 1; y++) {
+    for (var x = 1; x < width - 1; x++) {
+      var c = y * width + x;
+      var gx = luma[c + 1] - luma[c - 1];
+      var gy = luma[c + width] - luma[c - width];
+      if (Math.sqrt(gx * gx + gy * gy) > 60) edges++;
+      cells++;
     }
-    value.textContent = String(current);
-    wrap.style.background = 'conic-gradient(' + color + ' ' + Math.round(current * 3.6) + 'deg, rgba(255,255,255,.08) 0deg)';
-  }, 18);
-
-  return wrap;
-}
-
-function createBadge(text, bg, fg, border) {
-  var badge = document.createElement('span');
-  badge.style.display = 'inline-flex';
-  badge.style.alignItems = 'center';
-  badge.style.justifyContent = 'center';
-  badge.style.minHeight = '34px';
-  badge.style.padding = '0 14px';
-  badge.style.borderRadius = '999px';
-  badge.style.border = '1px solid ' + (border || 'rgba(255,255,255,.12)');
-  badge.style.background = bg || 'rgba(255,255,255,.06)';
-  badge.style.color = fg || '#fff';
-  badge.style.fontSize = '11px';
-  badge.style.fontWeight = '900';
-  badge.style.letterSpacing = '.08em';
-  badge.textContent = text;
-  return badge;
-}
-
-function createProgressRow(label, score) {
-  var row = document.createElement('div');
-  row.style.display = 'grid';
-  row.style.gridTemplateColumns = '100px 1fr 44px';
-  row.style.alignItems = 'center';
-  row.style.gap = '10px';
-  row.style.marginTop = '10px';
-
-  var labelNode = document.createElement('div');
-  labelNode.style.fontSize = '12px';
-  labelNode.style.color = 'rgba(255,255,255,.78)';
-  labelNode.textContent = label;
-
-  var track = document.createElement('div');
-  track.style.height = '10px';
-  track.style.borderRadius = '999px';
-  track.style.background = 'rgba(255,255,255,.08)';
-  track.style.overflow = 'hidden';
-
-  var fill = document.createElement('div');
-  fill.style.height = '100%';
-  fill.style.width = Math.max(0, Math.min(100, score * 10)) + '%';
-  fill.style.borderRadius = '999px';
-  fill.style.background = score >= 8 ? '#00DC82' : score >= 5 ? '#FFD700' : '#FF3D71';
-  track.appendChild(fill);
-
-  var value = document.createElement('div');
-  value.style.fontSize = '12px';
-  value.style.color = '#fff';
-  value.style.textAlign = 'right';
-  value.textContent = Math.round(score) + '/10';
-
-  row.appendChild(labelNode);
-  row.appendChild(track);
-  row.appendChild(value);
-  return row;
-}
-
-function showAnalysisLoading() {
-  var host = document.getElementById('thumb-result-panel');
-  if (!host) return;
-  thumbClear(host);
-  var wrap = document.createElement('div');
-  wrap.style.display = 'flex';
-  wrap.style.flexDirection = 'column';
-  wrap.style.alignItems = 'center';
-  wrap.style.justifyContent = 'center';
-  wrap.style.padding = '36px 18px';
-  wrap.style.textAlign = 'center';
-
-  var circle = document.createElement('div');
-  circle.style.width = '132px';
-  circle.style.height = '132px';
-  circle.style.borderRadius = '50%';
-  circle.style.background = 'rgba(255,255,255,.08)';
-  circle.style.animation = 'blink 1.4s infinite';
-
-  var spinner = document.createElement('div');
-  spinner.style.width = '32px';
-  spinner.style.height = '32px';
-  spinner.style.marginTop = '20px';
-  spinner.style.borderRadius = '50%';
-  spinner.style.border = '3px solid rgba(255,255,255,.12)';
-  spinner.style.borderTopColor = '#7B5CFF';
-  spinner.style.animation = 'spin-it 1s linear infinite';
-
-  var title = document.createElement('div');
-  title.style.marginTop = '18px';
-  title.style.fontSize = '16px';
-  title.style.fontWeight = '900';
-  title.textContent = 'Analyzing the thumbnail with AI';
-
-  var sub = document.createElement('div');
-  sub.style.marginTop = '8px';
-  sub.style.fontSize = '12px';
-  sub.style.color = 'rgba(255,255,255,.62)';
-  sub.textContent = 'This takes 5 to 10 seconds';
-
-  wrap.appendChild(circle);
-  wrap.appendChild(spinner);
-  wrap.appendChild(title);
-  wrap.appendChild(sub);
-  host.appendChild(wrap);
-}
-
-function displayThumbnailResults(data) {
-  var host = document.getElementById('thumb-result-panel');
-  if (!host) return;
-  data = normalizeThumbnailResult(data);
-  thumbClear(host);
-
-  var header = document.createElement('div');
-  header.style.display = 'flex';
-  header.style.alignItems = 'center';
-  header.style.justifyContent = 'space-between';
-  header.style.gap = '18px';
-  header.style.flexWrap = 'wrap';
-  header.appendChild(createScoreCircle(data.overallScore, 'OVERALL', 140));
-
-  var right = document.createElement('div');
-  right.style.display = 'flex';
-  right.style.flexDirection = 'column';
-  right.style.gap = '12px';
-  var verdictColor = data.verdict === 'VIRAL POTENTIAL' ? '#7B5CFF' : data.verdict === 'GOOD' ? '#00DC82' : data.verdict === 'NEEDS WORK' ? '#FFD700' : '#FF3D71';
-  right.appendChild(createBadge(data.verdict, 'rgba(255,255,255,.04)', verdictColor, verdictColor));
-  right.appendChild(createBadge('CTR Score: ' + Math.round(data.ctrScore) + '/100', 'rgba(255,255,255,.05)', '#fff'));
-  right.appendChild(createBadge(data.facelessCompatible ? 'FACELESS OK' : 'SHOWS A FACE', data.facelessCompatible ? 'rgba(0,220,130,.12)' : 'rgba(255,61,113,.12)', data.facelessCompatible ? '#00DC82' : '#FF3D71'));
-  header.appendChild(right);
-  host.appendChild(header);
-
-  var subsWrap = document.createElement('div');
-  subsWrap.style.marginTop = '20px';
-  subsWrap.appendChild(createProgressRow('Emotion', data.emotionScore));
-  subsWrap.appendChild(createProgressRow('Readability', data.textReadability));
-  subsWrap.appendChild(createProgressRow('Contrast', data.colorContrast));
-  subsWrap.appendChild(createProgressRow('Curiosity', data.curiosityHook));
-  host.appendChild(subsWrap);
-
-  function renderPills(title, items, color) {
-    var section = document.createElement('div');
-    section.style.marginTop = '20px';
-    var heading = document.createElement('div');
-    heading.style.fontSize = '12px';
-    heading.style.letterSpacing = '.12em';
-    heading.style.color = 'rgba(255,255,255,.62)';
-    heading.textContent = title.toUpperCase();
-    section.appendChild(heading);
-    var row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.flexWrap = 'wrap';
-    row.style.gap = '10px';
-    row.style.marginTop = '12px';
-    (items && items.length ? items : ['No data']).forEach(function(item) {
-      row.appendChild(createBadge(item, color === 'green' ? 'rgba(0,220,130,.12)' : 'rgba(255,61,113,.12)', '#fff', color === 'green' ? 'rgba(0,220,130,.24)' : 'rgba(255,61,113,.24)'));
-    });
-    section.appendChild(row);
-    host.appendChild(section);
   }
-
-  renderPills('Strengths', data.strengths, 'green');
-  renderPills('Weaknesses', data.weaknesses, 'red');
-
-  var improveTitle = document.createElement('div');
-  improveTitle.style.marginTop = '20px';
-  improveTitle.style.fontSize = '12px';
-  improveTitle.style.letterSpacing = '.12em';
-  improveTitle.style.color = 'rgba(255,255,255,.62)';
-  improveTitle.textContent = 'IMPROVEMENTS';
-  host.appendChild(improveTitle);
-
-  var improveList = document.createElement('ol');
-  improveList.style.marginTop = '12px';
-  improveList.style.paddingLeft = '18px';
-  (data.improvements.length ? data.improvements : ['Run it again to get concrete improvements.']).forEach(function(item) {
-    var li = document.createElement('li');
-    li.style.marginTop = '10px';
-    li.style.color = '#fff';
-    li.textContent = item;
-    improveList.appendChild(li);
+  var palette = Object.keys(buckets).sort(function(a, b) { return buckets[b] - buckets[a]; }).slice(0, 5).map(function(k) {
+    return '#' + k.split(',').map(function(v) {
+      var hex = ((+v) * 32 + 16).toString(16);
+      return hex.length < 2 ? '0' + hex : hex;
+    }).join('');
   });
-  host.appendChild(improveList);
-
-  var niche = document.createElement('div');
-  niche.style.marginTop = '20px';
-  niche.style.padding = '14px 16px';
-  niche.style.borderRadius = '18px';
-  niche.style.background = 'rgba(123,92,255,.12)';
-  niche.style.border = '1px solid rgba(123,92,255,.2)';
-  niche.textContent = 'Recommended niche: ' + (data.nicheRecommendation || 'Not specified');
-  host.appendChild(niche);
+  return {
+    brightness: meanL / 255,
+    contrast: sdL / 255,
+    saturation: sumSat / n,
+    colorfulness: Math.sqrt(sdRg * sdRg + sdYb * sdYb) + 0.3 * Math.sqrt(mRg * mRg + mYb * mYb),
+    detail: cells ? edges / cells : 0,
+    clipped: clipped / n,
+    palette: palette
+  };
 }
 
-function showAnalysisError(message) {
+function measureThumbnailFile(file) {
+  return thumbFileToDataUrl(file).then(function(dataUrl) {
+    return thumbLoadImage(dataUrl).then(function(img) {
+      var w = img.naturalWidth, h = img.naturalHeight;
+      var workW = 320, workH = Math.max(1, Math.round(320 * h / w));
+      return {
+        dataUrl: dataUrl,
+        name: String(file.name || ''),
+        type: String(file.type || ''),
+        bytes: file.size,
+        width: w,
+        height: h,
+        full: measurePixels(thumbPixels(img, workW, workH), workW, workH),
+        list: measurePixels(thumbPixels(img, THUMB_LIST_SIZE.width, THUMB_LIST_SIZE.height), THUMB_LIST_SIZE.width, THUMB_LIST_SIZE.height)
+      };
+    });
+  });
+}
+
+function thumbBand(value, low, high, words) {
+  return value < low ? words[0] : value < high ? words[1] : words[2];
+}
+
+// Hasler and Suesstrunk published these bands for their colorfulness metric.
+function thumbColorfulnessBand(m) {
+  if (m < 15) return 'not colorful';
+  if (m < 33) return 'slightly colorful';
+  if (m < 45) return 'moderately colorful';
+  if (m < 59) return 'averagely colorful';
+  if (m < 82) return 'quite colorful';
+  if (m < 109) return 'highly colorful';
+  return 'extremely colorful';
+}
+
+function thumbChecks(m) {
+  var ratio = m.width / m.height;
+  var sizeState = m.width >= THUMB_GUIDE.width && m.height >= THUMB_GUIDE.height ? 'good' : m.width >= THUMB_GUIDE.minWidth ? 'warn' : 'bad';
+  return [
+    { label: 'Resolution', value: m.width + ' x ' + m.height, state: sizeState, hint: 'YouTube recommends 1280 x 720 and accepts 640 px wide at least.' },
+    { label: 'Aspect ratio', value: ratio.toFixed(2) + ':1', state: Math.abs(ratio - 16 / 9) <= 0.04 ? 'good' : 'bad', hint: 'YouTube shows thumbnails at 16:9 (1.78:1) and crops or pads the rest.' },
+    { label: 'File size', value: (m.bytes / 1024 / 1024).toFixed(2) + ' MB', state: m.bytes <= THUMB_GUIDE.maxBytes ? 'good' : 'bad', hint: 'YouTube rejects thumbnails over 2 MB.' },
+    { label: 'Format', value: m.type || 'unknown', state: THUMB_GUIDE.types.test(m.type) ? 'good' : 'bad', hint: 'YouTube takes JPG, PNG or GIF.' }
+  ];
+}
+
+var THUMB_STATE_STYLE = { good: { text: 'OK', color: '#00DC82' }, warn: { text: 'LOW', color: '#FFD93D' }, bad: { text: 'FIX', color: '#FF6B6B' } };
+
+function displayThumbnailMeasurements(m) {
   var host = document.getElementById('thumb-result-panel');
   if (!host) return;
   thumbClear(host);
-  var wrap = document.createElement('div');
-  wrap.style.padding = '18px 8px';
-  wrap.style.display = 'flex';
-  wrap.style.flexDirection = 'column';
-  wrap.style.gap = '14px';
+  host.appendChild(hubNode('div', 'font-size:16px;font-weight:900;margin-bottom:4px;', 'Measured from the pixels'));
+  host.appendChild(hubNode('div', 'font-size:11px;color:rgba(255,255,255,.55);margin-bottom:10px;line-height:1.5;', 'These are measurements, not a click prediction. Compare them with the thumbnails that win in your niche in ThumbLab.'));
 
-  var icon = document.createElement('div');
-  icon.style.fontSize = '26px';
-  icon.textContent = 'ERROR';
-  wrap.appendChild(icon);
+  thumbChecks(m).forEach(function(check) {
+    var style = THUMB_STATE_STYLE[check.state];
+    var row = hubNode('div', 'display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12px;');
+    var left = hubNode('div', '', check.label + ': ' + check.value);
+    left.appendChild(hubNode('div', 'font-size:10px;color:rgba(255,255,255,.5);margin-top:2px;', check.hint));
+    row.appendChild(left);
+    row.appendChild(hubNode('span', 'font-weight:900;color:' + style.color + ';', style.text));
+    host.appendChild(row);
+  });
 
-  var text = document.createElement('div');
-  text.style.color = '#fff';
-  text.style.lineHeight = '1.6';
-  text.textContent = String(message || 'Could not analyze the thumbnail');
-  wrap.appendChild(text);
+  var f = m.full, s = m.list;
+  var rows = [
+    ['Brightness', Math.round(f.brightness * 100) + '%, ' + thumbBand(f.brightness, 0.25, 0.6, ['dark', 'balanced', 'bright'])],
+    ['Contrast (RMS)', Math.round(f.contrast * 100) + '%, ' + thumbBand(f.contrast, 0.15, 0.25, ['low', 'medium', 'high'])],
+    ['Contrast at list size (168 x 94)', Math.round(s.contrast * 100) + '%'],
+    ['Saturation', Math.round(f.saturation * 100) + '%'],
+    ['Colorfulness', Math.round(f.colorfulness) + ', ' + thumbColorfulnessBand(f.colorfulness)],
+    ['Detail (pixels on a strong edge)', Math.round(f.detail * 100) + '%'],
+    ['Pure black or white pixels', Math.round(f.clipped * 100) + '%']
+  ];
+  host.appendChild(hubNode('div', 'font-size:12px;letter-spacing:.12em;color:rgba(255,255,255,.62);margin-top:16px;', 'MEASUREMENTS'));
+  rows.forEach(function(r) {
+    var row = hubNode('div', 'display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid rgba(255,255,255,.06);font-size:12px;');
+    row.appendChild(hubNode('span', 'color:rgba(255,255,255,.75);', r[0]));
+    row.appendChild(hubNode('span', 'font-weight:800;', r[1]));
+    host.appendChild(row);
+  });
 
-  var actions = document.createElement('div');
-  actions.style.display = 'flex';
-  actions.style.gap = '10px';
-  actions.style.flexWrap = 'wrap';
-
-  var retry = document.createElement('button');
-  retry.className = 'thumb-btn';
-  retry.type = 'button';
-  retry.textContent = 'Retry';
-  retry.addEventListener('click', function() { handleThumbnailAnalyze(); });
-  actions.appendChild(retry);
-
-  if (String(message || '').toLowerCase().indexOf('api key') >= 0) {
-    var config = document.createElement('button');
-    config.className = 'thumb-btn secondary';
-    config.type = 'button';
-    config.textContent = 'Configure API key';
-    config.addEventListener('click', openExtensionOptions);
-    actions.appendChild(config);
+  if (f.palette.length) {
+    host.appendChild(hubNode('div', 'font-size:12px;letter-spacing:.12em;color:rgba(255,255,255,.62);margin-top:16px;', 'DOMINANT COLORS'));
+    var sw = hubNode('div', 'display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;');
+    f.palette.forEach(function(hex) {
+      var chip = hubNode('div', 'text-align:center;font-size:9px;');
+      chip.appendChild(hubNode('div', 'width:44px;height:44px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:' + hex + ';'));
+      chip.appendChild(hubNode('div', 'margin-top:3px;opacity:.7;', hex));
+      sw.appendChild(chip);
+    });
+    host.appendChild(sw);
   }
-
-  wrap.appendChild(actions);
-  host.appendChild(wrap);
 }
 
-function saveThumbnailHistory(imageBase64, parsedResults, mediaType) {
-  chrome.storage.local.get(['ashlyv_thumbnail_history'], function(res) {
-    var history = Array.isArray(res.ashlyv_thumbnail_history) ? res.ashlyv_thumbnail_history : [];
+function saveThumbnailHistory(m) {
+  chrome.storage.local.get([THUMB_HISTORY_KEY], function(res) {
+    var history = Array.isArray(res && res[THUMB_HISTORY_KEY]) ? res[THUMB_HISTORY_KEY] : [];
     history.unshift({
       timestamp: Date.now(),
-      channelName: currentChannelName || '',
-      mediaType: mediaType || 'image/jpeg',
-      results: {
-        overallScore: parsedResults.overallScore,
-        verdict: parsedResults.verdict,
-        ctrScore: parsedResults.ctrScore,
-        facelessCompatible: parsedResults.facelessCompatible
+      fileName: m.name.slice(0, 120),
+      measured: {
+        width: m.width,
+        height: m.height,
+        brightness: m.full.brightness,
+        contrast: m.full.contrast,
+        colorfulness: m.full.colorfulness
       }
     });
     if (history.length > 10) history.length = 10;
-    chrome.storage.local.set({ ashlyv_thumbnail_history: history });
+    var payload = {};
+    payload[THUMB_HISTORY_KEY] = history;
+    chrome.storage.local.set(payload, loadThumbnailHistory);
   });
 }
 
+// Entries saved before thumbnails were measured hold AI scores with no measurement behind them, so they are not shown.
 function loadThumbnailHistory() {
   var host = document.getElementById('thumb-history-list');
   if (!host) return;
-  thumbClear(host);
-  chrome.storage.local.get(['ashlyv_thumbnail_history'], function(res) {
-    var history = Array.isArray(res.ashlyv_thumbnail_history) ? res.ashlyv_thumbnail_history : [];
+  chrome.storage.local.get([THUMB_HISTORY_KEY], function(res) {
+    thumbClear(host);
+    var history = (Array.isArray(res && res[THUMB_HISTORY_KEY]) ? res[THUMB_HISTORY_KEY] : []).filter(function(item) {
+      return item && item.measured && typeof item.measured.width === 'number';
+    });
     if (!history.length) {
-      var empty = document.createElement('div');
+      var empty = hubNode('div', '', 'No thumbnails measured yet.');
       empty.className = 'scan-empty-sub';
-      empty.textContent = 'No thumbnails analyzed yet.';
       host.appendChild(empty);
       return;
     }
-    history.slice(0, 10).forEach(function(item) {
-      var card = document.createElement('div');
-      card.className = 'thumb-history-card';
-      card.style.display = 'flex';
-      card.style.alignItems = 'center';
-      card.style.justifyContent = 'space-between';
-      card.style.gap = '12px';
-      card.style.padding = '14px';
-      card.style.marginBottom = '12px';
-      card.style.borderRadius = '18px';
-      card.style.border = '1px solid rgba(255,255,255,.08)';
-      card.style.background = 'rgba(255,255,255,.03)';
-
-      var meta = document.createElement('div');
-      meta.style.display = 'flex';
-      meta.style.flexDirection = 'column';
-      meta.style.gap = '6px';
-      var timeNode = document.createElement('div');
-      timeNode.style.fontSize = '11px';
-      timeNode.style.color = 'rgba(255,255,255,.62)';
-      timeNode.textContent = relTime(item.timestamp || Date.now());
-      var channelNode = document.createElement('div');
-      channelNode.style.fontWeight = '700';
-      channelNode.textContent = item.channelName || 'Unnamed channel';
-      meta.appendChild(timeNode);
-      meta.appendChild(channelNode);
-
-      var right = document.createElement('div');
-      right.style.display = 'flex';
-      right.style.alignItems = 'center';
-      right.style.gap = '10px';
-      right.appendChild(createScoreCircle(item.results && item.results.overallScore, 'Score', 48));
-      right.appendChild(createBadge(item.results && item.results.verdict ? item.results.verdict : 'N/A', 'rgba(255,255,255,.04)', '#fff'));
-      var details = document.createElement('button');
-      details.type = 'button';
-      details.disabled = true;
-      details.className = 'thumb-btn secondary';
-      details.style.opacity = '.55';
-      details.textContent = 'Re-analyze';
-      details.title = 'Upload the image again to re-analyze it';
-      right.appendChild(details);
-
-      card.appendChild(meta);
-      card.appendChild(right);
+    history.forEach(function(item) {
+      var m = item.measured;
+      var card = hubNode('div', 'padding:14px;margin-bottom:12px;border-radius:18px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03);');
+      card.appendChild(hubNode('div', 'font-size:11px;color:rgba(255,255,255,.62);', relTime(item.timestamp || Date.now())));
+      card.appendChild(hubNode('div', 'font-weight:700;margin-top:4px;', item.fileName || 'Thumbnail'));
+      card.appendChild(hubNode('div', 'font-size:12px;margin-top:4px;color:rgba(255,255,255,.8);', m.width + ' x ' + m.height + ' | brightness ' + Math.round(m.brightness * 100) + '% | contrast ' + Math.round(m.contrast * 100) + '% | colorfulness ' + Math.round(m.colorfulness)));
       host.appendChild(card);
     });
   });
 }
 
-function ensureThumbnailConsent() {
-  return new Promise(function(resolve) {
-    chrome.storage.local.get([THUMB_CONSENT_KEY], function(res) {
-      if (res && res[THUMB_CONSENT_KEY] === true) {
-        resolve(true);
-        return;
-      }
-      var existing = document.getElementById('ashlyv-thumb-consent-modal');
-      if (existing) existing.remove();
-      var overlay = document.createElement('div');
-      overlay.id = 'ashlyv-thumb-consent-modal';
-      overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;padding:16px;';
-      var card = document.createElement('div');
-      card.style.cssText = 'width:min(520px,calc(100vw - 32px));background:#0c0c12;border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:24px;';
-      var title = document.createElement('div');
-      title.style.cssText = 'font-size:24px;font-weight:800;margin-bottom:12px;';
-      title.textContent = 'Sending an image to Anthropic';
-      var body = document.createElement('div');
-      body.style.cssText = 'line-height:1.7;color:rgba(255,255,255,.78);margin-bottom:20px;';
-      body.textContent = 'This feature sends your thumbnail to the Anthropic API for AI analysis. No YouTube account data and no browsing history is sent.';
-      var actions = document.createElement('div');
-      actions.style.cssText = 'display:flex;justify-content:flex-end;gap:10px;';
-      var cancel = document.createElement('button');
-      cancel.type = 'button';
-      cancel.className = 'thumb-btn secondary';
-      cancel.textContent = 'CANCEL';
-      var ok = document.createElement('button');
-      ok.type = 'button';
-      ok.className = 'thumb-btn';
-      ok.textContent = 'CONTINUE';
-      cancel.addEventListener('click', function() {
-        overlay.remove();
-        resolve(false);
-      });
-      ok.addEventListener('click', function() {
-        chrome.storage.local.set((function() {
-          var payload = {};
-          payload[THUMB_CONSENT_KEY] = true;
-          return payload;
-        })(), function() {
-          overlay.remove();
-          resolve(true);
-        });
-      });
-      actions.appendChild(cancel);
-      actions.appendChild(ok);
-      card.appendChild(title);
-      card.appendChild(body);
-      card.appendChild(actions);
-      overlay.appendChild(card);
-      overlay.addEventListener('click', function(e) {
-        if (e.target === overlay) {
-          overlay.remove();
-          resolve(false);
-        }
-      });
-      document.body.appendChild(overlay);
-    });
-  });
-}
-
-function runThumbnailAnalysis(imageBase64, mediaType, channelName) {
-  showAnalysisLoading();
-  currentChannelName = channelName || '';
-
-  var keepAliveInterval = setInterval(function() {
-    chrome.runtime.sendMessage({ type: 'ASHLYV_PING' }, function() {
-      if (chrome.runtime.lastError) {}
-    });
-  }, 20000);
-
-  return window.AshlyVAPI.analyzeThumbnail(imageBase64, mediaType, channelName)
-    .then(function(response) {
-      clearInterval(keepAliveInterval);
-
-      if (!response.success) {
-        showAnalysisError(response.error || 'Could not connect to the API');
-        return false;
-      }
-
-      var parsed = window.AshlyVAPI.parseApiJson(response.content);
-      if (!parsed) {
-        showAnalysisError('The AI returned an invalid response. Try again.');
-        return false;
-      }
-
-      var normalized = normalizeThumbnailResult(parsed);
-      displayThumbnailResults(normalized);
-      saveThumbnailHistory(imageBase64, normalized, mediaType);
-      loadThumbnailHistory();
-      setThumbnailStatus('Analysis finished.', 'success');
-      showAshlyVToast('Analysis finished', 'success', 2000);
-      return true;
-    })
-    .catch(function(err) {
-      clearInterval(keepAliveInterval);
-      var msg = err.message || 'Unknown error';
-      setThumbnailStatus(msg, 'error');
-      if (msg.indexOf('API key') >= 0) {
-        showAnalysisError(msg);
-      } else if (msg.indexOf('timeout') >= 0) {
-        showAnalysisError('The request took too long. Check your connection.');
-      } else {
-        showAnalysisError('Error: ' + msg + '. If it keeps happening, reload the extension and try another thumbnail.');
-      }
-      return false;
-    });
-}
-
 function handleThumbnailAnalyze() {
   var fileInput = document.getElementById('thumb-file-input');
-  var channelInput = document.getElementById('thumb-channel-input');
   var preview = document.getElementById('thumb-preview');
   var btn = document.getElementById('thumb-analyze-btn');
   var file = fileInput && fileInput.files && fileInput.files[0];
-  var channelName = String(channelInput && channelInput.value || '').trim();
-  clearApiKeyError();
-  if (!channelName) {
-    setThumbnailStatus('Enter the channel first.', 'error');
-    showAnalysisError('Enter the channel name before analyzing.');
-    if (channelInput) channelInput.focus();
-    return;
-  }
   if (!file) {
-    setThumbnailStatus('Upload a thumbnail first.', 'error');
-    showAnalysisError('Upload a thumbnail to continue.');
+    setThumbnailStatus('Pick a thumbnail file first.', 'error');
     return;
   }
-  if (!/^image\//i.test(file.type || '') || file.size > 8 * 1024 * 1024) {
-    setThumbnailStatus('Invalid file or too large. Maximum 8MB.', 'error');
-    showAnalysisError('The file must be a valid image of 8MB or less.');
+  if (!/^image\//i.test(file.type || '')) {
+    setThumbnailStatus('That file is not an image.', 'error');
     return;
   }
   if (btn) {
     btn.disabled = true;
-    btn.textContent = 'ANALYZING';
+    btn.textContent = 'MEASURING';
   }
-  setThumbnailStatus('Analyzing the thumbnail', 'busy');
-  ensureThumbnailConsent()
-    .then(function(allowed) {
-      if (!allowed) throw new Error('Analysis cancelled by the user.');
-      return thumbFileToDataUrl(file);
-    })
-    .then(function(dataUrl) {
-      return normalizeImageDataUrl(dataUrl, 1024);
-    })
-    .then(function(dataUrl) {
-      if (preview) {
-        preview.src = dataUrl;
-        preview.style.display = 'block';
-      }
-      lastThumbnailAnalysisPayload = {
-        imageBase64: thumbBase64(dataUrl),
-        mediaType: 'image/png',
-        channelName: channelName
-      };
-      return runThumbnailAnalysis(lastThumbnailAnalysisPayload.imageBase64, lastThumbnailAnalysisPayload.mediaType, lastThumbnailAnalysisPayload.channelName);
-    })
-    .catch(function(err) {
-      showAnalysisError(err && err.message ? err.message : 'Could not read the thumbnail.');
-    })
-    .then(function() {
-      if (btn) {
-        btn.disabled = false;
-        btn.textContent = 'ANALYZE WITH AI';
-      }
-    });
-}
-
-function showChannelAnalysisLoading() {
-  var host = document.getElementById('scan-content-area');
-  if (!host) return;
-  host.style.display = 'block';
-  thumbClear(host);
-  var wrap = document.createElement('div');
-  wrap.className = 'scan-loading-state';
-  wrap.style.display = 'flex';
-  wrap.style.flexDirection = 'column';
-  wrap.style.alignItems = 'center';
-  wrap.style.justifyContent = 'center';
-  wrap.style.padding = '42px 18px';
-  var spinner = document.createElement('div');
-  spinner.className = 'scan-spin';
-  var title = document.createElement('div');
-  title.className = 'scan-load-ttl';
-  title.textContent = 'ANALYZING CHANNEL';
-  var sub = document.createElement('div');
-  sub.className = 'scan-load-sub';
-  sub.textContent = 'The AI is scoring faceless potential, RPM, competition and strategy.';
-  wrap.appendChild(spinner);
-  wrap.appendChild(title);
-  wrap.appendChild(sub);
-  host.appendChild(wrap);
-}
-
-function showChannelAnalysisError(message) {
-  var host = document.getElementById('scan-content-area');
-  if (!host) return;
-  thumbClear(host);
-  var box = document.createElement('div');
-  box.className = 'scan-empty-state';
-  var icon = document.createElement('div');
-  icon.className = 'scan-empty-icon';
-  icon.textContent = 'X';
-  var title = document.createElement('div');
-  title.className = 'scan-empty-ttl';
-  title.textContent = 'Could not analyze the channel';
-  var sub = document.createElement('div');
-  sub.className = 'scan-empty-sub';
-  sub.textContent = String(message || 'Try again or check your API key.');
-  box.appendChild(icon);
-  box.appendChild(title);
-  box.appendChild(sub);
-  host.appendChild(box);
-}
-
-function displayChannelResults(data, channelName) {
-  var host = document.getElementById('scan-content-area');
-  if (!host) return;
-  data = normalizeChannelResult(data);
-  thumbClear(host);
-
-  var card = document.createElement('div');
-  card.style.padding = '22px';
-  card.style.border = '1px solid rgba(255,255,255,.08)';
-  card.style.borderRadius = '24px';
-  card.style.background = 'linear-gradient(180deg, rgba(18,18,18,.96), rgba(4,4,4,.98))';
-
-  var header = document.createElement('div');
-  header.style.display = 'flex';
-  header.style.alignItems = 'center';
-  header.style.justifyContent = 'space-between';
-  header.style.gap = '18px';
-  header.style.flexWrap = 'wrap';
-  var left = document.createElement('div');
-  var title = document.createElement('div');
-  title.style.fontSize = '28px';
-  title.style.fontWeight = '900';
-  title.textContent = channelName;
-  left.appendChild(title);
-  left.appendChild(createBadge(data.niche, 'rgba(255,255,255,.06)', '#fff'));
-  header.appendChild(left);
-  header.appendChild(createScoreCircle(data.facelessScore, 'Face', 128));
-  card.appendChild(header);
-
-  var metrics = document.createElement('div');
-  metrics.style.display = 'flex';
-  metrics.style.flexWrap = 'wrap';
-  metrics.style.gap = '10px';
-  metrics.style.marginTop = '18px';
-  metrics.appendChild(createBadge('RPM: $' + data.rpmEstimate.toFixed(2), 'rgba(0,220,130,.12)', '#00DC82'));
-  metrics.appendChild(createBadge(data.monthlyRevenueEstimate, 'rgba(255,255,255,.06)', '#fff'));
-  metrics.appendChild(createBadge(data.growthPotential, 'rgba(255,255,255,.05)', data.growthPotential === 'HIGH' ? '#00DC82' : data.growthPotential === 'MEDIUM' ? '#FFD700' : '#FF3D71'));
-  metrics.appendChild(createBadge('Competition ' + data.competitionLevel, 'rgba(255,255,255,.05)', data.competitionLevel === 'LOW' ? '#00DC82' : data.competitionLevel === 'MEDIUM' ? '#FFD700' : '#FF3D71'));
-  metrics.appendChild(createBadge(data.replicable ? 'REPLICABLE' : 'NO REPLICABLE', data.replicable ? 'rgba(0,220,130,.12)' : 'rgba(255,61,113,.12)', '#fff'));
-  card.appendChild(metrics);
-
-  var technique = document.createElement('div');
-  technique.style.marginTop = '18px';
-  technique.style.padding = '16px';
-  technique.style.borderRadius = '18px';
-  technique.style.border = '1px solid rgba(255,255,255,.08)';
-  technique.style.background = 'rgba(255,255,255,.03)';
-  technique.textContent = 'Faceless technique: ' + data.facelessTechnique;
-  card.appendChild(technique);
-
-  function appendPillSection(titleText, items, color) {
-    var titleNode = document.createElement('div');
-    titleNode.style.marginTop = '18px';
-    titleNode.style.fontSize = '12px';
-    titleNode.style.letterSpacing = '.12em';
-    titleNode.style.color = 'rgba(255,255,255,.62)';
-    titleNode.textContent = titleText.toUpperCase();
-    card.appendChild(titleNode);
-    var row = document.createElement('div');
-    row.style.display = 'flex';
-    row.style.flexWrap = 'wrap';
-    row.style.gap = '10px';
-    row.style.marginTop = '10px';
-    (items.length ? items : ['No data']).forEach(function(item) {
-      row.appendChild(createBadge(item, color === 'green' ? 'rgba(0,220,130,.12)' : 'rgba(255,61,113,.12)', '#fff'));
-    });
-    card.appendChild(row);
-  }
-
-  appendPillSection('Strengths', data.strengths, 'green');
-  appendPillSection('Weaknesses', data.weaknesses, 'red');
-
-  var strategyTitle = document.createElement('div');
-  strategyTitle.style.marginTop = '18px';
-  strategyTitle.style.fontSize = '12px';
-  strategyTitle.style.letterSpacing = '.12em';
-  strategyTitle.style.color = 'rgba(255,255,255,.62)';
-  strategyTitle.textContent = 'REPLICATION STRATEGY';
-  card.appendChild(strategyTitle);
-
-  var strategy = document.createElement('div');
-  strategy.style.marginTop = '10px';
-  strategy.style.lineHeight = '1.7';
-  strategy.textContent = data.replicationStrategy;
-  card.appendChild(strategy);
-
-  var gapsTitle = document.createElement('div');
-  gapsTitle.style.marginTop = '18px';
-  gapsTitle.style.fontSize = '12px';
-  gapsTitle.style.letterSpacing = '.12em';
-  gapsTitle.style.color = 'rgba(255,255,255,.62)';
-  gapsTitle.textContent = 'CONTENT GAPS';
-  card.appendChild(gapsTitle);
-
-  var gaps = document.createElement('ul');
-  gaps.style.marginTop = '10px';
-  gaps.style.paddingLeft = '18px';
-  (data.contentGaps.length ? data.contentGaps : ['No gaps detected.']).forEach(function(item) {
-    var li = document.createElement('li');
-    li.style.marginTop = '8px';
-    li.textContent = item;
-    gaps.appendChild(li);
-  });
-  card.appendChild(gaps);
-
-  var footer = document.createElement('div');
-  footer.style.display = 'flex';
-  footer.style.alignItems = 'center';
-  footer.style.justifyContent = 'space-between';
-  footer.style.gap = '12px';
-  footer.style.flexWrap = 'wrap';
-  footer.style.marginTop = '18px';
-  footer.appendChild(createBadge(data.recommendedPostingFrequency, 'rgba(123,92,255,.12)', '#fff'));
-  var ideasBtn = document.createElement('button');
-  ideasBtn.type = 'button';
-  ideasBtn.className = 'thumb-btn';
-  ideasBtn.textContent = 'Generate content ideas';
-  ideasBtn.addEventListener('click', function() {
-    var nicheInput = document.getElementById('ideas-niche-input');
-    if (nicheInput) nicheInput.value = data.niche;
-    thumbSetTab('ideas');
-  });
-  footer.appendChild(ideasBtn);
-  card.appendChild(footer);
-  host.appendChild(card);
-}
-
-function runChannelAnalysis(channelName) {
-  showChannelAnalysisLoading();
-  lastChannelAnalysisName = channelName;
-
-  var channelData = null;
-  try {
-    var stored = localStorage.getItem('nsp_session');
-    if (stored) {
-      var session = JSON.parse(stored);
-      var match = (session.topVideos || []).find(function(v) {
-        return (v.channelName || '').toLowerCase().indexOf(channelName.toLowerCase()) >= 0;
-      });
-      if (match) {
-        channelData = {
-          avgViews: match.vph ? match.vph * 24 * 30 : null,
-          topics: [match.tier]
-        };
-      }
+  setThumbnailStatus('Measuring the pixels', 'busy');
+  measureThumbnailFile(file).then(function(m) {
+    if (preview) {
+      preview.src = m.dataUrl;
+      preview.style.display = 'block';
     }
-  } catch (e) {}
-
-  // Exit before the keep-alive interval is created: otherwise it leaks and the button stays stuck.
-  if (!window.AshlyVAPI || typeof window.AshlyVAPI.analyzeChannel !== 'function') {
-    showChannelAnalysisError('The AI client did not load. Reload the page with F5.');
-    return Promise.resolve(false);
-  }
-  var keepAliveInterval = setInterval(function() {
-    chrome.runtime.sendMessage({ type: 'ASHLYV_PING' }, function() {
-      if (chrome.runtime.lastError) {}
-    });
-  }, 20000);
-
-  try {
-  return window.AshlyVAPI.analyzeChannel(channelName, channelData)
-    .then(function(response) {
-      clearInterval(keepAliveInterval);
-      if (!response.success) {
-        showChannelAnalysisError(response.error);
-        return false;
-      }
-      var parsed = window.AshlyVAPI.parseApiJson(response.content);
-      if (!parsed) {
-        showChannelAnalysisError('Invalid response from the AI. Try again.');
-        return false;
-      }
-      displayChannelResults(parsed, channelName);
-      return true;
-    })
-    .catch(function(err) {
-      clearInterval(keepAliveInterval);
-      showChannelAnalysisError(err.message || 'Unknown error');
-      return false;
-    });
-  } catch (eSync) {
-    clearInterval(keepAliveInterval);
-    showChannelAnalysisError((eSync && eSync.message) || 'Could not start the analysis');
-    return Promise.resolve(false);
-  }
-}
-
-function handleScanAnalyze() {
-  var handle = (document.getElementById('scan-handle-input').value || '').trim().replace(/^@/, '');
-  var btn = document.getElementById('scan-go-btn');
-  if (!handle) {
-    document.getElementById('scan-handle-input').focus();
-    return;
-  }
-  if (btn) {
-    btn.disabled = true;
-    btn.classList.add('loading');
-    btn.textContent = 'ANALYZING';
-  }
-  runChannelAnalysis(handle);
-  setTimeout(function() {
+    displayThumbnailMeasurements(m);
+    saveThumbnailHistory(m);
+    setThumbnailStatus('Measured. Nothing was uploaded anywhere.', 'success');
+  }).catch(function(err) {
+    setThumbnailStatus(err && err.message ? err.message : 'Could not measure the thumbnail.', 'error');
+  }).then(function() {
     if (btn) {
       btn.disabled = false;
-      btn.classList.remove('loading');
-      btn.textContent = 'ANALYZE';
+      btn.textContent = 'MEASURE THUMBNAIL';
     }
-  }, 1200);
+  });
 }
 
 function render() {
@@ -3741,38 +3011,113 @@ function render() {
 }
 
 /* ===============================================
-   SCAN CHANNEL - CHANNEL INTELLIGENCE ENGINE
+   SCAN CHANNEL
+   The snapshot, competitors and title patterns are measured from YouTube through the
+   service worker. The AI read comes last and only interprets those numbers.
 =============================================== */
 
-// The API key is never hardcoded: anyone with the extension folder could read it. It comes from Options.
-var GROQ_KEY = (function () { try { return localStorage.getItem('nsp_groq_api_key') || ''; } catch (e) { return ''; } })();
 var scanCurrentMode = 'channel';
 var scanCurrentTab = 'snapshot';
-var scanSections = {};
-var scanLastRealCompetitors = [];
-var scanLastEstimatedCompetitors = [];
-var scanLastScanMeta = null;
+var SCAN_REPORT_TABS = ['snapshot', 'competitors', 'patterns', 'ai'];
+var SCAN_VIRAL_THRESHOLD = 100000;
 
-var SCAN_COMPETITOR_WEIGHTS = {
-  nicheSimilarity: 0.35,
-  formatSimilarity: 0.20,
-  performanceScore: 0.20,
-  recencyScore: 0.15,
-  strategicValueScore: 0.10
-};
+function hubNode(tag, css, text) {
+  var node = document.createElement(tag);
+  if (css) node.style.cssText = css;
+  if (text !== undefined && text !== null) node.textContent = String(text);
+  return node;
+}
 
-var SCAN_HARD_FILTERS = {
-  maxLastVideoDays: 90,
-  minRecentAvgViews: 1000,
-  minRecentVideos: 5,
-  minNicheSimilarity: 55
-};
+function hubClear(host) {
+  while (host && host.firstChild) host.removeChild(host.firstChild);
+  return host;
+}
 
-var SCAN_STOPWORDS = {
-  the:1, and:1, for:1, with:1, from:1, this:1, that:1, your:1, you:1, are:1, how:1, why:1, what:1, when:1, who:1,
-  de:1, del:1, la:1, las:1, los:1, para:1, con:1, por:1, como:1, que:1, una:1, uno:1, este:1, esta:1, estos:1, esas:1,
-  el:1, un:1, en:1, su:1, sus:1, mas:1, pero:1, sobre:1, todo:1, todos:1, youtube:1, channel:1, canal:1, oficial:1
-};
+var HUB_TONE_COLOR = { error: '#FF6B6B', busy: '#FFD93D', good: '#00DC82', plain: 'rgba(255,255,255,0.62)' };
+
+function hubMessage(host, text, tone) {
+  if (!host) return host;
+  hubClear(host);
+  host.appendChild(hubNode('div', 'color:' + (HUB_TONE_COLOR[tone] || HUB_TONE_COLOR.plain) + ';font-size:12px;line-height:1.6;', text));
+  return host;
+}
+
+function hubCount(n) {
+  if (typeof n !== 'number' || !isFinite(n)) return '?';
+  if (n >= 1e9) return (n / 1e9).toFixed(1).replace('.0', '') + 'B';
+  if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace('.0', '') + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace('.0', '') + 'K';
+  return String(Math.round(n));
+}
+
+function hubPct(share) {
+  return typeof share === 'number' && isFinite(share) ? Math.round(share * 100) + '%' : '?';
+}
+
+function hubLink(url, text, css) {
+  var safe = /^https:\/\/(?:www\.)?youtube\.com\//i.test(String(url || ''));
+  if (!safe) return hubNode('span', css, text);
+  var a = hubNode('a', (css || '') + 'color:inherit;text-decoration:underline;text-underline-offset:2px;', text);
+  a.href = url;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  return a;
+}
+
+function hubStatGrid(host, cells) {
+  var grid = hubNode('div', 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:8px 0;');
+  cells.forEach(function (cell) {
+    var box = hubNode('div', 'padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;');
+    box.appendChild(hubNode('div', 'font-size:18px;font-weight:800;color:' + (cell.color || '#fff') + ';overflow-wrap:anywhere;', cell.value));
+    box.appendChild(hubNode('div', 'font-size:10px;opacity:0.6;margin-top:2px;', cell.label));
+    grid.appendChild(box);
+  });
+  host.appendChild(grid);
+  return grid;
+}
+
+function hubHeading(host, text, color) {
+  host.appendChild(hubNode('div', 'font-size:12px;font-weight:700;color:' + (color || '#2EE9FF') + ';margin:12px 0 4px;', text));
+}
+
+function hubList(host, items, render) {
+  (items || []).forEach(function (item, index) {
+    var row = hubNode('div', 'padding:6px 8px;margin:3px 0;background:rgba(0,0,0,0.2);border-radius:6px;font-size:12px;line-height:1.5;');
+    render(row, item, index);
+    host.appendChild(row);
+  });
+}
+
+function hubNote(host, text) {
+  if (text) host.appendChild(hubNode('div', 'font-size:11px;color:rgba(255,255,255,0.5);margin-top:6px;line-height:1.5;', text));
+}
+
+function hubAiLabel(host, provider, model) {
+  var who = [provider, model].filter(Boolean).join(' ');
+  host.appendChild(hubNode('div', 'font-size:11px;color:#B388FF;margin:0 0 8px;', 'AI suggestion' + (who ? ' by ' + who : '') + '. It reads the data shown here and can be wrong: check it before you act on it.'));
+}
+
+function hubTextOf(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  if (Array.isArray(value)) return value.map(hubTextOf).filter(Boolean).join('\n');
+  if (typeof value === 'object') return Object.keys(value).map(function (k) { return hubTextOf(value[k]); }).filter(Boolean).join('\n');
+  return '';
+}
+
+// Each badge carries a tone identifier; the color comes from the table, never from the label.
+function hubBadges(host, badges) {
+  var row = hubNode('div', 'display:flex;gap:6px;flex-wrap:wrap;margin:10px 0;');
+  badges.forEach(function (b) {
+    var color = HUB_TONE_COLOR[b.tone] || HUB_TONE_COLOR.plain;
+    row.appendChild(hubNode('span', 'padding:5px 10px;border-radius:8px;background:rgba(255,255,255,0.05);border:1px solid ' + color + ';font-size:11px;font-weight:700;color:' + color + ';', b.label));
+  });
+  host.appendChild(row);
+}
+
+function hubFailure(host) {
+  return function (err) { hubMessage(host, 'Error: ' + (err && err.message ? err.message : err), 'error'); };
+}
 
 function scanSetMode(mode) {
   scanCurrentMode = mode === 'thumbnail' ? 'thumbnail' : 'channel';
@@ -3782,13 +3127,17 @@ function scanSetMode(mode) {
   var thumbPane = document.getElementById('scan-mode-pane-thumbnail');
   var tabs = document.getElementById('scan-tabs-bar');
   var content = document.getElementById('scan-content-area');
-  if (channelBtn) channelBtn.classList.toggle('active', scanCurrentMode === 'channel');
-  if (thumbBtn) thumbBtn.classList.toggle('active', scanCurrentMode === 'thumbnail');
-  if (channelPane) channelPane.style.display = scanCurrentMode === 'channel' ? 'block' : 'none';
-  if (thumbPane) thumbPane.style.display = scanCurrentMode === 'thumbnail' ? 'block' : 'none';
-  if (tabs) tabs.style.display = scanCurrentMode === 'channel' && tabs.getAttribute('data-has-results') === '1' ? 'flex' : 'none';
-  if (content) content.style.display = scanCurrentMode === 'channel' ? 'block' : 'none';
-  if (scanCurrentMode === 'thumbnail') loadThumbnailHistory();
+  var channel = scanCurrentMode === 'channel';
+  if (channelBtn) channelBtn.classList.toggle('active', channel);
+  if (thumbBtn) thumbBtn.classList.toggle('active', !channel);
+  if (channelPane) channelPane.style.display = channel ? 'block' : 'none';
+  if (thumbPane) thumbPane.style.display = channel ? 'none' : 'block';
+  if (tabs) tabs.style.display = channel ? 'flex' : 'none';
+  if (content) content.style.display = channel ? 'block' : 'none';
+  if (!channel) {
+    loadThumbnailHistory();
+    updateAiStatus();
+  }
 }
 
 function openScanModal(mode) {
@@ -3799,6 +3148,7 @@ function openScanModal(mode) {
     var box = m.querySelector('.scan-box');
     if (box) box.scrollTop = 0;
   }
+  switchAshlyvMode('scanner');
   scanSetMode(mode || 'channel');
 }
 
@@ -3811,1470 +3161,216 @@ function closeScanModal() {
 }
 
 function scanSetTab(tab) {
-  scanCurrentTab = tab;
-  document.querySelectorAll('.scan-tab-btn').forEach(function(btn) {
-    btn.classList.toggle('active', btn.getAttribute('data-tab') === tab);
+  scanCurrentTab = tab === 'advanced' || SCAN_REPORT_TABS.indexOf(tab) >= 0 ? tab : 'snapshot';
+  document.querySelectorAll('.scan-tab-btn').forEach(function (btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-tab') === scanCurrentTab);
   });
-  document.querySelectorAll('[id^="scan-panel-"]').forEach(function(p) {
-    p.style.display = 'none';
-    p.classList.remove('active');
+  var report = document.getElementById('scan-report-area');
+  var advanced = document.getElementById('scan-panel-advanced');
+  if (report) report.style.display = scanCurrentTab === 'advanced' ? 'none' : 'block';
+  if (advanced) advanced.classList.toggle('active', scanCurrentTab === 'advanced');
+  SCAN_REPORT_TABS.forEach(function (name) {
+    var panel = document.getElementById('scan-panel-' + name);
+    if (panel) panel.classList.toggle('active', name === scanCurrentTab);
   });
-  var panel = document.getElementById('scan-panel-' + tab);
-  if (panel) {
-    panel.style.display = 'block';
-    panel.classList.add('active');
-  }
+  if (scanCurrentTab === 'advanced' && typeof window.__ashlyvPopulateAdvancedScanNichos === 'function') window.__ashlyvPopulateAdvancedScanNichos();
 }
 
 function scanShowState(state) {
   var empty = document.getElementById('scan-empty-state');
   var loading = document.getElementById('scan-loading-state');
   var results = document.getElementById('scan-results-wrap');
-  var tabs = document.getElementById('scan-tabs-bar');
   if (empty) empty.style.display = state === 'empty' ? 'flex' : 'none';
   if (loading) loading.style.display = state === 'loading' ? 'flex' : 'none';
   if (results) results.style.display = state === 'results' ? 'block' : 'none';
-  if (tabs) {
-    tabs.setAttribute('data-has-results', state === 'results' ? '1' : '0');
-    tabs.style.display = state === 'results' && scanCurrentMode === 'channel' ? 'flex' : 'none';
-  }
 }
 
-/* Inline helpers */
-function scanFmtInline(text) {
-  return String(text)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+function scanShowError(title, message) {
+  scanShowState('empty');
+  var t = document.getElementById('scan-empty-ttl');
+  var s = document.getElementById('scan-empty-sub');
+  if (t) t.textContent = title;
+  if (s) s.textContent = message;
 }
-
-function extractField(text, key) {
-  var re = new RegExp('(?:^|\\n)' + key + '\\s*:\\s*([^\\n]+)', 'i');
-  var m = text.match(re);
-  return m ? m[1].trim() : null;
-}
-
-function parseSubCount(str) {
-  if (!str) return 0;
-  var s = String(str).toLowerCase().replace(/,/g,'.').replace(/\s/g,'');
-  var m = s.match(/(\d+(?:\.\d+)?)(k|m|mil|b|millones|millón|million|millions)?/);
-  if (!m) return 0;
-  var n = parseFloat(m[1]), u = m[2] || '';
-  if (u==='k'||u==='mil') return n*1000;
-  if (u==='m'||u==='millones'||u==='millón'||u==='million'||u==='millions') return n*1000000;
-  if (u==='b') return n*1000000000;
-  return n;
-}
-
-function scanParseViews(str) {
-  if (!str) return 0;
-  var raw = String(str).toLowerCase()
-    .replace(/views|visualizaciones|vistas|reproducciones|visualizaç(?:õ|o)es|visualizações/g, '')
-    .replace(/,/g, '.')
-    .trim();
-  var m = raw.match(/(\d+(?:\.\d+)?)\s*(k|m|b|mil|millones|millón|million|millions)?/i);
-  if (!m) return 0;
-  var n = parseFloat(m[1]);
-  var unit = (m[2] || '').toLowerCase();
-  if (unit === 'k' || unit === 'mil') return Math.round(n * 1000);
-  if (unit === 'm' || unit === 'millones' || unit === 'millón' || unit === 'million' || unit === 'millions') return Math.round(n * 1000000);
-  if (unit === 'b') return Math.round(n * 1000000000);
-  return Math.round(n);
-}
-
-function scanAgeToDays(text) {
-  var raw = String(text || '').toLowerCase();
-  if (!raw) return 9999;
-  if (/hour|hora|minute|minuto|today|hoy/.test(raw)) return 0;
-  if (/yesterday|ayer/.test(raw)) return 1;
-  var m = raw.match(/(\d+)\s*(second|minute|hour|day|week|month|year|segundo|minuto|hora|dia|día|semana|mes|ano|año|semanas|meses|anos|años|jours?|semaines?|mois|ans?)/i);
-  if (!m) return 9999;
-  var n = parseInt(m[1], 10) || 0;
-  var u = m[2];
-  if (/second|minute|hour|segundo|minuto|hora/.test(u)) return 0;
-  if (/day|dia|día|jour/.test(u)) return n;
-  if (/week|semana|semaine/.test(u)) return n * 7;
-  if (/month|mes|mois/.test(u)) return n * 30;
-  if (/year|ano|año|ans?/.test(u)) return n * 365;
-  return 9999;
-}
-
-function scanCleanText(text) {
-  return String(text || '')
-    .replace(/\\u0026/g, '&')
-    .replace(/&amp;/g, '&')
-    .replace(/[^\w\s\u00C0-\u017F-]/g, ' ')
-    .toLowerCase();
-}
-
-function scanTokens(text) {
-  var seen = {};
-  return scanCleanText(text).split(/\s+/).filter(function(token) {
-    token = token.trim();
-    if (!token || token.length < 3 || SCAN_STOPWORDS[token]) return false;
-    if (/^\d+$/.test(token)) return false;
-    if (seen[token]) return false;
-    seen[token] = true;
-    return true;
-  });
-}
-
-function scanTokenSimilarity(aText, bText) {
-  var a = scanTokens(aText);
-  var b = scanTokens(bText);
-  if (!a.length || !b.length) return 0;
-  var bSet = {};
-  b.forEach(function(t) { bSet[t] = true; });
-  var hits = a.filter(function(t) { return bSet[t]; }).length;
-  var overlap = hits / Math.max(Math.min(a.length, b.length), 1);
-  var coverage = hits / Math.max(a.length, 1);
-  return Math.round(Math.min(100, (overlap * 70) + (coverage * 30)));
-}
-
-function scanDetectFormats(text, videos) {
-  var raw = scanCleanText([text].concat((videos || []).map(function(v) { return v.title || ''; })).join(' '));
-  var formats = [];
-  if (/\bshorts?\b|#shorts|shorts/.test(raw)) formats.push('shorts');
-  if (/documental|documentary|docu|historia|history|histoire|geschichte/.test(raw)) formats.push('documental');
-  if (/storytelling|historia|relato|cuento|narrat|story/.test(raw)) formats.push('storytelling');
-  if (/explicad|explained|educativo|education|learn|facts|datos|science|ciencia|psicolog/.test(raw)) formats.push('educativo');
-  if (/misterio|mystery|secret|secreto|hidden|oculto|forbidden|prohibid|dark/.test(raw)) formats.push('misterios');
-  if (/reaction|reaccion|reacción|reacts?/.test(raw)) formats.push('reaccion');
-  if (/podcast|entrevista|interview/.test(raw)) formats.push('podcast');
-  if (/faceless|sin rostro|voz ia|ai voice|narrador|narration|narración/.test(raw)) formats.push('faceless');
-  if (!formats.length) formats.push('evergreen');
-  return formats.filter(function(item, idx, arr) { return arr.indexOf(item) === idx; });
-}
-
-function scanFormatSimilarity(aFormats, bFormats) {
-  aFormats = aFormats || [];
-  bFormats = bFormats || [];
-  if (!aFormats.length || !bFormats.length) return 45;
-  var bSet = {};
-  bFormats.forEach(function(f) { bSet[f] = true; });
-  var hits = aFormats.filter(function(f) { return bSet[f]; }).length;
-  return Math.round(Math.min(100, 35 + (hits / Math.max(aFormats.length, bFormats.length)) * 65));
-}
-
-function scanDetectSelectedLanguage(lang, text) {
-  if (!lang || lang === 'auto') return true;
-  if (engine && engine.languageEngine && engine.languageEngine.detectLanguage) {
-    var detected = engine.languageEngine.detectLanguage(text || '');
-    if (detected && detected !== 'unknown' && detected !== 'auto') return detected === lang;
-  }
-  return true;
-}
-
-function scanPerformanceScore(avgViews, subs, videos) {
-  var viewsScore = Math.min(100, Math.log10(Math.max(avgViews, 1)) * 18);
-  var ratio = subs ? avgViews / Math.max(subs, 1) : 0.08;
-  var ratioScore = Math.min(100, ratio * 220);
-  var outlierScore = (videos || []).some(function(v) { return toNumber(v.views) >= avgViews * 2.2 && toNumber(v.views) >= 2500; }) ? 16 : 0;
-  return Math.round(Math.min(100, (viewsScore * 0.58) + (ratioScore * 0.28) + outlierScore));
-}
-
-function scanRecencyScore(lastDays, videos) {
-  var recentCount = (videos || []).filter(function(v) { return toNumber(v.ageDays) <= 90; }).length;
-  var lastScore = lastDays <= 7 ? 100 : lastDays <= 30 ? 86 : lastDays <= 60 ? 68 : lastDays <= 90 ? 52 : 12;
-  var freqScore = Math.min(100, recentCount * 17);
-  return Math.round((lastScore * 0.68) + (freqScore * 0.32));
-}
-
-function scanStrategicValueScore(formats, videos, avgViews) {
-  var formatText = (formats || []).join(' ');
-  var clarity = /faceless|documental|storytelling|educativo|misterios/.test(formatText) ? 82 : 58;
-  var repeatability = (videos || []).length >= 8 ? 88 : (videos || []).length >= 5 ? 72 : 45;
-  var scale = /faceless|documental|educativo|misterios|evergreen/.test(formatText) ? 82 : 58;
-  var proof = avgViews >= 10000 ? 86 : avgViews >= 2500 ? 70 : 50;
-  return Math.round((clarity * 0.28) + (repeatability * 0.28) + (scale * 0.24) + (proof * 0.20));
-}
-
-function scanCompetitorType(score, subs, targetSubs, performanceScore, recencyScore, nicheSimilarity, formatSimilarity) {
-  var bigger = targetSubs && subs >= targetSubs * 2.5;
-  var fast = subs && subs < Math.max(targetSubs || 0, 250000) && performanceScore >= 72 && recencyScore >= 72;
-  if (fast) return 'FAST GROWING';
-  if (bigger && score >= 66) return 'ASPIRATIONAL';
-  if (nicheSimilarity >= 72 && formatSimilarity >= 62) return 'DIRECT';
-  if (nicheSimilarity >= 55) return 'ADJACENT';
-  return '';
-}
-
-function scanStealPotential(score, strategicValueScore, type) {
-  if (score >= 78 && strategicValueScore >= 74 && type !== 'ASPIRATIONAL') return 'HIGH';
-  if (score >= 65) return 'MEDIUM';
-  return 'LOW';
-}
-
-function scanWhyCompetitorMatters(c) {
-  if (c.type === 'DIRECT') return 'Goes after the same audience with comparable niche and format signals.';
-  if (c.type === 'FAST GROWING') return 'Small or mid channel with recent traction: useful for spotting packaging that is breaking out now.';
-  if (c.type === 'ASPIRATIONAL') return 'Large channel that works as a blueprint for format, cadence and packaging.';
-  return 'Nearby niche, useful for transferable angles, hooks and subtopics.';
-}
-
-function scanLearnFromCompetitor(c) {
-  var format = (c.formats || []).slice(0, 2).join(' + ') || 'format';
-  return 'Study its ' + format + ' structure, the repeated topics and how it turns curiosity into clicks.';
-}
-
-/* Markdown fallback renderer */
-function scanRenderMd(text, container) {
-  container.innerHTML = '';
-  var lines = text.split('\n'), ul = null, p = null;
-  function flushUl(){ if(ul){ container.appendChild(ul); ul=null; } }
-  function flushP(){ if(p&&p.childNodes.length){ container.appendChild(p); p=null; } }
-  lines.forEach(function(line){
-    var s = line.trim();
-    if(!s){ flushUl(); flushP(); return; }
-    if(s.match(/^#{1,3} /)){ flushUl(); flushP(); var h=document.createElement('h3'); h.innerHTML=scanFmtInline(s.replace(/^#+\s+/,'')); container.appendChild(h); }
-    else if(s.match(/^[-*-] /)){ flushP(); if(!ul) ul=document.createElement('ul'); var li=document.createElement('li'); li.innerHTML=scanFmtInline(s.replace(/^[-*-] /,'')); ul.appendChild(li); }
-    else if(s.match(/^\d+\. /)){ flushP(); if(!ul||ul.tagName!=='OL'){ flushUl(); ul=document.createElement('ol'); } var oli=document.createElement('li'); oli.innerHTML=scanFmtInline(s.replace(/^\d+\. /,'')); ul.appendChild(oli); }
-    else{ flushUl(); if(!p) p=document.createElement('p'); var sp=document.createElement('span'); sp.innerHTML=scanFmtInline(s)+' '; p.appendChild(sp); }
-  });
-  flushUl(); flushP();
-}
-
-/* SNAPSHOT renderer */
-function renderSnapshot(text, container) {
-  container.innerHTML = '';
-  var oport  = extractField(text,'KEY_OPPORTUNITY') || extractField(text,'OPPORTUNITY');
-  var posit  = extractField(text,'POSITIONING') || extractField(text,'PROPOSAL');
-  var nicho  = extractField(text,'EXACT_NICHE');
-  var model  = extractField(text,'CONTENT_MODEL');
-  var growth = extractField(text,'GROWTH_PATTERN');
-  if (!oport && !posit && !nicho) { scanRenderMd(text, container); return; }
-
-  if (oport) {
-    var h = document.createElement('div'); h.className = 'scan-hero-box';
-    var hl = document.createElement('div'); hl.className = 'scan-hero-lbl'; hl.textContent = 'KEY OPPORTUNITY';
-    var hv = document.createElement('div'); hv.className = 'scan-hero-txt'; hv.textContent = oport;
-    h.appendChild(hl); h.appendChild(hv); container.appendChild(h);
-  }
-
-  if (nicho || growth) {
-    var row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px';
-    if (nicho) {
-      var nBox = document.createElement('div'); nBox.className = 'scan-hero-box'; nBox.style.flex = '1';
-      var nLbl = document.createElement('div'); nLbl.className = 'scan-hero-lbl'; nLbl.textContent = 'EXACT NICHE';
-      var nVal = document.createElement('div'); nVal.className = 'scan-hero-txt'; nVal.style.fontSize = '13px'; nVal.textContent = nicho;
-      nBox.appendChild(nLbl); nBox.appendChild(nVal);
-      if (model) { var mB = document.createElement('div'); mB.className = 'scan-model-badge'; mB.textContent = model.split('-')[0].split('/')[0].trim(); nBox.appendChild(mB); }
-      row.appendChild(nBox);
-    }
-    if (growth) {
-      var gBox = document.createElement('div'); gBox.className = 'scan-hero-box';
-      var gLbl = document.createElement('div'); gLbl.className = 'scan-hero-lbl'; gLbl.textContent = 'GROWTH PATTERN';
-      var gBase = growth.split('(')[0].split('-')[0].trim();
-      var gLow = gBase.toLowerCase();
-      var gCls = gLow.includes('explos') ? 'explosivo' : gLow.includes('decay') ? 'decayendo' : 'estable';
-      var gBadge = document.createElement('div'); gBadge.className = 'scan-growth-badge ' + gCls; gBadge.textContent = gBase;
-      var gRest = growth.replace(gBase,'').replace(/^[\s--(]/,'').replace(/\)$/,'').trim();
-      gBox.appendChild(gLbl); gBox.appendChild(gBadge);
-      if (gRest) { var gSub = document.createElement('div'); gSub.style.cssText = 'font-size:11px;color:var(--muted);margin-top:6px;line-height:1.55'; gSub.textContent = gRest; gBox.appendChild(gSub); }
-      row.appendChild(gBox);
-    }
-    if (row.children.length) container.appendChild(row);
-  }
-
-  if (posit) {
-    var pb = document.createElement('div'); pb.className = 'scan-hero-box';
-    var pl = document.createElement('div'); pl.className = 'scan-hero-lbl'; pl.textContent = 'UNIQUE POSITIONING';
-    var pv = document.createElement('div'); pv.className = 'scan-hero-txt'; pv.textContent = posit;
-    pb.appendChild(pl); pb.appendChild(pv); container.appendChild(pb);
-  }
-
-  var SNAP_FIELDS = [
-    {key:'AUDIENCE',lbl:'Target audience'},{key:'AUDIENCE_PSYCHOLOGY',lbl:'Audience psychology'},
-    {key:'MONETIZATION',lbl:'Monetization and RPM'},{key:'STRENGTHS',lbl:'Strengths'},
-    {key:'WEAKNESSES',lbl:'Weaknesses'},{key:'ETAPA',lbl:'Growth stage'},
-    {key:'VIRAL_POTENCIAL',lbl:'Viral potential'}
-  ];
-  var grid = document.createElement('div'); grid.className = 'scan-info-grid';
-  SNAP_FIELDS.forEach(function(f) {
-    var val = extractField(text, f.key); if (!val) return;
-    var card = document.createElement('div'); card.className = 'scan-info-card';
-    var lbl = document.createElement('div'); lbl.className = 'scan-info-lbl'; lbl.textContent = f.lbl;
-    var v = document.createElement('div'); v.className = 'scan-info-val'; v.textContent = val;
-    card.appendChild(lbl); card.appendChild(v); grid.appendChild(card);
-  });
-  if (grid.children.length) container.appendChild(grid);
-}
-
-/* COMPETITORS renderer */
-function makeCompCard(handle, name, subs, desc, threat, similarity, tag, growth) {
-  var ytH = handle.startsWith('@') ? handle : '@' + handle;
-  var ytUrl = 'https://www.youtube.com/' + ytH;
-  var sim = parseInt(similarity) || 0;
-  var card = document.createElement('div'); card.className = 'scan-comp-card';
-  var left = document.createElement('div'); left.className = 'scan-comp-left';
-
-  var topRow = document.createElement('div'); topRow.className = 'scan-comp-top-row';
-  var ha = document.createElement('a'); ha.className = 'scan-comp-handle'; ha.href = ytUrl; ha.target = '_blank'; ha.textContent = ytH;
-  topRow.appendChild(ha);
-  if (tag) { var tg = document.createElement('div'); tg.className = 'scan-comp-tag'; tg.textContent = tag; topRow.appendChild(tg); }
-  if (growth) {
-    var gLow = (growth || '').toLowerCase();
-    var grCls = gLow.includes('acelerado') || gLow.includes('explos') ? 'up' : gLow.includes('decay') ? 'down' : 'stable';
-    var grIcon = grCls === 'up' ? 'up ' : grCls === 'down' ? 'down ' : '-> ';
-    var gr = document.createElement('div'); gr.className = 'scan-comp-growth ' + grCls; gr.textContent = grIcon + growth.split('/')[0].trim();
-    topRow.appendChild(gr);
-  }
-  left.appendChild(topRow);
-
-  if (name && name !== handle && name !== ytH) { var nm = document.createElement('div'); nm.className = 'scan-comp-sub'; nm.textContent = name; left.appendChild(nm); }
-  if (subs) { var sb = document.createElement('div'); sb.className = 'scan-comp-sub'; sb.style.marginTop = '3px'; sb.textContent = subs; left.appendChild(sb); }
-  if (desc) { var ds = document.createElement('div'); ds.className = 'scan-comp-desc'; ds.textContent = desc; left.appendChild(ds); }
-
-  if (sim > 0) {
-    var sw = document.createElement('div'); sw.className = 'scan-sim-wrap';
-    var sr = document.createElement('div'); sr.className = 'scan-sim-row';
-    var sl = document.createElement('div'); sl.className = 'scan-sim-lbl'; sl.textContent = 'Niche similarity';
-    var sp = document.createElement('div'); sp.className = 'scan-sim-pct'; sp.textContent = sim + '%';
-    sr.appendChild(sl); sr.appendChild(sp); sw.appendChild(sr);
-    var st = document.createElement('div'); st.className = 'scan-sim-track';
-    var sf = document.createElement('div'); sf.className = 'scan-sim-fill'; sf.style.width = '0%';
-    st.appendChild(sf); sw.appendChild(st); left.appendChild(sw);
-    setTimeout(function() { sf.style.width = Math.min(sim, 100) + '%'; }, 200);
-  }
-
-  var right = document.createElement('div'); right.className = 'scan-comp-right';
-  var tc = (threat || '').toLowerCase();
-  var tcls = tc.includes('alto') ? 'alto' : tc.includes('bajo') ? 'bajo' : 'medio';
-  var tb = document.createElement('div'); tb.className = 'scan-threat ' + tcls; tb.textContent = (threat || 'Medium').toUpperCase();
-  var yb = document.createElement('a'); yb.className = 'scan-yt-link'; yb.href = ytUrl; yb.target = '_blank'; yb.textContent = '> View channel';
-  right.appendChild(tb); right.appendChild(yb);
-  card.appendChild(left); card.appendChild(right);
-  return card;
-}
-
-function makeRichCompCard(c, ai) {
-  c = c || {};
-  ai = ai || {};
-  var handle = c.handle || '';
-  var ytH = handle ? (handle.startsWith('@') ? handle : '@' + handle) : '';
-  var ytUrl = c.url || (ytH ? 'https://www.youtube.com/' + ytH : '#');
-  var sim = parseInt(c.nicheSimilarity || ai.similarity || 0, 10) || 0;
-  var score = parseInt(c.finalCompetitorScore || c.competitorScore || 0, 10) || 0;
-  var type = c.type || ai.type || 'ADJACENT';
-  var desc = ai.desc || c.whyMatters || c.desc || '';
-  var card = document.createElement('div'); card.className = 'scan-comp-card';
-  var left = document.createElement('div'); left.className = 'scan-comp-left';
-
-  var topRow = document.createElement('div'); topRow.className = 'scan-comp-top-row';
-  if (ytH) {
-    var ha = document.createElement('a'); ha.className = 'scan-comp-handle'; ha.href = ytUrl; ha.target = '_blank'; ha.textContent = ytH;
-    topRow.appendChild(ha);
-  } else {
-    var nmOnly = document.createElement('div'); nmOnly.className = 'scan-comp-handle'; nmOnly.textContent = c.name || 'Estimated space';
-    topRow.appendChild(nmOnly);
-  }
-  var tg = document.createElement('div'); tg.className = 'scan-comp-tag'; tg.textContent = type; topRow.appendChild(tg);
-  var sc = document.createElement('div'); sc.className = 'scan-comp-growth up'; sc.textContent = 'Score ' + score; topRow.appendChild(sc);
-  left.appendChild(topRow);
-
-  if (c.name && c.name !== ytH) { var nm = document.createElement('div'); nm.className = 'scan-comp-sub'; nm.textContent = c.name; left.appendChild(nm); }
-  var meta = [
-    c.subs ? c.subs : '',
-    c.avgRecentViews ? 'Avg views ' + compactNumber(c.avgRecentViews) : '',
-    c.lastVideoDays < 9999 ? 'Last video ' + c.lastVideoDays + 'd' : (c.activityLabel || ''),
-    (c.formats || []).length ? (c.formats || []).slice(0, 3).join(' + ') : ''
-  ].filter(Boolean).join(' | ');
-  if (meta) { var sb = document.createElement('div'); sb.className = 'scan-comp-sub'; sb.style.marginTop = '3px'; sb.textContent = meta; left.appendChild(sb); }
-  if (desc) { var ds = document.createElement('div'); ds.className = 'scan-comp-desc'; ds.textContent = desc; left.appendChild(ds); }
-
-  var insight = [
-    c.doesBetter ? 'Does better: ' + c.doesBetter : '',
-    c.learn ? 'Learn: ' + c.learn : ''
-  ].filter(Boolean).join(' ');
-  if (insight) { var ins = document.createElement('div'); ins.className = 'scan-comp-desc'; ins.textContent = insight; left.appendChild(ins); }
-
-  var sw = document.createElement('div'); sw.className = 'scan-sim-wrap';
-  var sr = document.createElement('div'); sr.className = 'scan-sim-row';
-  var sl = document.createElement('div'); sl.className = 'scan-sim-lbl'; sl.textContent = 'Niche similarity';
-  var sp = document.createElement('div'); sp.className = 'scan-sim-pct'; sp.textContent = sim + '%';
-  sr.appendChild(sl); sr.appendChild(sp); sw.appendChild(sr);
-  var st = document.createElement('div'); st.className = 'scan-sim-track';
-  var sf = document.createElement('div'); sf.className = 'scan-sim-fill'; sf.style.width = '0%';
-  st.appendChild(sf); sw.appendChild(st); left.appendChild(sw);
-  setTimeout(function() { sf.style.width = Math.min(sim, 100) + '%'; }, 200);
-
-  var right = document.createElement('div'); right.className = 'scan-comp-right';
-  var steal = c.stealPotential || 'MEDIUM';
-  var tcls = steal === 'HIGH' ? 'alto' : steal === 'LOW' ? 'bajo' : 'medio';
-  var tb = document.createElement('div'); tb.className = 'scan-threat ' + tcls; tb.textContent = 'STEAL ' + steal;
-  right.appendChild(tb);
-  if (ytH) {
-    var yb = document.createElement('a'); yb.className = 'scan-yt-link'; yb.href = ytUrl; yb.target = '_blank'; yb.textContent = 'View channel';
-    right.appendChild(yb);
-  }
-  card.appendChild(left); card.appendChild(right);
-  return card;
-}
-
-function extractCompAiData(text, handle) {
-  var cleanH = handle.replace(/^@/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  var blockRe = new RegExp('CHANNEL:\\s*@?' + cleanH + '([\\s\\S]{0,800}?)(?=\\nCANAL:|\\n\\n##|$)', 'i');
-  var bm = text.match(blockRe);
-  if (!bm) return {};
-  var block = bm[1];
-  return {
-    similarity: ((block.match(/SIMILITUD:\s*(\d+)/) || [])[1] || ''),
-    growth:     ((block.match(/CRECIMIENTO:\s*([^\n]+)/) || [])[1] || '').trim(),
-    tag:        ((block.match(/NICHO_TAG:\s*([^\n]+)/) || [])[1] || '').trim(),
-    threat:     ((block.match(/AMENAZA:\s*([^\n]+)/) || [])[1] || 'Medio').trim(),
-    desc:       ((block.match(/DESCRIPCION:\s*([^\n]+)/) || [])[1] || '').trim()
-  };
-}
-
-function extractAiThreats(text) {
-  var threats = {};
-  if (!text) return threats;
-  var re1 = /CANAL:\s*(@?[\w.-]+)[^\n]*?AMENAZA:\s*(Alto|Medio|Bajo)/gi;
-  var m;
-  while ((m = re1.exec(text)) !== null) threats[m[1].replace(/^@/,'').toLowerCase()] = m[2];
-  var re2 = /@([\w.-]+)[^\n]{0,200}\b(Alto|Medio|Bajo)\b/gi;
-  while ((m = re2.exec(text)) !== null) if (!threats[m[1].toLowerCase()]) threats[m[1].toLowerCase()] = m[2];
-  return threats;
-}
-
-function extractAiDesc(text, handle) {
-  if (!text) return '';
-  var cleanH = handle.replace(/^@/,'').replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-  var re = new RegExp('@?' + cleanH + '([^\\n]{0,300})', 'i');
-  var m = text.match(re);
-  if (!m) return '';
-  return m[1].replace(/^[^a-záéíóúñA-ZÁÉÍÓÚÑ]*/i,'').replace(/AMENAZA:.*$/i,'').replace(/-|-|[|]/g,'').trim().slice(0, 200);
-}
-
-function renderCompetitors(text, container) {
-  container.innerHTML = '';
-  var grid = document.createElement('div'); grid.className = 'scan-comp-grid';
-
-  if (scanLastRealCompetitors && scanLastRealCompetitors.length > 0) {
-    scanLastRealCompetitors.forEach(function(c) {
-      var cleanH = (c.handle || '').replace(/^@/, '');
-      var ai = extractCompAiData(text, cleanH);
-      if (!ai.desc) ai.desc = extractAiDesc(text, cleanH);
-      grid.appendChild(makeRichCompCard(c, ai));
-    });
-    if (grid.children.length) { container.appendChild(grid); return; }
-  }
-
-  if (scanLastEstimatedCompetitors && scanLastEstimatedCompetitors.length > 0) {
-    var notice = document.createElement('div'); notice.className = 'scan-hero-box'; notice.style.marginBottom = '12px';
-    var nl = document.createElement('div'); nl.className = 'scan-hero-lbl'; nl.textContent = 'NO STRONG VERIFIED COMPETITORS';
-    var nv = document.createElement('div'); nv.className = 'scan-hero-txt'; nv.style.fontSize = '13px';
-    nv.textContent = 'We found no strong verified competitors, but these nearby spaces showed up. They are listed apart because they fail some of the hard filters.';
-    notice.appendChild(nl); notice.appendChild(nv); container.appendChild(notice);
-    scanLastEstimatedCompetitors.forEach(function(c) { grid.appendChild(makeRichCompCard(c, {})); });
-    container.appendChild(grid); return;
-  }
-
-  if (Array.isArray(scanLastRealCompetitors)) {
-    var msg = document.createElement('div'); msg.className = 'scan-empty-state'; msg.style.padding = '30px 20px';
-    var ico = document.createElement('div'); ico.className = 'scan-empty-icon'; ico.textContent = 'SC';
-    var ttl = document.createElement('div'); ttl.className = 'scan-empty-ttl'; ttl.textContent = 'No verified competitors';
-    var sub = document.createElement('div'); sub.className = 'scan-empty-sub';
-    sub.textContent = 'No active channels were found for this niche on YouTube. The three parallel searches returned no active channel above 5K subscribers.';
-    msg.appendChild(ico); msg.appendChild(ttl); msg.appendChild(sub);
-    container.appendChild(msg); return;
-  }
-}
-
-/* PATTERNS renderer */
-var PAT_FIELDS = [
-  {key:'VIDEO_FORMAT',  ico:'FV', lbl:'Video format'},
-  {key:'HOOK_MODEL',    ico:'HK', lbl:'Hook model'},
-  {key:'VOICE_TYPE',       ico:'VZ', lbl:'Voice and tone'},
-  {key:'UPLOAD_DAY',     ico:'DY', lbl:'Publishing days'},
-  {key:'UPLOAD_TIME',    ico:'HR', lbl:'Best hour'},
-  {key:'OPTIMAL_LENGTH',ico:'DR', lbl:'Best length'},
-  {key:'THUMBNAIL_STYLE',ico:'TH',lbl:'Thumbnail style'},
-  {key:'TITLE_FORMULA', ico:'TT', lbl:'Title formula'},
-  {key:'GANCHO_TIPO',    ico:'IN', lbl:'Hook and intro type'},
-];
-function renderPatterns(text, container) {
-  container.innerHTML = '';
-  var grid = document.createElement('div'); grid.className = 'scan-pat-grid';
-  var hasCards = false;
-  PAT_FIELDS.forEach(function(f) {
-    var val = extractField(text, f.key); if (!val) return;
-    hasCards = true;
-    var card = document.createElement('div'); card.className = 'scan-pat-card';
-    var ico = document.createElement('div'); ico.className = 'scan-pat-ico'; ico.textContent = f.ico;
-    var lbl = document.createElement('div'); lbl.className = 'scan-pat-lbl'; lbl.textContent = f.lbl;
-    var v = document.createElement('div'); v.className = 'scan-pat-val'; v.textContent = val;
-    card.appendChild(ico); card.appendChild(lbl); card.appendChild(v); grid.appendChild(card);
-  });
-  if (hasCards) container.appendChild(grid);
-
-  var hooksRaw = extractField(text,'HOOK_FORMULAS');
-  if (hooksRaw) {
-    var hookBox = document.createElement('div'); hookBox.className = 'scan-hook-box';
-    var hookLbl = document.createElement('div'); hookLbl.className = 'scan-hero-lbl'; hookLbl.textContent = 'OPENING HOOKS THAT WORK';
-    hookBox.appendChild(hookLbl);
-    var hooksList = document.createElement('div'); hooksList.className = 'scan-hooks-list';
-    hooksRaw.split('|').map(function(t){ return t.trim().replace(/^"+|"+$/g,''); }).filter(Boolean).forEach(function(t) {
-      var hi = document.createElement('div'); hi.className = 'scan-hook-item'; hi.textContent = '"' + t + '"'; hooksList.appendChild(hi);
-    });
-    hookBox.appendChild(hooksList); container.appendChild(hookBox);
-  }
-
-  var titRaw = extractField(text,'VIRAL_TITLES') || extractField(text,'EXAMPLE_TITLES') || extractField(text,'TOP_TITLES');
-  if (titRaw) {
-    var titBox = document.createElement('div'); titBox.className = 'scan-hero-box'; titBox.style.marginTop = '14px';
-    var titLbl = document.createElement('div'); titLbl.className = 'scan-hero-lbl'; titLbl.textContent = 'VIRAL TITLES FOR THIS NICHE';
-    titBox.appendChild(titLbl);
-    var titList = document.createElement('div'); titList.className = 'scan-titles-list';
-    titRaw.split('|').map(function(t){ return t.trim().replace(/^"+|"+$/g,''); }).filter(Boolean).forEach(function(t) {
-      var ti = document.createElement('div'); ti.className = 'scan-title-item'; ti.textContent = t; titList.appendChild(ti);
-    });
-    titBox.appendChild(titList); container.appendChild(titBox);
-  }
-  if (!hasCards && !hooksRaw && !titRaw) scanRenderMd(text, container);
-}
-
-/* GAPS renderer */
-function renderGaps(text, container) {
-  container.innerHTML='';
-  var list=document.createElement('div'); list.className='scan-gap-list';
-  var items=[], cur=null, num=0;
-  text.split('\n').forEach(function(line){
-    var s=line.trim(); if(!s) return;
-    var nm=s.match(/^(\d+)\.\s*\*\*(.+?)\*\*[:\s]*(.*)/) || s.match(/^(\d+)\.\s*(.+)/);
-    var bm=s.match(/^[-*-]\s+\*\*(.+?)\*\*[:\s]*(.*)/);
-    if(nm){
-      if(cur) items.push(cur);
-      num=parseInt(nm[1]);
-      cur={num:num, ttl: nm[2]||nm[2], why: nm[3]||''};
-    } else if(bm && !cur){
-      num++;
-      if(cur) items.push(cur);
-      cur={num:num, ttl:bm[1], why:bm[2]||''};
-    } else if(cur && s && !s.match(/^#{1,3} /)){
-      cur.why += (cur.why?' ':'')+s;
-    }
-  });
-  if(cur) items.push(cur);
-  if(!items.length){ scanRenderMd(text,container); return; }
-  items.forEach(function(item){
-    var card=document.createElement('div'); card.className='scan-gap-card';
-    var nEl=document.createElement('div'); nEl.className='scan-gap-num'; nEl.textContent=item.num;
-    var body=document.createElement('div'); body.className='scan-gap-body';
-    var ttl=document.createElement('div'); ttl.className='scan-gap-ttl'; ttl.innerHTML=scanFmtInline(item.ttl);
-    body.appendChild(ttl);
-    if(item.why){ var why=document.createElement('div'); why.className='scan-gap-why'; why.textContent=item.why.replace(/^[:\s]+/,''); body.appendChild(why); }
-    card.appendChild(nEl); card.appendChild(body); list.appendChild(card);
-  });
-  container.appendChild(list);
-}
-
-/* SUBNICHES renderer */
-function renderSubniches(text, container) {
-  container.innerHTML = '';
-  var grid = document.createElement('div'); grid.className = 'scan-sub-grid';
-  var blocks = text.split(/\n(?=NOMBRE:|---|\*\*\d|\d\.)/i);
-  var hasCards = false;
-  blocks.forEach(function(block) {
-    var nombre = extractField(block,'NAME') || (block.match(/^\*\*([^*]+)\*\*/)||[])[1] || (block.match(/^\d+\.\s*\*\*([^*]+)\*\*/)||[])[1];
-    if (!nombre) return;
-    var pot   = extractField(block,'POTENTIAL') || '';
-    var comp  = extractField(block,'COMPETITION') || '';
-    var bar   = extractField(block,'BARRIER') || '';
-    var trend = extractField(block,'TREND') || '';
-    var why   = extractField(block,'WHY') || extractField(block,'WHY') || extractField(block,'DESCRIPTION') || '';
-    var vid   = extractField(block,'FIRST_VIDEO') || '';
-    hasCards = true;
-    var card = document.createElement('div'); card.className = 'scan-sub-card';
-    var nm = document.createElement('div'); nm.className = 'scan-sub-nm'; nm.textContent = nombre;
-    var bRow = document.createElement('div'); bRow.className = 'scan-sub-badges';
-    if (pot)  { var b  = document.createElement('div'); b.className  = 'scan-sub-badge pot';  b.textContent  = 'Pot: ' + pot;      bRow.appendChild(b);  }
-    if (comp) { var b2 = document.createElement('div'); b2.className = 'scan-sub-badge comp'; b2.textContent = 'Comp: ' + comp;    bRow.appendChild(b2); }
-    if (bar)  { var b3 = document.createElement('div'); b3.className = 'scan-sub-badge bar';  b3.textContent = 'Barrier: ' + bar;  bRow.appendChild(b3); }
-    if (trend) {
-      var b4 = document.createElement('div');
-      var tLow = trend.toLowerCase();
-      var tCls = tLow.includes('subiendo') ? 'trend-up' : tLow.includes('bajando') ? 'trend-down' : 'bar';
-      var tIco = tLow.includes('subiendo') ? 'up ' : tLow.includes('bajando') ? 'down ' : '-> ';
-      b4.className = 'scan-sub-badge ' + tCls; b4.textContent = tIco + trend; bRow.appendChild(b4);
-    }
-    card.appendChild(nm); card.appendChild(bRow);
-    if (why) { var w = document.createElement('div'); w.className = 'scan-sub-why'; w.textContent = why; card.appendChild(w); }
-    if (vid) { var v = document.createElement('div'); v.className = 'scan-sub-vid'; v.textContent = '> ' + vid; card.appendChild(v); }
-
-    var savedNiches = (function(){ try { return JSON.parse(localStorage.getItem('ashlyv_saved_subniches') || '[]') || []; } catch(e){ return []; } })();
-    var isSaved = savedNiches.some(function(s) { return s.nombre === nombre; });
-    var saveBtn = document.createElement('button');
-    saveBtn.className = 'scan-sub-save' + (isSaved ? ' saved' : '');
-    saveBtn.textContent = isSaved ? 'SAVED' : '+ SAVE SUBNICHE';
-    saveBtn.addEventListener('click', function() {
-      var stored = (function(){ try { return JSON.parse(localStorage.getItem('ashlyv_saved_subniches') || '[]') || []; } catch(e){ return []; } })();
-      var idx = stored.findIndex(function(s) { return s.nombre === nombre; });
-      if (idx > -1) {
-        stored.splice(idx, 1);
-        saveBtn.className = 'scan-sub-save'; saveBtn.textContent = '+ SAVE SUBNICHE';
-      } else {
-        stored.push({ nombre: nombre, pot: pot, comp: comp, bar: bar, trend: trend, why: why, vid: vid, savedAt: Date.now() });
-        saveBtn.className = 'scan-sub-save saved'; saveBtn.textContent = 'SAVED';
-      }
-      localStorage.setItem('ashlyv_saved_subniches', JSON.stringify(stored));
-    });
-    card.appendChild(saveBtn);
-    grid.appendChild(card);
-  });
-  if (hasCards && grid.children.length) container.appendChild(grid);
-  else scanRenderMd(text, container);
-}
-
-/* STRATEGY renderer */
-function renderStrategy(text, container) {
-  container.innerHTML = '';
-  var MODES = [
-    { key: 'SAFE_MODE',          label: 'SAFE',            cls: 'seguro',          ico: 'SG' },
-    { key: 'AGGRESSIVE_MODE',        label: 'AGGRESSIVE',      cls: 'agresivo',        ico: 'AG' },
-    { key: 'DIFFERENTIATION_MODE',  label: 'DIFFERENTIATION', cls: 'diferenciacion',  ico: 'DF' }
-  ];
-  var modeKeys = MODES.map(function(m){ return m.key; }).join('|');
-  var modeRe = new RegExp('(' + modeKeys + '):\\s*', 'i');
-  var found = false;
-
-  if (modeRe.test(text)) {
-    var grid = document.createElement('div'); grid.className = 'scan-strats-grid';
-    MODES.forEach(function(mode) {
-      var bRe = new RegExp(mode.key + ':\\s*([\\s\\S]{0,1400}?)(?=' + modeKeys.replace(/\|/g,':|') + ':|##|$)', 'i');
-      var bm = text.match(bRe);
-      if (!bm) return;
-      found = true;
-      var block = bm[1];
-      var titulo = extractField(block,'TITLE') || mode.label;
-      var descr  = extractField(block,'DESCRIPTION') || '';
-      var riesgo = extractField(block,'RISK') || '';
-      var recomp = extractField(block,'REWARD') || '';
-      var tiempo = extractField(block,'TIME') || '';
-      var acts = [];
-      block.split('\n').forEach(function(line) {
-        var s = line.trim();
-        if (s.match(/^[-*-]\s/) && s.length > 10 && !s.match(/^(TITULO|DESCRIPCION|RIESGO|RECOMPENSA|TIEMPO):/i))
-          acts.push(s.replace(/^[-*-]\s+/, ''));
-      });
-      var card = document.createElement('div'); card.className = 'scan-strat-card ' + mode.cls;
-      var head = document.createElement('div'); head.className = 'scan-strat-head';
-      var icoEl = document.createElement('div'); icoEl.className = 'scan-strat-ico'; icoEl.textContent = mode.ico;
-      var hdrTxt = document.createElement('div'); hdrTxt.className = 'scan-strat-hdr-txt';
-      var mLbl = document.createElement('div'); mLbl.className = 'scan-strat-mode-lbl ' + mode.cls; mLbl.textContent = 'MODE ' + mode.label;
-      var tEl = document.createElement('div'); tEl.className = 'scan-strat-ttl'; tEl.textContent = titulo;
-      hdrTxt.appendChild(mLbl); hdrTxt.appendChild(tEl);
-      head.appendChild(icoEl); head.appendChild(hdrTxt); card.appendChild(head);
-      if (descr) { var dc = document.createElement('div'); dc.className = 'scan-strat-desc'; dc.textContent = descr; card.appendChild(dc); }
-      if (acts.length) {
-        var ad = document.createElement('div'); ad.className = 'scan-strat-acts';
-        acts.forEach(function(a) { var ac = document.createElement('div'); ac.className = 'scan-strat-act'; ac.textContent = a; ad.appendChild(ac); });
-        card.appendChild(ad);
-      }
-      if (riesgo || recomp || tiempo) {
-        var footer = document.createElement('div'); footer.className = 'scan-strat-footer';
-        if (riesgo) { var rp = document.createElement('div'); rp.className = 'scan-strat-pill'; rp.textContent = 'Risk: ' + riesgo; footer.appendChild(rp); }
-        if (recomp) { var rep = document.createElement('div'); rep.className = 'scan-strat-pill'; rep.textContent = 'Reward: ' + recomp; footer.appendChild(rep); }
-        if (tiempo) { var tp = document.createElement('div'); tp.className = 'scan-strat-pill'; tp.textContent = tiempo; footer.appendChild(tp); }
-        card.appendChild(footer);
-      }
-      grid.appendChild(card);
-    });
-    if (found) { container.appendChild(grid); return; }
-  }
-
-  // Fallback: legacy FASE_ format
-  var list = document.createElement('div'); list.className = 'scan-phase-list';
-  var phases = [], phaseBlocks = text.split(/\n(?=FASE_\d+:|FASE \d+:|Fase \d+:)/i);
-  phaseBlocks.forEach(function(block, idx) {
-    if (!block.match(/FASE_?\d+:|Fase \d+:/i) && idx !== 0) return;
-    var ttl = extractField(block,'TITLE') || 'Phase ' + (idx+1);
-    var dias = extractField(block,'DAYS') || '';
-    var kpi = extractField(block,'KPI') || '';
-    var acts = [];
-    block.split('\n').forEach(function(line) {
-      var s = line.trim();
-      if (s.match(/^[-*-]\s/) && s.length > 12) acts.push(s.replace(/^[-*-]\s+/, ''));
-    });
-    if (acts.length || ttl) phases.push({ idx: idx+1, ttl: ttl.replace(/\*\*/g,''), dias, acts, kpi });
-  });
-  if (!phases.length) { scanRenderMd(text, container); return; }
-  phases.forEach(function(ph) {
-    var card = document.createElement('div'); card.className = 'scan-phase-card';
-    var hd = document.createElement('div'); hd.className = 'scan-phase-head';
-    var num = document.createElement('div'); num.className = 'scan-phase-num'; num.textContent = ph.idx;
-    var tEl = document.createElement('div'); tEl.className = 'scan-phase-ttl'; tEl.textContent = ph.ttl;
-    hd.appendChild(num); hd.appendChild(tEl);
-    if (ph.dias) { var dEl = document.createElement('div'); dEl.className = 'scan-phase-days'; dEl.textContent = ph.dias; hd.appendChild(dEl); }
-    card.appendChild(hd);
-    if (ph.acts.length) {
-      var ad = document.createElement('div'); ad.className = 'scan-phase-acts';
-      ph.acts.forEach(function(a) { var ac = document.createElement('div'); ac.className = 'scan-phase-act'; ac.textContent = a; ad.appendChild(ac); });
-      card.appendChild(ad);
-    }
-    if (ph.kpi) { var ke = document.createElement('div'); ke.className = 'scan-phase-kpi'; ke.textContent = 'KPI: ' + ph.kpi; card.appendChild(ke); }
-    list.appendChild(card);
-  });
-  container.appendChild(list);
-}
-
-/* SCORES renderer */
-var SCORE_LABELS = {
-  POTENCIAL_NICHO:      'Niche Potential',
-  NIVEL_COMPETENCIA:    'Competition Level',
-  RENTABILIDAD:         'Profitability',
-  VELOCIDAD_CRECIMIENTO:'Growth Speed',
-  FACILIDAD_ENTRADA:    'Ease Of Entry',
-  SATURACION:           'Market Saturation'
-};
-Object.assign(SCORE_LABELS, {
-  MARKET_OPPORTUNITY_SCORE: 'Market Opportunity',
-  COMPETITION_DIFFICULTY: 'Competition Difficulty',
-  CONTENT_GAP_SCORE: 'Content Gap',
-  FACELESS_SCALABILITY_SCORE: 'Faceless Scalability',
-  GROWTH_POTENTIAL_SCORE: 'Growth Potential',
-  MONETIZATION_POTENTIAL: 'Monetization Potential',
-  EXECUTION_DIFFICULTY: 'Execution Difficulty'
-});
-function scanRenderScores(text, container) {
-  container.innerHTML = '';
-  var scores = {};
-  text.split('\n').forEach(function(line) {
-    var m = line.match(/^[-*-]?\s*(POTENCIAL_NICHO|NIVEL_COMPETENCIA|RENTABILIDAD|VELOCIDAD_CRECIMIENTO|FACILIDAD_ENTRADA|SATURACION|MARKET_OPPORTUNITY_SCORE|COMPETITION_DIFFICULTY|CONTENT_GAP_SCORE|FACELESS_SCALABILITY_SCORE|GROWTH_POTENTIAL_SCORE|MONETIZATION_POTENTIAL|EXECUTION_DIFFICULTY)\s*[:\-]\s*(\d+)/i);
-    if (m) scores[m[1].toUpperCase()] = parseInt(m[2]);
-    var v = line.match(/VEREDICTO\s*[:\-]\s*(.+)/i);
-    if (v) scores.__VEREDICTO = v[1].trim();
-  });
-  var keys = ['MARKET_OPPORTUNITY_SCORE','COMPETITION_DIFFICULTY','CONTENT_GAP_SCORE','FACELESS_SCALABILITY_SCORE','GROWTH_POTENTIAL_SCORE','MONETIZATION_POTENTIAL','EXECUTION_DIFFICULTY','NICHE_POTENTIAL','COMPETITION_LEVEL','PROFITABILITY','GROWTH_SPEED','ENTRY_EASE','SATURATION'];
-  var hasScores = keys.some(function(k){ return k in scores; });
-  if (!hasScores) { scanRenderMd(text, container); return; }
-  var grid = document.createElement('div'); grid.className = 'scan-score-grid';
-  keys.forEach(function(key) {
-    if (!(key in scores)) return;
-    var val = scores[key];
-    var card = document.createElement('div'); card.className = 'scan-score-card';
-    var lbl = document.createElement('div'); lbl.className = 'scan-score-lbl'; lbl.textContent = SCORE_LABELS[key];
-    var num = document.createElement('div'); num.className = 'scan-score-num'; num.textContent = val;
-    var track = document.createElement('div'); track.className = 'scan-score-track';
-    var fill = document.createElement('div'); fill.className = 'scan-score-fill'; fill.style.width = '0%';
-    track.appendChild(fill); card.appendChild(lbl); card.appendChild(num); card.appendChild(track);
-    grid.appendChild(card);
-    setTimeout(function() { fill.style.width = val + '%'; }, 150);
-  });
-  container.appendChild(grid);
-  if (scores.__VEREDICTO) {
-    var vb = document.createElement('div'); vb.className = 'scan-verdict-box';
-    var vl = document.createElement('div'); vl.className = 'scan-verdict-lbl'; vl.textContent = 'FINAL VERDICT';
-    var vt = document.createElement('div'); vt.className = 'scan-verdict-txt'; vt.textContent = scores.__VEREDICTO;
-    vb.appendChild(vl); vb.appendChild(vt); container.appendChild(vb);
-  }
-}
-
-/* Section routing */
-function scanParseSections(report) {
-  var result={};
-  report.split(/^## /m).forEach(function(part){
-    var nl=part.indexOf('\n'); if(nl===-1) return;
-    result[part.slice(0,nl).trim().toUpperCase()]=part.slice(nl+1).trim();
-  });
-  return result;
-}
-var SCAN_SECTION_MAP={
-  snapshot:    ['SNAPSHOT','GENERAL','OVERVIEW','PANORAMA'],
-  competitors: ['COMPETIDORES','COMPETITORS','COMPETITION'],
-  patterns:    ['PATRONES','PATTERNS','CONTENIDO'],
-  gaps:        ['GAPS','OPORTUNIDADES','GAP'],
-  subniches:   ['SUBNICHOS','SUBNICHES','SUB-NICHOS'],
-  strategy:    ['ESTRATEGIA','STRATEGY','PLAN'],
-  scores:      ['SCORES','SCORE','EVALUACION','EVALUACIÓN']
-};
-function scanFindSection(sections, tabKey) {
-  var aliases=SCAN_SECTION_MAP[tabKey]||[tabKey.toUpperCase()];
-  for(var i=0;i<aliases.length;i++) for(var sk in sections) if(sk.indexOf(aliases[i])!==-1) return sections[sk];
-  return null;
-}
-
-var SECTION_RENDERERS = {
-  snapshot: renderSnapshot,
-  competitors: renderCompetitors,
-  patterns: renderPatterns,
-  gaps: renderGaps,
-  subniches: renderSubniches,
-  strategy: renderStrategy,
-  scores: scanRenderScores
-};
-
-function scanRenderResults(report) {
-  scanSections = scanParseSections(report);
-  ['snapshot','competitors','patterns','gaps','subniches','strategy','scores'].forEach(function(tab) {
-    var content = scanFindSection(scanSections, tab);
-    var el = document.getElementById('sc-' + tab);
-    if (!content || !el) return;
-    var renderer = SECTION_RENDERERS[tab] || scanRenderMd;
-    renderer(content, el);
-  });
-  scanSetTab('snapshot');
-  scanShowState('results');
-}
-
-function saveScanChannelReport(handle, lang, report) {
-  var item = {
-    handle: '@' + scanNormalizeHandle(handle),
-    language: lang || 'auto',
-    report: report || '',
-    competitors: scanLastRealCompetitors || [],
-    estimatedCompetitors: scanLastEstimatedCompetitors || [],
-    meta: scanLastScanMeta || {},
-    createdAt: Date.now()
-  };
-  try {
-    var local = JSON.parse(localStorage.getItem('ashlyv_scan_reports_v1') || '[]');
-    local.unshift(item);
-    localStorage.setItem('ashlyv_scan_reports_v1', JSON.stringify(local.slice(0, 30)));
-    localStorage.setItem('ashlyv_recent_languages_v1', JSON.stringify([lang].concat(JSON.parse(localStorage.getItem('ashlyv_recent_languages_v1') || '[]')).filter(function(code, idx, arr) { return code && arr.indexOf(code) === idx; }).slice(0, 12)));
-  } catch (e) {}
-  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-    try {
-      chrome.storage.local.get(['ashlyv_scan_reports_v1', 'ashlyv_channel_scan_history_v1'], function(res) {
-        var reports = Array.isArray(res.ashlyv_scan_reports_v1) ? res.ashlyv_scan_reports_v1 : [];
-        var history = Array.isArray(res.ashlyv_channel_scan_history_v1) ? res.ashlyv_channel_scan_history_v1 : [];
-        reports.unshift(item);
-        history.unshift({ handle: item.handle, language: item.language, createdAt: item.createdAt, competitorCount: item.competitors.length });
-        chrome.storage.local.set({
-          ashlyv_scan_reports_v1: reports.slice(0, 40),
-          ashlyv_channel_scan_history_v1: history.slice(0, 80),
-          ashlyv_competitor_favorites_v1: res.ashlyv_competitor_favorites_v1 || [],
-          ashlyv_saved_gaps_v1: res.ashlyv_saved_gaps_v1 || [],
-          ashlyv_generated_strategies_v1: res.ashlyv_generated_strategies_v1 || []
-        });
-      });
-    } catch (e2) {}
-  }
-}
-
-/* YouTube real-data extractors */
 
 function scanSetLoadMsg(txt) {
-  var el = document.getElementById('scan-load-sub-txt');
-  if (el) el.textContent = txt;
+  var node = document.getElementById('scan-load-sub-txt');
+  if (node) node.textContent = txt;
 }
 
 function scanSetStage(idx) {
   for (var i = 0; i < 4; i++) {
-    var el = document.getElementById('scan-stage-' + i);
-    if (!el) continue;
-    el.className = 'scan-stage' + (i < idx ? ' done' : i === idx ? ' active' : '');
-    var dot = el.querySelector('.stage-dot');
+    var stage = document.getElementById('scan-stage-' + i);
+    if (!stage) continue;
+    stage.className = 'scan-stage' + (i < idx ? ' done' : i === idx ? ' active' : '');
+    var dot = stage.querySelector('.stage-dot');
     if (dot) dot.textContent = i < idx ? 'OK' : '.';
   }
 }
 
-function extractYtChannels(html, originalHandle) {
-  var channels = [];
-  var seen = new Set([('@' + originalHandle).toLowerCase()]);
+function renderScanSnapshot(scan) {
+  var host = hubClear(document.getElementById('sc-snapshot'));
+  if (!host) return;
+  var s = scan.stats || {};
+  var m = scan.summary;
+  var head = hubNode('div', 'font-size:20px;font-weight:900;margin-bottom:4px;');
+  head.appendChild(hubLink(scan.url, s.name || scan.url));
+  host.appendChild(head);
+  var facts = [s.country ? 'Country: ' + s.country : '', s.joinedText ? 'Joined: ' + s.joinedText : ''].filter(Boolean).join(' | ');
+  if (facts) host.appendChild(hubNode('div', 'font-size:12px;opacity:0.6;', facts));
 
-  function addChannel(hdl, nm, sb, ds) {
-    var key = hdl.toLowerCase();
-    if (seen.has(key)) return;
-    seen.add(key);
-    channels.push({ handle: hdl, name: nm || hdl.slice(1), subs: sb || '', desc: (ds || '').slice(0, 130) });
-  }
+  var badges = [];
+  if (typeof s.monthsOld === 'number') badges.push({ label: s.monthsOld <= 6 ? 'NEW CHANNEL, ' + s.monthsOld + ' MONTHS' : s.monthsOld + ' MONTHS OLD', tone: s.monthsOld <= 6 ? 'good' : 'plain' });
+  if (m.withViews) badges.push({ label: m.viralCount + ' OF ' + m.withViews + ' RECENT UPLOADS OVER ' + hubCount(m.viralThreshold), tone: m.viralCount > 0 ? 'good' : 'plain' });
+  if (m.withAge) badges.push({ label: m.uploadsLast30Days + ' UPLOADS IN THE LAST 30 DAYS', tone: m.uploadsLast30Days > 0 ? 'good' : 'plain' });
+  if (badges.length) hubBadges(host, badges);
 
-  // Phase 1: channelRenderer blocks (channel-filtered search results)
-  var pos = 0;
-  while (channels.length < 10) {
-    var idx = html.indexOf('"channelRenderer":', pos);
-    if (idx === -1) break;
-    pos = idx + 20;
-    // Grab a generous chunk - thumbnail arrays can be 5-8KB
-    var chunk = html.slice(idx, idx + 12000);
-    var hm = chunk.match(/"canonicalBaseUrl":"(\/@[\w.-]+)"/);
-    if (!hm) continue;
-    var nm = (chunk.match(/"title":\{"simpleText":"([^"]{1,80})"/) || [])[1] || '';
-    var sb = (chunk.match(/"subscriberCountText":\{"simpleText":"([^"]+)"/) || [])[1] || '';
-    var ds = (chunk.match(/"descriptionSnippet":\{"runs":\[\{"text":"([^"]+)"/) || [])[1] || '';
-    addChannel(hm[1].slice(1), nm, sb, ds);
-  }
+  hubStatGrid(host, [
+    { value: s.subscribersText || '?', label: 'Subscribers', color: '#2EE9FF' },
+    { value: s.videoCountText || '?', label: 'Videos on the channel' },
+    { value: s.totalViewsText || '?', label: 'Total views' },
+    { value: hubCount(m.medianViews), label: 'Median views, last ' + m.analyzed + ' uploads', color: '#00DC82' },
+    { value: hubCount(m.medianViewsPerDay), label: 'Median views per day since upload', color: '#FFD93D' },
+    { value: m.medianDaysBetweenUploads === null ? '?' : Math.round(m.medianDaysBetweenUploads) + ' d', label: 'Median gap between uploads' }
+  ]);
 
-  // Phase 2: shortBylineText / ownerText in video renderers (plain video search)
-  var vpos = 0;
-  while (channels.length < 12) {
-    var vi = html.indexOf('"shortBylineText":', vpos);
-    if (vi === -1) vi = html.indexOf('"ownerText":', vpos);
-    if (vi === -1) break;
-    vpos = vi + 20;
-    var vc = html.slice(vi, vi + 1200);
-    var vm = vc.match(/"canonicalBaseUrl":"(\/@[\w.-]+)"/);
-    if (!vm) continue;
-    var vnm = (vc.match(/"text":"([^"]{2,80})"/) || [])[1] || '';
-    addChannel(vm[1].slice(1), vnm, '', '');
-  }
+  var unread = (s.unreadable || []).slice();
+  if (m.unreadableViews) unread.push('views of ' + m.unreadableViews + ' of ' + m.analyzed + ' videos');
+  if (m.unreadableAge) unread.push('upload date of ' + m.unreadableAge + ' of ' + m.analyzed + ' videos');
+  if (unread.length) hubNote(host, 'Could not read: ' + unread.join(', ') + '. Those cells show ? instead of a guess.');
+  if (scan.statsError) hubNote(host, 'The channel page could not be read: ' + scan.statsError);
+  if (scan.videosError) hubNote(host, 'The recent videos could not be read: ' + scan.videosError);
+  hubNote(host, 'YouTube rounds upload dates ("3 months ago"), so per day figures and gaps are approximate.');
 
-  return channels;
-}
-
-function scanExtractVideoData(html, limit) {
-  var videos = [];
-  var seen = {};
-  var pos = 0;
-  while (videos.length < (limit || 12)) {
-    var idx = html.indexOf('"videoRenderer":', pos);
-    if (idx === -1) break;
-    pos = idx + 16;
-    var chunk = html.slice(idx, idx + 9000);
-    var title = (chunk.match(/"title":\{"runs":\[\{"text":"([^"]{6,160})"/) || [])[1]
-      || (chunk.match(/"title":\{"simpleText":"([^"]{6,160})"/) || [])[1]
-      || '';
-    if (!title || title.indexOf('\\u') >= 0 || seen[title]) continue;
-    seen[title] = true;
-    var viewsText = (chunk.match(/"viewCountText":\{"simpleText":"([^"]+)"/) || [])[1]
-      || (chunk.match(/"shortViewCountText":\{"simpleText":"([^"]+)"/) || [])[1]
-      || '';
-    var ageText = (chunk.match(/"publishedTimeText":\{"simpleText":"([^"]+)"/) || [])[1] || '';
-    videos.push({
-      title: title,
-      viewsText: viewsText,
-      views: scanParseViews(viewsText),
-      ageText: ageText,
-      ageDays: scanAgeToDays(ageText)
+  if (m.topVideos.length) {
+    hubHeading(host, 'Most viewed of the recent uploads', '#FF6B6B');
+    hubList(host, m.topVideos, function (row, v) {
+      row.appendChild(hubLink(v.url, v.title));
+      row.appendChild(hubNode('span', 'opacity:0.55;', ' | ' + (v.viewsText || hubCount(v.views)) + (v.publishedText ? ' | ' + v.publishedText : '')));
     });
   }
-  return videos;
 }
 
-function scanBuildChannelUrl(handle) {
-  var h = String(handle || '').trim();
-  if (!h) return '';
-  if (/^https?:\/\//i.test(h)) return h;
-  h = h.replace(/^@/, '');
-  return 'https://www.youtube.com/@' + encodeURIComponent(h);
-}
-
-function scanNormalizeHandle(input) {
-  var raw = String(input || '').trim();
-  var m = raw.match(/youtube\.com\/@([^/?#]+)/i);
-  if (m) return m[1];
-  return raw.replace(/^@/, '').replace(/^https?:\/\/(www\.)?youtube\.com\//i, '').replace(/[/?#].*$/, '');
-}
-
-var youtubeProvider = {
-  getChannelByUrl: async function(handleOrUrl, lang) {
-    var handle = scanNormalizeHandle(handleOrUrl);
-    var url = scanBuildChannelUrl(handle);
-    var resp = await fetch(url, { headers: { 'Accept-Language': lang || 'es,en;q=0.8' } });
-    var html = await resp.text();
-    var name = (html.match(/<meta property="og:title" content="([^"]+)"/) || [])[1] || handle;
-    var desc = (html.match(/<meta name="description" content="([^"]+)"/) || [])[1] || '';
-    var subs = (html.match(/"subscriberCountText":\{"simpleText":"([^"]+)"/) || [])[1] || '';
-    var vids = (html.match(/"videosCountText":\{"runs":\[\{"text":"([^"]+)"/) || [])[1] || '';
-    var kwds = (html.match(/<meta name="keywords" content="([^"]+)"/) || [])[1] || '';
-    var channelId = (html.match(/"channelId":"([^"]+)"/) || [])[1] || '';
-    var videos = scanExtractVideoData(html, 18);
-    return { handle: '@' + handle, url: url, name: name, desc: desc, subs: subs, subsNum: parseSubCount(subs), vids: vids, kwds: kwds, channelId: channelId, videos: videos, html: html };
-  },
-  getRecentVideos: async function(handleOrUrl, lang) {
-    var handle = scanNormalizeHandle(handleOrUrl);
-    var url = scanBuildChannelUrl(handle).replace(/\/$/, '') + '/videos';
-    try {
-      var resp = await fetch(url, { headers: { 'Accept-Language': lang || 'es,en;q=0.8' } });
-      var html = await resp.text();
-      return scanExtractVideoData(html, 18);
-    } catch (e) {
-      return [];
+function renderScanCompetitors(result) {
+  var host = hubClear(document.getElementById('sc-competitors'));
+  if (!host) return;
+  if (!result.ok) { hubMessage(host, 'Competitor search failed: ' + result.error.message, 'error'); return; }
+  var data = result.value;
+  hubNote(host, 'Searched YouTube for "' + data.query + '", built from the most repeated words in this channel\'s titles. ' + data.sample + ' results; this channel is left out.');
+  if (!data.competitors.length) { hubMessage(host.appendChild(hubNode('div')), 'No other channel showed up in those results.', 'plain'); return; }
+  hubList(host, data.competitors, function (row, c) {
+    var name = hubNode('div', 'font-weight:700;');
+    name.appendChild(hubLink(c.url, c.name || 'Channel'));
+    row.appendChild(name);
+    row.appendChild(hubNode('div', 'opacity:0.6;font-size:11px;', c.videosInResults + ' of the results | ' + hubCount(c.totalViews) + ' views across them | median ' + hubCount(c.medianViews)));
+    if (c.topVideo) {
+      var top = hubNode('div', 'opacity:0.75;font-size:11px;', 'Top: ');
+      top.appendChild(hubLink(c.topVideo.url, c.topVideo.title));
+      row.appendChild(top);
     }
-  },
-  searchChannels: async function(query, originalHandle, lang) {
-    var url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query) + '&sp=EgIQAg%3D%3D';
-    var resp = await fetch(url, { headers: { 'Accept-Language': lang || 'es,en;q=0.8' } });
-    return extractYtChannels(await resp.text(), originalHandle || '');
-  },
-  searchVideos: async function(query, originalHandle, lang) {
-    var url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
-    var resp = await fetch(url, { headers: { 'Accept-Language': lang || 'es,en;q=0.8' } });
-    return extractYtChannels(await resp.text(), originalHandle || '');
-  },
-  getVideoStats: function(video) {
-    return {
-      views: toNumber(video && video.views),
-      ageDays: toNumber(video && video.ageDays)
-    };
-  }
-};
-
-function scanBuildNicheProfile(info, selectedLang) {
-  info = info || {};
-  var text = [info.name, info.desc, info.kwds].concat((info.videos || []).map(function(v) { return v.title; })).join(' ');
-  var tokens = scanTokens(text).slice(0, 18);
-  var formats = scanDetectFormats(text, info.videos || []);
-  var languageCode = selectedLang || (engine && engine.languageEngine && engine.languageEngine.detectLanguage ? engine.languageEngine.detectLanguage(text) : 'auto');
-  return {
-    text: text,
-    tokens: tokens,
-    formats: formats,
-    languageCode: languageCode,
-    nicheId: engine && engine.nicheScoring ? engine.nicheScoring.inferNicheIdFromText(text) : 'general',
-    queryCore: tokens.slice(0, 5).join(' ') || info.name || ''
-  };
-}
-
-function scanBuildSearchQueries(info, profile, selectedLang) {
-  var base = profile.queryCore || info.name || '';
-  var nicheLabel = profile.nicheId && engine && engine.nicheScoring && engine.nicheScoring.getNiche
-    ? ((engine.nicheScoring.getNiche(profile.nicheId) || {}).label || '')
-    : '';
-  var format = (profile.formats || []).filter(function(f) { return f !== 'evergreen'; }).slice(0, 2).join(' ');
-  var queries = [
-    base + ' channel',
-    base + ' ' + format,
-    nicheLabel + ' ' + format,
-    base + ' documentary',
-    base + ' faceless'
-  ].map(function(q) { return q.trim().replace(/\s+/g, ' '); }).filter(Boolean);
-  if (engine && engine.languageEngine && engine.languageEngine.buildQueryForNiche && profile.nicheId) {
-    queries.push(engine.languageEngine.buildQueryForNiche(selectedLang || 'auto', profile.nicheId));
-  }
-  return queries.filter(function(item, idx, arr) { return item && arr.indexOf(item) === idx; }).slice(0, 7);
-}
-
-function scanScoreCompetitor(candidate, targetInfo, targetProfile, selectedLang, relaxLevel) {
-  var videos = candidate.videos || [];
-  var recentVideos = videos.filter(function(v) { return toNumber(v.ageDays) <= 90; });
-  var avgRecentViews = Math.round(avg(recentVideos.map(function(v) { return toNumber(v.views); })));
-  var lastVideoDays = videos.length ? Math.min.apply(null, videos.map(function(v) { return toNumber(v.ageDays) || 9999; })) : 9999;
-  var compText = [candidate.name, candidate.desc, candidate.kwds].concat(videos.map(function(v) { return v.title; })).join(' ');
-  var formats = scanDetectFormats(compText, videos);
-  var nicheSimilarity = scanTokenSimilarity(targetProfile.text, compText);
-  var formatSimilarity = scanFormatSimilarity(targetProfile.formats, formats);
-  var performanceScore = scanPerformanceScore(avgRecentViews, candidate.subsNum, recentVideos);
-  var recencyScore = scanRecencyScore(lastVideoDays, recentVideos);
-  var strategicValueScore = scanStrategicValueScore(formats, recentVideos, avgRecentViews);
-  var finalCompetitorScore = Math.round(
-    nicheSimilarity * SCAN_COMPETITOR_WEIGHTS.nicheSimilarity +
-    formatSimilarity * SCAN_COMPETITOR_WEIGHTS.formatSimilarity +
-    performanceScore * SCAN_COMPETITOR_WEIGHTS.performanceScore +
-    recencyScore * SCAN_COMPETITOR_WEIGHTS.recencyScore +
-    strategicValueScore * SCAN_COMPETITOR_WEIGHTS.strategicValueScore
-  );
-  var languageOk = scanDetectSelectedLanguage(selectedLang, compText);
-  var isNewFast = candidate.subsNum && candidate.subsNum < 50000 && avgRecentViews >= 3500 && performanceScore >= 70 && recencyScore >= 70;
-  var minViews = relaxLevel ? 750 : SCAN_HARD_FILTERS.minRecentAvgViews;
-  var minVideos = relaxLevel ? 3 : SCAN_HARD_FILTERS.minRecentVideos;
-  var minSimilarity = relaxLevel ? 48 : SCAN_HARD_FILTERS.minNicheSimilarity;
-  var rejectReasons = [];
-  if (lastVideoDays > SCAN_HARD_FILTERS.maxLastVideoDays) rejectReasons.push('inactive_90d');
-  if (recentVideos.length < minVideos) rejectReasons.push('low_recent_video_count');
-  if (avgRecentViews < minViews && !isNewFast) rejectReasons.push('low_recent_views');
-  if (!languageOk) rejectReasons.push('language_mismatch');
-  if (nicheSimilarity < minSimilarity) rejectReasons.push('low_niche_similarity');
-  if (!candidate.name && !candidate.handle) rejectReasons.push('unclear_channel');
-  var type = rejectReasons.length ? '' : scanCompetitorType(finalCompetitorScore, candidate.subsNum, targetInfo.subsNum, performanceScore, recencyScore, nicheSimilarity, formatSimilarity);
-  if (!type) rejectReasons.push('no_useful_category');
-  return Object.assign({}, candidate, {
-    videos: videos,
-    recentVideos: recentVideos,
-    avgRecentViews: avgRecentViews,
-    lastVideoDays: lastVideoDays,
-    nicheSimilarity: nicheSimilarity,
-    formatSimilarity: formatSimilarity,
-    performanceScore: performanceScore,
-    recencyScore: recencyScore,
-    strategicValueScore: strategicValueScore,
-    finalCompetitorScore: finalCompetitorScore,
-    competitorScore: finalCompetitorScore,
-    type: type,
-    formats: formats,
-    languageOk: languageOk,
-    stealPotential: scanStealPotential(finalCompetitorScore, strategicValueScore, type),
-    whyMatters: '',
-    doesBetter: '',
-    learn: '',
-    rejectReasons: rejectReasons,
-    verified: rejectReasons.length === 0
   });
 }
 
-async function scanHydrateCandidate(candidate, selectedLang) {
-  var handle = scanNormalizeHandle(candidate.handle || candidate.channelUrl || candidate.url || '');
-  if (!handle) return null;
-  try {
-    var info = await youtubeProvider.getChannelByUrl(handle, selectedLang);
-    var videos = info.videos && info.videos.length >= 5 ? info.videos : await youtubeProvider.getRecentVideos(handle, selectedLang);
-    return Object.assign({}, candidate, info, { videos: videos, handle: info.handle || ('@' + handle), url: info.url || scanBuildChannelUrl(handle) });
-  } catch (e) {
-    return Object.assign({}, candidate, { handle: '@' + handle, url: scanBuildChannelUrl(handle), videos: [] });
-  }
-}
-
-async function findUsefulCompetitors(targetInfo, selectedLang) {
-  var targetProfile = scanBuildNicheProfile(targetInfo, selectedLang);
-  var queries = scanBuildSearchQueries(targetInfo, targetProfile, selectedLang);
-  var raw = [];
-  var seen = {};
-  var searchJobs = [];
-  queries.forEach(function(query, idx) {
-    searchJobs.push(youtubeProvider.searchChannels(query, scanNormalizeHandle(targetInfo.handle), selectedLang));
-    if (idx < 4) searchJobs.push(youtubeProvider.searchVideos(query, scanNormalizeHandle(targetInfo.handle), selectedLang));
+function renderTitlePatterns(host, p) {
+  if (!p || p.sample < 3) { hubMessage(host.appendChild(hubNode('div')), 'Fewer than 3 titles were read, too few to measure patterns.', 'plain'); return; }
+  hubStatGrid(host, [
+    { value: String(p.sample), label: 'Titles measured' },
+    { value: p.avgWords === null ? '?' : p.avgWords.toFixed(1), label: 'Average words' },
+    { value: p.avgChars === null ? '?' : String(Math.round(p.avgChars)), label: 'Average characters' }
+  ]);
+  hubHeading(host, 'How often titles use each device', '#FFD93D');
+  hubList(host, p.features, function (row, f) {
+    var views = f.medianViewsWith !== null && f.medianViewsWithout !== null
+      ? ' | median views with it ' + hubCount(f.medianViewsWith) + ', without it ' + hubCount(f.medianViewsWithout)
+      : ' | too few titles on one side to compare views';
+    row.textContent = hubPct(f.share) + ' have ' + f.feature + views;
   });
-  var results = await Promise.allSettled(searchJobs);
-  results.forEach(function(res) {
-    if (res.status !== 'fulfilled') return;
-    (res.value || []).forEach(function(c) {
-      var key = String(c.handle || '').toLowerCase();
-      if (!key || seen[key]) return;
-      seen[key] = true;
-      raw.push(c);
+  if (p.topTerms.length) {
+    hubHeading(host, 'Most repeated words', '#2EE9FF');
+    var chips = hubNode('div', 'display:flex;flex-wrap:wrap;gap:4px;');
+    p.topTerms.forEach(function (t) {
+      chips.appendChild(hubNode('span', 'padding:3px 8px;background:rgba(46,233,255,0.12);border-radius:4px;font-size:11px;', t.term + ' (' + t.count + (t.medianViews !== null ? ', median ' + hubCount(t.medianViews) : '') + ')'));
     });
-  });
-
-  var hydrated = [];
-  for (var i = 0; i < raw.length && hydrated.length < 24; i++) {
-    var item = await scanHydrateCandidate(raw[i], selectedLang);
-    if (item) hydrated.push(item);
+    host.appendChild(chips);
   }
-
-  var scored = hydrated.map(function(c) { return scanScoreCompetitor(c, targetInfo, targetProfile, selectedLang, 0); });
-  var verified = scored.filter(function(c) { return c.verified; });
-  if (verified.length < 4) {
-    verified = scored.map(function(c) { return scanScoreCompetitor(c, targetInfo, targetProfile, selectedLang, 1); }).filter(function(c) { return c.verified; });
+  if (p.topPairs.length) {
+    hubHeading(host, 'Repeated word pairs', '#B388FF');
+    hubNote(host, p.topPairs.map(function (t) { return t.term + ' (' + t.count + ')'; }).join(' | '));
   }
-  verified = verified.sort(function(a, b) { return b.finalCompetitorScore - a.finalCompetitorScore; }).slice(0, 8).map(function(c) {
-    c.whyMatters = scanWhyCompetitorMatters(c);
-    c.doesBetter = c.performanceScore >= 72 ? 'Better proof of recent demand and packaging that earns more clicks.' : 'Clearer format or a better positioned subtopic.';
-    c.learn = scanLearnFromCompetitor(c);
-    return c;
-  });
-
-  var estimated = buildEstimatedCompetitorSpaces(targetInfo, targetProfile, selectedLang, scored, queries);
-  return { verified: verified, estimated: estimated, rejected: scored.filter(function(c) { return !c.verified; }).slice(0, 12), profile: targetProfile, queries: queries };
 }
 
-function buildEstimatedCompetitorSpaces(targetInfo, targetProfile, selectedLang, rejected, queries) {
-  var niche = targetProfile.nicheId && engine && engine.nicheScoring && engine.nicheScoring.getNiche
-    ? ((engine.nicheScoring.getNiche(targetProfile.nicheId) || {}).label || targetProfile.queryCore)
-    : targetProfile.queryCore;
-  var formats = (targetProfile.formats || ['documental']).slice(0, 2).join(' + ');
-  var related = (targetProfile.tokens || []).slice(0, 6);
-  var candidates = [
-    {
-      name: niche + ' - active mid-size channels',
-      handle: '',
-      type: 'ESTIMATED',
-      finalCompetitorScore: 62,
-      nicheSimilarity: 58,
-      formats: targetProfile.formats || [],
-      activityLabel: 'not verified yet',
-      avgRecentViews: 0,
-      whyMatters: 'Not enough strong verified competitors were found. Search this nearby space with niche keywords.',
-      doesBetter: 'Can reveal entry angles without polluting the verified list.',
-      learn: 'Search: ' + (queries[0] || related.join(' ')),
-      stealPotential: 'MEDIUM'
-    },
-    {
-      name: formats + ' in ' + getLanguageLabel(selectedLang || 'auto'),
-      handle: '',
-      type: 'ESTIMATED',
-      finalCompetitorScore: 59,
-      nicheSimilarity: 55,
-      formats: targetProfile.formats || [],
-      activityLabel: 'similar format',
-      avgRecentViews: 0,
-      whyMatters: 'Useful for studying structure even when the exact niche has low visibility.',
-      doesBetter: 'Check length, hooks and thumbnail before copying topics.',
-      learn: 'Search similar formats with: ' + related.slice(0, 4).join(' '),
-      stealPotential: 'LOW'
-    }
-  ];
-  var nearMiss = (rejected || []).filter(function(c) {
-    return c.nicheSimilarity >= 45 && c.recencyScore >= 45;
-  }).sort(function(a, b) { return b.finalCompetitorScore - a.finalCompetitorScore; }).slice(0, 2).map(function(c) {
-    return Object.assign({}, c, {
-      type: 'ESTIMATED',
-      verified: false,
-      whyMatters: 'Close, but it fails some hard filters: ' + (c.rejectReasons || []).join(', ') + '.',
-      stealPotential: 'LOW'
+function renderScanPatterns(scan) {
+  var host = hubClear(document.getElementById('sc-patterns'));
+  if (!host) return;
+  hubNote(host, 'Measured on the ' + scan.patterns.sample + ' most recent titles of the channel.');
+  renderTitlePatterns(host, scan.patterns);
+}
+
+function renderScanAi(ai) {
+  var host = hubClear(document.getElementById('sc-ai'));
+  if (!host) return;
+  hubAiLabel(host, ai.provider, ai.model);
+  if (ai.niche) host.appendChild(hubNode('div', 'font-size:16px;font-weight:800;margin-bottom:4px;', ai.niche));
+  if (ai.format) host.appendChild(hubNode('div', 'font-size:12px;opacity:0.75;margin-bottom:8px;', ai.format));
+  [['Strengths', ai.strengths, '#00DC82'], ['Weaknesses', ai.weaknesses, '#FF6B6B'], ['Content gaps', ai.contentGaps, '#FFD93D'], ['Next steps', ai.nextSteps, '#2EE9FF']].forEach(function (group) {
+    if (!group[1].length) return;
+    hubHeading(host, group[0], group[2]);
+    hubList(host, group[1], function (row, text) { row.textContent = text; });
+  });
+  if (ai.subniches.length) {
+    hubHeading(host, 'Subniches', '#B388FF');
+    hubList(host, ai.subniches, function (row, sn) {
+      row.appendChild(hubNode('div', 'font-weight:700;', String(sn.name)));
+      if (sn.why) row.appendChild(hubNode('div', 'opacity:0.7;', String(sn.why)));
+      if (sn.firstVideo) row.appendChild(hubNode('div', 'opacity:0.55;font-size:11px;', 'First video: ' + String(sn.firstVideo)));
     });
-  });
-  return nearMiss.concat(candidates).slice(0, 4);
-}
-
-async function fetchYTRealData(handle) {
-  var info = null;
-  var competitors = [];
-  var estimatedCompetitors = [];
-  var videoTitles = [];
-  var meta = null;
-
-  try {
-    scanSetStage(0);
-    scanSetLoadMsg('Scanning @' + handle + ' on YouTube');
-    var langCode = (document.getElementById('scan-lang-sel') || {}).value || 'auto';
-    var locale = getYouTubeLocale(langCode);
-    info = await youtubeProvider.getChannelByUrl(handle, locale.hl + ',en;q=0.8');
-    if (!info.videos || info.videos.length < 5) {
-      info.videos = await youtubeProvider.getRecentVideos(handle, locale.hl + ',en;q=0.8');
-    }
-    videoTitles = (info.videos || []).map(function(v) { return v.title; }).filter(Boolean).slice(0, 15);
-
-    scanSetStage(1);
-    scanSetLoadMsg('Filtering active competitors with hard scoring');
-    var found = await findUsefulCompetitors(info, langCode);
-    competitors = found.verified || [];
-    estimatedCompetitors = found.estimated || [];
-    meta = {
-      profile: found.profile,
-      queries: found.queries,
-      rejectedCount: (found.rejected || []).length,
-      verifiedCount: competitors.length,
-      estimatedCount: estimatedCompetitors.length,
-      demo: false
-    };
-
-    scanSetStage(2);
-    scanSetLoadMsg('Extracting content patterns');
-  } catch(e) { /* continue with whatever we got */ }
-
-  return { info: info, competitors: competitors, estimatedCompetitors: estimatedCompetitors, videoTitles: videoTitles, meta: meta };
-}
-async function callGroqScan(handle, lang) {
-  if (window.AshlyVAPI && typeof window.AshlyVAPI.scanChannel === 'function') {
-    try {
-      scanSetStage(1);
-      scanSetLoadMsg('Connecting to the niche backend');
-      var backend = await window.AshlyVAPI.scanChannel(handle, lang || 'es');
-      if (backend && backend.ok && backend.data) {
-        scanLastRealCompetitors = backend.data.competitors || [];
-        scanLastEstimatedCompetitors = [];
-        scanLastScanMeta = backend.data.source || null;
-        scanSetStage(4);
-        scanSetLoadMsg('Report built from YouTube and the niche engine.');
-        document.dispatchEvent(new CustomEvent('ashlyv:scan-complete', { detail: backend.data }));
-        return backend.data.reportMarkdown || JSON.stringify(backend.data, null, 2);
-      }
-    } catch (backendErr) {
-      console.warn('[ASHLYV] Backend scan failed, using in-extension scanner fallback:', backendErr);
-      scanSetLoadMsg('Backend unavailable, using the built-in scanner');
-    }
   }
-
-  var langName = getLanguageLabel(lang || 'auto');
-  var real = await fetchYTRealData(handle);
-  scanLastRealCompetitors = real.competitors || [];
-  scanLastEstimatedCompetitors = real.estimatedCompetitors || [];
-  scanLastScanMeta = real.meta || null;
-
-  scanSetStage(3);
-  scanSetLoadMsg('Generating intelligence with AI');
-
-  var titlesCtx = (real.videoTitles && real.videoTitles.length > 0)
-    ? '\nRecent titles from this channel, for pattern analysis:\n' +
-      real.videoTitles.map(function(t, i){ return (i+1) + '. ' + t; }).join('\n') + '\n'
-    : '';
-
-  var chanCtx = real.info
-    ? '\n\n=== CHANNEL DATA READ FROM YOUTUBE ===\n' +
-      'Canal: @' + handle + '\n' +
-      'Nombre: ' + real.info.name + '\n' +
-      (real.info.subs ? 'Suscriptores: ' + real.info.subs + '\n' : '') +
-      (real.info.vids ? 'Videos publicados: ' + real.info.vids + '\n' : '') +
-      (real.info.desc ? 'Description: ' + real.info.desc.slice(0, 500) + '\n' : '') +
-      (real.info.kwds ? 'Keywords: ' + real.info.kwds.slice(0, 300) + '\n' : '') +
-      titlesCtx
-    : '\nCanal: @' + handle + '\n';
-
-  var compCtx = (real.competitors || []).length > 0
-    ? '\n\nCANALES VERIFICADOS EN YOUTUBE - pasan filtros duros de actividad, idioma, similitud, views y recencia:\n' +
-      real.competitors.map(function(c, i) {
-        return (i+1) + '. ' + c.name + ' (' + c.handle + ')' +
-          (c.subs ? ' - ' + c.subs : '') +
-          '\n   TIPO: ' + c.type +
-          '\n   SCORE_FINAL: ' + c.finalCompetitorScore +
-          '\n   NICHE_SIMILARITY: ' + c.nicheSimilarity +
-          '\n   FORMAT_SIMILARITY: ' + c.formatSimilarity +
-          '\n   PERFORMANCE: ' + c.performanceScore +
-          '\n   RECENCY: ' + c.recencyScore +
-          '\n   STRATEGIC_VALUE: ' + c.strategicValueScore +
-          '\n   ACTIVITY: last video ' + c.lastVideoDays + ' days ago, ' + c.recentVideos.length + ' recent videos, average views ' + compactNumber(c.avgRecentViews) +
-          '\n   DETECTED_FORMAT: ' + (c.formats || []).join(' + ') +
-          '\n   STEAL_POTENTIAL: ' + c.stealPotential +
-          (c.desc ? '\n   DESCRIPTION: "' + c.desc + '"' : '') +
-          (c.recentVideos && c.recentVideos.length ? '\n   RECENT_TITLES: ' + c.recentVideos.slice(0, 4).map(function(v) { return '"' + v.title + '"'; }).join(' | ') : '');
-      }).join('\n') +
-      '\n\nRule: use only these channels as verified competitors. Keep the exact score, type and handle. Do not invent handles.'
-    : '\n\nCOMPETITORS: no strong verified competitor survived the filters. Write: no strong verified competitor was found, but here is what the space looks like.'
-
-  if ((!real.competitors || !real.competitors.length) && real.estimatedCompetitors && real.estimatedCompetitors.length) {
-    compCtx += '\nNearby spaces, estimated, not verified as direct competitors:\n' +
-      real.estimatedCompetitors.map(function(c, i) {
-        return (i + 1) + '. ' + c.name + ' | similarity ' + (c.nicheSimilarity || 0) + ' | ' + (c.whyMatters || '');
-      }).join('\n') + '\n';
-  }
-  var prompt = 'You are ZERACK channel intelligence. Surgical precision, no filler. Every answer is specific, actionable and grounded in the data you were given.' +
-chanCtx + compCtx +
-'\n\nWrite the full report for @' + handle + ' in ' + langName + '. Nothing generic: everything concrete and grounded in the channel data above.' +
-'\n\nExact format, use ## for sections and the field names in capitals exactly as written:\n\n' +
-
-'## SNAPSHOT\n' +
-'EXACT_NICHE: [ultra specific niche, for example "faceless AI documentaries about Latin American historical mystery, made to fall asleep to"]\n' +
-'CONTENT_MODEL: [Storytelling faceless / Educational faceless / Emotional narrative / Hybrid, describe the model in one sentence]\n' +
-'POSITIONING: [what this channel does differently from everyone else, the unique angle, not a generic line]\n' +
-'AUDIENCE: [precise demographics: age range, dominant gender, main countries, psychographic interests]\n' +
-'AUDIENCE_PSYCHOLOGY: [the main emotion or driver behind watching: fear, curiosity, fear of missing out, relaxation, escapism, adrenaline, and explain it]\n' +
-'GROWTH_PATTERN: [Explosive, more than 2x in six months / Steady / Declining, with a specific reason from the data]\n' +
-'MONETIZATION: [estimated RPM in dollars for this niche and audience country, estimated monthly income, other revenue lines]\n' +
-'STRENGTHS: [specific strength 1 | strength 2 | strength 3, concrete, not generic]\n' +
-'WEAKNESSES: [exploitable weakness 1 | weakness 2 | weakness 3]\n' +
-'KEY_OPPORTUNITY: [the single action with the most impact over the next 90 days, very specific]\n\n' +
-
-'## COMPETITORS\n' +
-'[For every channel in the verified list, one block in exactly this format:]\n' +
-'CHANNEL: @[exact handle from the list]\n' +
-'SIMILARITY: [number 0-100]%\n' +
-'GROWTH: [Accelerating/Steady/Declining]\n' +
-'NICHE_TAG: [specific tag, for example "Faceless horror ES" / "AI mystery" / "True crime Latam"]\n' +
-'THREAT: [High/Medium/Low]\n' +
-'DESCRIPTION: [why it competes directly and what it does differently, one or two concrete sentences]\n\n' +
-
-'## PATTERNS\n' +
-'VIDEO_FORMAT: [dominant format with a specific description of the production style]\n' +
-'HOOK_MODEL: [Fear opening / Curiosity gap / In medias res / Shock claim / Transformation promise, with a description]\n' +
-'VOICE_TYPE: [deep male / soft female / cloned AI narrator / duo, with the narration style and pace]\n' +
-'UPLOAD_DAY: [the days that maximise views in the first 24 hours for this niche]\n' +
-'UPLOAD_TIME: [specific hour, say the timezone]\n' +
-'OPTIMAL_LENGTH: [the exact minute range that maximises watch time and retention in this niche]\n' +
-'THUMBNAIL_STYLE: [precise visual description: colour palette, typography, visual elements, the text to image ratio that wins here]\n' +
-'TITLE_FORMULA: [the exact formula with its structure, for example "[Shock number or adjective] + [Mysterious subject] + [Consequence or reveal]"]\n' +
-'HOOK_FORMULAS: ["Opening example 1 that holds the viewer" | "Example 2" | "Example 3"]\n' +
-'VIRAL_TITLES: ["Viral title 1" | "Viral title 2" | "Viral title 3" | "Viral title 4" | "Viral title 5"]\n\n' +
-
-'## GAPS\n' +
-'1. **[Very specific topic]**: [why real demand exists with no quality supply, name the concrete signals and the angle to attack it]\n' +
-'2. **[Topic]**: [analysis with the differentiating angle]\n' +
-'3. **[Topic]**: [analysis]\n' +
-'4. **[Topic]**: [analysis]\n' +
-'5. **[Topic]**: [analysis]\n' +
-'6. **[Topic]**: [analysis]\n\n' +
-
-'## SUBNICHES\n' +
-'NAME: [very specific subniche 1]\n' +
-'POTENTIAL: [High/Medium/Low]\n' +
-'COMPETITION: [High/Medium/Low]\n' +
-'BARRIER: [High/Medium/Low]\n' +
-'TREND: [Rising/Steady/Falling]\n' +
-'WHY: [why the opportunity is real right now, with concrete signals]\n' +
-'FIRST_VIDEO: [the concrete title of the first video to publish in this subniche]\n' +
-'---\n' +
-'NAME: [subniche 2]\n' +
-'POTENTIAL: [High/Medium/Low]\n' +
-'COMPETITION: [High/Medium/Low]\n' +
-'BARRIER: [High/Medium/Low]\n' +
-'TREND: [Rising/Steady/Falling]\n' +
-'WHY: [concrete reason]\n' +
-'FIRST_VIDEO: [title]\n' +
-'---\n' +
-'[Repeat the same block until there are six subniches]\n\n' +
-
-'## STRATEGY\n' +
-'Include as well: five recommended video ideas, the recommended format, the title style, the thumbnail style and the publishing frequency.\n' +
-'SAFE_MODE:\n' +
-'TITLE: [name of this conservative strategy]\n' +
-'DESCRIPTION: [who it is for, what it guarantees, what it gives up, concrete]\n' +
-'ACTIONS:\n' +
-'- [concrete action with a number, for example "Publish 2 videos a week, Tuesday and Friday"]\n' +
-'- [concrete action with a number]\n' +
-'- [concrete action with a number]\n' +
-'- [concrete action]\n' +
-'RISK: Low\n' +
-'REWARD: Medium\n' +
-'TIME: [X weeks or months to see results]\n\n' +
-'AGGRESSIVE_MODE:\n' +
-'TITLE: [name of this maximum growth strategy]\n' +
-'DESCRIPTION: [who it is for, what it can win, what it can lose, concrete]\n' +
-'ACTIONS:\n' +
-'- [concrete action with a number]\n' +
-'- [concrete action with a number]\n' +
-'- [concrete action with a number]\n' +
-'- [concrete action]\n' +
-'RISK: High\n' +
-'REWARD: High\n' +
-'TIME: [X weeks]\n\n' +
-'DIFFERENTIATION_MODE:\n' +
-'TITLE: [name, the unique angle nobody is taking]\n' +
-'DESCRIPTION: [the open water: which gap it exploits and how it differs radically from the market]\n' +
-'ACTIONS:\n' +
-'- [concrete action with a number]\n' +
-'- [concrete action with a number]\n' +
-'- [concrete action with a number]\n' +
-'- [concrete action]\n' +
-'RISK: Medium\n' +
-'REWARD: Very high\n' +
-'TIME: [X months]\n\n' +
-
-'## SCORES\n' +
-'[Score the real niche. The numbers must vary a lot between niches, never generic]\n' +
-'MARKET_OPPORTUNITY_SCORE: [0-100]\n' +
-'COMPETITION_DIFFICULTY: [0-100]\n' +
-'CONTENT_GAP_SCORE: [0-100]\n' +
-'FACELESS_SCALABILITY_SCORE: [0-100]\n' +
-'GROWTH_POTENTIAL_SCORE: [0-100]\n' +
-'MONETIZATION_POTENTIAL: [0-100]\n' +
-'EXECUTION_DIFFICULTY: [0-100]\n' +
-'NICHE_POTENTIAL: [0-100, market size and growth trend]\n' +
-'COMPETITION_LEVEL: [0-100, how dense the active competing channels are]\n' +
-'PROFITABILITY: [0-100, estimated RPM for this niche by audience country]\n' +
-'GROWTH_SPEED: [0-100, how fast a new channel can grow here]\n' +
-'ENTRY_EASE: [0-100, the barrier for a new creator]\n' +
-'SATURATION: [0-100, how saturated the niche is with similar content]\n' +
-'VERDICT: [ATTACK NOW / TEST CAREFULLY / WATCH ONLY / AVOID, plus a direct recommendation in two sentences]';
-
-  var resp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + GROQ_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0.52,
-      max_tokens: 6000
-    })
-  });
-  if (!resp.ok) throw new Error('Groq error ' + resp.status);
-  var data = await resp.json();
-  return data.choices[0].message.content;
 }
 
 function handleScanAnalyze() {
-  var handle = (document.getElementById('scan-handle-input').value || '').trim().replace(/^@/, '');
-  var lang = document.getElementById('scan-lang-sel').value;
-  if (!handle) {
-    document.getElementById('scan-handle-input').focus();
+  var API = window.AshlyVAPI;
+  var input = document.getElementById('scan-handle-input');
+  var btn = document.getElementById('scan-go-btn');
+  var raw = String(input && input.value || '').trim();
+  if (!raw) { if (input) input.focus(); return; }
+  if (!API) { scanShowError('Could not start the scan', 'The data client did not load. Reload the page.'); return; }
+  if (!API.normalizeChannelUrl(raw)) {
+    scanShowError('That is not a channel', 'Use an @handle, a youtube.com/@handle link or a youtube.com/channel/UC... link.');
     return;
   }
-  var btn = document.getElementById('scan-go-btn');
-  btn.disabled = true;
-  btn.classList.add('loading');
-  btn.textContent = 'ANALYZING';
-  scanLastRealCompetitors = null; // reset - null means "fetch not done yet"
-  scanLastEstimatedCompetitors = [];
-  scanLastScanMeta = null;
+  var lang = (document.getElementById('scan-lang-sel') || {}).value || 'en';
+  var locale = getYouTubeLocale(lang);
+  function busy(on) {
+    if (!btn) return;
+    btn.disabled = on;
+    btn.classList.toggle('loading', on);
+    btn.textContent = on ? 'ANALYZING' : 'ANALYZE';
+  }
+  busy(true);
+  scanSetTab('snapshot');
   scanShowState('loading');
-  scanSetLoadMsg('Starting the analysis of @' + handle);
-
-  callGroqScan(handle, lang)
-    .then(function(report) {
-      scanRenderResults(report);
-      saveScanChannelReport(handle, lang, report);
-      btn.disabled = false;
-      btn.classList.remove('loading');
-      btn.textContent = 'ANALYZE';
-    })
-    .catch(function(err) {
-      scanShowState('empty');
-      btn.disabled = false;
-      btn.classList.remove('loading');
-      btn.textContent = 'ANALYZE';
-      var emptyTitle = document.querySelector('.scan-empty-ttl');
-      var emptySub = document.querySelector('.scan-empty-sub');
-      if (emptyTitle) emptyTitle.textContent = 'Could not analyze the channel';
-      if (emptySub) emptySub.textContent = 'Could not reach the AI engine. Check your connection and try again. (' + (err.message || 'Error') + ')';
+  scanSetStage(0);
+  scanSetLoadMsg('Reading ' + raw + ' on YouTube');
+  API.scanChannelFull(raw, { viralThreshold: SCAN_VIRAL_THRESHOLD }).then(function (scan) {
+    scanSetStage(1);
+    scanSetLoadMsg('Searching YouTube for the same topic');
+    return API.competitorMap(scan.url, locale).then(function (value) { return { ok: true, value: value }; }, function (error) { return { ok: false, error: error }; }).then(function (competitors) {
+      scanSetStage(2);
+      renderScanSnapshot(scan);
+      renderScanCompetitors(competitors);
+      renderScanPatterns(scan);
+      scanSetStage(3);
+      hubMessage(document.getElementById('sc-ai'), 'Asking your AI provider for a read of this data', 'busy');
+      scanShowState('results');
+      busy(false);
+      return API.analyzeChannel(scan, lang).then(renderScanAi, function (err) {
+        hubMessage(document.getElementById('sc-ai'), 'No AI read: ' + err.message, 'error');
+      });
     });
+  }).catch(function (err) {
+    busy(false);
+    scanShowError('Could not read the channel', err && err.message ? err.message : String(err));
+  });
 }
 
 function initScanLanguageSelect() {
@@ -5372,106 +3468,18 @@ function initEvents() {
   if (btnTF) btnTF.addEventListener('click', openToolsModal);
   var toolsClose = document.getElementById('tools-close');
   var thumbOpen = document.getElementById('nm-open-thumbnail');
-  var thumbApiInput = getApiKeyInput();
-  var thumbSaveApi = document.getElementById('ashlyv-validate-api') || document.getElementById('thumb-save-api-btn');
   var thumbAnalyze = document.getElementById('thumb-analyze-btn');
-  var thumbConfigureApi = document.getElementById('thumb-configure-api-btn');
-  var thumbTabAnalyze = document.getElementById('thumb-tab-analyze');
-  var thumbTabHistory = document.getElementById('thumb-tab-history');
-  var thumbTabIdeas = document.getElementById('thumb-tab-ideas');
-  var thumbChannel = document.getElementById('thumb-channel-input');
+  var aiConfigure = document.getElementById('ai-configure-btn');
   var thumbFile = document.getElementById('thumb-file-input');
   var ideasBtn = document.getElementById('ideas-generate-btn');
   if (toolsClose) toolsClose.addEventListener('click', closeToolsModal);
   if (thumbOpen) thumbOpen.addEventListener('click', openThumbnailModal);
-  // Old validate handler removed. The button is rebound below with a clean
-  // service-worker-only flow so stale direct-browser code cannot run.
   if (thumbAnalyze) thumbAnalyze.addEventListener('click', handleThumbnailAnalyze);
-  if (thumbConfigureApi) thumbConfigureApi.addEventListener('click', openExtensionOptions);
-  if (thumbTabAnalyze) thumbTabAnalyze.addEventListener('click', function() { thumbSetTab('analyze'); });
-  if (thumbTabHistory) thumbTabHistory.addEventListener('click', function() { thumbSetTab('history'); });
-  if (thumbTabIdeas) thumbTabIdeas.addEventListener('click', function() { thumbSetTab('ideas'); });
-  if (thumbChannel) thumbChannel.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') handleThumbnailAnalyze();
+  if (aiConfigure) aiConfigure.addEventListener('click', openExtensionOptions);
+  ['analyze', 'history', 'ideas'].forEach(function(name) {
+    var tab = document.getElementById('thumb-tab-' + name);
+    if (tab) tab.addEventListener('click', function() { thumbSetTab(name); });
   });
-  if (thumbApiInput) thumbApiInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && thumbSaveApi) {
-      e.preventDefault();
-      thumbSaveApi.click();
-    }
-  });
-  if (thumbSaveApi && thumbSaveApi.parentNode) {
-    var cleanValidateBtn = thumbSaveApi.cloneNode(true);
-    thumbSaveApi.parentNode.replaceChild(cleanValidateBtn, thumbSaveApi);
-    thumbSaveApi = cleanValidateBtn;
-    thumbSaveApi.addEventListener('click', function() {
-      var keyInput = getApiKeyInput();
-      var key = keyInput ? keyInput.value.trim() : '';
-      clearApiKeyError();
-      thumbSaveApi.textContent = 'Validating';
-      thumbSaveApi.disabled = true;
-      thumbSaveApi.style.borderColor = '';
-      thumbSaveApi.style.color = '';
-      chrome.runtime.sendMessage({ type: 'ASHLYV_PING' }, function(swHealth) {
-        if (chrome.runtime.lastError || !swHealth || !swHealth.pong) {
-          thumbSaveApi.textContent = 'VALIDATE API';
-          thumbSaveApi.disabled = false;
-          showApiKeyError('The service worker is not responding. Reload the extension and try again.');
-          return;
-        }
-        if (!window.AshlyVAPI || typeof window.AshlyVAPI.validateApiKey !== 'function') {
-          thumbSaveApi.textContent = 'VALIDATE API';
-          thumbSaveApi.disabled = false;
-          showApiKeyError('The AI client did not load. Reload the extension.');
-          return;
-        }
-        window.AshlyVAPI.validateApiKey(key)
-          .then(function(res) {
-            if (res.success && res.valid) {
-              if (res.local) {
-                thumbSaveApi.textContent = 'OLLAMA';
-                thumbSaveApi.style.borderColor = '#FFFFFF';
-                thumbSaveApi.style.color = '#FFFFFF';
-                thumbSaveApi.disabled = false;
-                updateApiKeyStatusIndicator();
-                setThumbnailStatus('Local Ollama running and ready to use.', 'success');
-                showAshlyVToast('Local AI connected', 'success', 2000);
-                return;
-              }
-              chrome.storage.local.set({ ashlyv_api_key: key }, function() {
-                thumbSaveApi.textContent = res.billingRequired ? 'NO CREDIT' : 'VALID';
-                thumbSaveApi.style.borderColor = '#FFFFFF';
-                thumbSaveApi.style.color = '#FFFFFF';
-                thumbSaveApi.disabled = false;
-                updateApiKeyStatusIndicator();
-                if (res.billingRequired) {
-                  setThumbnailStatus('API key is valid, but the account has no credit', 'error');
-                  showApiKeyError(res.error || 'Your Anthropic account has no credit.');
-                } else {
-                  setThumbnailStatus('API key valid and saved', 'success');
-                  showAshlyVToast('Saved', 'success', 2000);
-                }
-              });
-            } else {
-              thumbSaveApi.textContent = 'INVALID';
-              thumbSaveApi.style.borderColor = '#FFFFFF';
-              thumbSaveApi.style.color = '#FFFFFF';
-              thumbSaveApi.disabled = false;
-              showApiKeyError(res.error || 'Key rejected by Anthropic');
-            }
-          })
-          .catch(function(err) {
-            thumbSaveApi.textContent = 'VALIDATE API';
-            thumbSaveApi.disabled = false;
-            var msg = err && err.message ? err.message : 'Unknown error';
-            if (msg.indexOf('dangerous-direct-browser-access') >= 0) {
-              msg = 'Validation did not go through the service worker. Reload ZERACK and try again.';
-            }
-            showApiKeyError(msg);
-          });
-      });
-    });
-  }
   if (thumbFile) thumbFile.addEventListener('change', function() {
     var file = thumbFile.files && thumbFile.files[0];
     var preview = document.getElementById('thumb-preview');
@@ -5519,26 +3527,7 @@ function initEvents() {
   initScanEvents();
 }
 
-function loadInlinePayload() {
-  try {
-    var params = new URLSearchParams(window.location.search);
-    var d = params.get('d');
-    if (!d) return false;
-    app.savedNichos = JSON.parse(decodeURIComponent(atob(d).split('').map(function(c){return '%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join('')));
-    app.savedChannels = [];
-    app.alertHistory = [];
-    app.opportunityHistory = [];
-    app.mergedEntries = mergeDashboardEntries(app.savedNichos, app.savedChannels);
-    computeEngineData();
-    render();
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
 function load() {
-  if (loadInlinePayload()) return;
   if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.storage) {
     app.mergedEntries = [];
     computeEngineData();
@@ -5601,142 +3590,87 @@ function renderIdeasResults(data) {
   var host = document.getElementById('ideas-result-panel');
   if (!host) return;
   thumbClear(host);
-  data = data && typeof data === 'object' ? data : {};
+  hubAiLabel(host, data.provider, data.model);
 
   function makeCopyButton(text) {
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'thumb-btn secondary';
     btn.style.marginTop = '0';
+    btn.style.width = 'auto';
+    btn.style.padding = '0 12px';
     btn.textContent = 'COPY';
     btn.addEventListener('click', function() {
       copyTextWithFallback(text).then(function() {
-        var original = btn.textContent;
-        btn.textContent = 'OK';
+        btn.textContent = 'COPIED';
         showAshlyVToast('Copied to clipboard', 'success', 2000);
-        setTimeout(function() { btn.textContent = original; }, 2000);
+        setTimeout(function() { btn.textContent = 'COPY'; }, 2000);
       });
     });
     return btn;
   }
 
   function appendListSection(title, items, copyable) {
+    if (!items.length) return;
     var section = document.createElement('div');
     section.style.marginBottom = '18px';
-    var heading = document.createElement('div');
-    heading.style.fontSize = '16px';
-    heading.style.fontWeight = '900';
-    heading.style.marginBottom = '10px';
-    heading.textContent = title;
-    section.appendChild(heading);
-    (Array.isArray(items) ? items : []).forEach(function(item, index) {
-      var row = document.createElement('div');
-      row.style.display = 'flex';
-      row.style.alignItems = 'flex-start';
-      row.style.justifyContent = 'space-between';
-      row.style.gap = '12px';
-      row.style.padding = '12px';
-      row.style.marginBottom = '8px';
-      row.style.borderRadius = '16px';
-      row.style.background = 'rgba(255,255,255,.03)';
-      row.style.border = '1px solid rgba(255,255,255,.08)';
-      var text = document.createElement('div');
-      text.style.lineHeight = '1.6';
-      text.textContent = (index + 1) + '. ' + String(item || '');
-      row.appendChild(text);
-      if (copyable) row.appendChild(makeCopyButton(String(item || '')));
+    section.appendChild(hubNode('div', 'font-size:16px;font-weight:900;margin-bottom:10px;', title));
+    items.forEach(function(item, index) {
+      var row = hubNode('div', 'display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:12px;margin-bottom:8px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);');
+      row.appendChild(hubNode('div', 'line-height:1.6;', (index + 1) + '. ' + item));
+      if (copyable) row.appendChild(makeCopyButton(item));
       section.appendChild(row);
     });
     host.appendChild(section);
   }
 
-  appendListSection('Video titles', data.titles || [], true);
-  appendListSection('Opening hooks', data.hooks || [], true);
-  appendListSection('Thumbnail concepts', data.thumbnailConcepts || [], false);
-
-  var freq = document.createElement('div');
-  freq.style.marginBottom = '18px';
-  freq.style.padding = '14px';
-  freq.style.borderRadius = '16px';
-  freq.style.background = 'rgba(123,92,255,.12)';
-  freq.style.border = '1px solid rgba(123,92,255,.2)';
-  freq.textContent = 'Upload frequency: ' + String(data.uploadSchedule || 'No data');
-  host.appendChild(freq);
-
-  var tipsTitle = document.createElement('div');
-  tipsTitle.style.fontSize = '16px';
-  tipsTitle.style.fontWeight = '900';
-  tipsTitle.style.marginBottom = '10px';
-  tipsTitle.textContent = 'Monetization tips';
-  host.appendChild(tipsTitle);
-
-  var tips = document.createElement('ol');
-  tips.style.paddingLeft = '18px';
-  (data.monetizationTips || []).forEach(function(item) {
-    var li = document.createElement('li');
-    li.style.marginBottom = '10px';
-    li.textContent = String(item || '');
-    tips.appendChild(li);
-  });
-  host.appendChild(tips);
-
-  var copyAll = document.createElement('button');
-  copyAll.type = 'button';
-  copyAll.className = 'thumb-btn';
-  copyAll.style.marginTop = '18px';
-  copyAll.textContent = 'COPY ALL TITLES';
-  copyAll.addEventListener('click', function() {
-    copyTextWithFallback((data.titles || []).map(function(item, index) {
-      return (index + 1) + '. ' + String(item || '');
-    }).join('\n')).then(function() {
-      var original = copyAll.textContent;
-      copyAll.textContent = 'Copied';
-      showAshlyVToast('Copied to clipboard', 'success', 2000);
-      setTimeout(function() { copyAll.textContent = original; }, 2000);
+  appendListSection('Video titles', data.titles, true);
+  appendListSection('Opening hooks', data.hooks, true);
+  appendListSection('Thumbnail concepts', data.thumbnailConcepts, false);
+  if (!data.titles.length && !data.hooks.length && !data.thumbnailConcepts.length) {
+    host.appendChild(hubNode('div', 'color:rgba(255,255,255,.62);', 'The AI returned no ideas. Try again.'));
+    return;
+  }
+  if (data.titles.length) {
+    var copyAll = document.createElement('button');
+    copyAll.type = 'button';
+    copyAll.className = 'thumb-btn';
+    copyAll.textContent = 'COPY ALL TITLES';
+    copyAll.addEventListener('click', function() {
+      copyTextWithFallback(data.titles.map(function(item, index) { return (index + 1) + '. ' + item; }).join('\n')).then(function() {
+        copyAll.textContent = 'COPIED';
+        showAshlyVToast('Copied to clipboard', 'success', 2000);
+        setTimeout(function() { copyAll.textContent = 'COPY ALL TITLES'; }, 2000);
+      });
     });
-  });
-  host.appendChild(copyAll);
+    host.appendChild(copyAll);
+  }
 }
 
 function handleIdeasGenerate() {
   var nicheInput = document.getElementById('ideas-niche-input');
   var languageSelect = document.getElementById('ideas-language-select');
-  var rpmInput = document.getElementById('ideas-rpm-input');
   var button = document.getElementById('ideas-generate-btn');
+  var host = document.getElementById('ideas-result-panel');
   var niche = String(nicheInput && nicheInput.value || '').trim();
-  var language = languageSelect ? languageSelect.value : 'Español';
-  var rpmTarget = rpmInput ? rpmInput.value : '8';
   if (!niche) {
     showAshlyVToast('Enter a niche before generating ideas.', 'error', 2400);
     if (nicheInput) nicheInput.focus();
+    return;
+  }
+  if (!window.AshlyVAPI) {
+    hubMessage(host, 'The AI client did not load. Reload the page.', 'error');
     return;
   }
   if (button) {
     button.disabled = true;
     button.textContent = 'GENERATING';
   }
-  window.AshlyVAPI.generateNicheIdeas(niche, language, rpmTarget)
-    .then(function(response) {
-      if (!response.success) throw new Error(response.error || 'Could not generate ideas');
-      var parsed = window.AshlyVAPI.parseApiJson(response.content);
-      if (!parsed) throw new Error('The AI returned an invalid response.');
-      renderIdeasResults(parsed);
-    })
+  hubMessage(host, 'Asking your AI provider', 'busy');
+  window.AshlyVAPI.generateNicheIdeas(niche, languageSelect ? languageSelect.value : 'en')
+    .then(renderIdeasResults)
     .catch(function(err) {
-      var host = document.getElementById('ideas-result-panel');
-      if (host) {
-        thumbClear(host);
-        var title = document.createElement('div');
-        title.className = 'scan-empty-ttl';
-        title.textContent = 'Could not generate ideas';
-        var sub = document.createElement('div');
-        sub.className = 'scan-empty-sub';
-        sub.style.textAlign = 'left';
-        sub.style.maxWidth = 'none';
-        sub.textContent = err && err.message ? err.message : 'Try again.';
-        host.appendChild(title);
-        host.appendChild(sub);
-      }
+      hubMessage(host, 'Could not generate ideas: ' + (err && err.message ? err.message : 'try again.'), 'error');
     })
     .then(function() {
       if (button) {
@@ -5748,53 +3682,15 @@ function handleIdeasGenerate() {
 
 function initAshlyVPageHealth() {
   var banner = document.getElementById('ashlyv-sw-banner');
-  var resolved = false;
-  var timeout = setTimeout(function() {
-    if (!resolved && banner) banner.style.display = 'block';
-  }, 3000);
-  try {
-    chrome.runtime.sendMessage({ type: 'ASHLYV_PING' }, function(response) {
-      resolved = true;
-      clearTimeout(timeout);
-      if (chrome.runtime.lastError) {
-        if (banner) banner.style.display = 'block';
-        return;
-      }
-      if (response && response.pong && banner) banner.style.display = 'none';
-      else if (banner) banner.style.display = 'block';
-      updateApiKeyStatusIndicator();
-    });
-  } catch (e) {
-    if (banner) banner.style.display = 'block';
-  }
+  function showBanner(on) { if (banner) banner.style.display = on ? 'block' : 'none'; }
+  if (!window.AshlyVAPI) { showBanner(true); return; }
+  window.AshlyVAPI.sendToSW('ASHLYV_PING', {}, 3000).then(function(response) {
+    showBanner(!(response && response.pong));
+  }, function() { showBanner(true); });
+  updateAiStatus();
   var close = document.getElementById('ashlyv-sw-banner-close');
-  if (close) {
-    close.onclick = function() {
-      if (banner) banner.style.display = 'none';
-    };
-  }
+  if (close) close.addEventListener('click', function() { showBanner(false); });
 }
-
-handleScanAnalyze = function() {
-  var handle = (document.getElementById('scan-handle-input').value || '').trim().replace(/^@/, '');
-  var btn = document.getElementById('scan-go-btn');
-  if (!handle) {
-    document.getElementById('scan-handle-input').focus();
-    return;
-  }
-  if (btn) {
-    btn.disabled = true;
-    btn.classList.add('loading');
-    btn.textContent = 'ANALYZING';
-  }
-  runChannelAnalysis(handle).then(function() {
-    if (btn) {
-      btn.disabled = false;
-      btn.classList.remove('loading');
-      btn.textContent = 'ANALYZE';
-    }
-  });
-};
 
 document.addEventListener('DOMContentLoaded', function() {
   initAshlyVPageHealth();
@@ -5809,69 +3705,14 @@ document.addEventListener('DOMContentLoaded', function() {
   }, 120);
 });
 
-// Advanced Panel Logic (refactor 2025-05) 
-
-function renderQuickFilters(quickFilters) {
-  if (!quickFilters) return '';
-  var v = quickFilters.verdict;
-  var verdictColors = { ATTACK: '#00DC82', WATCH: '#FFD93D', SKIP: '#FF6B6B' };
-  var verdictColor = verdictColors[v] || '#888';
-
-  return '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:10px 0;padding:10px;background:rgba(0,0,0,0.2);border-radius:10px;border:1px solid ' + verdictColor + '33;">'
-    // Verdict badge
-    + '<div style="padding:6px 14px;border-radius:8px;background:' + verdictColor + '22;border:1px solid ' + verdictColor + ';font-weight:800;font-size:14px;color:' + verdictColor + ';">'
- + (v ==='ATTACK'?'': v ==='WATCH'?'':'') +''+ v +'</div>'
-    // Age badge
-    + '<div style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.05);font-size:11px;color:' + (quickFilters.isNewChannel ? '#00DC82' : 'rgba(255,255,255,0.5)') + ';">'
- +''+ (quickFilters.monthsOld !== null ? quickFilters.monthsOld +'mo':'?') + (quickFilters.isNewChannel ?'NEW':'') +'</div>'
-    // Viral count badge
-    + '<div style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.05);font-size:11px;color:' + (quickFilters.hasEnoughVirals ? '#FF6B6B' : 'rgba(255,255,255,0.5)') + ';">'
- +''+ quickFilters.viralVideoCount +'viral'+ (quickFilters.hasEnoughVirals ?'':'') +'</div>'
-    // Velocity badge
-    + '<div style="padding:6px 10px;border-radius:8px;background:rgba(255,255,255,0.05);font-size:11px;color:#2EE9FF;">'
- +''+ quickFilters.velocityTier +'</div>'
-    + '</div>';
-}
-
-// Auto-populate quick filters when scan data arrives
-var _origScanHandler = window._onScanResult || null;
-document.addEventListener('ashlyv:scan-complete', function(e) {
-  var container = document.getElementById('quick-filters-container');
-  if (container && e.detail && e.detail.quickFilters) {
-    container.innerHTML = renderQuickFilters(e.detail.quickFilters);
-  }
-  setTimeout(function() {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.get(['ashlyv_nichos', 'ashlyv_nichos_backup'], function(res) {
-        var latest = Array.isArray(res.ashlyv_nichos) && res.ashlyv_nichos.length ? res.ashlyv_nichos : (Array.isArray(res.ashlyv_nichos_backup) ? res.ashlyv_nichos_backup : []);
-        if (latest.length) app.savedNichos = latest;
-        if (typeof window.__ashlyvPopulateAdvancedScanNichos === 'function') window.__ashlyvPopulateAdvancedScanNichos();
-      });
-    } else if (typeof window.__ashlyvPopulateAdvancedScanNichos === 'function') {
-      window.__ashlyvPopulateAdvancedScanNichos();
-    }
-  }, 250);
-});
-
+// PRO tools. Every number here is read from YouTube through the service worker; the sub-niche
+// generator is the only AI part and is labelled as a suggestion.
 (function initAdvancedPanel() {
-  // Tab switching
-  var tabBtn = document.getElementById('tab-advanced');
-  var panel = document.getElementById('panel-advanced');
-  if (!tabBtn || !panel) return; // panel not in DOM yet
-
-  tabBtn.addEventListener('click', function() {
-    // Hide all other panels — find siblings
-    var allPanels = panel.parentElement ? panel.parentElement.querySelectorAll('[id^="scan-panel-"], [id="panel-advanced"]') : [];
-    allPanels.forEach(function(p) { p.style.display = 'none'; });
-    panel.style.display = 'block';
-    // Update tab active states
-    var allTabs = tabBtn.parentElement ? tabBtn.parentElement.querySelectorAll('.scan-tab-btn') : [];
-    allTabs.forEach(function(t) { t.classList.remove('active'); });
-    tabBtn.classList.add('active');
-  });
-
+  var panel = document.getElementById('scan-panel-advanced');
   var API = window.AshlyVAPI;
-  if (!API) { console.warn('AshlyVAPI not loaded'); return; }
+  if (!panel || !API) return;
+
+  function byId(id) { return document.getElementById(id); }
 
   function advScanList() {
     return Array.isArray(app.savedNichos) ? app.savedNichos.filter(function(item) {
@@ -5880,7 +3721,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
   }
 
   function advSelectedNicho() {
-    var select = document.getElementById('adv-scan-nicho-select');
+    var select = byId('adv-scan-nicho-select');
     var list = advScanList();
     var idx = select ? parseInt(select.value, 10) : 0;
     return list[isFinite(idx) ? idx : 0] || null;
@@ -5888,7 +3729,7 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
 
   function advNichoText(item) {
     item = item || advSelectedNicho() || {};
-    return String(item.niche || item.title || '').replace(/[^\w\s\-&.,]/g, '').replace(/\s+/g, ' ').trim();
+    return String(item.niche || item.title || '').replace(/[^\p{L}\p{N}\s\-&.,]/gu, '').replace(/\s+/g, ' ').trim();
   }
 
   function advChannelText(item) {
@@ -5898,22 +3739,22 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
 
   function advLanguageText(item) {
     item = item || advSelectedNicho() || {};
-    return String(item.language || app.state.selectedLanguage || 'es').slice(0, 8);
+    return String(item.language || app.state.selectedLanguage || 'en').slice(0, 8);
   }
 
   function advSetLockedInput(id, value) {
-    var el = document.getElementById(id);
-    if (!el) return;
-    el.value = value || '';
-    el.readOnly = true;
-    el.title = 'Locked to the niche selected from the scan';
+    var input = byId(id);
+    if (!input) return;
+    input.value = value || '';
+    input.readOnly = true;
+    input.title = 'Locked to the niche selected from the scan';
   }
 
   function populateAdvancedScanNichos() {
-    var select = document.getElementById('adv-scan-nicho-select');
+    var select = byId('adv-scan-nicho-select');
     if (!select) return;
     var old = select.value;
-    select.innerHTML = '';
+    hubClear(select);
     var list = advScanList();
     if (!list.length) {
       var empty = document.createElement('option');
@@ -5936,28 +3777,27 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     var item = advSelectedNicho();
     var niche = advNichoText(item);
     var channel = advChannelText(item);
-    var summary = document.getElementById('adv-scan-nicho-summary');
+    var summary = byId('adv-scan-nicho-summary');
     advSetLockedInput('adv-channel-age-input', channel);
     advSetLockedInput('adv-viral-input', channel);
     advSetLockedInput('adv-title-input', niche);
     advSetLockedInput('adv-subniche-input', niche);
     advSetLockedInput('adv-subniche-channel', channel);
-    advSetLockedInput('adv-global-niche-input', niche);
-    var batch = document.getElementById('adv-batch-input');
+    var batch = byId('adv-batch-input');
     if (batch) {
       batch.value = advScanList().map(function(n) { return advChannelText(n); }).filter(Boolean).join('\n');
       batch.readOnly = true;
       batch.title = 'Batch built only from channels in the scanned list';
     }
     ['adv-check-age-btn', 'adv-viral-btn'].forEach(function(id) {
-      var btn = document.getElementById(id);
+      var btn = byId(id);
       if (btn) btn.disabled = !channel;
     });
-    ['adv-title-btn', 'adv-subniche-btn', 'adv-global-score-btn'].forEach(function(id) {
-      var btn = document.getElementById(id);
+    ['adv-title-btn', 'adv-subniche-btn'].forEach(function(id) {
+      var btn = byId(id);
       if (btn) btn.disabled = !niche;
     });
-    var batchBtn = document.getElementById('adv-batch-btn');
+    var batchBtn = byId('adv-batch-btn');
     if (batchBtn) batchBtn.disabled = !advScanList().some(function(n) { return !!advChannelText(n); });
     if (summary) {
       summary.textContent = item
@@ -5966,9 +3806,24 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
     }
   }
 
-  var advSelect = document.getElementById('adv-scan-nicho-select');
+  function viralThreshold() {
+    var n = parseInt((byId('adv-viral-threshold') || {}).value, 10);
+    return n > 0 ? n : 100000;
+  }
+
+  function on(id, handler) {
+    var btn = byId(id);
+    if (!btn) return;
+    btn.addEventListener('click', function() {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      Promise.resolve().then(handler).then(function() { btn.disabled = false; }, function() { btn.disabled = false; });
+    });
+  }
+
+  var advSelect = byId('adv-scan-nicho-select');
   if (advSelect) advSelect.addEventListener('change', syncAdvancedScanTools);
-  var advRefresh = document.getElementById('adv-refresh-nichos-btn');
+  var advRefresh = byId('adv-refresh-nichos-btn');
   if (advRefresh) advRefresh.addEventListener('click', function() {
     if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
       populateAdvancedScanNichos();
@@ -5983,655 +3838,319 @@ document.addEventListener('ashlyv:scan-complete', function(e) {
   window.__ashlyvPopulateAdvancedScanNichos = populateAdvancedScanNichos;
   populateAdvancedScanNichos();
 
-  // 1. Channel Age
-  document.getElementById('adv-check-age-btn').addEventListener('click', async function() {
+  var AGE_VERDICT = { pass: { text: 'PASS', tone: 'good' }, fail: { text: 'FAIL', tone: 'error' } };
+
+  on('adv-check-age-btn', function() {
     var channel = advChannelText();
-    var maxMonths = parseInt(document.getElementById('adv-max-months').value, 10);
-    var resultEl = document.getElementById('adv-age-result');
-    if (!channel) { resultEl.textContent = 'Enter a channel'; return; }
- resultEl.innerHTML ='<span style="color:#FFD93D;">Checking...</span>';
-    try {
-      var data = await API.apiChannelAge(channel, maxMonths);
-      var pass = data.passesFilter;
-      var months = data.monthsOld;
-      var created = data.createdDate || 'unknown';
-      var color = pass ? '#00DC82' : '#FF6B6B';
- var icon = pass ?'':'';
-      resultEl.innerHTML = '<span style="color:' + color + ';">' + icon + ' Channel is <b>' + months + ' months old</b> (created ' + created + '). '
-        + (pass ? 'PASSES filter (≤' + maxMonths + 'mo)' : 'FAILS filter (>' + maxMonths + 'mo)') + '</span>'
-        + (data.rawText ? '<br><span style="opacity:0.5;font-size:11px;">Raw: ' + data.rawText + '</span>' : '');
-    } catch (err) {
-      resultEl.innerHTML = '<span style="color:#FF6B6B;">Error: ' + err.message + '</span>';
-    }
+    var maxMonths = parseInt(byId('adv-max-months').value, 10);
+    var out = byId('adv-age-result');
+    if (!channel) { hubMessage(out, 'The selected niche has no channel link.', 'error'); return; }
+    hubMessage(out, 'Reading the channel page', 'busy');
+    return API.channelAge(channel, maxMonths).then(function(d) {
+      var who = d.name || d.url;
+      if (d.monthsOld === null) {
+        hubMessage(out, 'Could not read the join date of ' + who + (d.joinedText ? ' (YouTube shows "' + d.joinedText + '")' : '') + ', so the age filter cannot be checked.', 'error');
+        return;
+      }
+      var verdict = AGE_VERDICT[d.passesFilter ? 'pass' : 'fail'];
+      hubMessage(out, verdict.text + ': ' + who + ' is ' + d.monthsOld + ' months old, joined ' + d.joinedDate + '. Limit: ' + maxMonths + ' months.', verdict.tone);
+    }).catch(hubFailure(out));
   });
 
-  // 2. Viral Metrics
-  document.getElementById('adv-viral-btn').addEventListener('click', async function() {
+  on('adv-viral-btn', function() {
     var channel = advChannelText();
-    var threshold = parseInt(document.getElementById('adv-viral-threshold').value, 10) || 100000;
-    var resultEl = document.getElementById('adv-viral-result');
-    if (!channel) { resultEl.textContent = 'Enter a channel'; return; }
- resultEl.innerHTML ='<span style="color:#FFD93D;">Analyzing viral metrics...</span>';
-    try {
-      var data = await API.apiViralMetrics(channel, { viralThreshold: threshold });
-      var m = data.viralMetrics;
-      var pass = data.passesFilter;
-      var color = pass ? '#00DC82' : '#FF6B6B';
-      resultEl.innerHTML =
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:24px;font-weight:800;color:' + color + ';">' + m.viralVideoCount + '</div>'
-        + '<div style="font-size:10px;opacity:0.6;">Viral Videos (≥' + (threshold/1000) + 'K)</div></div>'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:24px;font-weight:800;color:#2EE9FF;">' + m.velocityTier + '</div>'
-        + '<div style="font-size:10px;opacity:0.6;">Velocity (' + Math.round(m.weeklyViewVelocity/1000) + 'K/week)</div></div>'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:24px;font-weight:800;color:#FFD93D;">' + (m.viralRatio * 100).toFixed(1) + '%</div>'
-        + '<div style="font-size:10px;opacity:0.6;">Viral Ratio</div></div>'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:24px;font-weight:800;">' + data.videosAnalyzed + '</div>'
-        + '<div style="font-size:10px;opacity:0.6;">Videos Analyzed</div></div>'
-        + '</div>'
-        + (m.viralVideos && m.viralVideos.length ? '<div style="margin-top:10px;font-size:11px;opacity:0.6;">Top viral: ' + m.viralVideos.slice(0,3).map(function(v){return v.title.slice(0,50)+'... ('+Math.round(v.views/1000)+'K)';}).join(' | ') + '</div>' : '');
-    } catch (err) {
-      resultEl.innerHTML = '<span style="color:#FF6B6B;">Error: ' + err.message + '</span>';
-    }
+    var threshold = viralThreshold();
+    var out = byId('adv-viral-result');
+    if (!channel) { hubMessage(out, 'The selected niche has no channel link.', 'error'); return; }
+    hubMessage(out, 'Reading the latest uploads', 'busy');
+    return API.viralMetrics(channel, { viralThreshold: threshold }).then(function(d) {
+      var m = d.metrics;
+      hubClear(out);
+      hubStatGrid(out, [
+        { value: m.withViews ? m.viralCount + ' of ' + m.withViews : '?', label: 'Uploads over ' + hubCount(threshold) + ' views', color: m.viralCount ? '#00DC82' : '#FF6B6B' },
+        { value: hubCount(m.medianViews), label: 'Median views' },
+        { value: hubCount(m.medianViewsPerDay), label: 'Median views per day', color: '#2EE9FF' },
+        { value: m.withAge ? String(m.uploadsLast30Days) : '?', label: 'Uploads in the last 30 days', color: '#FFD93D' }
+      ]);
+      var unread = [];
+      if (m.unreadableViews) unread.push('views of ' + m.unreadableViews + ' videos');
+      if (m.unreadableAge) unread.push('upload date of ' + m.unreadableAge + ' videos');
+      hubNote(out, 'Measured on the ' + m.analyzed + ' most recent uploads.' + (unread.length ? ' Could not read: ' + unread.join(', ') + '.' : '') + ' Upload dates are rounded by YouTube.');
+      if (m.topVideos.length) {
+        hubHeading(out, 'Most viewed', '#FF6B6B');
+        hubList(out, m.topVideos.slice(0, 3), function(row, v) {
+          row.appendChild(hubLink(v.url, v.title));
+          row.appendChild(hubNode('span', 'opacity:0.55;', ' | ' + hubCount(v.views)));
+        });
+      }
+    }).catch(hubFailure(out));
   });
 
-  // 3. Search by Title
-  document.getElementById('adv-title-btn').addEventListener('click', async function() {
+  on('adv-title-btn', function() {
     var keywords = advNichoText();
-    var sortBy = document.getElementById('adv-title-sort').value;
-    var resultEl = document.getElementById('adv-title-result');
-    if (!keywords) { resultEl.textContent = 'Enter keywords'; return; }
- resultEl.innerHTML ='<span style="color:#FFD93D;">Searching titles...</span>';
-    try {
-      var data = await API.apiSearchTitles(keywords, { sortBy: sortBy });
-      var html = '<div style="margin-bottom:8px;opacity:0.6;">' + data.totalResults + ' results | Niche: ' + data.subNiche + ' | RPM: $' + data.estimatedRpm + '</div>';
-      if (data.channels && data.channels.length) {
-        html += '<div style="font-size:12px;font-weight:700;color:#2EE9FF;margin:8px 0 4px;">Channels found:</div>';
-        data.channels.slice(0, 8).forEach(function(ch) {
-          html += '<div style="padding:6px 8px;margin:3px 0;background:rgba(0,0,0,0.2);border-radius:6px;display:flex;justify-content:space-between;">'
-            + '<span>' + ch.channelName + ' <span style="opacity:0.4;">(' + ch.videoCount + ' videos)</span></span>'
-            + '<span style="color:#00DC82;">' + Math.round(ch.totalViews/1000) + 'K views | Faceless: ' + ch.avgFaceless + '%</span>'
-            + '</div>';
+    var out = byId('adv-title-result');
+    if (!keywords) { hubMessage(out, 'The selected niche has no keywords.', 'error'); return; }
+    var locale = getYouTubeLocale(advLanguageText());
+    hubMessage(out, 'Searching YouTube', 'busy');
+    return API.searchTitles(keywords, { sortBy: byId('adv-title-sort').value, gl: locale.gl, hl: locale.hl }).then(function(d) {
+      hubClear(out);
+      hubNote(out, d.sample + ' results for "' + d.query + '" in YouTube search (' + locale.gl + ').' + (d.unreadableViews ? ' Views unreadable on ' + d.unreadableViews + '.' : ''));
+      if (d.channels.length) {
+        hubHeading(out, 'Channels in the results', '#2EE9FF');
+        hubList(out, d.channels.slice(0, 8), function(row, c) {
+          row.appendChild(hubLink(c.url, c.name || 'Channel'));
+          row.appendChild(hubNode('span', 'opacity:0.55;', ' | ' + c.videosInResults + ' videos | ' + hubCount(c.totalViews) + ' views in the results'));
         });
       }
-      if (data.titlePatterns && data.titlePatterns.length) {
-        html += '<div style="font-size:12px;font-weight:700;color:#FFD93D;margin:10px 0 4px;">Common keywords:</div>';
-        html += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
-        data.titlePatterns.slice(0, 12).forEach(function(kw) {
-          html += '<span style="padding:3px 8px;background:rgba(255,217,61,0.15);border-radius:4px;font-size:11px;">' + kw.term + ' (' + kw.count + ')</span>';
-        });
-        html += '</div>';
+      hubHeading(out, 'Videos', '#00DC82');
+      hubList(out, d.videos.slice(0, 10), function(row, v) {
+        row.appendChild(hubLink(v.url, v.title));
+        row.appendChild(hubNode('span', 'opacity:0.55;', ' | ' + (v.viewsText || hubCount(v.views)) + (v.publishedText ? ' | ' + v.publishedText : '') + ' | ' + v.channelName));
+      });
+      if (d.patterns.topTerms.length) {
+        hubHeading(out, 'Most repeated words in these titles', '#FFD93D');
+        hubNote(out, d.patterns.topTerms.map(function(t) { return t.term + ' (' + t.count + ')'; }).join(' | '));
       }
-      resultEl.innerHTML = html;
-    } catch (err) {
-      resultEl.innerHTML = '<span style="color:#FF6B6B;">Error: ' + err.message + '</span>';
-    }
+    }).catch(hubFailure(out));
   });
 
-  // 4. Sub-Niche Generator
-  document.getElementById('adv-subniche-btn').addEventListener('click', async function() {
+  on('adv-subniche-btn', function() {
     var niche = advNichoText();
     var channel = advChannelText() || null;
-    var resultEl = document.getElementById('adv-subniche-result');
-    if (!niche) { resultEl.textContent = 'Enter a niche'; return; }
- resultEl.innerHTML ='<span style="color:#FFD93D;">Generating sub-niches with AI... (this may take 15-30s)</span>';
-    try {
-      var data = await API.apiGenerateSubniches(niche, { channel: channel });
-      var html = '';
-      if (data.subNiches && data.subNiches.length) {
-        data.subNiches.forEach(function(sn, i) {
-          var diffColor = sn.difficulty === 'EASY' ? '#00DC82' : sn.difficulty === 'MEDIUM' ? '#FFD93D' : '#FF6B6B';
-          html += '<div style="padding:12px;margin:8px 0;background:rgba(0,0,0,0.25);border-radius:10px;border-left:3px solid ' + diffColor + ';">'
-            + '<div style="font-weight:700;color:#B388FF;font-size:13px;">' + (i+1) + '. ' + sn.name + '</div>'
-            + '<div style="font-size:11px;opacity:0.7;margin:4px 0;">' + sn.angle + '</div>'
-            + '<div style="font-size:11px;margin:4px 0;"><span style="color:' + diffColor + ';font-weight:600;">' + sn.difficulty + '</span> | RPM ~$' + sn.estimatedRpm + ' | ' + sn.contentFrequency + '</div>'
-            + '<div style="font-size:11px;opacity:0.5;margin:4px 0;">Strategy: ' + sn.replicationStrategy + '</div>';
-          if (sn.exampleTitles && sn.exampleTitles.length) {
-            html += '<div style="font-size:10px;opacity:0.4;margin-top:4px;">Titles: ' + sn.exampleTitles.slice(0,3).join(' | ') + '</div>';
-          }
-          html += '</div>';
+    var out = byId('adv-subniche-result');
+    if (!niche) { hubMessage(out, 'The selected niche has no keywords.', 'error'); return; }
+    hubMessage(out, 'Asking your AI provider, this can take 15 to 30 seconds', 'busy');
+    return API.generateSubniches(niche, { channel: channel, language: advLanguageText() }).then(function(d) {
+      hubClear(out);
+      hubAiLabel(out, d.provider, d.model);
+      if (d.channelNote) hubNote(out, d.channelNote);
+      else if (d.basedOnTitles) hubNote(out, 'Built on ' + d.basedOnTitles + ' real titles of the reference channel.');
+      hubList(out, d.subNiches, function(row, sn, i) {
+        row.appendChild(hubNode('div', 'font-weight:700;color:#B388FF;', (i + 1) + '. ' + String(sn.name)));
+        if (sn.angle) row.appendChild(hubNode('div', 'opacity:0.75;', String(sn.angle)));
+        var titles = Array.isArray(sn.exampleTitles) ? sn.exampleTitles.map(String).slice(0, 3) : [];
+        if (titles.length) row.appendChild(hubNode('div', 'opacity:0.5;font-size:11px;', 'Titles: ' + titles.join(' | ')));
+      });
+      if (d.replicationIdeas.length) {
+        hubHeading(out, 'Replication ideas', '#FFD93D');
+        hubList(out, d.replicationIdeas, function(row, idea) {
+          row.appendChild(hubNode('div', 'opacity:0.6;font-size:11px;', 'Based on: ' + String(idea.basedOn)));
+          if (idea.twist) row.appendChild(hubNode('div', '', String(idea.twist)));
+          if (idea.exampleTitle) row.appendChild(hubNode('div', 'opacity:0.6;font-size:11px;', 'Example: ' + String(idea.exampleTitle)));
         });
       }
-      if (data.replicationIdeas && data.replicationIdeas.length) {
-        html += '<div style="font-size:12px;font-weight:700;color:#FFD93D;margin:12px 0 6px;">Replication Ideas:</div>';
-        data.replicationIdeas.forEach(function(ri) {
-          html += '<div style="padding:8px;margin:4px 0;background:rgba(255,217,61,0.08);border-radius:8px;font-size:11px;">'
- +'<b>'+ ri.originalConcept +'</b>'+ ri.yourTwist
-            + '<br><span style="opacity:0.5;">Example: ' + ri.exampleTitle + '</span></div>';
-        });
+      if (d.avoid.length) {
+        hubHeading(out, 'Avoid', '#FF6B6B');
+        hubNote(out, d.avoid.join(' | '));
       }
-      if (data.avoidList && data.avoidList.length) {
- html +='<div style="font-size:11px;color:#FF6B6B;margin-top:10px;opacity:0.6;">Avoid:'+ data.avoidList.join('|') +'</div>';
-      }
-      if (data.marketTiming) {
- html +='<div style="font-size:11px;color:#00DC82;margin-top:6px;opacity:0.7;">Timing:'+ data.marketTiming +'</div>';
-      }
-      resultEl.innerHTML = html || '<span style="opacity:0.5;">No results generated</span>';
-    } catch (err) {
-      resultEl.innerHTML = '<span style="color:#FF6B6B;">Error: ' + err.message + '</span>';
-    }
+      if (!d.subNiches.length && !d.replicationIdeas.length) hubNote(out, 'The AI returned no sub-niches. Try again.');
+    }).catch(hubFailure(out));
   });
 
-  // 5. Global Niche Score
-  document.getElementById('adv-global-score-btn').addEventListener('click', async function() {
-    var niche = advNichoText();
-    var resultEl = document.getElementById('adv-global-score-result');
-    if (!niche) { resultEl.textContent = 'Enter a niche'; return; }
- resultEl.innerHTML ='<span style="color:#FFD93D;">Scoring across 15 languages... (this may take 30-60s)</span>';
-    try {
-      var data = await API.apiScoreByLanguage(niche);
-      var html = '<div style="margin-bottom:10px;padding:10px;background:rgba(255,217,61,0.1);border-radius:8px;">'
-        + '<span style="font-size:16px;font-weight:800;color:#FFD93D;">Best: ' + data.bestLanguage.toUpperCase() + '</span>'
-        + ' <span style="font-size:14px;color:#00DC82;">' + data.bestScore + '/10 | ' + data.bestVerdict + '</span></div>';
-      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">';
-      data.results.forEach(function(r) {
-        var vColor = r.verdict === 'ATTACK NOW' ? '#00DC82' : r.verdict === 'TEST CAREFULLY' ? '#FFD93D' : r.verdict === 'WATCH ONLY' ? '#FF9F43' : '#FF6B6B';
-        html += '<div style="padding:10px;background:rgba(0,0,0,0.25);border-radius:8px;border-left:3px solid ' + vColor + ';">'
-          + '<div style="display:flex;justify-content:space-between;align-items:center;">'
-          + '<span style="font-weight:700;font-size:13px;">' + r.language.toUpperCase() + '</span>'
-          + '<span style="font-weight:800;font-size:15px;color:' + vColor + ';">' + r.overallScore + '</span></div>'
-          + '<div style="font-size:10px;color:' + vColor + ';margin:2px 0;">' + r.verdict + '</div>'
-          + '<div style="font-size:10px;opacity:0.5;">RPM $' + r.adjustedRpm + '</div>'
-          + '<div style="display:flex;gap:2px;margin-top:4px;flex-wrap:wrap;">';
-        var dims = r.dimensions;
- var dimLabels = {rpm:'',demand:'',saturation:'',competition:'',faceless:'',repeatability:'',languageGap:''};
-        Object.keys(dims).forEach(function(k) {
-          var val = dims[k];
-          var c = val >= 7 ? '#00DC82' : val >= 4 ? '#FFD93D' : '#FF6B6B';
-          html += '<span title="' + k + ': ' + val + '" style="font-size:9px;padding:1px 4px;border-radius:3px;background:' + c + '22;color:' + c + ';">' + (dimLabels[k]||'') + val + '</span>';
-        });
-        html += '</div></div>';
+  var BATCH_STATE = { pass: { text: 'PASSES', color: '#00DC82' }, fail: { text: 'FILTERED OUT', color: '#FF6B6B' }, unknown: { text: 'CANNOT CHECK', color: '#FFD93D' } };
+
+  on('adv-batch-btn', function() {
+    var channels = advScanList().map(function(item) { return advChannelText(item); }).filter(Boolean);
+    var out = byId('adv-batch-result');
+    if (!channels.length) { hubMessage(out, 'None of the saved niches has a channel link.', 'error'); return; }
+    var ageValue = byId('adv-batch-age').value;
+    var opts = {
+      maxMonths: ageValue ? parseInt(ageValue, 10) : null,
+      minViralVideos: parseInt(byId('adv-batch-viral').value, 10) || 0,
+      viralThreshold: viralThreshold()
+    };
+    hubMessage(out, 'Scanning ' + Math.min(channels.length, 20) + ' channels, one at a time', 'busy');
+    return API.batchScan(channels, opts, function(done, total, input) {
+      hubMessage(out, 'Scanning ' + done + ' of ' + total + ': ' + input, 'busy');
+    }).then(function(d) {
+      hubClear(out);
+      hubNote(out, 'Scanned ' + d.scanned + ', ' + d.passing + ' pass every filter, ' + d.errors.length + ' could not be read. Viral means over ' + hubCount(d.viralThreshold) + ' views among the last uploads.');
+      hubList(out, d.rows, function(row, r, i) {
+        var state = r.passesAll ? 'pass' : (r.ageOk === false || r.viralOk === false ? 'fail' : 'unknown');
+        var head = hubNode('div', 'display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;');
+        var name = hubNode('span', 'font-weight:700;', (i + 1) + '. ');
+        name.appendChild(hubLink(r.url, r.name));
+        head.appendChild(name);
+        head.appendChild(hubNode('span', 'font-weight:800;color:' + BATCH_STATE[state].color + ';', BATCH_STATE[state].text));
+        row.appendChild(head);
+        row.appendChild(hubNode('div', 'opacity:0.6;font-size:11px;', [
+          r.subscribersText ? r.subscribersText + ' subscribers' : 'subscribers unreadable',
+          r.monthsOld === null ? 'age unreadable' : r.monthsOld + ' months old',
+          r.withViews ? r.viralCount + ' of ' + r.withViews + ' uploads viral' : 'views unreadable',
+          'median ' + hubCount(r.medianViewsPerDay) + ' views per day'
+        ].join(' | ')));
+        if (r.problems.length) row.appendChild(hubNode('div', 'opacity:0.5;font-size:10px;', r.problems.join(' | ')));
       });
-      html += '</div>';
-      resultEl.innerHTML = html;
-    } catch (err) {
-      resultEl.innerHTML = '<span style="color:#FF6B6B;">Error: ' + err.message + '</span>';
-    }
-  });
-
-  // 6. Batch Scanner
-  document.getElementById('adv-batch-btn').addEventListener('click', async function() {
-    var raw = advScanList().map(function(item) { return advChannelText(item); }).filter(Boolean).join('\n');
-    var maxMonths = document.getElementById('adv-batch-age').value;
-    var minViral = parseInt(document.getElementById('adv-batch-viral').value, 10) || 0;
-    var resultEl = document.getElementById('adv-batch-result');
-    if (!raw) { resultEl.textContent = 'Paste at least one channel'; return; }
-
-    var channels = raw.split('\n').map(function(l) { return l.trim(); }).filter(Boolean);
-    if (channels.length > 20) { resultEl.textContent = 'Maximum 20 channels'; return; }
-
- resultEl.innerHTML ='<span style="color:#FFD93D;">Scanning'+ channels.length +'channels... this may take'+ (channels.length * 15) +'-'+ (channels.length * 30) +'seconds</span>';
-
-    try {
-      var data = await API.apiBatchScan(channels, {
-        maxMonths: maxMonths ? parseInt(maxMonths, 10) : null,
-        minViralVideos: minViral,
-      });
-
-      var html = '<div style="margin-bottom:10px;padding:8px;background:rgba(0,220,130,0.08);border-radius:8px;display:flex;gap:12px;font-size:12px;">'
-        + '<span>Scanned: <b>' + data.totalScanned + '</b></span>'
-        + '<span style="color:#00DC82;">Passing: <b>' + data.passingFilters + '</b></span>'
-        + '<span style="color:#FF6B6B;">Errors: <b>' + data.totalErrors + '</b></span></div>';
-
-      if (data.ranking && data.ranking.length) {
-        html += '<div style="display:flex;flex-direction:column;gap:6px;">';
-        data.ranking.forEach(function(r, i) {
-          var vc = {GOLD:'#FFD700',SILVER:'#C0C0C0',BRONZE:'#CD7F32',SKIP:'#FF6B6B'};
-          var color = vc[r.verdict] || '#888';
-          var passStyle = r.passesAllFilters ? 'border-left:3px solid #00DC82;' : 'border-left:3px solid #FF6B6B;opacity:0.6;';
-          html += '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;' + passStyle + 'display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">'
-            + '<div style="flex:1;min-width:150px;">'
-            + '<div style="font-weight:700;font-size:13px;">' + (i+1) + '. ' + r.channel + '</div>'
-            + '<div style="font-size:10px;opacity:0.5;">' + r.handle + ' | ' + r.subscribers + ' subs | ' + (r.monthsOld !== null ? r.monthsOld + 'mo' : '?') + '</div></div>'
-            + '<div style="display:flex;gap:6px;align-items:center;">'
- +'<span style="font-size:10px;color:#FF6B6B;">'+ r.viralVideoCount +'</span>'
- +'<span style="font-size:10px;color:#2EE9FF;">'+ r.velocityTier +'</span>'
- +'<span style="font-size:10px;color:rgba(255,255,255,0.5);">'+ Math.round(r.facelessAvg) +'%</span>'
-            + '<div style="padding:4px 10px;border-radius:6px;background:' + color + '22;color:' + color + ';font-weight:800;font-size:13px;">'
-            + r.opportunityScore + ' ' + r.verdict + '</div></div></div>';
-        });
-        html += '</div>';
+      if (d.errors.length) {
+        hubHeading(out, 'Could not read', '#FF6B6B');
+        hubNote(out, d.errors.map(function(e) { return e.input + ': ' + e.error; }).join(' | '));
       }
-
-      if (data.errors && data.errors.length) {
-        html += '<div style="margin-top:8px;font-size:10px;color:#FF6B6B;opacity:0.6;">Errors: ' + data.errors.map(function(e) { return e.channel + ': ' + e.error; }).join(' | ') + '</div>';
-      }
-
-      resultEl.innerHTML = html;
-    } catch (err) {
-      resultEl.innerHTML = '<span style="color:#FF6B6B;">Error: ' + err.message + '</span>';
-    }
+    }).catch(hubFailure(out));
   });
 })();
-
-// Mode Switcher + Replicator Logic (refactor 2025-05) 
 
 function switchAshlyvMode(mode) {
-  var scanTabs = document.querySelector('.scan-tabs-bar') || document.getElementById('scan-tabs-bar');
-  var scanContent = document.getElementById('scan-content-area');
-  var repContainer = document.getElementById('replicator-container');
-  var brandContainer = document.getElementById('brand-container');
-  var btnScanner = document.getElementById('mode-scanner');
-  var btnReplicator = document.getElementById('mode-replicator');
-  var btnBrand = document.getElementById('mode-brand');
-
-  // Hide all
-  if (scanTabs) scanTabs.style.display = 'none';
-  if (scanContent) scanContent.style.display = 'none';
-  if (repContainer) repContainer.style.display = 'none';
-  if (brandContainer) brandContainer.style.display = 'none';
-
-  // Reset all buttons
-  var allBtns = [btnScanner, btnReplicator, btnBrand];
-  allBtns.forEach(function(b) {
-    if (b) { b.style.background = 'rgba(255,255,255,0.05)'; b.style.color = 'rgba(255,255,255,0.5)'; }
+  var containers = { replicator: 'replicator-container', brand: 'brand-container' };
+  var buttons = { scanner: ['mode-scanner', '#00DC82'], replicator: ['mode-replicator', '#B388FF'], brand: ['mode-brand', '#FFD93D'] };
+  var current = containers[mode] ? mode : 'scanner';
+  Object.keys(containers).forEach(function(name) {
+    var box = document.getElementById(containers[name]);
+    if (box) box.style.display = name === current ? 'block' : 'none';
   });
-
-  if (mode === 'replicator') {
-    if (repContainer) repContainer.style.display = 'block';
-    if (btnReplicator) { btnReplicator.style.background = '#B388FF'; btnReplicator.style.color = '#000'; }
-  } else if (mode === 'brand') {
-    if (brandContainer) brandContainer.style.display = 'block';
-    if (btnBrand) { btnBrand.style.background = '#FFD93D'; btnBrand.style.color = '#000'; }
+  Object.keys(buttons).forEach(function(name) {
+    var b = document.getElementById(buttons[name][0]);
+    if (!b) return;
+    b.style.background = name === current ? buttons[name][1] : 'rgba(255,255,255,0.05)';
+    b.style.color = name === current ? '#000' : 'rgba(255,255,255,0.5)';
+  });
+  if (current === 'scanner') {
+    scanSetMode(scanCurrentMode);
   } else {
-    // scanner (default)
-    if (scanTabs) scanTabs.style.display = '';
-    if (scanContent) scanContent.style.display = '';
-    if (btnScanner) { btnScanner.style.background = '#00DC82'; btnScanner.style.color = '#000'; }
+    var tabs = document.getElementById('scan-tabs-bar');
+    var content = document.getElementById('scan-content-area');
+    if (tabs) tabs.style.display = 'none';
+    if (content) content.style.display = 'none';
   }
 }
-window.switchAshlyvMode = switchAshlyvMode;
 
-// Wired here instead of inline onclick: the MV3 page CSP blocks inline handlers, which left
-// REPLICATOR and BRAND unreachable.
+// Wired here instead of inline onclick: the MV3 page CSP blocks inline handlers.
 (function wireAshlyvModeSwitcher() {
-  var modes = [['mode-scanner', 'scanner'], ['mode-replicator', 'replicator'], ['mode-brand', 'brand']];
-  modes.forEach(function (pair) {
+  [['mode-scanner', 'scanner'], ['mode-replicator', 'replicator'], ['mode-brand', 'brand']].forEach(function(pair) {
     var b = document.getElementById(pair[0]);
-    if (b) b.addEventListener('click', function () { switchAshlyvMode(pair[1]); });
+    if (b) b.addEventListener('click', function() { switchAshlyvMode(pair[1]); });
   });
 })();
 
-// Replicator analyze button
 (function initReplicator() {
   var btn = document.getElementById('rep-analyze-btn');
-  if (!btn) return;
   var API = window.AshlyVAPI;
-  if (!API) return;
+  if (!btn || !API) return;
 
-  btn.addEventListener('click', async function() {
-    var url = document.getElementById('rep-input-url').value.trim();
+  btn.addEventListener('click', function() {
+    var input = document.getElementById('rep-input-url').value.trim();
     var lang = document.getElementById('rep-language').value;
-    if (!url) return;
-
     var loading = document.getElementById('rep-loading');
     var results = document.getElementById('rep-results');
     var progress = document.getElementById('rep-progress');
+    var overview = document.getElementById('rep-overview-content');
+    var patterns = document.getElementById('rep-patterns-content');
+    var plan = document.getElementById('rep-plan-content');
+    if (!input) return;
+    if (!API.normalizeChannelUrl(input)) {
+      results.style.display = 'block';
+      hubMessage(overview, 'Use an @handle, a youtube.com/@handle link or a youtube.com/channel/UC... link.', 'error');
+      hubClear(patterns);
+      hubClear(plan);
+      return;
+    }
+    btn.disabled = true;
     loading.style.display = 'block';
     results.style.display = 'none';
+    progress.textContent = '1 of 2: reading the channel on YouTube';
 
-    try {
-      // Step 1: Full scan
-      progress.textContent = '1/4 Scanning channel';
-      var scan = await API.apiScanChannelFull(url, { language: lang, maxVideos: 100 });
+    API.scanChannelFull(input, { viralThreshold: 100000 }).then(function(scan) {
+      var s = scan.stats || {};
+      var m = scan.summary;
+      hubClear(overview);
+      var head = hubNode('div', 'font-size:16px;font-weight:800;margin-bottom:4px;');
+      head.appendChild(hubLink(scan.url, s.name || scan.url));
+      overview.appendChild(head);
+      hubStatGrid(overview, [
+        { value: s.subscribersText || '?', label: 'Subscribers', color: '#2EE9FF' },
+        { value: typeof s.monthsOld === 'number' ? s.monthsOld + ' mo' : '?', label: 'Channel age', color: '#00DC82' },
+        { value: hubCount(m.medianViews), label: 'Median views, last ' + m.analyzed },
+        { value: m.withViews ? m.viralCount + ' of ' + m.withViews : '?', label: 'Uploads over 100K views', color: '#FF6B6B' },
+        { value: m.withAge ? String(m.uploadsLast30Days) : '?', label: 'Uploads in the last 30 days', color: '#FFD93D' }
+      ]);
+      var unread = (s.unreadable || []).slice();
+      if (m.unreadableViews) unread.push('views of ' + m.unreadableViews + ' videos');
+      if (m.unreadableAge) unread.push('upload date of ' + m.unreadableAge + ' videos');
+      if (unread.length) hubNote(overview, 'Could not read: ' + unread.join(', ') + '.');
+      if (scan.statsError) hubNote(overview, 'The channel page could not be read: ' + scan.statsError);
+      if (scan.videosError) hubNote(overview, 'The recent videos could not be read: ' + scan.videosError);
 
-      // Step 2: Viral metrics
-      progress.textContent = '2/4 Analyzing viral patterns';
-      var viral = scan.viralMetrics || {};
-
-      // Step 3: Sub-niches
-      progress.textContent = '3/4 Generating replication angles';
-      var channelName = (scan.channel && scan.channel.name) || url;
-      var niche = (scan.analysis && scan.analysis.topKeywords && scan.analysis.topKeywords.length)
-        ? scan.analysis.topKeywords.slice(0, 3).map(function(k) { return typeof k === 'string' ? k : k.term || k; }).join(' ')
-        : channelName;
-      var subniches = await API.apiGenerateSubniches(niche, { language: lang, channel: url });
-
-      // Step 4: Render
-      progress.textContent = '4/4 Building replication plan';
-
-      // Overview
-      var ch = scan.channel || {};
-      var qf = scan.quickFilters || {};
-      document.getElementById('rep-overview-content').innerHTML =
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:18px;font-weight:800;">' + (ch.name || url) + '</div>'
-        + '<div style="font-size:10px;opacity:0.5;">Channel</div></div>'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:18px;font-weight:800;color:#2EE9FF;">' + (ch.subscriberCount || '?') + '</div>'
-        + '<div style="font-size:10px;opacity:0.5;">Subscribers</div></div>'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:18px;font-weight:800;color:#00DC82;">' + (qf.monthsOld || '?') + 'mo</div>'
-        + '<div style="font-size:10px;opacity:0.5;">Channel Age</div></div>'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:18px;font-weight:800;color:#FF6B6B;">' + (viral.viralVideoCount || 0) + '</div>'
-        + '<div style="font-size:10px;opacity:0.5;">Viral Videos</div></div>'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:18px;font-weight:800;color:#FFD93D;">' + (viral.velocityTier || '?') + '</div>'
-        + '<div style="font-size:10px;opacity:0.5;">Velocity</div></div>'
-        + '</div>';
-
-      // Patterns
-      var patterns = scan.patterns || {};
-      var patHtml = '';
-      if (patterns.hookPatterns && patterns.hookPatterns.length) {
-        patHtml += '<div style="font-size:12px;font-weight:600;color:#FFD93D;margin:6px 0;">Hook patterns:</div>';
-        patterns.hookPatterns.slice(0, 5).forEach(function(p) {
-          patHtml += '<div style="padding:4px 8px;margin:2px 0;background:rgba(0,0,0,0.2);border-radius:6px;font-size:11px;">' + (typeof p === 'string' ? p : JSON.stringify(p)) + '</div>';
+      hubClear(patterns);
+      if (m.topVideos.length) {
+        hubHeading(patterns, 'Most viewed recent uploads', '#FF6B6B');
+        hubList(patterns, m.topVideos, function(row, v) {
+          row.appendChild(hubLink(v.url, v.title));
+          row.appendChild(hubNode('span', 'opacity:0.55;', ' | ' + (v.viewsText || hubCount(v.views))));
         });
       }
-      if (patterns.titleFormulas && patterns.titleFormulas.length) {
-        patHtml += '<div style="font-size:12px;font-weight:600;color:#2EE9FF;margin:8px 0 4px;">Title formulas:</div>';
-        patterns.titleFormulas.slice(0, 5).forEach(function(f) {
-          patHtml += '<div style="padding:4px 8px;margin:2px 0;background:rgba(0,0,0,0.2);border-radius:6px;font-size:11px;">' + (typeof f === 'string' ? f : JSON.stringify(f)) + '</div>';
-        });
-      }
-      if (viral.viralVideos && viral.viralVideos.length) {
-        patHtml += '<div style="font-size:12px;font-weight:600;color:#FF6B6B;margin:8px 0 4px;">Top viral videos:</div>';
-        viral.viralVideos.slice(0, 5).forEach(function(v) {
-          patHtml += '<div style="padding:4px 8px;margin:2px 0;background:rgba(0,0,0,0.2);border-radius:6px;font-size:11px;display:flex;justify-content:space-between;">'
-            + '<span>' + v.title.slice(0, 60) + '</span><span style="color:#FF6B6B;">' + Math.round(v.views / 1000) + 'K</span></div>';
-        });
-      }
-      document.getElementById('rep-patterns-content').innerHTML = patHtml || '<span style="opacity:0.4;">No patterns detected</span>';
-
-      // Replication Plan from subniches
-      var planHtml = '';
-      if (subniches.replicationIdeas && subniches.replicationIdeas.length) {
-        subniches.replicationIdeas.forEach(function(ri, i) {
-          planHtml += '<div style="padding:10px;margin:6px 0;background:rgba(0,220,130,0.06);border-radius:8px;border-left:3px solid #00DC82;">'
-            + '<div style="font-weight:700;font-size:12px;color:#00DC82;">' + (i + 1) + '. ' + ri.originalConcept + '</div>'
-            + '<div style="font-size:11px;margin:4px 0;">Your twist: <span style="color:#2EE9FF;">' + ri.yourTwist + '</span></div>'
-            + '<div style="font-size:11px;opacity:0.5;">Differentiator: ' + ri.differentiator + '</div>'
-            + '<div style="font-size:11px;margin-top:4px;color:#FFD93D;">Example: ' + ri.exampleTitle + '</div></div>';
-        });
-      }
-      document.getElementById('rep-plan-content').innerHTML = planHtml || '<span style="opacity:0.4;">No replication ideas generated</span>';
-
-      // Sub-niches
-      var anglesHtml = '';
-      if (subniches.subNiches && subniches.subNiches.length) {
-        subniches.subNiches.forEach(function(sn, i) {
-          var dc = sn.difficulty === 'EASY' ? '#00DC82' : sn.difficulty === 'MEDIUM' ? '#FFD93D' : '#FF6B6B';
-          anglesHtml += '<div style="padding:10px;margin:6px 0;background:rgba(0,0,0,0.2);border-radius:8px;border-left:3px solid ' + dc + ';">'
-            + '<div style="font-weight:700;font-size:12px;color:#2EE9FF;">' + sn.name + '</div>'
-            + '<div style="font-size:11px;margin:3px 0;"><span style="color:' + dc + ';">' + sn.difficulty + '</span> | RPM ~$' + sn.estimatedRpm + ' | ' + sn.contentFrequency + '</div>'
-            + '<div style="font-size:11px;opacity:0.6;">' + sn.angle + '</div></div>';
-        });
-      }
-      document.getElementById('rep-angles-content').innerHTML = anglesHtml || '<span style="opacity:0.4;">No angles generated</span>';
-
-      // Content Calendar
-      var calHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
-      var days = ['Mon', 'Wed', 'Fri', 'Mon', 'Wed', 'Fri'];
-      var weekLabels = ['Week 1', 'Week 1', 'Week 1', 'Week 2', 'Week 2', 'Week 2'];
-      var allTitles = [];
-      if (subniches.subNiches) {
-        subniches.subNiches.forEach(function(sn) {
-          if (sn.exampleTitles) allTitles = allTitles.concat(sn.exampleTitles);
-        });
-      }
-      for (var d = 0; d < 6; d++) {
-        var title = allTitles[d] || 'Video ' + (d + 1);
-        calHtml += '<div style="padding:8px;background:rgba(255,217,61,0.06);border-radius:8px;">'
-          + '<div style="font-size:10px;opacity:0.4;">' + weekLabels[d] + ', ' + days[d] + '</div>'
-          + '<div style="font-size:11px;font-weight:600;margin-top:3px;">' + title + '</div></div>';
-      }
-      calHtml += '</div>';
-      document.getElementById('rep-calendar-content').innerHTML = calHtml;
+      renderTitlePatterns(patterns, scan.patterns);
 
       loading.style.display = 'none';
       results.style.display = 'block';
-
-    } catch (err) {
-      loading.style.display = 'none';
-      document.getElementById('rep-overview-content').innerHTML = '<span style="color:#FF6B6B;">Error: ' + err.message + '</span>';
-      results.style.display = 'block';
-    }
-  });
-
-  // Full Replication with scripts
-  var fullBtn = document.getElementById('rep-full-replicate-btn');
-  if (fullBtn) {
-    fullBtn.addEventListener('click', async function() {
-      var url = document.getElementById('rep-input-url').value.trim();
-      var lang = document.getElementById('rep-language').value;
-      if (!url) return;
-
-      var loading = document.getElementById('rep-loading');
-      var results = document.getElementById('rep-results');
-      var progress = document.getElementById('rep-progress');
-      loading.style.display = 'block';
-      results.style.display = 'none';
-
-      try {
-        progress.textContent = 'Generating full replication scripts with AI, 30 to 90 seconds';
-        var data = await API.apiReplicateContent(url, { language: lang, targetVideos: 5 });
-
-        var plans = data.replicationPlans || [];
-        var strategy = data.channelStrategy || {};
-        var meta = data.metadata || {};
-        var srcAnalysis = data.sourceAnalysis || {};
-
-        // Overview
-        document.getElementById('rep-overview-content').innerHTML =
-          '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;">'
-          + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-          + '<div style="font-size:16px;font-weight:800;">' + (meta.sourceChannel || url) + '</div>'
-          + '<div style="font-size:10px;opacity:0.5;">Source</div></div>'
-          + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-          + '<div style="font-size:16px;font-weight:800;color:#2EE9FF;">' + meta.videosAnalyzed + '</div>'
-          + '<div style="font-size:10px;opacity:0.5;">Analyzed</div></div>'
-          + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-          + '<div style="font-size:16px;font-weight:800;color:#FF6B6B;">' + meta.viralVideosFound + '</div>'
-          + '<div style="font-size:10px;opacity:0.5;">Viral</div></div>'
-          + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-          + '<div style="font-size:16px;font-weight:800;color:#00DC82;">' + plans.length + '</div>'
-          + '<div style="font-size:10px;opacity:0.5;">Scripts Ready</div></div></div>';
-
-        // Replication Plans (scripts)
-        var planHtml = '';
-        plans.forEach(function(plan, i) {
-          var script = plan.script || {};
-          var thumb = plan.thumbnailConcept || {};
-          var prod = plan.productionNotes || {};
-          planHtml += '<div style="padding:14px;margin:10px 0;background:rgba(0,220,130,0.04);border-radius:10px;border:1px solid rgba(0,220,130,0.15);">'
-            + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">'
-            + '<span style="font-size:15px;font-weight:800;color:#00DC82;">Video ' + plan.videoNumber + ': ' + plan.title + '</span></div>'
-            + '<div style="font-size:11px;opacity:0.5;margin-bottom:8px;">Inspired by: ' + (plan.originalInspiration || '').slice(0, 60) + ' | Angle: ' + (plan.differentiationAngle || '') + '</div>';
-
-          // Title variants
-          if (plan.titleVariants && plan.titleVariants.length) {
-            planHtml += '<div style="margin:6px 0;"><span style="font-size:10px;font-weight:700;color:#FFD93D;">Alt titles: </span><span style="font-size:10px;opacity:0.5;">' + plan.titleVariants.join(' | ') + '</span></div>';
-          }
-
-          // Thumbnail
-          planHtml += '<div style="margin:8px 0;padding:8px;background:rgba(179,136,255,0.08);border-radius:6px;">'
-            + '<div style="font-size:11px;font-weight:700;color:#B388FF;">\ud83d\uddbc\ufe0f Thumbnail</div>'
-            + '<div style="font-size:10px;margin:3px 0;">Visual: ' + (thumb.mainVisual || '') + '</div>'
-            + '<div style="font-size:10px;">Text: "' + (thumb.textOverlay || '') + '" | Colors: ' + (thumb.colorScheme || '') + '</div>'
-            + '<div style="font-size:10px;opacity:0.4;">AI Prompt: ' + (thumb.aiPrompt || '') + '</div></div>';
-
-          // Script
-          planHtml += '<div style="margin:8px 0;padding:8px;background:rgba(0,0,0,0.15);border-radius:6px;">'
-            + '<div style="font-size:11px;font-weight:700;color:#2EE9FF;">\ud83d\udcdd Script</div>'
-            + '<div style="font-size:11px;color:#FF6B6B;margin:4px 0;"><b>Hook:</b> ' + (script.hook || '') + '</div>'
-            + '<div style="font-size:11px;margin:4px 0;"><b>Intro:</b> ' + (script.intro || '') + '</div>';
-          if (script.sections && script.sections.length) {
-            script.sections.forEach(function(sec) {
-              planHtml += '<div style="margin:4px 0;padding:4px 6px;border-left:2px solid rgba(255,255,255,0.1);">'
-                + '<div style="font-size:10px;font-weight:600;">' + sec.sectionTitle + ' (' + sec.durationSeconds + 's)</div>'
-                + '<div style="font-size:10px;opacity:0.7;">' + (sec.script || '').slice(0, 200) + '</div>'
-                + '<div style="font-size:9px;opacity:0.4;">Visual: ' + (sec.visualNotes || '') + '</div></div>';
-            });
-          }
-          planHtml += '<div style="font-size:11px;margin:4px 0;"><b>Outro:</b> ' + (script.outro || '') + '</div>'
-            + '<div style="font-size:10px;opacity:0.4;">Duration: ' + (script.totalEstimatedDuration || '') + '</div></div>';
-
-          // Production notes
-          planHtml += '<div style="margin:6px 0;font-size:10px;opacity:0.5;">'
-            + 'Voice: ' + (prod.voiceStyle || '') + ' | Music: ' + (prod.musicMood || '') + ' | Edit: ' + (prod.editingStyle || '')
-            + '</div>';
-
-          // Tags
-          if (plan.tags && plan.tags.length) {
-            planHtml += '<div style="display:flex;flex-wrap:wrap;gap:3px;margin:4px 0;">';
-            plan.tags.slice(0, 10).forEach(function(tag) {
-              planHtml += '<span style="font-size:9px;padding:2px 6px;background:rgba(255,255,255,0.06);border-radius:3px;">#' + tag + '</span>';
-            });
-            planHtml += '</div>';
-          }
-
-          planHtml += '</div>';
+      hubMessage(plan, 'Asking your AI provider for ideas built on these videos', 'busy');
+      progress.textContent = '2 of 2: writing replication ideas with AI';
+      return API.replicate(scan.url, lang).then(function(r) {
+        hubClear(plan);
+        hubAiLabel(plan, r.provider, r.model);
+        if (r.basedOn.length) hubNote(plan, 'Built on these real titles: ' + r.basedOn.slice(0, 6).join(' | '));
+        if (!r.videos.length) { hubNote(plan, 'The AI returned no ideas. Try again.'); return; }
+        hubList(plan, r.videos, function(row, v, i) {
+          row.appendChild(hubNode('div', 'font-weight:700;color:#00DC82;', (i + 1) + '. ' + String(v.title)));
+          if (v.hook) row.appendChild(hubNode('div', 'opacity:0.75;margin-top:2px;', 'Hook: ' + String(v.hook)));
         });
-        document.getElementById('rep-plan-content').innerHTML = planHtml || '<span style="opacity:0.4;">No plans generated</span>';
-
-        // Strategy
-        var stratHtml = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
-          + '<div style="padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;"><div style="font-size:10px;opacity:0.5;">Upload Frequency</div><div style="font-size:12px;font-weight:600;">' + (strategy.uploadFrequency || '?') + '</div></div>'
-          + '<div style="padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;"><div style="font-size:10px;opacity:0.5;">First Month Goal</div><div style="font-size:12px;font-weight:600;">' + (strategy.firstMonthGoal || '?') + '</div></div>'
-          + '<div style="padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;"><div style="font-size:10px;opacity:0.5;">Differentiator</div><div style="font-size:12px;font-weight:600;">' + (strategy.keyDifferentiator || '?') + '</div></div>'
-          + '<div style="padding:8px;background:rgba(0,0,0,0.2);border-radius:8px;"><div style="font-size:10px;opacity:0.5;">Audience Overlap</div><div style="font-size:12px;font-weight:600;">' + (strategy.audienceOverlap || '?') + '</div></div></div>';
-        document.getElementById('rep-angles-content').innerHTML = stratHtml;
-
-        // Clear calendar and patterns since this mode replaces them
-        document.getElementById('rep-patterns-content').innerHTML = '<span style="opacity:0.4;">See full scripts above</span>';
-        document.getElementById('rep-calendar-content').innerHTML = '<span style="opacity:0.4;">Follow the strategy grid above</span>';
-
-        loading.style.display = 'none';
-        results.style.display = 'block';
-
-      } catch (err) {
-        loading.style.display = 'none';
-        document.getElementById('rep-overview-content').innerHTML = '<span style="color:#FF6B6B;">Error: ' + err.message + '</span>';
-        results.style.display = 'block';
-      }
+      }, hubFailure(plan));
+    }).catch(function(err) {
+      loading.style.display = 'none';
+      results.style.display = 'block';
+      hubFailure(overview)(err);
+      hubClear(patterns);
+      hubClear(plan);
+    }).then(function() {
+      btn.disabled = false;
     });
-  }
+  });
 })();
 
-// Brand Builder Logic
 (function initBrandBuilder() {
   var btn = document.getElementById('brand-generate-btn');
-  if (!btn) return;
   var API = window.AshlyVAPI;
-  if (!API) return;
+  if (!btn || !API) return;
 
-  btn.addEventListener('click', async function() {
+  btn.addEventListener('click', function() {
     var niche = document.getElementById('brand-niche-input').value.trim();
     var tone = document.getElementById('brand-tone').value;
     var lang = document.getElementById('brand-language').value;
+    var names = document.getElementById('brand-names-content');
+    var bio = document.getElementById('brand-bio-content');
+    var strategy = document.getElementById('brand-strategy-content');
+    var loading = document.getElementById('brand-loading');
+    var results = document.getElementById('brand-results');
     if (!niche) return;
+    btn.disabled = true;
+    loading.style.display = 'block';
+    results.style.display = 'none';
 
-    document.getElementById('brand-loading').style.display = 'block';
-    document.getElementById('brand-results').style.display = 'none';
-
-    try {
-      var data = await API.apiBuildBrand(niche, { language: lang, tone: tone });
-
-      // Names
-      var namesHtml = '';
-      if (data.channelNames && data.channelNames.length) {
-        data.channelNames.forEach(function(n) {
-          var seoColor = n.seoScore === 'HIGH' ? '#00DC82' : n.seoScore === 'MEDIUM' ? '#FFD93D' : '#FF6B6B';
-          namesHtml += '<div style="padding:10px;margin:6px 0;background:rgba(0,0,0,0.2);border-radius:8px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">'
-            + '<div><div style="font-size:16px;font-weight:800;color:#FFD93D;">' + n.name + '</div>'
-            + '<div style="font-size:11px;opacity:0.5;">' + n.handle + ' | ' + n.reasoning + '</div></div>'
-            + '<div style="display:flex;gap:4px;">'
-            + '<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:' + seoColor + '22;color:' + seoColor + ';">SEO: ' + n.seoScore + '</span>'
-            + '<span style="font-size:9px;padding:2px 6px;border-radius:3px;background:rgba(179,136,255,0.2);color:#B388FF;">Memo: ' + n.memorability + '</span>'
-            + '</div></div>';
-        });
-      }
-      document.getElementById('brand-names-content').innerHTML = namesHtml;
-
-      // Bio
-      var bio = data.bio || {};
-      var bioHtml = '<div style="font-size:14px;font-weight:700;color:#B388FF;margin-bottom:4px;">"' + (bio.short || '') + '"</div>'
-        + '<div style="font-size:12px;opacity:0.7;margin:8px 0;padding:8px;background:rgba(0,0,0,0.15);border-radius:6px;white-space:pre-wrap;">' + (bio.full || '') + '</div>';
-      if (bio.keywords && bio.keywords.length) {
-        bioHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;">';
-        bio.keywords.forEach(function(k) {
-          bioHtml += '<span style="font-size:10px;padding:2px 6px;background:rgba(255,255,255,0.06);border-radius:3px;">' + k + '</span>';
-        });
-        bioHtml += '</div>';
-      }
-      document.getElementById('brand-bio-content').innerHTML = bioHtml;
-
-      // Visual Identity
-      var vis = data.visualIdentity || {};
-      var visHtml = '';
-      if (vis.colorPalette && vis.colorPalette.length) {
-        visHtml += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">';
-        vis.colorPalette.forEach(function(c) {
-          visHtml += '<div style="text-align:center;"><div style="width:50px;height:50px;border-radius:8px;background:' + c.hex + ';border:1px solid rgba(255,255,255,0.1);"></div>'
-            + '<div style="font-size:9px;margin-top:3px;">' + c.name + '</div><div style="font-size:8px;opacity:0.4;">' + c.hex + '</div></div>';
-        });
-        visHtml += '</div>';
-      }
-      var thumb = vis.thumbnailStyle || {};
-      visHtml += '<div style="padding:8px;background:rgba(0,0,0,0.15);border-radius:6px;margin:6px 0;">'
-        + '<div style="font-size:11px;font-weight:600;color:#2EE9FF;">Thumbnail Style</div>'
-        + '<div style="font-size:10px;opacity:0.7;">Layout: ' + (thumb.layout || '') + '</div>'
-        + '<div style="font-size:10px;opacity:0.7;">Recurring: ' + (thumb.recurringElements || '') + '</div>'
-        + '<div style="font-size:9px;opacity:0.4;margin-top:3px;">AI Prompt: ' + (thumb.examplePrompt || '') + '</div></div>';
-      var avatar = vis.avatarConcept || {};
-      visHtml += '<div style="padding:8px;background:rgba(0,0,0,0.15);border-radius:6px;margin:6px 0;">'
-        + '<div style="font-size:11px;font-weight:600;color:#B388FF;">Avatar / Logo</div>'
-        + '<div style="font-size:10px;opacity:0.7;">' + (avatar.description || '') + '</div>'
-        + '<div style="font-size:9px;opacity:0.4;">AI Prompt: ' + (avatar.aiPrompt || '') + '</div></div>';
-      document.getElementById('brand-visual-content').innerHTML = visHtml;
-
-      // Strategy
-      var strat = data.contentStrategy || {};
-      var stratHtml = '<div style="margin-bottom:8px;font-size:12px;"><b>Upload:</b> ' + (strat.uploadSchedule || '?') + '</div>';
-      if (strat.pillarTopics) {
-        stratHtml += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0;">';
-        strat.pillarTopics.forEach(function(p) {
-          stratHtml += '<span style="font-size:10px;padding:3px 8px;background:rgba(0,220,130,0.12);border-radius:4px;color:#00DC82;">' + p + '</span>';
-        });
-        stratHtml += '</div>';
-      }
-      if (strat.firstMonth && strat.firstMonth.length) {
-        stratHtml += '<div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">';
-        strat.firstMonth.forEach(function(w) {
-          stratHtml += '<div style="padding:8px;background:rgba(0,0,0,0.15);border-radius:6px;">'
-            + '<div style="font-size:10px;font-weight:700;color:#FFD93D;">Week ' + w.week + '</div>';
-          if (w.videos) {
-            w.videos.forEach(function(v) { stratHtml += '<div style="font-size:10px;opacity:0.7;margin:2px 0;">\u25b8 ' + v + '</div>'; });
-          }
-          stratHtml += '</div>';
-        });
-        stratHtml += '</div>';
-      }
-      document.getElementById('brand-strategy-content').innerHTML = stratHtml;
-
-      // Monetization
-      var mon = data.monetization || {};
-      document.getElementById('brand-money-content').innerHTML =
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;">'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:18px;font-weight:800;color:#00DC82;">$' + (mon.estimatedRpm || '?') + '</div>'
-        + '<div style="font-size:10px;opacity:0.5;">RPM</div></div>'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:18px;font-weight:800;color:#FFD93D;">' + (mon.revenueAt100kViews || '?') + '</div>'
-        + '<div style="font-size:10px;opacity:0.5;">per 100K views</div></div>'
-        + '<div style="padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;text-align:center;">'
-        + '<div style="font-size:14px;font-weight:800;color:#2EE9FF;">' + (mon.timeToMonetization || '?') + '</div>'
-        + '<div style="font-size:10px;opacity:0.5;">to monetize</div></div></div>';
-
-      document.getElementById('brand-loading').style.display = 'none';
-      document.getElementById('brand-results').style.display = 'block';
-
-    } catch (err) {
-      document.getElementById('brand-loading').style.display = 'none';
-      document.getElementById('brand-names-content').innerHTML = '<span style="color:#FF6B6B;">Error: ' + err.message + '</span>';
-      document.getElementById('brand-results').style.display = 'block';
-    }
+    API.buildBrand(niche, tone, lang).then(function(d) {
+      hubClear(names);
+      hubAiLabel(names, d.provider, d.model);
+      hubNote(names, 'Check that a name and its handle are free on YouTube before you use them.');
+      hubList(names, d.channelNames, function(row, n) {
+        if (n && typeof n === 'object') {
+          row.appendChild(hubNode('div', 'font-size:15px;font-weight:800;color:#FFD93D;', hubTextOf(n.name)));
+          var extra = [n.handle, n.reasoning || n.why].map(hubTextOf).filter(Boolean).join(' | ');
+          if (extra) row.appendChild(hubNode('div', 'opacity:0.6;font-size:11px;', extra));
+        } else {
+          row.appendChild(hubNode('div', 'font-size:15px;font-weight:800;color:#FFD93D;', hubTextOf(n)));
+        }
+      });
+      if (!d.channelNames.length) hubNote(names, 'The AI returned no names. Try again.');
+      hubClear(bio);
+      bio.appendChild(hubNode('div', 'font-size:13px;line-height:1.6;white-space:pre-wrap;', hubTextOf(d.bio) || 'No bio returned.'));
+      hubClear(strategy);
+      strategy.appendChild(hubNode('div', 'font-size:13px;line-height:1.6;white-space:pre-wrap;', hubTextOf(d.strategySummary) || 'No strategy returned.'));
+    }).catch(function(err) {
+      hubFailure(names)(err);
+      hubClear(bio);
+      hubClear(strategy);
+    }).then(function() {
+      btn.disabled = false;
+      loading.style.display = 'none';
+      results.style.display = 'block';
+    });
   });
 })();
 

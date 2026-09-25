@@ -7,18 +7,18 @@
   var _gkey = '', _vids = [], _view = 'discover', _sort = 'views', _label = '';
 
   var NICHES = [
- { n:'Mystery', q:'unsolved mystery documentary', i:''},
- { n:'History', q:'ancient history documentary', i:''},
- { n:'True Crime', q:'true crime story', i:''},
- { n:'Horror', q:'scary horror story narration', i:''},
- { n:'Documentary', q:'full documentary', i:''},
- { n:'Finance', q:'how to make money online', i:''},
- { n:'Motivation', q:'stoicism discipline motivation', i:''},
- { n:'Sleep / Relax', q:'relaxing sleep music rain', i:''},
- { n:'Space and science', q:'space universe explained', i:''},
- { n:'Gaming', q:'gaming gameplay edit', i:''},
- { n:'Real Life', q:'i spent 24 hours challenge', i:''},
- { n:'Anime / Cartoon', q:'animated story explained', i:''}
+    { n:'Mystery', q:'unsolved mystery documentary' },
+    { n:'History', q:'ancient history documentary' },
+    { n:'True Crime', q:'true crime story' },
+    { n:'Horror', q:'scary horror story narration' },
+    { n:'Documentary', q:'full documentary' },
+    { n:'Finance', q:'how to make money online' },
+    { n:'Motivation', q:'stoicism discipline motivation' },
+    { n:'Sleep / Relax', q:'relaxing sleep music rain' },
+    { n:'Space and science', q:'space universe explained' },
+    { n:'Gaming', q:'gaming gameplay edit' },
+    { n:'Real Life', q:'i spent 24 hours challenge' },
+    { n:'Anime / Cartoon', q:'animated story explained' }
   ];
 
   var _seed = '';
@@ -119,7 +119,7 @@
   function genVision(key, prompt, imgs) {
     var parts = [{ text: prompt }]; imgs.forEach(function (b) { if (b) parts.push({ inlineData: { mimeType: 'image/jpeg', data: b } }); });
     var body = { contents: [{ parts: parts }], generationConfig: { temperature: 0.6 } };
-    var models = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-flash-latest'], i = 0;
+    var models = ['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-flash-latest'], i = 0;
     return new Promise(function (resolve, reject) {
       (function tryM() {
         if (i >= models.length) return reject(new Error('No vision model available'));
@@ -151,6 +151,21 @@
   function isFav(id) { return favs().some(function (f) { return f.id === id; }); }
   function toggleFav(v) { var a = favs(), idx = a.map(function (f) { return f.id; }).indexOf(v.id); if (idx >= 0) a.splice(idx, 1); else a.unshift({ id: v.id, title: v.title, vn: v.vn, channel: v.channel, niche: _label }); setFavs(a); }
 
+  // The heart is drawn, not typed: the state lives in aria-pressed and the "on" class, the icon only follows it.
+  function heartIcon() {
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('width', '16'); svg.setAttribute('height', '16'); svg.setAttribute('aria-hidden', 'true');
+    var path = document.createElementNS(ns, 'path'); path.setAttribute('d', 'M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.6 4.5c2.1 0 3.6 1.2 5.4 3.2 1.8-2 3.3-3.2 5.4-3.2 3.6 0 5.7 3.9 4.2 7.3C19.5 16.4 12 21 12 21z');
+    path.setAttribute('stroke', 'currentColor'); path.setAttribute('stroke-width', '2'); path.setAttribute('stroke-linejoin', 'round');
+    svg.appendChild(path); return svg;
+  }
+  function paintFav(btn, on) {
+    btn.className = 'tl-fav' + (on ? ' on' : '');
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.setAttribute('aria-label', on ? 'Remove from favorites' : 'Save to favorites');
+    btn.title = on ? 'Remove from favorites' : 'Save to favorites';
+    var path = btn.querySelector('path'); if (path) path.setAttribute('fill', on ? 'currentColor' : 'none');
+  }
   function card(title) { var c = document.createElement('div'); c.className = 'tk-card'; if (title) { var h = document.createElement('h3'); h.textContent = title; c.appendChild(h); } return c; }
   function copyBtn(text, label) { var b = document.createElement('button'); b.className = 'tk-btn sm'; b.textContent = label || 'Copy'; b.addEventListener('click', function () { TK.copy(text, b); }); return b; }
 
@@ -160,8 +175,8 @@
     var im = document.createElement('img'); im.className = 'tl-thumb'; im.loading = 'lazy'; im.src = thumbUrl(v.id); im.alt = v.title;
     tw.appendChild(im);
     if (badge) { var bd = document.createElement('span'); bd.className = 'tl-badge'; bd.textContent = badge; tw.appendChild(bd); }
- var fv = document.createElement('button'); fv.className ='tl-fav'+ (isFav(v.id) ?'on':''); fv.textContent = isFav(v.id) ?'':''; fv.title ='Favorite';
- fv.addEventListener('click', function (e) { e.stopPropagation(); toggleFav(v); fv.className ='tl-fav'+ (isFav(v.id) ?'on':''); fv.textContent = isFav(v.id) ?'':''; });
+    var fv = document.createElement('button'); fv.type = 'button'; fv.appendChild(heartIcon()); paintFav(fv, isFav(v.id));
+    fv.addEventListener('click', function (e) { e.stopPropagation(); toggleFav(v); paintFav(fv, isFav(v.id)); });
     tw.appendChild(fv);
     tw.addEventListener('click', function () { window.open('https://www.youtube.com/watch?v=' + v.id, '_blank'); });
     d.appendChild(tw);
@@ -169,7 +184,8 @@
     var tt = document.createElement('div'); tt.className = 'tl-vt'; tt.textContent = v.title; info.appendChild(tt);
     var vm = document.createElement('div'); vm.className = 'tl-vm';
     var ch = document.createElement('span'); ch.textContent = v.channel || ''; ch.style.cssText = 'max-width:55%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;';
- var st = document.createElement('span'); st.innerHTML ='<span class="v">'+ fmt(v.vn) +'</span>'+ (v.vph ?'·'+ fmt(Math.round(v.vph)) +'/h':'');
+    var st = document.createElement('span'); var sv = document.createElement('span'); sv.className = 'v'; sv.textContent = fmt(v.vn); st.appendChild(sv);
+    if (v.vph) st.appendChild(document.createTextNode(' · ' + fmt(Math.round(v.vph)) + '/h'));
     vm.appendChild(ch); vm.appendChild(st); info.appendChild(vm);
     d.appendChild(info);
     return d;
@@ -227,7 +243,7 @@
       if (px.palette && px.palette.length) {
         var pl = document.createElement('div'); pl.style.cssText = 'font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.6);margin-top:14px;'; pl.textContent = 'Dominant palette, click to copy'; c.appendChild(pl);
         var sw = document.createElement('div'); sw.style.cssText = 'display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;';
- px.palette.forEach(function (hex) { var chip = document.createElement('button'); chip.title ='Copy'+ hex; chip.style.cssText ='width:56px;height:56px;border-radius:10px;border:1px solid rgba(255,255,255,.18);cursor:pointer;position:relative;background:'+ hex +';'; var lab = document.createElement('span'); lab.style.cssText ='position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:800;background:rgba(0,0,0,.6);color:#fff;padding:2px 0;'; lab.textContent = hex; chip.appendChild(lab); chip.addEventListener('click', function () { TK.copy(hex, null); lab.textContent =''; setTimeout(function () { lab.textContent = hex; }, 800); }); sw.appendChild(chip); });
+        px.palette.forEach(function (hex) { var chip = document.createElement('button'); chip.type = 'button'; chip.title = 'Copy ' + hex; chip.setAttribute('aria-label', 'Copy ' + hex); chip.style.cssText = 'width:56px;height:56px;border-radius:10px;border:1px solid rgba(255,255,255,.18);cursor:pointer;position:relative;background:' + hex + ';'; var lab = document.createElement('span'); lab.style.cssText = 'position:absolute;left:0;right:0;bottom:0;font-size:8px;font-weight:800;background:rgba(0,0,0,.6);color:#fff;padding:2px 0;'; lab.textContent = hex; chip.appendChild(lab); chip.addEventListener('click', function () { TK.copy(hex, null); lab.textContent = 'Copied'; setTimeout(function () { lab.textContent = hex; }, 800); }); sw.appendChild(chip); });
         c.appendChild(sw);
       }
     }
@@ -250,7 +266,7 @@
       holder.innerHTML = ''; holder.style.padding = '0';
       var im = document.createElement('img'); im.src = dataUrl; im.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;'; holder.appendChild(im); b.innerHTML = '';
       var dl = document.createElement('button'); dl.className = 'tk-btn sm'; dl.textContent = 'Download'; dl.addEventListener('click', function () { var a = document.createElement('a'); a.href = dataUrl; a.download = 'thumblab-' + (i + 1) + '.png'; document.body.appendChild(a); a.click(); setTimeout(function () { try { document.body.removeChild(a); } catch (e) {} }, 2000); });
- var re = document.createElement('button'); re.className ='tk-btn sm'; re.textContent =''; re.title ='Another variant'; re.addEventListener('click', gen);
+      var re = document.createElement('button'); re.className = 'tk-btn sm'; re.textContent = 'New variant'; re.title = 'Generate another variant'; re.addEventListener('click', gen);
       b.appendChild(dl); b.appendChild(re); b.appendChild(copyBtn(prompt, 'Prompt'));
     }
     function gen() { if (!_gkey) { holder.innerHTML = ''; holder.textContent = 'Gemini key missing'; b.innerHTML = ''; b.appendChild(copyBtn(prompt, 'Copy prompt')); return; } holder.innerHTML = '<span class="tk-spin"></span>'; b.innerHTML = ''; genImage(_gkey, prompt).then(paint).catch(function () { holder.innerHTML = ''; holder.textContent = 'Could not generate'; b.innerHTML = ''; b.appendChild(copyBtn(prompt, 'Copy prompt')); }); }
@@ -309,7 +325,7 @@
   function renderSidebar() {
     var nv = $('tl-niches'); nv.innerHTML = '';
     NICHES.forEach(function (nn) {
-      var b = document.createElement('button'); b.setAttribute('data-niche', nn.n); b.innerHTML = '<span>' + nn.i + '</span><span>' + nn.n + '</span>';
+      var b = document.createElement('button'); b.setAttribute('data-niche', nn.n); b.textContent = nn.n;
       b.addEventListener('click', function () { setActive(nv, 'data-niche', nn.n); loadQuery(nn.q, nn.n); });
       nv.appendChild(b);
     });

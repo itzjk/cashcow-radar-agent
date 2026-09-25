@@ -9,8 +9,6 @@ const TIER_CLASSES = {
 };
 
 let sessionData = null;
-let watchlist = [];
-let savedChannels = [];
 
 //  Boot 
 document.addEventListener('DOMContentLoaded', () => {
@@ -37,13 +35,7 @@ function openOnClick(id, page) {
 }
 
 function loadData() {
-  // Read channels from chrome.storage.local (reliable, no tab dependency)
-  chrome.storage.local.get('nsp_all_channels', (storageRes) => {
-    savedChannels = storageRes.nsp_all_channels || [];
-    renderChannels();
-  });
-
-  // Read session + watchlist from active YouTube tab's localStorage
+  // The session lives in the localStorage of the active YouTube tab.
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const tab = tabs[0];
     if (tab && tab.url && tab.url.includes('youtube.com')) {
@@ -53,23 +45,19 @@ function loadData() {
         func: () => {
           try {
             const s = localStorage.getItem('nsp_session');
-            const w = localStorage.getItem('nsp_watchlist');
-            return { session: s ? JSON.parse(s) : null, watchlist: w ? JSON.parse(w) : [] };
-          } catch { return { session: null, watchlist: [] }; }
+            return { session: s ? JSON.parse(s) : null };
+          } catch { return { session: null }; }
         },
       }, (results) => {
-        if (chrome.runtime.lastError) { renderStats(null); renderTopVideos([]); renderWatchlist(); return; }
+        if (chrome.runtime.lastError) { renderStats(null); renderTopVideos([]); return; }
         const res = results?.[0]?.result || {};
         sessionData = res.session || null;
-        watchlist = res.watchlist || [];
         renderStats(sessionData);
         renderTopVideos(sessionData?.topVideos || []);
-        renderWatchlist();
       });
     } else {
       renderStats(null);
       renderTopVideos([]);
-      renderWatchlist();
     }
   });
 }
@@ -115,9 +103,9 @@ function renderTopVideos(videos) {
 
     const tierClass = TIER_CLASSES[v.tier] || '';
     const multStr = v.outlierRatio !== null && v.outlierRatio !== undefined
-      ? `<span class="metric-chip mc-mult">${formatMult(v.outlierRatio)}</span>` : '';
+      ? `<span class="metric-chip mc-mult">${escHtml(formatMult(v.outlierRatio))}</span>` : '';
     const tierBadge = v.tier && v.tier !== 'SLOW'
-      ? `<span class="metric-chip ${tierClass}">${v.tier}</span>` : '';
+      ? `<span class="metric-chip ${tierClass}">${escHtml(v.tier)}</span>` : '';
 
     item.innerHTML = `
       <div class="video-rank">#${i + 1}</div>
@@ -125,207 +113,21 @@ function renderTopVideos(videos) {
         <div class="video-title">${escHtml(v.title)}</div>
         <div class="video-channel">${escHtml(v.channelName)}</div>
         <div class="video-metrics">
-          <span class="metric-chip mc-vph"> ${formatVPH(v.vph)} VPH</span>
+          <span class="metric-chip mc-vph">${escHtml(formatVPH(v.vph))} VPH</span>
           ${multStr}
           ${tierBadge}
-          <span class="metric-chip" style="color:rgba(255,255,255,.8);background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)">OS:${v.os}</span>
+          <span class="metric-chip" style="color:rgba(255,255,255,.8);background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.2)">OS ${escHtml(v.os)}</span>
         </div>
       </div>
     `;
 
     item.addEventListener('click', () => {
-      chrome.tabs.create({ url: `https://www.youtube.com/watch?v=${v.videoId}` });
+      chrome.tabs.create({ url: `https://www.youtube.com/watch?v=${encodeURIComponent(v.videoId || '')}` });
     });
 
     list.appendChild(item);
   });
 }
-
-//  Channels 
-function renderChannels() {
-  if (!document.getElementById('channels-list')) return;
-
-  const list  = document.getElementById('channels-list');
-  const empty = document.getElementById('empty-channels');
-
-  if (!savedChannels || !savedChannels.length) {
-    list.style.display  = 'none';
-    empty.style.display = 'block';
-    return;
-  }
-  empty.style.display = 'none';
-  list.style.display  = 'flex';
-  list.innerHTML = '';
-
-  savedChannels.forEach((ch, idx) => {
-    const card = document.createElement('div');
-    card.className = 'ch-card';
-
-    // Avatar (clickable  open channel)
-    const avatarWrap = document.createElement('a');
-    avatarWrap.href = '#';
-    avatarWrap.className = 'ch-avatar-wrap';
-    avatarWrap.title = 'Open channel';
-    avatarWrap.addEventListener('click', (e) => {
-      e.preventDefault();
-      chrome.tabs.create({ url: ch.channelUrl });
-    });
-
-    if (ch.avatarUrl) {
-      const img = document.createElement('img');
-      img.src = ch.avatarUrl;
-      img.className = 'ch-avatar';
-      img.alt = ch.name;
-      img.onerror = function() { this.style.display = 'none'; avatarWrap.textContent = (ch.name || '?')[0].toUpperCase(); };
-      avatarWrap.appendChild(img);
-    } else {
-      avatarWrap.textContent = (ch.name || '?')[0].toUpperCase();
-      avatarWrap.style.cssText += 'display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:800;color:#fff;';
-    }
-    card.appendChild(avatarWrap);
-
-    // Info
-    const info = document.createElement('div');
-    info.className = 'ch-info';
-
-    const nameEl = document.createElement('div');
-    nameEl.className = 'ch-name';
-    nameEl.textContent = ch.name || 'Channel';
-    nameEl.title = 'Open channel';
-    nameEl.addEventListener('click', () => chrome.tabs.create({ url: ch.channelUrl }));
-    info.appendChild(nameEl);
-
-    const meta = document.createElement('div');
-    meta.className = 'ch-meta';
-
-    if (ch.niche) {
-      const nc = document.createElement('span');
-      nc.className = 'ch-chip ch-chip-purple';
-      nc.textContent = ch.niche;
-      meta.appendChild(nc);
-    }
-
-    const subsChip = document.createElement('span');
-    subsChip.className = 'ch-chip ch-chip-blue';
-    subsChip.textContent = ' ' + formatN(ch.subs || 0);
-    meta.appendChild(subsChip);
-
-    if (ch.subGrowth !== null && ch.subGrowth !== undefined) {
-      const gc = document.createElement('span');
-      gc.className = 'ch-chip ' + (ch.subGrowth >= 0 ? 'ch-chip-green' : 'ch-chip-red');
-      gc.textContent = (ch.subGrowth >= 0 ? '+' : '') + formatN(ch.subGrowth) + '/mo';
-      meta.appendChild(gc);
-    }
-
-    if (ch.revMonth > 0) {
-      const rv = document.createElement('span');
-      rv.className = 'ch-chip ch-chip-green';
-      rv.textContent = (ch.revMonth >= 1000 ? '$' + (ch.revMonth/1000).toFixed(1) + 'K' : '$' + ch.revMonth) + '/mo';
-      meta.appendChild(rv);
-    }
-
-    const mon = document.createElement('span');
-    if (ch.monetized === 'yes')    { mon.className = 'ch-chip ch-chip-green'; mon.textContent = 'Monetized'; }
-    else if (ch.monetized === 'likely') { mon.className = 'ch-chip ch-chip-yellow'; mon.textContent = 'Likely monetized'; }
-    else if (ch.monetized === 'no')  { mon.className = 'ch-chip ch-chip-red';   mon.textContent = 'Not monetized'; }
-    else                             { mon.className = 'ch-chip'; mon.textContent = ''; }
-    meta.appendChild(mon);
-
-    info.appendChild(meta);
-    card.appendChild(info);
-
-    // Remove button
-    const rmBtn = document.createElement('button');
-    rmBtn.className = 'ch-remove';
-    rmBtn.textContent = '';
-    rmBtn.title = 'Remove';
-    rmBtn.addEventListener('click', () => {
-      savedChannels.splice(idx, 1);
-      saveChannels();
-      renderChannels();
-    });
-    card.appendChild(rmBtn);
-
-    list.appendChild(card);
-  });
-}
-
-function saveChannels() {
-  chrome.storage.local.set({ nsp_all_channels: savedChannels });
-}
-
-function formatN(n) {
-  if (!n) return '0';
-  if (n >= 1e9)  return (n / 1e9).toFixed(1) + 'B';
-  if (n >= 1e6)  return (n / 1e6).toFixed(1) + 'M';
-  if (n >= 1000) return Math.round(n / 1000) + 'K';
-  return '' + Math.round(n);
-}
-
-//  Watchlist 
-function renderWatchlist() {
-  if (!document.getElementById('watchlist-items')) return;
-
-  const container = document.getElementById('watchlist-items');
-  const empty = document.getElementById('empty-watchlist');
-
-  if (!watchlist.length) {
-    container.style.display = 'none';
-    empty.style.display = 'block';
-    return;
-  }
-
-  empty.style.display = 'none';
-  container.style.display = 'block';
-  container.innerHTML = '';
-
-  watchlist.forEach((keyword, idx) => {
-    const item = document.createElement('div');
-    item.className = 'wl-item';
-    item.innerHTML = `
-      <span class="wl-keyword">${escHtml(keyword)}</span>
-      <button class="wl-search-btn" data-idx="${idx}" title="Search on YouTube"></button>
-      <button class="wl-remove-btn" data-idx="${idx}" title="Remove"></button>
-    `;
-    item.querySelector('.wl-search-btn').addEventListener('click', () => {
-      chrome.tabs.create({ url: `https://www.youtube.com/results?search_query=${encodeURIComponent(keyword)}` });
-    });
-    item.querySelector('.wl-remove-btn').addEventListener('click', () => {
-      watchlist.splice(idx, 1);
-      saveWatchlist();
-      renderWatchlist();
-    });
-    container.appendChild(item);
-  });
-}
-
-
-function addKeyword() {
-  const input = document.getElementById('wl-input');
-  const val = input.value.trim();
-  if (!val || watchlist.includes(val)) return;
-  watchlist.push(val);
-  saveWatchlist();
-  input.value = '';
-  renderWatchlist();
-}
-
-function saveWatchlist() {
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    const tab = tabs[0];
-    if (tab?.url?.includes('youtube.com')) {
-      const wl = JSON.stringify(watchlist);
-      chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        world: 'MAIN',
-        func: (data) => { localStorage.setItem('nsp_watchlist', data); },
-        args: [wl],
-      }, () => { if (chrome.runtime.lastError) { /* tab gone or not permitted: the list stays in memory and rendered, it just does not reach the tab */ } });
-    }
-  });
-}
-
-//  Tabs 
 
 //  Footer 
 function bindFooter() {
