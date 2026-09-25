@@ -686,7 +686,7 @@ function measureGrowth() {
       if (!err && res && res.ok) {
         var snap = {
           ts: Date.now(),
-          subs: parseCount(res.subscribers),
+          subs: typeof res.subscriberCount === 'number' ? res.subscriberCount : parseCount(res.subscribers),
           views: parseCount(res.totalViews),
           videos: parseCount(res.videoCount)
         };

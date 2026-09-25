@@ -19,7 +19,8 @@
     "downloads",
     "offscreen",
     "sidePanel",
-    "activeTab"
+    "activeTab",
+    "declarativeNetRequestWithHostAccess"
   ],
   "host_permissions": [
     "https://www.youtube.com/*",

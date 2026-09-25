@@ -645,6 +645,53 @@ function nspChannelUrl(raw) {
   return /^https:\/\/www\.youtube\.com\/(?:@[^\/\s]{1,100}|channel\/UC[A-Za-z0-9_-]{22}|c\/[^\/\s]{1,100}|user\/[^\/\s]{1,100})$/.test(u) ? u : '';
 }
 
+// A channel's About figures, read from the structured model the About panel renders (aboutChannelViewModel), in
+// English so the numbers parse. A regex over the HTML used to return another video's view count as the channel's.
+async function nspReadChannelStats(rawUrl) {
+  var chUrl = nspChannelUrl(rawUrl);
+  if (!chUrl) return { ok: false, error: 'invalid_channel_url', detail: 'Expected https://www.youtube.com/@handle or /channel/UC...' };
+  try {
+    var resp = await nspFetchTimeout(chUrl + '/about?hl=en&gl=US', { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'en-US,en' } }, 20000);
+    var initial = nspExtractYtInitialData(await resp.text());
+    if (!initial) return { ok: false, error: 'ytinitialdata_not_found', channelUrl: chUrl };
+    var about = nspFindKey(initial, 'aboutChannelViewModel', 0);
+    var meta = (initial.metadata && initial.metadata.channelMetadataRenderer) || {};
+    if (!about) return { ok: false, error: 'about_panel_not_found', detail: 'YouTube did not send the About panel for this channel, so no figure is given rather than a wrong one.', channelUrl: chUrl };
+    var joinedText = String((about.joinedDateText && (about.joinedDateText.content || about.joinedDateText.simpleText)) || about.joinedDateText || '');
+    var joinedMs = Date.parse(joinedText.replace(/^joined\s+/i, ''));
+    var subsText = String(about.subscriberCountText || '');
+    var viewsText = String(about.viewCountText || '');
+    var videosText = String(about.videoCountText || '');
+    return {
+      ok: true,
+      channelUrl: chUrl,
+      channelId: String(about.channelId || meta.externalId || ''),
+      name: String(meta.title || '').slice(0, 120),
+      subscribers: subsText || 'hidden',
+      subscriberCount: subsText ? parseViews(subsText, 'en') : null,
+      videoCount: videosText ? parseViews(videosText, 'en') : null,
+      totalViews: viewsText ? parseViews(viewsText, 'en') : null,
+      joined: joinedText.replace(/^joined\s+/i, '') || 'unknown',
+      joinedDate: isFinite(joinedMs) ? new Date(joinedMs).toISOString().slice(0, 10) : '',
+      country: String(about.country || '') || 'not listed',
+      description: String(about.description || meta.description || '').slice(0, 300)
+    };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e), channelUrl: chUrl };
+  }
+}
+
+function nspFindKey(o, key, depth) {
+  if (!o || typeof o !== 'object' || depth > 40) return null;
+  if (Object.prototype.hasOwnProperty.call(o, key)) return o[key];
+  var keys = Object.keys(o);
+  for (var i = 0; i < keys.length; i++) {
+    var hit = nspFindKey(o[keys[i]], key, depth + 1);
+    if (hit) return hit;
+  }
+  return null;
+}
+
 // The latest uploads of a channel, read from /videos. Used by the agent tools and by the replicate task.
 async function nspReadChannelVideos(rawUrl) {
   var cvUrl = nspChannelUrl(rawUrl);
@@ -3863,44 +3910,7 @@ function nspRoute(msg, sender, sendResponse, who) {
 
   // Channel stats parsed out of /about.
   if (msg.type === 'NSP_AGENT_CHANNEL_STATS') {
-    (async function() {
-      try {
-        var chUrl = nspChannelUrl(msg.channelUrl);
-        if (!chUrl) { sendResponse({ ok: false, error: 'invalid_channel_url', detail: 'Expected https://www.youtube.com/@handle or /channel/UC...' }); return; }
-        var aboutUrl = chUrl + '/about';
-        var resp = await nspFetchTimeout(aboutUrl, { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'es,en' } }, 20000);
-        var html = await resp.text();
-        function extractNum(re) { var m = html.match(re); return m ? m[1] : ''; }
-        var subsRaw = extractNum(/"subscriberCountText":\{"(?:simpleText|accessibility)"[^}]*?"(?:simpleText"?:?\s*")?([\d.,]+ ?[KMB]?)[^"]*?(?:subscriber|suscriptor)/i)
-          || extractNum(/([\d.,]+\s?[KMB]?)\s*subscribers/i)
-          || extractNum(/([\d.,]+\s?[KMB]?)\s*suscriptores/i);
-        var videoCountRaw = extractNum(/"videoCountText":\{"runs":\[\{"text":"([\d.,]+)"/i)
-          || extractNum(/([\d.,]+)\s*videos/i);
-        var joinedRaw = extractNum(/"joinedDateText":\{"runs":\[[^\]]*?"text":"([^"]+)"\}\]/i)
-          || extractNum(/(?:Joined|Se unió el)\s*([^"<,]+)/i);
-        var viewsRaw = extractNum(/"viewCountText":\{"simpleText":"([\d.,]+[^"]*?)"/i)
-          || extractNum(/([\d.,]+)\s*views/i);
-        var countryRaw = extractNum(/"country":\{"simpleText":"([^"]+)"/i)
-          || extractNum(/"detailsMetadata"[^}]*?"country"[^"]*?"([A-Za-z ]+)"/i);
-        var nameRaw = extractNum(/"title":"([^"]{2,80})","description"/i)
-          || extractNum(/<meta property="og:title" content="([^"]+)"/i);
-        var descRaw = extractNum(/<meta property="og:description" content="([^"]{0,300})"/i);
-        sendResponse({
-          ok: true,
-          channelUrl: chUrl,
-          name: nameRaw || '',
-          subscribers: subsRaw || 'unknown',
-          videoCount: videoCountRaw || 'unknown',
-          totalViews: viewsRaw || 'unknown',
-          joined: joinedRaw || 'unknown',
-          country: countryRaw || 'unknown',
-          description: (descRaw || '').slice(0, 300),
-          note: subsRaw ? '' : 'Partial parse: YouTube changed its HTML, some fields may be missing.'
-        });
-      } catch (e) {
-        sendResponse({ ok: false, error: String(e && e.message || e) });
-      }
-    })();
+    nspReadChannelStats(msg.channelUrl).then(sendResponse);
     return true;
   }
 
@@ -3953,7 +3963,31 @@ function buildInnertubeContext(gl, hl) {
   };
 }
 
+// InnerTube answers 403 to any request whose Origin is chrome-extension://, and a worker cannot drop that header
+// itself. This session rule removes it from the requests this extension starts to youtubei, never from the page's.
+var NSP_DNR_INNERTUBE_ORIGIN = 1001;
+var _nspInnertubeReady = (function() {
+  try {
+    return chrome.declarativeNetRequest.updateSessionRules({
+      removeRuleIds: [NSP_DNR_INNERTUBE_ORIGIN],
+      addRules: [{
+        id: NSP_DNR_INNERTUBE_ORIGIN,
+        priority: 1,
+        action: { type: 'modifyHeaders', requestHeaders: [{ header: 'origin', operation: 'remove' }] },
+        condition: { urlFilter: '|https://www.youtube.com/youtubei/', initiatorDomains: [chrome.runtime.id], resourceTypes: ['xmlhttprequest'] }
+      }]
+    }).then(function() { return true; }, function(e) { console.warn('[NSP SW] InnerTube origin rule not set, calls will get 403:', e && e.message); return false; });
+  } catch (eRule) {
+    console.warn('[NSP SW] declarativeNetRequest is missing, InnerTube calls will get 403:', eRule && eRule.message);
+    return Promise.resolve(false);
+  }
+})();
+
 function innertubeFetch(endpoint, body, opts) {
+  return _nspInnertubeReady.then(function() { return innertubeFetchNow(endpoint, body, opts); });
+}
+
+function innertubeFetchNow(endpoint, body, opts) {
   opts = opts || {};
   var url = 'https://www.youtube.com/youtubei/v1/' + endpoint + '?key=' + NSP_INNERTUBE_API_KEY + '&prettyPrint=false';
   var fullBody = Object.assign({}, body || {}, {
@@ -3967,7 +4001,7 @@ function innertubeFetch(endpoint, body, opts) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(fullBody)
   }, 20000).then(function(r) {
-    if (!r.ok) throw new Error('InnerTube HTTP ' + r.status);
+    if (!r.ok) throw new Error('InnerTube HTTP ' + r.status + (r.status === 403 ? ', the request still carried the extension origin' : ''));
     return r.json();
   }).catch(function(e) {
     // One stalled search out of eighteen would keep Promise.all pending and the scan would never answer.
@@ -4041,8 +4075,9 @@ function extractVideosFromInnertube(data) {
     try {
       var rows = (md.metadata && md.metadata.contentMetadataViewModel && md.metadata.contentMetadataViewModel.metadataRows) || [];
       for (var ri = 0; ri < rows.length && !pubTxt; ri++) {
+        // Some layouts shorten the visible text ("4,7 M", "hace 3 d"); the accessibility label keeps the full words the parsers read.
         var texts = ((rows[ri] && rows[ri].metadataParts) || []).map(function(part) {
-          return String((part && part.text && (part.text.content || part.text.simpleText)) || '');
+          return String((part && (part.accessibilityLabel || (part.text && (part.text.content || part.text.simpleText)))) || '');
         }).filter(Boolean);
         var ageIdx = -1;
         for (var ti = 0; ti < texts.length; ti++) { if (parseRelHours(texts[ti]) !== null) { ageIdx = ti; break; } }
