@@ -288,9 +288,25 @@
 
   // evaluatePackage: a hard block is red and cannot be overridden, a soft flag or similarity at or above the threshold is yellow, anything else is green.
   // Rules are scanned over script, title and description; similarity is measured on the script alone.
+  var POLICY_INAUTHENTIC = 'YouTube Inauthentic content policy (mass-produced and repetitious content), which is enforced against the whole channel, not against one video';
+  function evidenceOfNarration(pkg) {
+    var p = pkg || {};
+    var script = String(p.script == null ? '' : p.script).trim();
+    var words = script ? script.split(/\s+/).length : 0;
+    if (words > 0) return { hasText: true, words: words, reason: '' };
+    return {
+      hasText: false,
+      words: 0,
+      policy: POLICY_INAUTHENTIC,
+      reason: 'NOTHING TO AUDIT: this package carries no narration text, so no part of it has been cleared. A video with no original narration is the shape described by the ' +
+        POLICY_INAUTHENTIC + '. Paste the script, or export knowing it went out unaudited.'
+    };
+  }
+
   function evaluatePackage(args) {
     args = args || {};
     var channelKey = args.channelKey, lang = args.lang;
+    var evidence = evidenceOfNarration(args);
     return loadPolicies().then(function (policies) {
       var rules = _collectRules(policies, channelKey, lang);
       var allRules = rules.hard.concat(rules.soft);
@@ -309,7 +325,7 @@
           hardBlocks.forEach(function (h) {
             reasons.push('HARDBLOCK [' + h.rule.id + '] "' + h.term + '" in ' + h.field + ' (index ' + h.index + '): ' + (h.note || h.rule.scope) + '. ' + HARDBLOCK_GUIDANCE);
           });
-        } else if (softFlags.length || similarity.score >= ENGINE.SIMILARITY_YELLOW) {
+        } else if (softFlags.length || similarity.score >= ENGINE.SIMILARITY_YELLOW || !evidence.hasText) {
           risk = 'yellow'; overrideAllowed = true;
           softFlags.forEach(function (h) {
             reasons.push('SOFTFLAG [' + h.rule.id + '] "' + h.term + '" in ' + h.field + ' (index ' + h.index + '): ' + (h.note || h.rule.scope) + '. Review and rewrite that passage.');
@@ -317,14 +333,17 @@
           if (similarity.score >= ENGINE.SIMILARITY_YELLOW) {
             reasons.push('SIMILARITY ' + similarity.score + '% with "' + (similarity.nearest[0] ? similarity.nearest[0].title : '?') + '" (threshold ' + ENGINE.SIMILARITY_YELLOW + '%). Too close to a script already used: change the angle or the structure.');
           }
+          if (!evidence.hasText) reasons.push(evidence.reason);
         } else {
           risk = 'green'; overrideAllowed = true;
-          reasons.push('No risk terms in script, title or description, and similarity ' + similarity.score + '% is under the ' + ENGINE.SIMILARITY_YELLOW + '% threshold.');
+          reasons.push('No risk terms in script, title or description over ' + evidence.words + ' words of script, and similarity ' + similarity.score + '% is under the ' + ENGINE.SIMILARITY_YELLOW + '% threshold.');
+          reasons.push('SCOPE: this reads the words you handed over and nothing else. It is not a YouTube decision, and it never looked at your footage, music rights, thumbnail or audio.');
         }
         return {
           risk: risk,
           reasons: reasons,
           similarity: similarity,
+          evidence: evidence,
           disclosureReminder: true,   // always on: reminds the uploader to tick the altered or synthetic content box
           overrideAllowed: overrideAllowed,
           detail: { hardBlocks: hardBlocks, softFlags: softFlags, matchedTerms: hits, lang: rules.lang, channelKey: channelKey || null }
@@ -342,6 +361,8 @@
     addScriptToCorpus: addScriptToCorpus,
     getCorpus: getCorpus,
     evaluatePackage: evaluatePackage,
+    evidenceOfNarration: evidenceOfNarration,
+    POLICY_INAUTHENTIC: POLICY_INAUTHENTIC,
     // internal, exposed for the test harness and not part of the stable contract
     _normalizeWithMap: normalizeWithMap,
     _scanFieldForRules: scanFieldForRules,

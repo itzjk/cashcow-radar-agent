@@ -70,6 +70,8 @@
         "knowledge/reverse-engine.js",
         "knowledge/course.js",
         "lib/nsp-brain.js",
+        "lib/nsp-gate.js",
+        "lib/nsp-hands.js",
         "content/nsp-bundle.js"
       ],
       "run_at": "document_idle",

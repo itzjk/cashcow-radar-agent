@@ -7,6 +7,7 @@ try { importScripts('../knowledge/youtube-playbook.js'); } catch (ePlaybook) { c
 try { importScripts('../ashlyv/ashlyv-engine.js'); } catch (eAshlyvEngine) { console.warn('[NSP SW] importScripts ASHLYV engine:', eAshlyvEngine && eAshlyvEngine.message); }
 try { importScripts('../lib/nsp-brain.js'); } catch (eBrain) { console.warn('[NSP SW] importScripts brain:', eBrain && eBrain.message); }
 try { importScripts('../lib/nsp-data-tools.js', '../chat/chat-tools.js', '../lib/nsp-chat-store.js'); } catch (eChatLib) { console.warn('[NSP SW] importScripts chat tools:', eChatLib && eChatLib.message); }
+try { importScripts('../lib/nsp-rpm-tabla.js'); } catch (eRpmTable) { console.warn('[NSP SW] importScripts RPM table:', eRpmTable && eRpmTable.message); }
 
 var NSP_GEMINI_LIMIT_PER_MIN = 14;
 var NSP_GROQ_LIMIT_PER_MIN = 28;
@@ -694,30 +695,97 @@ function nspFindKey(o, key, depth) {
 }
 
 // The latest uploads of a channel, read from /videos. Used by the agent tools and by the replicate task.
-async function nspReadChannelVideos(rawUrl) {
+async function nspReadChannelVideos(rawUrl, max) {
   var cvUrl = nspChannelUrl(rawUrl);
   if (!cvUrl) return { ok: false, error: 'invalid_channel_url', detail: 'Expected https://www.youtube.com/@handle or /channel/UC...' };
+  var deadline = Date.now() + 22000;
   try {
-    var resp = await nspFetchTimeout(cvUrl + '/videos', { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'es,en' } }, 20000);
+    var resp = await nspFetchTimeout(cvUrl + '/videos?hl=en&gl=US', { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'en-US,en' } }, 20000);
     var html = await resp.text();
     // Read the embedded JSON: the thumbnail block sits between videoId and title, so no flat regex over the HTML can pair them.
     var initial = nspExtractYtInitialData(html);
     if (!initial) return { ok: false, error: 'ytinitialdata_not_found', channelUrl: cvUrl };
     var meta = (initial.metadata && initial.metadata.channelMetadataRenderer) || {};
-    var videos = (extractVideosFromInnertube(initial) || []).slice(0, 15).map(function(v) {
+    var limit = Math.min(30, Math.max(1, Math.floor(Number(max)) || 15));
+    var videos = (extractVideosFromInnertube(initial) || []).slice(0, limit).map(function(v) {
       return {
         videoId: v.videoId,
         title: String(v.title || '').slice(0, 200),
         views: v.viewsText || '',
+        viewsNum: v.viewsText ? parseViews(v.viewsText, 'en') : null,
         published: v.publishedText || '',
         url: 'https://www.youtube.com/watch?v=' + v.videoId
       };
     });
     if (!videos.length) return { ok: false, error: 'no_videos_parsed', channelUrl: cvUrl };
-    return { ok: true, channelUrl: cvUrl, name: String(meta.title || '').slice(0, 120), count: videos.length, videos: videos };
+    var titleCheck = await nspOriginalTitles(cvUrl, String(meta.externalId || ''), videos, deadline);
+    return { ok: true, channelUrl: cvUrl, name: String(meta.title || '').slice(0, 120), count: videos.length, videos: videos, titleCheck: titleCheck };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e), channelUrl: cvUrl };
   }
+}
+
+function nspXmlText(s) {
+  return String(s || '').replace(/&#x([0-9a-f]+);/gi, function(m, h) { return String.fromCodePoint(parseInt(h, 16)); })
+    .replace(/&#(\d+);/g, function(m, d) { return String.fromCodePoint(parseInt(d, 10)); })
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+}
+
+function nspFeedTitles(xml) {
+  var out = {};
+  var re = /<entry>([\s\S]*?)<\/entry>/g, m;
+  while ((m = re.exec(String(xml || ''))) !== null) {
+    var id = /<yt:videoId>([^<]+)<\/yt:videoId>/.exec(m[1]);
+    var title = /<title>([^<]*)<\/title>/.exec(m[1]);
+    if (id && title) out[id[1].trim()] = nspXmlText(title[1]).trim();
+  }
+  return out;
+}
+
+function nspTitleLanguage(text) {
+  var T = self.NSP_RPM_TABLA;
+  if (!T || typeof T.idiomaDe !== 'function') return '';
+  var d = T.idiomaDe(text);
+  return d && d.seguro ? d.codigo : '';
+}
+
+async function nspOriginalTitles(cvUrl, channelId, videos, deadline) {
+  var check = { source: 'page', fromFeed: 0, localized: 0, fromNativePage: 0, language: '' };
+  if (!/^UC[A-Za-z0-9_-]{22}$/.test(channelId) || deadline - Date.now() < 1500) return check;
+  var feed = {};
+  try {
+    var r = await nspFetchTimeout('https://www.youtube.com/feeds/videos.xml?channel_id=' + channelId, { method: 'GET', credentials: 'omit' }, Math.min(8000, deadline - Date.now()));
+    if (!r.ok) return check;
+    feed = nspFeedTitles(await r.text());
+  } catch (e) { return check; }
+  var original = Object.keys(feed).map(function(k) { return feed[k]; });
+  if (!original.length) return check;
+  check.language = nspTitleLanguage(original.join(' . '));
+  videos.forEach(function(v) {
+    var o = feed[v.videoId];
+    if (!o) return;
+    check.fromFeed++;
+    if (o !== v.title && check.language) {
+      var shown = nspTitleLanguage(v.title);
+      if (shown && shown !== check.language) check.localized++;
+    }
+    v.title = o.slice(0, 200);
+  });
+  check.source = check.fromFeed ? 'feed' : 'page';
+  var rest = videos.filter(function(v) { return !feed[v.videoId]; });
+  if (!rest.length || !check.localized || !check.language || check.language === 'en' || deadline - Date.now() < 3000) return check;
+  try {
+    var r2 = await nspFetchTimeout(cvUrl + '/videos', { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': check.language } }, deadline - Date.now());
+    var native = nspExtractYtInitialData(await r2.text());
+    var byId = {};
+    (extractVideosFromInnertube(native) || []).forEach(function(v) { if (v.videoId && v.title) byId[v.videoId] = String(v.title); });
+    rest.forEach(function(v) {
+      if (!byId[v.videoId]) return;
+      v.title = byId[v.videoId].slice(0, 200);
+      check.fromNativePage++;
+    });
+  } catch (e) {}
+  return check;
 }
 
 async function checkChannelForNewOutliers(w) {

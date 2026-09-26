@@ -4,10 +4,6 @@
   var root = (typeof window !== 'undefined') ? window
     : (typeof globalThis !== 'undefined') ? globalThis : this;
 
-  var STOP = {};
-  ('de la el los las un una unos unas y o u que en a por con para del al se su sus lo le les mi tu es son como mas más muy este esta esto estos estas ese esa eso si no sin sobre entre cuando donde porque the a an and or of to in for on with from this that these those is are was were be by your you my his her it as at how why what who which when where then than so but not your'
-    .split(' ')).forEach(function (w) { STOP[w] = 1; });
-
   function getTitle(v) {
     if (!v) return '';
     return String(v.title || v.name || v.videoTitle || v.text || v.heading || '').trim();
@@ -29,7 +25,7 @@
 
   function getMetric(v) {
     if (!v) return 0;
-    var fields = ['vph', 'viewsPerHour', 'views', 'viewCount', 'viewsNum', 'viewCountNum'];
+    var fields = ['vph', 'viewsPerHour', 'viewsNum', 'viewCountNum', 'views', 'viewCount'];
     for (var i = 0; i < fields.length; i++) {
       if (v[fields[i]] != null) {
         var n = parseNum(v[fields[i]]);
@@ -45,43 +41,302 @@
   }
 
   function tokenize(t) {
-    return String(t).toLowerCase()
-      .replace(/[“”"'’‘()¿?¡!:;,.\-–—|/\\\[\]{}]/g, ' ')
-      .split(/\s+/)
-      .filter(function (w) { return w.length >= 3 && !STOP[w] && !/^\d+$/.test(w); });
+    var re = /[\p{L}\p{N}\p{M}]+(?:['’][\p{L}\p{N}\p{M}]+)*/gu;
+    var out = [], m;
+    while ((m = re.exec(String(t))) !== null) {
+      var w = m[0].toLowerCase();
+      if (!RE_ALFANUM.test(w) || /^\d+$/.test(w)) continue;
+      out.push(w);
+    }
+    return out;
   }
 
-  function detectFormats(title) {
-    var t = String(title).toLowerCase();
-    var tags = [];
-    var startsNum = /^\s*(?:top\s*)?\d{1,3}\b/.test(t);
-    if (startsNum || /\b\d{1,3}\s+(cosas|formas|maneras|razones|trucos|secretos|errores|tips|things|ways|reasons|signs|facts|types|mistakes)\b/.test(t)) tags.push('lista');
-    if (t.indexOf('?') >= 0 || /^\s*(por qu[eé]|c[oó]mo|qu[eé]|cu[aá]l|qui[eé]n|why|how|what|which|who)\b/.test(t)) tags.push('pregunta');
-    if (/\b(c[oó]mo|how to|tutorial|gu[ií]a|guide|step by step|paso a paso)\b/.test(t)) tags.push('howto');
-    if (/\b(nadie|jam[aá]s|nunca|secreto|secretos|verdad|oculto|ocultos|prohibido|revelado|shocking|nobody|never|secret|truth|hidden|exposed|insane|crazy|reveals?)\b/.test(t)) tags.push('shock');
-    if (/\bvs\b|\bversus\b|mejor que|better than|\bor\b/.test(t)) tags.push('comparacion');
-    if (/\b(el m[aá]s|la m[aá]s|los m[aá]s|#1|n[uú]mero 1|mejor|peor|best|worst|biggest|greatest|most|largest|richest)\b/.test(t)) tags.push('superlativo');
-    if (/[$€£]|\d+\s*%|\b\d+\s*(millones|mill[oó]n|billones|mil|million|billion|trillion|grand)\b|\b\d+[km]\b/.test(t)) tags.push('cifra');
-    if (/\b(error|errores|deja de|no hagas|nunca hagas|stop|mistake|mistakes|wrong|avoid|don'?t|dont)\b/.test(t)) tags.push('negativo');
-    if (/\b(ahora|antes de|hoy|ya no|urgente|2026|2027|right now|before|today|this year)\b/.test(t)) tags.push('urgencia');
-    if (/\b(la historia de|el hombre que|la mujer que|el d[ií]a que|el ni[ñn]o que|the man who|the woman who|the story of|the day|this man|this is why|how i|c[oó]mo logr[eé])\b/.test(t)) tags.push('narrativo');
-    return tags;
+  var DF_SENAL = 0.5;
+  var DF_FRASE_FIJA = 0.33;
+  var DISPERSION_FRASE = 0.35;
+  var MIN_TITULOS_PALABRAS = 4;
+  var VENTAJA_MINIMA_OUTLIER = 0.35;
+
+  function contarPalabras(lista) {
+    var cf = {}, df = {}, vecinos = {};
+    lista.forEach(function (titulo) {
+      var ts = tokenize(titulo), visto = {};
+      ts.forEach(function (w, i) {
+        cf[w] = (cf[w] || 0) + 1;
+        if (!visto[w]) { df[w] = (df[w] || 0) + 1; visto[w] = 1; }
+        if (!vecinos[w]) vecinos[w] = {};
+        vecinos[w][i === 0 ? '^' : ts[i - 1]] = 1;
+        vecinos[w][i === ts.length - 1 ? '$' : ts[i + 1]] = 1;
+      });
+    });
+    return { cf: cf, df: df, vecinos: vecinos };
   }
 
-  var TEMPLATES = {
-    lista: '[N] [secrets/mistakes/facts] about {topic} that {unexpected result}',
-    pregunta: 'Why does {subject} {unexpected action}?',
-    howto: 'How to {desired result} without {common obstacle}',
-    shock: 'Nobody told you this about {topic}',
-    comparacion: '{A} vs {B}: which one really {criterion}',
-    superlativo: 'The {superlative} {topic} in history',
-    cifra: 'How {subject} made {figure} with {method}',
-    negativo: 'Stop {action}, it is {negative consequence}',
-    urgencia: '{topic} is changing: what to do before {date}',
-    narrativo: 'The story of the {subject} who {feat or tragedy}'
-  };
+  function dispersionDe(c, w) {
+    var v = c.vecinos[w] ? Object.keys(c.vecinos[w]).length : 0;
+    return v / (2 * c.cf[w]);
+  }
 
-  var FORMAT_ALL = ['lista', 'pregunta', 'howto', 'shock', 'comparacion', 'superlativo', 'cifra', 'negativo', 'urgencia', 'narrativo'];
+  function palabrasDestacadas(lista) {
+    var n = (lista || []).length;
+    if (n < MIN_TITULOS_PALABRAS) return [];
+    var c = contarPalabras(lista);
+    return Object.keys(c.df).map(function (w) {
+      return { palabra: w, n: c.cf[w], titulos: c.df[w], share: c.df[w] / n, dispersion: dispersionDe(c, w) };
+    }).filter(function (x) {
+      if (x.titulos < 2) return false;
+      if (x.share >= DF_SENAL) return true;
+      return x.share >= DF_FRASE_FIJA && x.dispersion <= DISPERSION_FRASE;
+    }).sort(function (a, b) {
+      return (b.titulos * (1 - b.dispersion)) - (a.titulos * (1 - a.dispersion));
+    }).map(function (x) {
+      return { palabra: x.palabra, n: x.n, titulos: x.titulos, pct: pct(x.titulos, n) };
+    }).slice(0, 12);
+  }
+
+  function palabrasQueDestacanEnOutliers(outliers, resto) {
+    if (!outliers.length || outliers.length < 2) return [];
+    var co = contarPalabras(outliers), cr = contarPalabras(resto);
+    return Object.keys(co.df).map(function (w) {
+      var enOut = co.df[w] / outliers.length;
+      var enResto = resto.length ? ((cr.df[w] || 0) / resto.length) : 0;
+      return { palabra: w, n: co.cf[w], enOut: enOut, ventaja: enOut - enResto };
+    }).filter(function (x) {
+      return x.enOut >= DF_SENAL && x.ventaja >= VENTAJA_MINIMA_OUTLIER;
+    }).sort(function (a, b) { return b.ventaja - a.ventaja; })
+      .map(function (x) { return { palabra: x.palabra, n: x.n, ventaja: Math.round(x.ventaja * 100) }; })
+      .slice(0, 8);
+  }
+
+  var RE_SIN_ESPACIOS = /[\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}\p{sc=Thai}]/u;
+  var RE_ALFANUM = /[\p{L}\p{N}]/u;
+
+  var MIN_TITULOS_GRUPO = 4;
+  var FRACCION_MINIMA = 0.25;
+  var PESO_MINIMO_ANCLAS = 12;
+  var ANCLAS_LARGAS_MINIMAS = 2;
+  var ANCLAS_MINIMAS_SIN_ESPACIOS = 4;
+  var MARCAS_QUE_SOSTIENEN_UNA_LARGA = 2;
+  var MAX_TITULOS_ESQUELETO = 60;
+  var MAX_SEMILLAS = 14;
+
+  function esAlfanum(s) { return RE_ALFANUM.test(String(s)); }
+
+  function letras(s) { return Array.from(String(s)); }
+
+  function tokenizar(titulo) {
+    var s = String(titulo || '');
+    var re = /(\p{Extended_Pictographic}(?:\ufe0f|\u200d\p{Extended_Pictographic}|\p{Emoji_Modifier})*)|([\p{L}\p{N}\p{M}]+(?:['’][\p{L}\p{N}\p{M}]+)*)|([^\s])/gu;
+    var out = [], m, fin = 0;
+    while ((m = re.exec(s)) !== null) {
+      var bruto = m[0];
+      var pre = out.length > 0 && m.index > fin;
+      var ini = m.index;
+      fin = m.index + bruto.length;
+      if (m[2] && RE_SIN_ESPACIOS.test(bruto)) {
+        var trozos = letras(bruto), desp = ini;
+        for (var c = 0; c < trozos.length; c++) {
+          out.push({ raw: trozos[c], key: trozos[c].toLowerCase(), pre: c === 0 ? pre : false, i0: desp, i1: desp + trozos[c].length });
+          desp += trozos[c].length;
+        }
+        continue;
+      }
+      out.push({ raw: bruto, key: m[2] ? bruto.toLowerCase() : bruto, pre: pre, i0: ini, i1: fin });
+    }
+    return out;
+  }
+
+  function subsecuenciaComun(a, b) {
+    var n = a.length, m = b.length;
+    if (!n || !m) return [];
+    var dp = [], i, j, fila;
+    for (i = 0; i <= n; i++) { fila = []; for (j = 0; j <= m; j++) fila.push(0); dp.push(fila); }
+    for (i = n - 1; i >= 0; i--) {
+      for (j = m - 1; j >= 0; j--) {
+        dp[i][j] = (a[i] === b[j]) ? dp[i + 1][j + 1] + 1 : (dp[i + 1][j] >= dp[i][j + 1] ? dp[i + 1][j] : dp[i][j + 1]);
+      }
+    }
+    var out = [], x = 0, y = 0;
+    while (x < n && y < m) {
+      if (a[x] === b[y]) { out.push(a[x]); x++; y++; }
+      else if (dp[x + 1][y] >= dp[x][y + 1]) x++;
+      else y++;
+    }
+    return out;
+  }
+
+  var VALOR_MARCA = 3;
+  var RE_MARCA_FUERTE = /[\p{Ps}\p{Pe}\p{Pi}\p{Pf}\p{Pd}\p{S}]/u;
+
+  function medirAnclas(anclas) {
+    var peso = 0, largas = 0, marcas = 0;
+    anclas.forEach(function (k) {
+      if (esAlfanum(k)) {
+        var n = letras(k).length;
+        peso += n;
+        if (n >= 4) largas++;
+        return;
+      }
+      if (RE_MARCA_FUERTE.test(k)) marcas++;
+    });
+    return { peso: peso, largas: largas, marcas: marcas, total: anclas.length, senal: peso + marcas * VALOR_MARCA };
+  }
+
+  function anclasSirven(anclas) {
+    var m = medirAnclas(anclas);
+    if (m.senal < PESO_MINIMO_ANCLAS) return false;
+    return m.largas >= ANCLAS_LARGAS_MINIMAS
+      || (m.largas >= 1 && m.marcas >= MARCAS_QUE_SOSTIENEN_UNA_LARGA)
+      || m.marcas >= ANCLAS_MINIMAS_SIN_ESPACIOS;
+  }
+
+  function posicionesDeAnclas(tokens, anclas) {
+    var pos = [], j = 0;
+    for (var i = 0; i < tokens.length && j < anclas.length; i++) {
+      if (tokens[i].key === anclas[j]) { pos.push(i); j++; }
+    }
+    return j === anclas.length ? pos : null;
+  }
+
+  function mayoritario(valores) {
+    var frec = {}, mejor = valores[0], tope = 0;
+    valores.forEach(function (v) {
+      var k = String(v);
+      frec[k] = (frec[k] || 0) + 1;
+      if (frec[k] > tope) { tope = frec[k]; mejor = v; }
+    });
+    return mejor;
+  }
+
+  function distintosPorFrecuencia(valores) {
+    var frec = {};
+    valores.forEach(function (v) { if (v) frec[v] = (frec[v] || 0) + 1; });
+    return Object.keys(frec).sort(function (a, b) { return frec[b] - frec[a] || letras(a).length - letras(b).length; });
+  }
+
+  function nombreDeHueco(valores) {
+    var limpios = valores.filter(Boolean).map(function (v) { return String(v).replace(/[{}]/g, '').trim(); }).filter(Boolean);
+    var distintos = distintosPorFrecuencia(limpios);
+    if (!distintos.length) return 'extra';
+    if (distintos.every(function (v) { return /^\d{4}$/.test(v) && +v >= 1000 && +v <= 2999; })) return 'year';
+    if (distintos.every(function (v) { return /^\d[\d.,]*$/.test(v); })) return 'number';
+    if (distintos.every(function (v) { return !esAlfanum(v); })) return 'emoji';
+    var muestra = [], largo = 0;
+    for (var i = 0; i < distintos.length && muestra.length < 3; i++) {
+      var n = letras(distintos[i]).length;
+      if (muestra.length && largo + n > 34) break;
+      muestra.push(distintos[i]);
+      largo += n + 3;
+    }
+    if (!muestra.length) muestra.push(letras(distintos[0]).slice(0, 30).join(''));
+    return muestra.join(' / ') + (distintos.length > muestra.length ? ' / …' : '');
+  }
+
+  function armarPlantilla(docs, grupo, anclas) {
+    var alineados = [];
+    grupo.forEach(function (i) {
+      var pos = posicionesDeAnclas(docs[i].tokens, anclas);
+      if (pos) alineados.push({ doc: docs[i], pos: pos });
+    });
+    if (alineados.length < MIN_TITULOS_GRUPO) return null;
+    var n = alineados.length, g, i;
+
+    var caras = [], pegas = [];
+    for (i = 0; i < anclas.length; i++) {
+      caras.push(mayoritario(alineados.map(function (a) { return a.doc.tokens[a.pos[i]].raw; })));
+      pegas.push(mayoritario(alineados.map(function (a) { return a.doc.tokens[a.pos[i]].pre ? 1 : 0; })) === 0);
+    }
+
+    var piezas = [], huecos = [];
+    for (g = 0; g <= anclas.length; g++) {
+      var valores = [], pega = [];
+      for (i = 0; i < n; i++) {
+        var a = alineados[i];
+        var ini = g === 0 ? 0 : a.pos[g - 1] + 1;
+        var fin = g === anclas.length ? a.doc.tokens.length : a.pos[g];
+        if (fin <= ini) { valores.push(''); continue; }
+        valores.push(a.doc.texto.slice(a.doc.tokens[ini].i0, a.doc.tokens[fin - 1].i1).trim());
+        pega.push(a.doc.tokens[ini].pre ? 1 : 0);
+      }
+      var llenos = valores.filter(Boolean).length;
+      if (llenos * 2 >= n) {
+        var distintos = distintosPorFrecuencia(valores);
+        if (distintos.length === 1 && llenos === n) {
+          piezas.push({ texto: distintos[0], pega: mayoritario(pega) === 0 });
+        } else {
+          var nombre = nombreDeHueco(valores);
+          piezas.push({ texto: '{' + nombre + '}', pega: mayoritario(pega) === 0 });
+          huecos.push({ nombre: nombre, valores: distintosPorFrecuencia(valores).slice(0, 12), llenos: llenos, de: n });
+        }
+      }
+      if (g < anclas.length) piezas.push({ texto: caras[g], pega: pegas[g] });
+    }
+
+    var salida = '';
+    piezas.forEach(function (p, k) {
+      if (k > 0 && !p.pega) salida += ' ';
+      salida += p.texto;
+    });
+    salida = salida.trim();
+    if (!salida) return null;
+
+    return {
+      plantilla: salida,
+      anclas: anclas.slice(),
+      huecos: huecos,
+      encaja: n,
+      titulosQueEncajan: alineados.map(function (a) { return a.doc.texto; })
+    };
+  }
+
+  function esqueletoDeTitulos(titulos) {
+    var docs = [], vistos = {};
+    (titulos || []).forEach(function (t) {
+      if (docs.length >= MAX_TITULOS_ESQUELETO) return;
+      var texto = String(t || '').trim();
+      var clave = texto.toLowerCase().replace(/\s+/g, ' ');
+      if (!clave || vistos[clave]) return;
+      vistos[clave] = 1;
+      var tk = tokenizar(texto);
+      if (tk.length < 3) return;
+      docs.push({ texto: texto, tokens: tk, keys: tk.map(function (x) { return x.key; }) });
+    });
+    if (docs.length < MIN_TITULOS_GRUPO) {
+      return { ok: false, motivo: 'muestra_corta', analizados: docs.length };
+    }
+    var minGrupo = Math.max(MIN_TITULOS_GRUPO, Math.ceil(docs.length * FRACCION_MINIMA));
+    var paso = Math.max(1, Math.ceil(docs.length / MAX_SEMILLAS));
+    var mejor = null;
+
+    for (var s = 0; s < docs.length; s += paso) {
+      var grupo = [s], anclas = docs[s].keys.slice(), libres = [];
+      for (var k = 0; k < docs.length; k++) if (k !== s) libres.push(k);
+      while (libres.length) {
+        var elegido = -1, mejorAnclas = null, mejorPeso = -1;
+        for (var c = 0; c < libres.length; c++) {
+          var cand = subsecuenciaComun(anclas, docs[libres[c]].keys);
+          if (!anclasSirven(cand)) continue;
+          var peso = medirAnclas(cand).senal;
+          if (peso > mejorPeso) { mejorPeso = peso; elegido = c; mejorAnclas = cand; }
+        }
+        if (elegido < 0) break;
+        anclas = mejorAnclas;
+        grupo.push(libres[elegido]);
+        libres.splice(elegido, 1);
+        if (grupo.length < minGrupo) continue;
+        var puntaje = grupo.length * medirAnclas(anclas).senal;
+        if (!mejor || puntaje > mejor.puntaje) mejor = { puntaje: puntaje, grupo: grupo.slice(), anclas: anclas.slice() };
+      }
+    }
+
+    if (!mejor) return { ok: false, motivo: 'sin_esqueleto_repetido', analizados: docs.length };
+    var armado = armarPlantilla(docs, mejor.grupo, mejor.anclas);
+    if (!armado) return { ok: false, motivo: 'sin_esqueleto_repetido', analizados: docs.length };
+    armado.ok = true;
+    armado.de = docs.length;
+    armado.cobertura = pct(armado.encaja, docs.length);
+    return armado;
+  }
 
   function pct(n, total) { return total ? Math.round((n / total) * 100) : 0; }
 
@@ -89,38 +344,27 @@
     var list = (videos || []).map(getTitle).filter(Boolean);
     var n = list.length;
     if (!n) return { count: 0 };
-    var fmtCount = {}, wordCount = {}, lenSum = 0, capsCount = 0, numCount = 0;
+    var lenSum = 0, capsCount = 0, numCount = 0;
     var numStat = {}, cifraStat = {};
-    FORMAT_ALL.forEach(function (f) { fmtCount[f] = 0; });
     list.forEach(function (title) {
       lenSum += title.length;
       if (/\d/.test(title)) numCount++;
       var letters = title.replace(/[^a-zA-ZáéíóúñÁÉÍÓÚÑ]/g, '');
       var caps = title.replace(/[^A-ZÁÉÍÓÚÑ]/g, '');
       if (letters.length >= 6 && caps.length / letters.length > 0.6) capsCount++;
-      detectFormats(title).forEach(function (f) { fmtCount[f]++; });
-      tokenize(title).forEach(function (w) { wordCount[w] = (wordCount[w] || 0) + 1; });
       (title.match(/\b([1-9]|[1-4]\d|50)\b/g) || []).forEach(function (d) { numStat[d] = (numStat[d] || 0) + 1; });
       (title.match(/[$€£]\s?\d[\d.,]*\s?[kmb]?|\b\d+\s?%/gi) || []).forEach(function (cc) { var k = cc.replace(/\s+/g, ''); cifraStat[k] = (cifraStat[k] || 0) + 1; });
     });
-    var fmtDist = FORMAT_ALL.map(function (f) { return { formato: f, n: fmtCount[f], pct: pct(fmtCount[f], n) }; })
-      .filter(function (x) { return x.n > 0; })
-      .sort(function (a, b) { return b.n - a.n; });
-    var topWords = Object.keys(wordCount).map(function (w) { return { palabra: w, n: wordCount[w] }; })
-      .filter(function (x) { return x.n >= 2; })
-      .sort(function (a, b) { return b.n - a.n; })
-      .slice(0, 12);
-    var dominant = fmtDist.length ? fmtDist[0].formato : 'shock';
-    var ejemplos = list.slice().sort(function (a, b) { return detectFormats(b).length - detectFormats(a).length; }).slice(0, 3);
+    var topWords = palabrasDestacadas(list);
+    var esq = esqueletoDeTitulos(list);
+    var ejemplos = (esq && esq.ok) ? esq.titulosQueEncajan.slice(0, 3) : list.slice(0, 3);
     return {
       count: n,
       avgLen: Math.round(lenSum / n),
       conNumero: pct(numCount, n),
       conCaps: pct(capsCount, n),
-      formatos: fmtDist,
-      formatoDominante: dominant,
-      palabrasGatillo: topWords,
-      plantilla: TEMPLATES[dominant] || TEMPLATES.shock,
+      palabrasRepetidas: topWords,
+      esqueleto: esq,
       numerosComunes: Object.keys(numStat).map(function (k) { return { num: k, n: numStat[k] }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 5),
       cifrasComunes: Object.keys(cifraStat).map(function (k) { return { cifra: k, n: cifraStat[k] }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 5),
       ejemplos: ejemplos
@@ -149,28 +393,19 @@
       threshold = outliers.length ? outliers[outliers.length - 1].metric : med;
     }
     var rest = rows.filter(function (r) { return outliers.indexOf(r) < 0; });
-    var outFmt = {}, restFmt = {}, outWords = {}, aperturas = {};
-    FORMAT_ALL.forEach(function (f) { outFmt[f] = 0; restFmt[f] = 0; });
+    var aperturas = {};
     outliers.forEach(function (r) {
-      detectFormats(r.title).forEach(function (f) { outFmt[f]++; });
-      tokenize(r.title).forEach(function (w) { outWords[w] = (outWords[w] || 0) + 1; });
       var ap = String(r.title).trim().split(/\s+/).slice(0, 2).join(' ').toLowerCase();
       if (ap) aperturas[ap] = (aperturas[ap] || 0) + 1;
     });
-    rest.forEach(function (r) { detectFormats(r.title).forEach(function (f) { restFmt[f]++; }); });
-    var overIndex = FORMAT_ALL.map(function (f) {
-      var op = pct(outFmt[f], outliers.length), rp = pct(restFmt[f], rest.length || 1);
-      return { formato: f, outlierPct: op, restoPct: rp, ventaja: op - rp };
-    }).filter(function (x) { return x.outlierPct > 0 && x.ventaja > 0; })
-      .sort(function (a, b) { return b.ventaja - a.ventaja; });
-    var topOutWords = Object.keys(outWords).map(function (w) { return { palabra: w, n: outWords[w] }; })
-      .filter(function (x) { return x.n >= 2; })
-      .sort(function (a, b) { return b.n - a.n; }).slice(0, 8);
+    var topOutWords = palabrasQueDestacanEnOutliers(
+      outliers.map(function (r) { return r.title; }),
+      rest.map(function (r) { return r.title; })
+    );
     return {
       count: outliers.length,
       medianaMetric: Math.round(med),
       umbral: Math.round(threshold),
-      formatosQueExplotan: overIndex,
       palabrasQueExplotan: topOutWords,
       aperturasOutliers: Object.keys(aperturas).map(function (k) { return { apertura: k, n: aperturas[k] }; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 4),
       ejemplos: outliers.slice(0, 4).map(function (r) { return { titulo: r.title, metric: Math.round(r.metric) }; })
@@ -198,21 +433,32 @@
     var t = analyzeTitles(videos);
     var o = findOutliers(videos);
     var c = analyzeChannels(videos);
-    if (!t.count) return { ok: false, texto: 'No videos to analyze.' };
+    if (!t.count) return { ok: false, texto: 'No videos to analyze.', nota: 'No videos to analyze yet.' };
+    var esq = t.esqueleto || { ok: false, motivo: 'sin_esqueleto_repetido' };
     var nombre = nicho ? String(nicho) : 'this niche';
+    if (!esq.ok) {
+      var faltan = esq.motivo === 'muestra_corta';
+      return {
+        ok: false,
+        titulos: t,
+        outliers: o,
+        canales: c,
+        esqueleto: esq,
+        texto: faltan
+          ? ('Only ' + (esq.analizados || 0) + ' distinct titles of ' + nombre + ' were read, and a repeated skeleton needs at least ' + MIN_TITULOS_GRUPO + '.')
+          : ('The ' + (esq.analizados || t.count) + ' titles of ' + nombre + ' share no repeated skeleton, so there is no template to pull out of their data.'),
+        nota: faltan
+          ? ('Only ' + (esq.analizados || 0) + ' distinct title' + ((esq.analizados === 1) ? '' : 's') + ' read so far. A repeated skeleton needs at least ' + MIN_TITULOS_GRUPO + '.')
+          : ('No repeated title skeleton across these ' + (esq.analizados || t.count) + ' titles. Nothing to template, the winning titles below are the evidence.')
+      };
+    }
     var L = [];
     L.push('REVERSE ENGINEERING OF ' + nombre.toUpperCase() + ' (' + t.count + ' real videos from the scan):');
-    L.push('- Dominant title formula: ' + t.formatoDominante.toUpperCase() + '. Average length ' + t.avgLen + ' characters; ' + t.conNumero + '% use a number, ' + t.conCaps + '% lean on capitals.');
-    if (t.formatos.length) {
-      L.push('- Format mix: ' + t.formatos.slice(0, 5).map(function (f) { return f.formato + ' ' + f.pct + '%'; }).join(', ') + '.');
-    }
-    if (t.palabrasGatillo.length) {
-      L.push('- Trigger words in this niche: ' + t.palabrasGatillo.slice(0, 8).map(function (w) { return w.palabra + '(' + w.n + ')'; }).join(', ') + '.');
+    L.push('- Average length ' + t.avgLen + ' characters; ' + t.conNumero + '% use a number, ' + t.conCaps + '% lean on capitals.');
+    if (t.palabrasRepetidas.length) {
+      L.push('- Words these titles repeat: ' + t.palabrasRepetidas.slice(0, 8).map(function (w) { return w.palabra + ' (' + w.pct + '% of the titles)'; }).join(', ') + '.');
     }
     if (o.count) {
-      if (o.formatosQueExplotan.length) {
-        L.push('- WHAT TAKES OFF (outliers vs the average): ' + o.formatosQueExplotan.slice(0, 3).map(function (f) { return f.formato + ' (+' + f.ventaja + ' pts)'; }).join(', ') + ' beat the rest.');
-      }
       if (o.palabrasQueExplotan.length) {
         L.push('- Words inside the outliers: ' + o.palabrasQueExplotan.slice(0, 6).map(function (w) { return w.palabra; }).join(', ') + '.');
       }
@@ -229,26 +475,33 @@
     if (t.numerosComunes && t.numerosComunes.length) {
       L.push('- Numbers used most: ' + t.numerosComunes.map(function (x) { return x.num; }).join(', ') + (t.cifrasComunes && t.cifrasComunes.length ? ' | figures: ' + t.cifrasComunes.map(function (x) { return x.cifra; }).join(', ') : '') + '.');
     }
-    var formatoGanador = (o.count && o.formatosQueExplotan && o.formatosQueExplotan.length) ? o.formatosQueExplotan[0].formato : t.formatoDominante;
-    var plantillaGanadora = TEMPLATES[formatoGanador] || t.plantilla;
-    L.push('- TEMPLATE to copy, based on what takes off (' + formatoGanador.toUpperCase() + '), fill it in: ' + plantillaGanadora);
-    if (t.ejemplos.length) {
-      L.push('- Real examples from the scan worth imitating: ' + t.ejemplos.map(function (e) { return '"' + e + '"'; }).join(' | ') + '.');
+    L.push('- TEMPLATE derived from these titles, it fits ' + esq.encaja + ' of the ' + esq.de + ' read (' + esq.cobertura + '%): ' + esq.plantilla);
+    if (esq.huecos.length) {
+      L.push('- What changes in each slot: ' + esq.huecos.map(function (h) {
+        return '{' + h.nombre + '} = ' + h.valores.slice(0, 4).join(', ');
+      }).join(' | ') + '.');
     }
+    L.push('- Real titles the template came from: ' + esq.titulosQueEncajan.slice(0, 4).map(function (x) { return '"' + x + '"'; }).join(' | ') + '.');
     return {
       ok: true,
       titulos: t,
       outliers: o,
       canales: c,
-      plantilla: plantillaGanadora,
-      formatoGanador: formatoGanador,
+      esqueleto: esq,
+      plantilla: esq.plantilla,
+      encaja: esq.encaja,
+      de: esq.de,
+      cobertura: esq.cobertura,
+      huecos: esq.huecos,
+      titulosQueEncajan: esq.titulosQueEncajan,
       texto: L.join('\n')
     };
   }
 
   root.NSP_REVERSE_ENGINE = {
-    version: '1.2.0',
-    detectFormats: detectFormats,
+    version: '2.3.0',
+    tokenizar: tokenizar,
+    esqueletoDeTitulos: esqueletoDeTitulos,
     analyzeTitles: analyzeTitles,
     findOutliers: findOutliers,
     analyzeChannels: analyzeChannels,

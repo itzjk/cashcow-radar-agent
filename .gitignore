@@ -12,3 +12,7 @@ lib/whisper/models/Xenova/whisper-tiny/onnx/*.onnx
 *.before-restore
 *.pre-csp
 *.pre-mono
+tests/.regenerated-table.json
+tests/fixtures/title-corpus.json.gz
+tests/fixtures/feed-index.json
+tests/fixtures/rancho-channel.json

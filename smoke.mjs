@@ -221,7 +221,9 @@ const DATA_TABLES = new Set([
   "searches",                       // nsp-bundle.js: the YouTube search a channel report links to, per language
   "NICHE_KEYWORDS",                 // ashlyv-engine.js: niche keywords per language
   "FACELESS_LANGUAGE_BANK",         // nsp-bundle.js: search keywords for each of the 44 languages
-  "STOP"                            // knowledge/reverse-engine.js: stop words for the title formula
+  "STOP",                           // knowledge/reverse-engine.js: stop words for the title formula
+  "MIRARLO",
+  "ganadores"
 ]);
 const DATA_FILES = new Set(["niche-detector.test.js"]);
 // Written for Node, never loaded by Chrome, so their strings reach no screen.
