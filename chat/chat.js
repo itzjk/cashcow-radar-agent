@@ -96,18 +96,6 @@
     return n;
   }
 
-  function lang() {
-    return /^es\b/i.test(navigator.language || '') ? 'es' : 'en';
-  }
-
-  function textLang(text) {
-    var t = String(text || '').toLowerCase();
-    if (/[áéíóúñ¿¡]/.test(t)) return 'es';
-    var es = (t.match(/\b(?:que|como|el|la|los|las|de|del|mi|mis|un|una|para|por|con|es|en|y|abre|busca|cual|dame|quiero|nicho|canal)\b/g) || []).length;
-    var en = (t.match(/\b(?:the|what|how|my|a|an|for|with|is|in|and|open|search|which|give|want|niche|channel|should|to|of)\b/g) || []).length;
-    return es > en ? 'es' : (en > es ? 'en' : lang());
-  }
-
   function modelLabel(provider, model) {
     var list = (MODELS && MODELS.list) || [];
     for (var i = 0; i < list.length; i++) if (list[i].provider === provider && list[i].model && list[i].model === model) return list[i].label;
@@ -1058,7 +1046,7 @@
         if (!row) { gone(conv.id); return null; }
         loadList();
         if (S.conv && S.conv.id === conv.id) showTyping(true, 'Thinking');
-        return send({ type: 'NSP_CHAT_RUN', convId: conv.id, text: text, lang: textLang(text), tabLang: navigator.language || '', windowId: S.windowId }).then(function (res) {
+        return send({ type: 'NSP_CHAT_RUN', convId: conv.id, text: text, windowId: S.windowId }).then(function (res) {
           if (res && res.ok === true) { watchRuns(); return; }
           delete S.running[conv.id];
           syncBusy();
@@ -1074,15 +1062,9 @@
     });
   }
 
-  function convLang() {
-    for (var i = S.msgs.length - 1; i >= 0; i--) if (S.msgs[i].role === 'user') return textLang(S.msgs[i].text);
-    return lang();
-  }
-
   function runJob(job, label) {
     if (S.busy || !job || !label) return Promise.resolve(false);
     S.moves++;
-    var jobLang = job.lang === 'es' || job.lang === 'en' ? job.lang : (S.view === 'chat' && S.conv ? convLang() : lang());
     if (S.view !== 'chat') { S.view = 'chat'; S.conv = null; S.msgs = []; paintTitle(); drawThread(); }
     return ensureConv().then(function (conv) {
       S.running[conv.id] = 'Working';
@@ -1091,7 +1073,7 @@
         if (!row) { gone(conv.id); return false; }
         loadList();
         if (S.conv && S.conv.id === conv.id) showTyping(true, 'Working');
-        return send({ type: WATCH_OPS[job.op] === 1 ? 'NSP_WATCH_RUN' : (CREATE_OPS[job.op] === 1 ? 'NSP_CREATE_RUN' : 'NSP_MINE_RUN'), convId: conv.id, text: label, job: job, lang: jobLang }).then(function (res) {
+        return send({ type: WATCH_OPS[job.op] === 1 ? 'NSP_WATCH_RUN' : (CREATE_OPS[job.op] === 1 ? 'NSP_CREATE_RUN' : 'NSP_MINE_RUN'), convId: conv.id, text: label, job: job }).then(function (res) {
           if (res && res.ok === true) { watchRuns(); return true; }
           delete S.running[conv.id];
           syncBusy();

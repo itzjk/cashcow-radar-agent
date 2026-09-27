@@ -64,12 +64,12 @@ const CHAT = { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=overlay", t
 
 {
   const w = loadWorker();
-  const route = t => w.context.nspVoiceRoute(t, "es");
+  const route = t => w.context.nspVoiceRoute(t);
   const r = route("oye zerack por qué explotó esto");
-  check("said out loud, why did this blow up routes to an X-ray of the tab", r && r.kind === "intel" && r.intel.kind === "xray" && r.intel.who[0].tab === true && r.lang === "es", r);
+  check("said out loud, why did this blow up routes to an X-ray of the tab", r && r.kind === "intel" && r.intel.kind === "xray" && r.intel.who[0].tab === true && !("lang" in r) && !("lang" in r.intel), r);
   check("the other spoken cards route too", route("compara este canal con kurzgesagt").intel.kind === "duel" && route("clona la fórmula de este canal").intel.kind === "formula" && route("is this channel dead").intel.kind === "verdict");
   check("ordinary commands keep their routes", route("abre youtube").kind === "youtube" && route("busca historia de roma").kind === "search" && route("qué opinas de este canal") === null);
-  check("a typed request is not sent through the spoken command runner", w.context.nspChatTyped("por que exploto esto", "es") === null);
+  check("a typed request is not sent through the spoken command runner", w.context.nspChatTyped("por que exploto esto") === null);
   const tools = n => w.context.NSP_BRAIN.tools(n, { agentOn: false })[0].functionDeclarations.map(d => d.name);
   const intel = ["zerackXray", "zerackDuel", "zerackFormula", "zerackVerdict"];
   check("the chat and the voice get the four channel tools with the Agent switch off", intel.every(n => tools("chat").includes(n) && tools("voice").includes(n)), tools("chat"));
@@ -83,15 +83,16 @@ const CHAT = { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=overlay", t
   w.context.NSP_CHAT_STORE = store;
   w.context.nspIntelTabUrl = () => Promise.resolve("https://www.youtube.com/@hist/videos");
   let answer = null;
-  w.context.nspChatRun({ convId: "conv-1", text: "¿Por qué explotó este canal?", lang: "es" }, CHAT, r => { answer = r; });
+  w.context.nspChatRun({ convId: "conv-1", text: "¿Por qué explotó este canal?" }, CHAT, r => { answer = r; });
   const row = await until(() => store.rows.find(r => r.role === "intel"));
   check("typed in the chat, the X-ray runs without a model and puts a card in the conversation", answer && answer.ok && row && row.meta.card.kind === "xray" && row.meta.card.hero.value === "20x", row && row.meta.card.hero);
+  check("asked in Spanish, the card and its summary are English", /the floor lifted|no turning point|Its best video/.test(row.text) && !/[áéíóúñ¿¡]/.test(row.text.replace(/"[^"]*"/g, "")) && !("lang" in row.meta.card), row.text);
   check("no AI provider was called", !w.fetches.some(f => /chat\/completions|api\.groq|api\.openai|generativelanguage|\/api\/chat/.test(f.url)), w.fetches.map(f => f.url));
   const patched = await until(() => row.meta.card.sections.find(s => s.id === "window").state === "done" && row, 15000);
   const win = patched && patched.meta.card.sections.find(s => s.id === "window");
   check("then it reads the niche and the window lands on the same card", win && win.rows[0].tag === "OPEN" && /4 of 4|5 of 5/.test(win.rows[0].value), win && win.rows.slice(0, 2));
   check("the niche search excludes the channel itself and asks for this month's uploads first", searches.some(s => s.params === "EgQIBBAB") && w.fetches.filter(f => /\/channel\/UCn\dn+\/videos/.test(f.url)).length === 5 && !w.fetches.some(f => /\/channel\/UChhhh.*\/videos/.test(f.url)), searches.map(s => s.params));
-  check("the summary gains the window sentence in Spanish", /ventana está abierta/.test(patched.text), patched.text.slice(-120));
+  check("the summary gains the window sentence in English", /The window is open: \d+ of \d+ channels opened in the last 120 days already land/.test(patched.text) && !/ventana/.test(patched.text), patched.text.slice(-120));
 }
 
 {
@@ -102,29 +103,29 @@ const CHAT = { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=overlay", t
   const thought = [];
   const think = w.context.nspChatThink;
   w.context.nspChatThink = run => { thought.push(run.text); return Promise.resolve(null); };
-  for (const [i, t] of ["why did this blow up", "Is this dead?", "track this", "how much does she make"].entries()) w.context.nspChatRun({ convId: "conv-2" + i, text: t, lang: "en" }, CHAT, () => {});
+  for (const [i, t] of ["why did this blow up", "Is this dead?", "track this", "how much does she make"].entries()) w.context.nspChatRun({ convId: "conv-2" + i, text: t }, CHAT, () => {});
   await until(() => thought.length === 4, 5000);
   check("off YouTube a phrase about this tab goes to the model, never to a YouTube card, and reads nothing on YouTube", thought.length === 4 && !store.rows.some(r => r.role === "intel" || /Open a YouTube channel/.test(r.text)) && !w.fetches.some(f => /youtube\.com/.test(f.url)), { thought, rows: store.rows.map(r => [r.role, String(r.text).slice(0, 60)]) });
   w.context.nspChatThink = think;
   w.context.nspIntelTabUrl = () => Promise.resolve("https://www.youtube.com/@hist/videos");
-  w.context.nspChatRun({ convId: "conv-3", text: "compara este canal con nobody here", lang: "es" }, CHAT, () => {});
+  w.context.nspChatRun({ convId: "conv-3", text: "compara este canal con nobody here" }, CHAT, () => {});
   const none = await until(() => store.rows.find(r => r.convId === "conv-3" && r.role === "assistant"));
-  check("a name YouTube does not know is reported, not guessed", none && /No encontré un canal llamado nobody here/.test(none.text), none);
+  check("a name YouTube does not know is reported in English, not guessed", none && /^I could not find a channel called nobody here\.$/.test(none.text), none);
 }
 
 {
   const w = loadWorker({ fetch: fetchTable });
   const store = fakeStore();
   w.context.NSP_CHAT_STORE = store;
-  const run = { convId: "conv-4", tabId: -1, stopped: false, gone: false, chain: Promise.resolve(), lang: "en" };
-  const res = await new Promise(r => w.context.nspChatToolNow("zerackVerdict", { channel: "@hist" }, { origin: "chat", lang: "en", chatRun: run }, r));
+  const run = { convId: "conv-4", tabId: -1, stopped: false, gone: false, chain: Promise.resolve() };
+  const res = await new Promise(r => w.context.nspChatToolNow("zerackVerdict", { channel: "@hist" }, { origin: "chat", chatRun: run }, r));
   check("the model's verdict tool shows the card and returns its numbers", res.ok && res.shownInChat && res.data.verdict && store.rows.some(r => r.role === "intel" && r.meta.card.kind === "verdict"), res);
-  const f = await new Promise(r => w.context.nspChatToolNow("zerackFormula", { channel: "History Deep" }, { origin: "chat", lang: "en", chatRun: run }, r));
+  const f = await new Promise(r => w.context.nspChatToolNow("zerackFormula", { channel: "History Deep" }, { origin: "chat", chatRun: run }, r));
   check("a channel named in words is found by a channel search", f.ok && f.data.channel === "History Deep", f);
   check("a search hit whose title and handle do not match the name is not taken", await w.context.nspIntelSearch("she") === "" && await w.context.nspIntelSearch("History Deep") === "https://www.youtube.com/@hist", null);
   check("a partial name that starts the channel title is taken", await w.context.nspIntelSearch("history") === "https://www.youtube.com/@hist");
   check("with no pixels to read, the thumbnail style is marked not measured", f.data.thumbnails === "not measured", f.data.thumbnails);
-  const d = await new Promise(r => w.context.nspChatToolNow("zerackDuel", { channelA: "@hist" }, { origin: "chat", lang: "en", chatRun: run }, r));
+  const d = await new Promise(r => w.context.nspChatToolNow("zerackDuel", { channelA: "@hist" }, { origin: "chat", chatRun: run }, r));
   check("a duel with one side asks for the second channel", d.ok === false && /second channel/.test(d.error), d);
 }
 
@@ -133,7 +134,7 @@ const CHAT = { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=overlay", t
   const store = fakeStore();
   w.context.NSP_CHAT_STORE = store;
   w.context.nspIntelTabUrl = () => Promise.resolve("https://www.youtube.com/@hist");
-  const run = { convId: "conv-5", tabId: 21, stopped: false, gone: false, chain: Promise.resolve(), lang: "en" };
+  const run = { convId: "conv-5", tabId: 21, stopped: false, gone: false, chain: Promise.resolve() };
   const p = w.context.nspIntelChat(run, { kind: "xray", who: [{ tab: true }] });
   run.stopped = true;
   await p;

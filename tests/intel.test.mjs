@@ -57,7 +57,7 @@ const LONG_DASH = /\u2014/;
 
 const broke = channel({ length: 30, title: i => (i < 18 ? "What happens if the sun disappears for " + (i + 2) + " days" : "Old vlog number " + i), views: i => i < 18 ? 90000 + i * 1500 : 3000 + i * 40, len: i => "1" + (i % 9) + ":0" + (i % 6) });
 {
-  const c = I.xray({ channel: head(), videos: broke, now: NOW }, "en");
+  const c = I.xray({ channel: head(), videos: broke, now: NOW });
   const q = ctx.NSP_RIVAL_QUIEBRE.medir(broke);
   check("the X-ray names the break the engine found, with its multiple", q.hubo && c.hero.value === I.mult(q.salto) && /floor lift/.test(c.hero.label), { hero: c.hero, salto: q.salto });
   const turning = c.sections.find(s => s.id === "turning");
@@ -66,23 +66,22 @@ const broke = channel({ length: 30, title: i => (i < 18 ? "What happens if the s
   check("the spoken summary fits in about 20 seconds", words(c.say) <= 60, words(c.say));
   check("the share card has at most four rows and a caption for X under 280 characters", c.share.rows.length <= 4 && c.share.post.length < 280 && /open source/.test(c.share.post), c.share);
   check("nothing on the card uses the long dash", !LONG_DASH.test(JSON.stringify(c)));
-  const es = I.xray({ channel: head(), videos: broke, now: NOW }, "es");
-  check("in Spanish the summary is Spanish and the numbers are the same", /el piso subió/.test(es.lead) && es.hero.value === c.hero.value, es.lead);
+  check("the card speaks English and carries no language to switch on", /the floor lifted/.test(c.lead) && !("lang" in c) && !/[áéíóúñ¿¡]/.test(c.lead.replace(/"[^"]*"/g, "")), c.lead);
 }
 const flat = channel({ length: 30, title: i => "Relaxing rain sounds for sleep " + i, views: i => 20000 + (i % 5) * 800 });
 {
-  const c = I.xray({ channel: head(), videos: flat, now: NOW }, "en");
+  const c = I.xray({ channel: head(), videos: flat, now: NOW });
   check("with no break the card does not claim one", !/floor lift/.test(c.hero.label) && /no turning point/i.test(c.lead), { hero: c.hero, lead: c.lead });
   check("and the titles section says the channel is flat instead of inventing a trait", c.sections.find(s => s.id === "titles").rows.every(r => r.tag !== "PROVEN"), c.sections.find(s => s.id === "titles"));
   check("a flat channel shares 'Flat channel' on its image", c.share.rows.some(r => /Flat channel/.test(r.value)), c.share.rows);
 }
 {
-  const c = I.xray({ channel: head(), videos: flat.slice(0, 8), now: NOW }, "en");
+  const c = I.xray({ channel: head(), videos: flat.slice(0, 8), now: NOW });
   check("eight uploads are too few for a break and the card says it", /too few/.test(c.lead) && c.sections.find(s => s.id === "turning").rows[0].value === "Not measured", c.lead);
 }
 {
   const focus = { videoId: "zzzzzzzzzzz", title: "A video on screen", views: 400000 };
-  const c = I.xray({ channel: head(), videos: flat, focus, now: NOW }, "en");
+  const c = I.xray({ channel: head(), videos: flat, focus, now: NOW });
   const row = c.sections.find(s => s.id === "median").rows.find(r => r.label === "This video");
   check("on a video page the X-ray measures that video against the channel median", row && /400K views, 19x the median/.test(row.value), row);
 }
@@ -91,42 +90,42 @@ const lucky = channel({ length: 30, title: i => "Minecraft challenge day " + i, 
 const steady = channel({ length: 30, title: i => "Ancient Rome explained part " + i, views: i => 50000 + (i % 6) * 9000 });
 const idle = channel({ length: 30, start: 118, every: 12, title: i => "Ancient Rome explained part " + i, views: i => 50000 + (i % 6) * 9000 });
 {
-  const v = I.verdict({ channel: head(), videos: lucky, now: NOW }, "en");
+  const v = I.verdict({ channel: head(), videos: lucky, now: NOW });
   check("one video far above the floor reads as one lucky hit", v.hero.value === "ONE LUCKY HIT" && v.hero.tone === "bad", v.hero);
   const conc = v.sections.find(s => s.id === "luck").rows.find(r => /share of all views/.test(r.label));
   check("and says how much of the views ride on it", conc && /^\d+% of /.test(conc.value), conc);
-  const es = I.xray({ channel: head(), videos: lucky, now: NOW }, "es");
-  check("spoken Spanish says millones de vistas", /2,4 millones de vistas/.test(es.lead), es.lead);
-  const s = I.verdict({ channel: head(), videos: steady, now: NOW }, "en");
+  const x = I.xray({ channel: head(), videos: lucky, now: NOW });
+  check("a million views is spoken in English with a decimal point", /2\.4 million views/.test(x.lead) && !/millones|vistas/.test(x.lead), x.lead);
+  const s = I.verdict({ channel: head(), videos: steady, now: NOW });
   check("a steady channel reads as real growth", s.hero.value === "REAL GROWTH" && s.sections.find(x => x.id === "numbers").rows.some(r => r.tag === "ENGINE"), s.hero);
-  const d = I.verdict({ channel: head(), videos: idle, now: NOW }, "en");
+  const d = I.verdict({ channel: head(), videos: idle, now: NOW });
   const last = d.sections.find(x => x.id === "luck").rows.find(r => r.label === "Last upload");
   check("a channel quiet for months is marked inactive", last.value === "130 days ago" && last.tag === "INACTIVE" && /has not uploaded in 130 days/.test(d.lead), { last, lead: d.lead });
-  const none = I.verdict({ channel: head(), videos: [], now: NOW }, "en");
+  const none = I.verdict({ channel: head(), videos: [], now: NOW });
   check("with no views there is no verdict, and it says so", none.hero.value === "NO VERDICT", none.hero);
   check("verdict summaries fit in about 20 seconds", [v, s, d].every(c => words(c.say) <= 60), [v, s, d].map(c => words(c.say)));
 }
 {
-  const f = I.formula({ channel: head(), videos: steady.map((v, i) => Object.assign({}, v, { length: "1" + (i % 8) + ":1" + (i % 6) })), thumbs: [], now: NOW }, "en");
+  const f = I.formula({ channel: head(), videos: steady.map((v, i) => Object.assign({}, v, { length: "1" + (i % 8) + ":1" + (i % 6) })), thumbs: [], now: NOW });
   const tpl = f.sections.find(s => s.id === "template");
   check("the formula pulls the title template out of the real titles", tpl.rows[0].label === "Skeleton" && /Ancient Rome explained part \{number\}/.test(tpl.rows[0].value) && f.hero.value === "100%", tpl.rows[0]);
   const st = f.sections.find(s => s.id === "structure").rows;
   check("length comes from the duration badges", st.some(r => r.label === "Median length" && /^1\d:\d\d, middle half/.test(r.value)), st);
   check("openings stay marked as not measured", st.some(r => /Openings/.test(r.label) && /Not measured/.test(r.value)), st);
   check("with no thumbnail read the style says not measured", f.sections.find(s => s.id === "thumbs").rows[0].value === "Not measured");
-  const free = I.formula({ channel: head(), videos: broke, thumbs: [], now: NOW }, "en");
+  const free = I.formula({ channel: head(), videos: broke, thumbs: [], now: NOW });
   check("mixed titles give no template and the card says free-form", free.hero.value === "Free-form" || free.hero.value.endsWith("%"), free.hero);
 }
 {
   const px = (w, h, fill) => { const d = new Uint8ClampedArray(w * h * 4); for (let i = 0; i < w * h; i++) { const c = fill(i % w, Math.floor(i / w)); d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255; } return d; };
   const M = load(["lib/nsp-miniatura-motor.js"]).NspMiniatura;
   const thumbs = Array.from({ length: 9 }, (_, k) => M.medirCompleto(px(320, 180, (x, y) => (y > 120 && y < 150 && x % 7 < 4) ? [255, 255, 255] : [200, 30 + k, 20]), 320, 180, 320));
-  const f = I.formula({ channel: head(), videos: steady, thumbs, now: NOW }, "en");
+  const f = I.formula({ channel: head(), videos: steady, thumbs, now: NOW });
   const rows = f.sections.find(s => s.id === "thumbs").rows;
   check("measured thumbnails give the channel's style next to the sweep", rows.some(r => r.label === "Contrast" && /median, sweep/.test(r.value)) && rows.some(r => r.label === "Dominant hues" && /red/.test(r.value)), rows);
 }
 {
-  const d = I.duel({ channel: head({ name: "Lucky One", handle: "@lucky" }), videos: lucky, now: NOW }, { channel: head({ name: "Steady One", handle: "@steady" }), videos: steady, now: NOW }, "en");
+  const d = I.duel({ channel: head({ name: "Lucky One", handle: "@lucky" }), videos: lucky, now: NOW }, { channel: head({ name: "Steady One", handle: "@steady" }), videos: steady, now: NOW });
   const axes = d.sections.find(s => s.id === "axes").rows;
   const med = axes.find(r => r.label === "Median video");
   check("the duel puts both channels on each axis with the winner", axes.length === 7 && med.tag === "B" && /Lucky One .* \u00b7 Steady One/.test(med.value), axes.map(a => [a.label, a.tag]));
@@ -144,11 +143,11 @@ const idle = channel({ length: 30, start: 118, every: 12, title: i => "Ancient R
   const young = n => channel({ length: 12, every: 5, title: i => "Ancient Rome explained " + n + " " + i, views: () => 30000 });
   const subject = mk("subject", steady, 300);
   const neighbors = [mk("a", young("a"), 12), mk("b", young("b"), 12), mk("c", young("c"), 12), mk("d", steady, 400)];
-  const w = I.windowOf(subject, neighbors, "en");
+  const w = I.windowOf(subject, neighbors);
   check("three young channels that land open the window", w.rows[0].tag === "OPEN" && /3 of 3/.test(w.rows[0].value), w.rows[0]);
-  const card = I.withWindow(I.xray({ channel: head(), videos: steady, now: NOW }, "en"), w);
+  const card = I.withWindow(I.xray({ channel: head(), videos: steady, now: NOW }), w);
   check("the window lands on the X-ray card and in its summary", card.sections.find(s => s.id === "window").state === "done" && /window is open/.test(card.lead) && card.share.rows.some(r => r.label === "Entry window" && r.value === "open"), card.share.rows);
-  const few = I.windowOf(subject, neighbors.slice(0, 2), "en");
+  const few = I.windowOf(subject, neighbors.slice(0, 2));
   check("with fewer than five channels the window stays unmeasured", few.rows[0].value === "Not measured" && /Only 3 channels/.test(few.note), few);
   check("a channel whose titles vote for one niche searches that niche", I.nicheQuery(steady) === "history documentary ancient mysteries", I.nicheQuery(steady));
   const sci = ["There Is Something Faster Than Light", "Something is jamming GPS signals worldwide", "What Happens If You Fall Into Lava", "The Surprising Physics of Rockets", "Why Rockets Explode on the Pad", "What Happens When Physics Breaks", "Something Strange About Rockets", "The Physics Nobody Taught You"].map((t, i) => ({ title: t, viewsNum: 900000 - i * 50000, published: (i + 2) + " weeks ago" }));
@@ -166,30 +165,30 @@ const idle = channel({ length: 30, start: 118, every: 12, title: i => "Ancient R
 }
 
 if (existsSync(join(ROOT, "tests/fixtures/rancho-channel.json"))) {
-  const c = I.xray({ channel: head({ name: "Rancho" }), videos: rancho(), now: NOW }, "es");
-  check("on the owner's reference channel the X-ray finds the 7.2x break at upload 12 of 30", c.hero.value === "7.2x" && /el video 12 de los 30/.test(c.lead), c.lead);
-  const v = I.verdict({ channel: head({ name: "Rancho" }), videos: rancho(), now: NOW }, "en");
+  const c = I.xray({ channel: head({ name: "Rancho" }), videos: rancho(), now: NOW });
+  check("on the owner's reference channel the X-ray finds the 7.2x break at upload 12 of 30", c.hero.value === "7.2x" && /upload 12 of the 30 read/.test(c.lead), c.lead);
+  const v = I.verdict({ channel: head({ name: "Rancho" }), videos: rancho(), now: NOW });
   check("and calls its recent run real growth", v.hero.value === "REAL GROWTH" && /last 10 uploads/.test(v.hero.label), v.hero);
 }
 
 {
   const tiny = n => Array.from({ length: n }, (_, i) => ({ videoId: ("t" + String(i).padStart(10, "0")).slice(0, 11), title: "Tiny upload " + i, viewsNum: [480, 9000, 400][i] || 500, published: (10 + i * 5) + " days ago" }));
   for (const n of [1, 2, 3]) {
-    const v = I.verdict({ channel: head({ name: "Tiny channel" }), videos: tiny(n), now: NOW }, "en");
+    const v = I.verdict({ channel: head({ name: "Tiny channel" }), videos: tiny(n), now: NOW });
     check("a channel with " + n + " upload" + (n === 1 ? "" : "s") + " gets no verdict, and says how many are needed", v.hero.value === "NO VERDICT" && /only \d+ upload/.test(v.hero.label) && /4 needed/.test(v.hero.label) && !/real growth|lucky hit/i.test(v.lead) && !/real growth|lucky hit/i.test(v.share.post), { hero: v.hero, lead: v.lead });
   }
-  const es = I.verdict({ channel: head({ name: "Tiny channel" }), videos: tiny(1), now: NOW }, "es");
-  check("in Spanish too, in the singular", /solo 1 video tiene edad para juzgar/.test(es.lead), es.lead);
+  const one = I.verdict({ channel: head({ name: "Tiny channel" }), videos: tiny(1), now: NOW });
+  check("one upload is said in the singular", /only 1 upload is old enough to judge/.test(one.lead), one.lead);
   const ages = ["5 days ago", "1 month ago", "1 month ago", "2 months ago", "2 months ago", "3 months ago", "3 months ago", "3 months ago", "3 months ago", "4 months ago", "4 months ago", "5 months ago"];
   const coarse = ages.map((a, i) => ({ videoId: ("c" + String(i).padStart(10, "0")).slice(0, 11), title: "The physics of something " + i, viewsNum: 3000000 + i * 500000, published: a, length: "33:00" }));
-  const f = I.formula({ channel: head(), videos: coarse, now: NOW }, "en");
+  const f = I.formula({ channel: head(), videos: coarse, now: NOW });
   const fRow = f.sections.find(x => x.id === "structure").rows.find(r => r.label === "Upload rhythm");
   check("uploads dated only in months never read as several videos a day", fRow && fRow.value === "A video every 15 days" && !/several a day/i.test(f.lead) && !f.share.rows.some(r => /Several/.test(r.value)), { row: fRow, lead: f.lead });
   const yearly = coarse.map((v, i) => Object.assign({}, v, { published: i < 9 ? "1 year ago" : "2 years ago" }));
-  const fy = I.formula({ channel: head(), videos: yearly, now: NOW }, "en");
+  const fy = I.formula({ channel: head(), videos: yearly, now: NOW });
   const yRow = fy.sections.find(x => x.id === "structure").rows.find(r => r.label === "Upload rhythm");
   check("uploads dated only in years leave the rhythm not measured, with why", yRow && yRow.value === "Not measured" && /too coarse/.test(yRow.note), yRow);
-  const d = I.duel({ channel: head({ name: "Yearly", total: 500 }), videos: yearly, now: NOW }, { channel: head({ name: "Weekly", total: 900 }), videos: coarse, now: NOW }, "en");
+  const d = I.duel({ channel: head({ name: "Yearly", total: 500 }), videos: yearly, now: NOW }, { channel: head({ name: "Weekly", total: 900 }), videos: coarse, now: NOW });
   const cad = d.sections.find(x => x.id === "axes").rows.find(r => r.label === "A video every");
   const age = d.sections.find(x => x.id === "axes").rows.find(r => r.label === "Age");
   check("the duel does not award the upload rhythm to a side it could not measure", cad.tag === "N/A", cad);

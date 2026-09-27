@@ -151,7 +151,7 @@
       + 'WHAT YOU KNOW (apply it to the real numbers on screen):\n'
       + 'PACKAGING decides 80 percent: title and thumbnail are the product. CLICK-THROUGH RATE only means something in context: half of all channels and videos sit between 2 and 10 percent and new videos are noisy, so compare it with the channel\'s own videos over time, read Home and Suggested in the first 24 hours, and treat a high rate with low view duration as clickbait. RETENTION: read the curve, not the view count. The intro figure, viewers still watching after 30 seconds, tells whether the opening kept the promise of the title and thumbnail; compare typical retention with the channel\'s 10 latest videos of similar length, never with a fixed percentage, and fix the script line at the steepest dip. Browse and home traffic is the massive push, that is the target. Monetization in layers: AdSense, then sponsors at 15 to 50 dollars CPM, then affiliates, then your own product, the one that makes millions. RPM by niche: finance 15 to 40 dollars, business 12 to 25, tech 8 to 15, history and mystery 4 to 8.\n\n'
       + 'METHOD (diagnose, then prescribe): 1) read the real data with the tools. 2) Find the bottleneck: packaging, retention, niche or consistency. 3) Prescribe the highest impact action first. 4) Always close with one concrete next step. Be demanding, be brutally honest, tie everything back to money.\n\n'
-      + 'FORMAT: plain text, no markdown, no ** ## - and no "1.". Use arrows "\u2192" or "1)". Capitals to emphasize. Specific with real numbers, actionable, never generic. English.';
+      + 'FORMAT: plain text, no markdown, no ** ## - and no "1.". Use arrows "\u2192" or "1)". Capitals to emphasize. Specific with real numbers, actionable, never generic. Always answer in English, even when the user writes Spanish or another language.';
   }
 
   function callAI(messages, withTools) {
@@ -230,7 +230,7 @@
   function buildDeepPrompt(data) {
     var sys = 'You are a senior YouTube agency analyst. Answer with valid JSON only, no markdown, no code fences. Schema:\n'
       + '{"viralityScore":<0-100>,"scoreLabel":"<VIRAL POTENTIAL|SOLID|NEEDS WORK|UNDERPERFORMING>","headline":"<1 line, max 90 chars>","metrics":[{"name":"CTR","value":"4.2%","verdict":"good|ok|bad","note":"<5-8 words>"}],"strengths":["<with a number>"],"weaknesses":["<with a number>"],"actions":[{"priority":"high|medium|low","action":"<specific>","impact":"<what it improves>"}]}\n'
-      + 'Judge CTR against the channel\'s own videos, never a fixed cut-off (half of all channels sit between 2% and 10%), and judge retention against its 10 latest videos of similar length. 3-5 metrics, 2-4 strengths, 2-4 weaknesses, 3-5 actions. Real numbers only, do not invent any.';
+      + 'Judge CTR against the channel\'s own videos, never a fixed cut-off (half of all channels sit between 2% and 10%), and judge retention against its 10 latest videos of similar length. 3-5 metrics, 2-4 strengths, 2-4 weaknesses, 3-5 actions. Real numbers only, do not invent any. Every text field is in English, whatever language the page is in.';
     var u = 'Page: ' + data.pageLabel + '.\n' + (data.videoTitle ? 'Video: "' + data.videoTitle + '"\n' : '') + '\n';
     if (data.metrics.length) u += 'METRICS:\n' + data.metrics.slice(0, 40).join('\n') + '\n\n';
     u += 'RAW TEXT:\n' + data.text + '\n\nReturn the JSON only.';

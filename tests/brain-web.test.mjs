@@ -6,7 +6,7 @@ const B = C.NSP_BRAIN, T = C.NSP_CHAT_TOOLS;
 const YT = /you ?tube|faceless|niches?\b|subscri|vph|thumbnail|channel|shorts|video|views per hour/i;
 
 function prompt(query, site, agentOn) {
-  const parts = B.parts({ surface: "chat", query, site, pageTools: !!(site && site.web && agentOn), context: T.context({ surface: "chat", agentOn, lang: "en", site }) });
+  const parts = B.parts({ surface: "chat", query, site, pageTools: !!(site && site.web && agentOn), context: T.context({ surface: "chat", agentOn, site }) });
   const tools = B.tools("chat", { agentOn, site, query })[0].functionDeclarations;
   return { parts, tools, ids: parts.map(p => p.id), names: tools.map(t => t.name), text: JSON.stringify(parts) + JSON.stringify(tools) };
 }

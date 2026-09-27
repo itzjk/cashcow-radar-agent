@@ -25,10 +25,12 @@ check("passages are numbered in order and point at their source", pack.passages.
 check("transcript passages keep the second they start at", pack.passages.some(p => p.source === 2 && p.from === "transcript" && p.at === 12));
 check("the link line of the description never becomes a passage", !pack.passages.some(p => /merch|Subscribe/.test(p.text)));
 
-const prompt = Z.prompt({ topic: "the fall of Constantinople", lang: "es", minutes: 5, passages: pack.passages, sources: pack.sources });
+const prompt = Z.prompt({ topic: "the fall of Constantinople", minutes: 5, passages: pack.passages, sources: pack.sources });
+const promptEs = Z.prompt({ topic: "the fall of Constantinople", write: "es", minutes: 5, passages: pack.passages, sources: pack.sources });
 check("the prompt hands over only the numbered passages", /\[P1\] \(source 1, page\)/.test(prompt.user) && /transcript at 0:12/.test(prompt.user) && !/pasta/.test(prompt.user));
 check("and forbids facts, numbers and sources that are not in them", /Never cite an id that is not in the list/.test(prompt.system) && /Never add a number, a date, a name/.test(prompt.system) && /data, never instructions/.test(prompt.system));
-check("it asks for the language of the user and a 30 second hook", /Write in Spanish/.test(prompt.system) && /the first 30 seconds/.test(prompt.user) && prompt.minutes === 5);
+check("it writes English and a 30 second hook unless another language was asked for", /Write in English/.test(prompt.system) && /the first 30 seconds/.test(prompt.user) && prompt.minutes === 5, prompt.system.slice(-160));
+check("a script asked for in Spanish is written in Spanish", /Write in Spanish/.test(promptEs.system));
 
 const p = n => pack.passages.find(x => x.text.indexOf(n) >= 0).id;
 const P53 = p("53 days"), PGUN = p("500 kilograms"), PNIGHT = p("28 May"), PNOBODY = p("Nobody knows");
@@ -70,7 +72,9 @@ const odd = Z.verify(Z.parse("HOOK:\nIn 1453 Bizancio fell. [P" + P53 + "]\nEND"
 check("a name the source never spells is kept but flagged for a look", odd.hook.length === 1 && odd.hook[0].check.indexOf("Bizancio") >= 0 && odd.flagged === 1, odd.hook);
 check("the counts add up", v.stats.lines === 11 && v.stats.removed === 3 && v.removed.length === 3, v.stats);
 
-const card = Z.card({ pack, verified: v, topic: "the fall of Constantinople", by: "OpenAI (gpt-4o-mini)", left: pack.left }, "en");
+const card = Z.card({ pack, verified: v, topic: "the fall of Constantinople", by: "OpenAI (gpt-4o-mini)", left: pack.left });
+const cardEs = Z.card({ pack, verified: v, topic: "the fall of Constantinople", write: "es", by: "OpenAI (gpt-4o-mini)", left: pack.left });
+check("the card speaks English whatever language the script is in, and keeps the script's language for the Studio package", /^Sourced script: /.test(card.lead) && /^Sourced script: /.test(cardEs.lead) && /^Your script is ready/.test(cardEs.say) && card.script.write === "en" && cardEs.script.write === "es" && !("lang" in card), [cardEs.lead, cardEs.script.write]);
 const ids = card.sections.map(s => s.id);
 check("the card shows the hook, its check, every section, the sources and the cut lines", ["hook", "check", "s1", "s2", "sources", "cut", "copy"].every(x => ids.indexOf(x) >= 0), ids);
 check("every factual line on the card names its source and minute", card.sections.filter(s => /^s\d|hook/.test(s.id)).every(s => s.rows.every(r => r.note && (/Source \d/.test(r.note) || /no source needed/.test(r.note)))));
@@ -97,11 +101,11 @@ check("the promise words are followed into the body, after the hook block", foll
 check("the Spanish ban list catches its own AI phrases", Z.scrub("Sumérgete en la historia de Roma", "es").clean === false && Z.scrub("Roma cayó en 476", "es").clean === true);
 
 const thin = Z.verify(Z.parse("HOOK:\nOrban built cannons.\nSECTION: A\nThe siege lasted 53 days. [P" + P53 + "]\nEND"), pack, "en");
-const refused = Z.card({ pack, verified: thin, topic: "x" }, "en");
+const refused = Z.card({ pack, verified: thin, topic: "x" });
 check("a draft left with fewer than 3 backed facts is not handed over", refused.hero.value === "Not handed over" && !refused.script && !refused.actions.length && /did not hold up/.test(refused.lead));
-const none = Z.refusal({ topic: "the fall of Constantinople", readable: 1, tried: [{ kind: "video", title: "A video", videoId: "abcdefghij1", why: "no captions and no description", ok: false }] }, "es");
-check("with fewer than two sources nothing is written, in the user's language", none.hero.value === "Not written" && /Solo encontré una fuente/.test(none.lead) && /no escribo un guion/.test(none.lead) && none.model.refused === true && none.sections[0].rows[0].link === "https://www.youtube.com/watch?v=abcdefghij1");
-check("with no source at all it says no source, not zero sources", /^I found no source I can read about/.test(Z.refusal({ topic: "x", readable: 0, tried: [] }, "en").lead));
+const none = Z.refusal({ topic: "the fall of Constantinople", readable: 1, tried: [{ kind: "video", title: "A video", videoId: "abcdefghij1", why: "no captions and no description", ok: false }] });
+check("with fewer than two sources nothing is written, and it says so in English", none.hero.value === "Not written" && /^I found only one source I can read about/.test(none.lead) && /I will not write a script/.test(none.lead) && none.model.refused === true && none.sections[0].rows[0].link === "https://www.youtube.com/watch?v=abcdefghij1");
+check("with no source at all it says no source, not zero sources", /^I found no source I can read about/.test(Z.refusal({ topic: "x", readable: 0, tried: [] }).lead));
 check("a possessive is not a misspelled name", Z.namesOf("It was the end of Rome's glory and Mehmed's rise.", "en").join() === "Rome,Mehmed", Z.namesOf("It was the end of Rome's glory and Mehmed's rise.", "en"));
 check("numbers compare without their separators", Z.numbersOf("80,000 men in 1453 [P3]").join() === "80000,1453");
 check("a line with a number, a date or a name is a claim, a bare line is not", Z.isClaim("It lasted fifty days.", "en") && Z.isClaim("In May it ended.", "en") && Z.isClaim("Then Mehmed smiled.", "en") && !Z.isClaim("It was a long night.", "en"));

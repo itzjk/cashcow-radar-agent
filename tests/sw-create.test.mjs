@@ -109,8 +109,8 @@ function worker(local, tabUrl) {
   w.context.nspIntelTabUrl = () => Promise.resolve(tabUrl || "https://www.google.com/");
   return { w, store };
 }
-const run = (w, convId, text, lang) => new Promise(r => w.context.nspChatRun({ convId, text, lang: lang || "en" }, CHAT, r));
-const job = (w, convId, jobSpec, text, lang) => new Promise(r => w.context.nspCreateRunMsg({ convId, text: text || "job", job: jobSpec, lang: lang || "en" }, CHAT, r));
+const run = (w, convId, text) => new Promise(r => w.context.nspChatRun({ convId, text }, CHAT, r));
+const job = (w, convId, jobSpec, text) => new Promise(r => w.context.nspCreateRunMsg({ convId, text: text || "job", job: jobSpec }, CHAT, r));
 const card = (store, convId, kind) => until(() => { const r = store.rows.filter(x => x.convId === convId && x.role === "intel" && (!kind || x.meta.card.kind === kind)).pop(); return r && r.meta.card; });
 
 {
@@ -157,9 +157,9 @@ const card = (store, convId, kind) => until(() => { const r = store.rows.filter(
   check("the card says the replay graph was measured", c && /Measured/.test(c.sections.find(s => s.id === "how").rows[2].value));
   check("no AI provider was called for the Shorts", !w.fetches.some(f => PROVIDER.test(f.url)));
   const { w: w3, store: s3 } = worker({}, "https://www.youtube.com/@legionhistory");
-  await run(w3, "s-2", "saca shorts de este video", "es");
+  await run(w3, "s-2", "saca shorts de este video");
   const told = await until(() => s3.rows.find(r => r.convId === "s-2" && r.role === "assistant"));
-  check("on a page with no video it asks for one, in Spanish", told && /Abre un video de YouTube/.test(told.text), told && told.text);
+  check("asked in Spanish on a page with no video, it asks for one in English", told && /^Open a YouTube video, or paste its link/.test(told.text), told && told.text);
 }
 
 {
@@ -180,11 +180,17 @@ const card = (store, convId, kind) => until(() => { const r = store.rows.filter(
   check("the model got only the passages, the rules and the topic", models.length === 1 && /\[P1\]/.test(sent) && /Never cite an id that is not in the list/.test(sent) && !/ytInitialData|<html/.test(sent));
   check("and was given time to write a long answer", models[0] && models[0].options && models[0].options.num_predict >= 1000);
   check("the Studio package action rides on the card", c && c.actions[0].job.op === "studio_pack");
+  check("a script asked for with no language is written in English", /Write in English/.test(sent) && c && c.script.write === "en", c && c.script && c.script.write);
+  const asked = models.length;
+  await run(w, "w-3", "escríbeme un guion con fuentes sobre la caída de Constantinopla en español");
+  const es = await card(store, "w-3", "script");
+  const sentEs = JSON.stringify(models[asked] || {});
+  check("a script asked for in Spanish is written in Spanish, and the card around it speaks English", models.length === asked + 1 && /Write in Spanish/.test(sentEs) && es && /^Sourced script: /.test(es.lead) && es.script.write === "es" && es.script.topic === "la caída de Constantinopla", es && [es.lead, es.script.write, es.script.topic]);
   searchEmpty = true;
   const before = models.length;
-  await run(w, "w-2", "escríbeme un guion con fuentes sobre la batalla de Zama", "es");
+  await run(w, "w-2", "escríbeme un guion con fuentes sobre la batalla de Zama");
   const r = await card(store, "w-2", "script");
-  check("with fewer than two readable sources it refuses and calls no model", r && r.model.refused === true && models.length === before && /no escribo el guion/.test(r.lead), r && r.lead);
+  check("with fewer than two readable sources it refuses in English and calls no model", r && r.model.refused === true && models.length === before && /so I will not write a script/.test(r.lead), r && r.lead);
   searchEmpty = false;
 }
 
@@ -258,14 +264,14 @@ const card = (store, convId, kind) => until(() => { const r = store.rows.filter(
   check("an extension page that is not the chat is turned away too", hub && hub.error === "not_allowed", hub);
   const J = w.context.nspCreateJobOf;
   check("only known create jobs are taken, and only with their own fields", J({ op: "studio_publish" }) === null && J({ op: "script" }) === null && J({ op: "studio_fill", visibility: "public" }).visibility === undefined && J({ op: "studio_pack", rowId: "12; drop" }).rowId === "");
-  const route = t => w.context.nspVoiceRoute(t, "es");
+  const route = t => w.context.nspVoiceRoute(t);
   check("voice: next and siguiente open the next one", ["siguiente", "el siguiente", "next", "next video", "siguiente video", "pon el siguiente", "next result"].every(t => (route(t) || {}).kind === "next"));
   check("voice: next tab and next page keep their own meaning", route("siguiente pestaña").kind === "next_tab" && route("next page").kind === "forward");
   check("voice: how much does this channel earn becomes the earnings card", route("cuánto gana este canal").kind === "create" && route("cuánto gana este canal").create.kind === "earn");
   check("voice: the create commands route", ["escríbeme un guion con fuentes sobre roma", "saca shorts de este video", "rellena studio", "prepara el paquete para studio"].every(t => (route(t) || {}).kind === "create"));
   check("voice: find shorts is no longer a YouTube search", route("find shorts in this video").kind === "create");
   check("voice: talk about the next thing is not an order", route("el siguiente paso es difícil") === null && route("next time I will do it") === null);
-  check("the next spoken lines exist in both languages", ["next_result", "next_video", "no_more_results", "nothing_next", "create_script", "create_shorts", "create_studio"].every(k => w.context.NSP_VOICE_LINES[k] && w.context.NSP_VOICE_LINES[k].en && w.context.NSP_VOICE_LINES[k].es));
+  check("the next spoken lines are one English line each", ["next_result", "next_video", "no_more_results", "nothing_next", "create_script", "create_shorts", "create_studio"].every(k => typeof w.context.NSP_VOICE_LINES[k] === "string" && /^[A-Z][A-Za-z ,.'-]+$/.test(w.context.NSP_VOICE_LINES[k])));
   const B = w.context.NSP_BRAIN;
   const names = B.tools("chat", { agentOn: false })[0].functionDeclarations.map(d => d.name);
   check("the model can call the four create tools even with Agent off", ["zerackSourcedScript", "zerackShortsMiner", "zerackChannelEarnings", "zerackStudioPackage"].every(n => names.indexOf(n) >= 0));
@@ -274,7 +280,7 @@ const card = (store, convId, kind) => until(() => { const r = store.rows.filter(
 
 {
   const { w, store } = worker({}, "https://www.youtube.com/watch?v=" + VID);
-  const res = await new Promise(r => w.context.nspChatToolNow("zerackShortsMiner", { video: VID }, { origin: "chat", lang: "en", chatRun: { convId: "t-1", tabId: -1, stopped: false, gone: false, chain: Promise.resolve() } }, r));
+  const res = await new Promise(r => w.context.nspChatToolNow("zerackShortsMiner", { video: VID }, { origin: "chat", chatRun: { convId: "t-1", tabId: -1, stopped: false, gone: false, chain: Promise.resolve() } }, r));
   check("the model tool shows the Shorts card and returns the cuts", res && res.ok && res.card === "shorts" && res.data.clips.length >= 3 && store.rows.some(r => r.convId === "t-1" && r.meta.card.kind === "shorts"), res && res.data);
 }
 

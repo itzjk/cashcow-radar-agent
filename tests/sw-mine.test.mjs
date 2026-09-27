@@ -79,8 +79,8 @@ function worker(local) {
   w.context.nspIntelTabUrl = () => Promise.resolve("https://www.google.com/");
   return { w, store };
 }
-const run = (w, convId, text, lang) => new Promise(r => w.context.nspChatRun({ convId, text, lang: lang || "en" }, CHAT, r));
-const job = (w, convId, jobSpec, text) => new Promise(r => w.context.nspMineRunMsg({ convId, text: text || "job", job: jobSpec, lang: "en" }, CHAT, r));
+const run = (w, convId, text) => new Promise(r => w.context.nspChatRun({ convId, text }, CHAT, r));
+const job = (w, convId, jobSpec, text) => new Promise(r => w.context.nspMineRunMsg({ convId, text: text || "job", job: jobSpec }, CHAT, r));
 
 {
   const { w, store } = worker();
@@ -101,9 +101,9 @@ const job = (w, convId, jobSpec, text) => new Promise(r => w.context.nspMineRunM
   const said = await until(() => store.rows.find(r => r.convId === "c-2b" && r.role === "assistant"));
   check("typed, my channel is saves it and says so", said && /History Deep is your channel from now on/.test(said.text) && !store.rows.some(r => r.convId === "c-2b" && r.role === "error"), said);
   players.length = 0;
-  await run(w, "c-2", "resumen de mi canal", "es");
+  await run(w, "c-2", "resumen de mi canal");
   const again = await until(() => store.rows.find(r => r.convId === "c-2" && r.role === "intel"));
-  check("the saved channel is used the next time, in Spanish", again && again.meta.card.kind === "wrapped" && /tu mejor video/.test(again.text), again && again.text);
+  check("the saved channel is used the next time, and a Spanish ask is answered in English", again && again.meta.card.kind === "wrapped" && /your best video/.test(again.text) && !/tu mejor video/.test(again.text), again && again.text);
 }
 
 {
@@ -121,7 +121,7 @@ const job = (w, convId, jobSpec, text) => new Promise(r => w.context.nspMineRunM
   const corpus = Array.from({ length: 30 }, (_, i) => ({ t: i < 6 ? "The lost legion nobody found " + i : "Cooking at home " + i, v: i < 6 ? 5000 : 700, ts: NOW - DAY, n: "Historia", w: 1000, th: "" }));
   ollamaUp = true;
   const { w, store } = worker({ nsp_my_channel: { url: "https://www.youtube.com/channel/" + ID, id: ID, handle: "@mine", name: "History Deep", from: "pasted", at: NOW }, nsp_title_corpus: corpus, nsp_ollama_enabled: true, nsp_ollama_url: "http://localhost:11434", nsp_ollama_model: "mock:1b" });
-  await run(w, "c-4", "¿cuál es mi próximo video?", "es");
+  await run(w, "c-4", "¿cuál es mi próximo video?");
   const row = await until(() => { const r = store.rows.find(x => x.convId === "c-4" && x.role === "intel"); return r && r.meta.card.sections.find(s => s.id === "write").state === "done" && r; }, 15000);
   const ev = row && row.meta.card.sections.find(s => s.id === "evidence");
   check("the user's own scans mark the topic as rising", ev && ev.rows.some(r => r.tag === "RISING"), ev && ev.rows.map(r => r.tag + " " + r.value));
@@ -129,6 +129,7 @@ const job = (w, convId, jobSpec, text) => new Promise(r => w.context.nspMineRunM
   check("the user's provider writes the title and the hook onto the card", wr && wr.rows[0].value === "The Legion That Walked Into the Fog" && wr.rows.some(r => r.label === "Hook" && /legion/.test(r.value)) && /local model/.test(wr.note), wr);
   const sent = JSON.stringify(models[0] || {});
   check("what the provider got is the evidence: titles and numbers, no page", models.length === 1 && /Lost Legion/.test(sent) && !/ytInitialData|<html/.test(sent), sent.slice(0, 200));
+  check("asked in Spanish, the title and the hook are still asked for in English", /the title is in English/.test(sent) && /in English, under 45 words/.test(sent), sent.slice(0, 400));
   ollamaUp = false;
 }
 
@@ -145,11 +146,15 @@ const job = (w, convId, jobSpec, text) => new Promise(r => w.context.nspMineRunM
   const pol = await until(() => { const r = store.rows.find(x => x.convId === "c-6" && x.role === "intel" && x.meta.card.kind === "policy"); return r && r.meta.card; });
   check("the check returns look at it with each flag", pol && pol.hero.value === "LOOK AT IT" && pol.sections.find(s => s.id === "flags").rows.filter(r => r.tag).length >= 2, pol && pol.sections.find(s => s.id === "flags").rows);
   check("and what was pasted never left the browser", !w.fetches.slice(before).some(f => !/data\/policies\.json$/.test(f.url)), w.fetches.slice(before).map(f => f.url));
-  await run(w, "c-7", "cuánto gano con historia a 20 mil vistas por video, me cuesta 30 por video", "es");
+  await run(w, "c-7", "cuánto gano con historia a 20 mil vistas por video, me cuesta 30 por video");
   const m = await until(() => { const r = store.rows.find(x => x.convId === "c-7" && x.role === "intel"); return r && r.meta.card; });
-  const pv = w.context.NspDineroRpm.porVideo({ tema: "historia", vistasPorVideo: 20000, idioma: "es" });
-  check("the money card works out 8 videos at the table's RPM, in the market of the language asked in", m && m.kind === "money" && m.hero.value === "$" + (8 * pv.usdPorVideo).toFixed(2) && m.sections.find(s => s.id === "risk").rows.some(r => r.label === "Market" && /^ES, taken from the language you wrote in/.test(r.value)), [m && m.hero, pv.usdPorVideo]);
+  const pv = w.context.NspDineroRpm.porVideo({ tema: "historia", vistasPorVideo: 20000, idioma: "en" });
+  check("asked in Spanish, the money card prices the English market by default and answers in English", m && m.kind === "money" && m.hero.value === "$" + (8 * pv.usdPorVideo).toFixed(2) && m.sections.find(s => s.id === "risk").rows.some(r => r.label === "Market" && /^EN, the default/.test(r.value)) && /^History at 20 thousand views a video pays about/.test(m.lead), [m && m.hero, pv.usdPorVideo]);
   check("and with a cost it says when a video pays itself back", m && m.sections.find(s => s.id === "breakeven").rows.some(r => r.label === "A video pays itself back at"));
+  await run(w, "c-7b", "cuánto gano con historia a 20 mil vistas por video para un canal en español");
+  const mEs = await until(() => { const r = store.rows.find(x => x.convId === "c-7b" && x.role === "intel"); return r && r.meta.card; });
+  const pvEs = w.context.NspDineroRpm.porVideo({ tema: "historia", vistasPorVideo: 20000, idioma: "es" });
+  check("a Spanish channel named in the ask prices the Spanish market, still in English", mEs && mEs.kind === "money" && mEs.hero.value === "$" + (8 * pvEs.usdPorVideo).toFixed(2) && mEs.sections.find(s => s.id === "risk").rows.some(r => r.label === "Market" && /^ES, the language you named/.test(r.value)) && /^History at 20 thousand views/.test(mEs.lead), mEs && [mEs.hero.value, mEs.lead]);
   await run(w, "c-8", "Money calculator");
   const own = await until(() => { const r = store.rows.find(x => x.convId === "c-8" && x.role === "intel"); return r && r.meta.card; });
   check("the calculator alone uses the user's own niche and median", own && own.kind === "money" && /median of your last/.test(own.channel.line), own && own.channel);
@@ -185,7 +190,7 @@ const job = (w, convId, jobSpec, text) => new Promise(r => w.context.nspMineRunM
 
 {
   const w = loadWorker();
-  const route = t => w.context.nspVoiceRoute(t, "es");
+  const route = t => w.context.nspVoiceRoute(t);
   check("said out loud, my next video routes to the own-channel card", route("oye zerack cuál es mi próximo video").kind === "mine" && route("oye zerack cuál es mi próximo video").mine.kind === "next");
   check("so do Wrapped and the money question", route("mi wrapped").mine.kind === "wrapped" && route("cuánto gano con finanzas a 50 mil vistas").mine.kind === "money");
   check("the X-ray keeps its own route", route("por qué explotó esto").kind === "intel");
@@ -198,12 +203,14 @@ const job = (w, convId, jobSpec, text) => new Promise(r => w.context.nspMineRunM
 
 {
   const { w, store } = worker({ nsp_my_channel: { url: "https://www.youtube.com/channel/" + ID, id: ID, handle: "@mine", name: "History Deep", from: "pasted", at: NOW } });
-  const r1 = { convId: "c-13", tabId: -1, stopped: false, gone: false, chain: Promise.resolve(), lang: "en" };
-  const res = await new Promise(r => w.context.nspChatToolNow("zerackMoneyCalc", { niche: "personal finance", viewsPerVideo: 40000 }, { origin: "chat", lang: "en", chatRun: r1 }, r));
+  const r1 = { convId: "c-13", tabId: -1, stopped: false, gone: false, chain: Promise.resolve() };
+  const res = await new Promise(r => w.context.nspChatToolNow("zerackMoneyCalc", { niche: "personal finance", viewsPerVideo: 40000 }, { origin: "chat", chatRun: r1 }, r));
   check("the money tool shows the card and returns its numbers", res.ok && res.shownInChat && res.data.perMonth.length === 3 && store.rows.some(r => r.meta && r.meta.card && r.meta.card.kind === "money"), res);
-  const n = await new Promise(r => w.context.nspChatToolNow("zerackNextVideo", {}, { origin: "chat", lang: "en", chatRun: r1 }, r));
+  const resEs = await new Promise(r => w.context.nspChatToolNow("zerackMoneyCalc", { niche: "personal finance", viewsPerVideo: 40000, language: "Spanish" }, { origin: "chat", chatRun: r1 }, r));
+  check("the model can name a market for the money tool, and the card says it was named", resEs.ok && resEs.data.risks.some(x => /^Market: ES, the language you named/.test(x)) && res.data.risks.some(x => /^Market: EN, the default/.test(x)) && resEs.data.rpm < res.data.rpm, [resEs.data.risks, res.data.rpm, resEs.data.rpm]);
+  const n = await new Promise(r => w.context.nspChatToolNow("zerackNextVideo", {}, { origin: "chat", chatRun: r1 }, r));
   check("the next video tool returns the brief for the model and calls no provider itself", n.ok && n.brief && /Lost Legion/.test(JSON.stringify(n.brief)) && !w.fetches.some(f => PROVIDER.test(f.url)), n.brief);
-  const th = await new Promise(r => w.context.nspChatToolNow("zerackJudgeThumbnail", {}, { origin: "chat", lang: "en", chatRun: r1 }, r));
+  const th = await new Promise(r => w.context.nspChatToolNow("zerackJudgeThumbnail", {}, { origin: "chat", chatRun: r1 }, r));
   check("with no thumbnail anywhere the tool puts the drop box in the chat and says so", th.ok && th.card === "ask" && th.needsInput.includes("Thumbnail"), th);
 }
 

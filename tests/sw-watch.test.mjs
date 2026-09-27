@@ -104,8 +104,8 @@ function worker(local, opts) {
   w.context.nspIntelTabUrl = () => Promise.resolve("https://www.google.com/");
   return { w, store };
 }
-const run = (w, convId, text, lang) => new Promise(r => w.context.nspChatRun({ convId, text, lang: lang || "en" }, CHAT, r));
-const job = (w, convId, spec, text) => new Promise(r => w.context.nspWatchRunMsg({ convId, text: text || "job", job: spec, lang: "en" }, CHAT, r));
+const run = (w, convId, text) => new Promise(r => w.context.nspChatRun({ convId, text }, CHAT, r));
+const job = (w, convId, spec, text) => new Promise(r => w.context.nspWatchRunMsg({ convId, text: text || "job", job: spec }, CHAT, r));
 const watching = urls => Object.fromEntries(urls.map(u => [u, { channelUrl: u, channelId: "", name: "", addedAt: Date.now() - DAY, lastChecked: 0, knownVideoIds: [] }]));
 const notes = w => w.calls.filter(c => c.api === "notifications.create");
 
@@ -216,9 +216,9 @@ const notes = w => w.calls.filter(c => c.api === "notifications.create");
   check("and its alarm follows", await until(() => w.alarms["nsp-morning-brief"] && new Date(w.alarms["nsp-morning-brief"].scheduledTime).getHours() === 8));
   await job(w, "b-1", { op: "brief_off" }, "Turn it off");
   check("the card's button turns it off", await until(() => w.local.nsp_brief.on === false && !w.alarms["nsp-morning-brief"]));
-  await run(w, "b-2", "qué hicieron mis competidores anoche", "es");
+  await run(w, "b-2", "qué hicieron mis competidores anoche");
   const now = await until(() => { const r = store.rows.find(x => x.convId === "b-2" && x.role === "intel"); return r && r.meta.card; });
-  check("asked on demand with nothing watched, it says what to do in Spanish", now && now.kind === "brief" && /Todavía no hay nada que resumir/.test(now.lead), now && now.lead);
+  check("asked in Spanish with nothing watched, it says what to do in English", now && now.kind === "brief" && /^Nothing to brief yet/.test(now.lead), now && now.lead);
 }
 
 {
@@ -296,25 +296,26 @@ const notes = w => w.calls.filter(c => c.api === "notifications.create");
   check("the user's provider writes three ideas onto the card", card && /Aztec Empire Fell/.test(card.sections[0].rows[0].value) && /Answers: a video about the Aztec empire/.test(card.sections[0].rows[0].note) && /local model/.test(card.sections[0].note), card && card.sections[0]);
   const sent = JSON.stringify(models[0] || {});
   check("the provider got the comments marked as asks and the title, never a page", models.length === 1 && /\[asks\] Can you make a video about the Aztec empire/.test(sent) && /The Fall of Rome/.test(sent) && !/ytInitialData|<html|frameworkUpdates/.test(sent), sent.slice(0, 300));
+  check("and is told to write the ideas in English whatever language the comments use", /title in English, whatever language the comments are in/.test(sent), sent.slice(-400));
   check("the video is named on the card", card && card.channel.name === "The Fall of Rome" && /History Deep/.test(card.channel.line));
   ollamaUp = false;
   models.length = 0;
   const { w: w2, store: s2 } = worker({});
-  const tool = await new Promise(r => w2.context.nspChatToolNow("zerackCommentIdeas", { video: "https://www.youtube.com/watch?v=" + COMMENT_VID }, { origin: "chat", lang: "en", chatRun: { convId: "t-1", tabId: -1, stopped: false, gone: false, chain: Promise.resolve(), lang: "en" } }, r));
+  const tool = await new Promise(r => w2.context.nspChatToolNow("zerackCommentIdeas", { video: "https://www.youtube.com/watch?v=" + COMMENT_VID }, { origin: "chat", chatRun: { convId: "t-1", tabId: -1, stopped: false, gone: false, chain: Promise.resolve() } }, r));
   check("the model's comment tool returns the asks and leaves the ideas to the answer", tool.ok && tool.data.topRequests.length === 3 && /Write three video ideas/.test(tool.note) && !w2.fetches.some(f => PROVIDER.test(f.url)), tool);
   const { w: w3, store: s3 } = worker({});
   w3.context.nspIntelTabUrl = () => Promise.resolve("https://www.youtube.com/watch?v=" + COMMENT_VID);
-  await run(w3, "m-2", "ideas de los comentarios", "es");
+  await run(w3, "m-2", "ideas de los comentarios");
   const noAi = await until(() => { const r = s3.rows.find(x => x.convId === "m-2" && x.role === "intel"); return r && !r.meta.card.sections[0].rows.some(x => x.busy) && r.meta.card; }, 15000);
-  check("without a provider the asks still come back and the ideas say why", noAi && /no AI provider is set up/.test(noAi.sections[0].note) && noAi.hero.value === "3 of 40" && /de los 40 comentarios/.test(noAi.lead), noAi && [noAi.sections[0].note, noAi.lead]);
+  check("without a provider the asks still come back and the ideas say why", noAi && /no AI provider is set up/.test(noAi.sections[0].note) && noAi.hero.value === "3 of 40" && /^3 of the 40 comments read ask for something/.test(noAi.lead), noAi && [noAi.sections[0].note, noAi.lead]);
 }
 
 {
   const w = loadWorker();
-  const route = t => w.context.nspVoiceRoute(t, "es");
+  const route = t => w.context.nspVoiceRoute(t);
   check("said out loud, the five features route", route("dame el resumen de la mañana").watch.kind === "brief" && route("vigila este canal").watch.op === "add" && route("cómo van mis predicciones").watch.kind === "predict" && route("arbitraje de idiomas").watch.kind === "arb" && route("léeme los comentarios").watch.kind === "comments");
   check("ordinary commands keep their routes", route("abre youtube").kind === "youtube" && route("mi wrapped").kind === "mine" && route("por qué explotó esto").kind === "intel");
-  check("a typed request is not sent through the spoken command runner", w.context.nspChatTyped("resumen de la mañana", "es") === null);
+  check("a typed request is not sent through the spoken command runner", w.context.nspChatTyped("resumen de la mañana") === null);
   const tools = n => w.context.NSP_BRAIN.tools(n, { agentOn: false })[0].functionDeclarations.map(d => d.name);
   const four = ["zerackBrief", "zerackPredictions", "zerackLanguageGaps", "zerackCommentIdeas"];
   check("the chat and the voice get the four tools with the Agent switch off", four.every(n => tools("chat").includes(n) && tools("voice").includes(n)));

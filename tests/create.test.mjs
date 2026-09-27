@@ -30,12 +30,19 @@ check("the length asked for is kept", C.intent("write a 10 minute script about t
 check("a video link is the target of the Shorts miner", C.intent("find the best shorts in https://www.youtube.com/watch?v=n82XWvEa22Q").target.video === "n82XWvEa22Q");
 check("a handle is the target of the earnings", C.intent("cuánto dinero gana @veritasium").who.handle === "@veritasium");
 ["how much does she make", "cuánto gana él", "cuánto gana este tipo", "how much does the guy make", "¿Cuánto gana este chico?", "cuánto gana ella"].forEach(t => check("a person on screen is the tab, never a channel search: " + t, (C.intent(t) || {}).who && C.intent(t).who.tab === true, C.intent(t)));
-check("Spanish asks answer in Spanish", C.intent("cuánto gana este canal").lang === "es" && C.intent("how much does this channel earn").lang === "en");
+const earnEs = C.intent("cuánto gana este canal"), earnEn = C.intent("how much does this channel earn");
+check("a Spanish ask routes like the English one and carries no answer language", earnEs.kind === "earn" && earnEn.kind === "earn" && !("lang" in earnEs) && !("lang" in earnEn), [earnEs, earnEn]);
+const plainScript = C.intent("escríbeme un guion con fuentes sobre la caída de Constantinopla");
+check("a script asked for in Spanish words is still written in English", plainScript.kind === "script" && plainScript.topic === "la caída de Constantinopla" && !plainScript.write, plainScript);
+[["escribe un guion con fuentes sobre la caída de Constantinopla en español", "es", "la caída de Constantinopla"], ["write a sourced script about the fall of Rome in Spanish", "es", "the fall of Rome"], ["hazme un guion de 8 minutos sobre el oro de los aztecas para un canal en portugués", "pt", "el oro de los aztecas"], ["write a sourced script about Bismarck for a German channel", "de", "Bismarck"], ["escribe un guion con fuentes sobre Roma en inglés", "en", "Roma"]].forEach(([t, w, topic]) => {
+  const r = C.intent(t);
+  check("a language named for the script is its language, and leaves the topic clean: " + t, r && r.kind === "script" && r.write === w && r.topic === topic, r);
+});
 
 const DAY = 86400000, NOW = Date.UTC(2026, 8, 27);
 const videos = Array.from({ length: 30 }, (_, i) => ({ videoId: "v" + String(i).padStart(10, "0"), title: "The Roman Empire and its lost legions, part " + i, viewsNum: 40000 + i * 1000, published: i < 6 ? (i * 5 + 2) + " days ago" : (i - 4) + " months ago", length: "24:10" }));
 const stats = { totalViews: 36000000, joinedDate: "2021-09-27", videoCount: 180 };
-const earn = C.earnings({ channel: { name: "Rome Deep", handle: "@romedeep", url: "https://www.youtube.com/@romedeep", subs: 410000 }, videos, stats, language: "en", now: NOW }, "en");
+const earn = C.earnings({ channel: { name: "Rome Deep", handle: "@romedeep", url: "https://www.youtube.com/@romedeep", subs: 410000 }, videos, stats, language: "en", now: NOW });
 const recentViews = videos.slice(0, 6).reduce((a, v) => a + v.viewsNum, 0);
 const rpm = g.NspDineroRpm.proyeccion({ tema: videos.map(v => v.title).join(" . "), vistasMes: recentViews, duracionSegundos: 1450, idioma: "en" });
 check("the recent floor counts only uploads of the last 30 days", earn.model.recentUploads === 6 && earn.model.recentViews === recentViews, earn.model);
@@ -46,13 +53,13 @@ check("the lifetime average spreads every view over the months since it joined",
 check("the hero is the range and says it is an estimate", /^\$[\d,]+ to \$[\d,]+$/.test(earn.hero.value) && /estimated/.test(earn.hero.label) && earn.model.stamp === "ESTIMATE", earn.hero);
 check("the math is on the card", earn.sections.find(s => s.id === "rate").rows.some(r => /per month/.test(r.value)));
 check("it can be shared on X", earn.share && /With ZERACK, open source\.$/.test(earn.share.post));
-const sparse = C.earnings({ channel: { name: "Quiet" }, videos: videos.map(v => Object.assign({}, v, { published: "2 years ago" })), stats: {}, now: NOW }, "es");
-check("with no recent upload and no About figures it says not measured, in Spanish", sparse.hero.value === "Not measured" && /No pude ponerle número/.test(sparse.lead), sparse.lead);
-const one = C.earnings({ channel: { name: "New" }, videos: videos.slice(0, 6), stats: {}, now: NOW }, "en");
+const sparse = C.earnings({ channel: { name: "Quiet" }, videos: videos.map(v => Object.assign({}, v, { published: "2 years ago" })), stats: {}, now: NOW });
+check("with no recent upload and no About figures it says not measured, in English", sparse.hero.value === "Not measured" && /^I could not put a number on Quiet/.test(sparse.lead) && !("lang" in sparse), sparse.lead);
+const one = C.earnings({ channel: { name: "New" }, videos: videos.slice(0, 6), stats: {}, now: NOW });
 check("with one way to count it gives one number", /^\$[\d,.]+$/.test(one.hero.value) && /makes about \$/.test(one.lead), one.hero);
 const mixed = videos.map((v, i) => Object.assign({}, v, { title: i === 3 ? "How the rich invest their money" : v.title }));
-const byAll = C.earnings({ channel: { name: "Rome Deep" }, videos: mixed, stats, language: "en", now: NOW }, "en");
-const byVote = C.earnings({ channel: { name: "Rome Deep" }, videos: mixed, stats, language: "en", now: NOW, niche: { label: "Historia", name: "History", count: 29 } }, "en");
+const byAll = C.earnings({ channel: { name: "Rome Deep" }, videos: mixed, stats, language: "en", now: NOW });
+const byVote = C.earnings({ channel: { name: "Rome Deep" }, videos: mixed, stats, language: "en", now: NOW, niche: { label: "Historia", name: "History", count: 29 } });
 check("one finance title does not turn a history channel into finance when the niche is voted title by title", byAll.model.niche === "Finance" && byVote.model.niche === "History" && byVote.model.rpmUsed < byAll.model.rpmUsed && /29 of 30 uploads read as History/.test(byVote.sections.find(s => s.id === "rate").note), { all: byAll.model.niche, vote: byVote.model.niche });
 {
   const T = g.NSP_RPM_TABLA;
@@ -60,10 +67,10 @@ check("one finance title does not turn a history channel into finance when the n
   const label = T.resolver(spread[0].title, {}).label;
   const vote = { label, name: T.nombreDe(label), count: 6, n: 30, mixed: true };
   const single = g.NspDineroRpm.proyeccion({ tema: spread.slice(0, 6).map(v => v.title).join(" . "), vistasMes: 1000, duracionSegundos: 1450, idioma: "en" });
-  const m = C.earnings({ channel: { name: "Spread" }, videos: spread, stats, language: "en", now: NOW, niche: vote }, "en");
+  const m = C.earnings({ channel: { name: "Spread" }, videos: spread, stats, language: "en", now: NOW, niche: vote });
   check("a niche that holds 6 of 30 titles is not used to price the whole channel", m.model.rpmUsed < single.rpm && /mixed niche/.test(m.lead) && /holds only 6 of 30/.test(m.sections.find(s => s.id === "rate").note), { used: m.model.rpmUsed, single: single.rpm, lead: m.lead });
-  const es = C.earnings({ channel: { name: "Spread" }, videos: spread, stats, language: "en", now: NOW, niche: vote }, "es");
-  check("and in Spanish it says so too", /nicho mixto/.test(es.lead), es.lead);
+  const onSpanish = C.earnings({ channel: { name: "Spread" }, videos: spread, stats, language: "es", now: NOW, niche: vote });
+  check("a channel in Spanish is still described in English", /mixed niche/.test(onSpanish.lead) && !/nicho mixto/.test(onSpanish.lead), onSpanish.lead);
 }
 check("ages parse to days", C.daysOf("3 weeks ago") === 21 && C.daysOf("2 days ago") === 2 && Math.round(C.daysOf("1 month ago")) === 30);
 
@@ -90,15 +97,17 @@ const al = C.alignChapters(pkg.chapters, flat);
 check("chapter times come from the video's own captions when it has them", al.ok && al.matched === 2 && al.chapters[0].at === 0 && al.chapters[1].at === Math.floor(flat[said.indexOf("guns") - 1].t0) && al.chapters[2].at > al.chapters[1].at, al.chapters.map(c => c.at));
 check("and stay estimated when there are no captions", !C.alignChapters(pkg.chapters, []).ok);
 
-const form = C.formCard(Object.assign({ chaptersEstimated: true }, pkg), "en", { from: "the sourced script" });
+const form = C.formCard(Object.assign({ chaptersEstimated: true }, pkg), { from: "the sourced script" });
 check("the package card is a form to review, with approve as its only action", form.form.op === "studio_approve" && form.form.submit === "Approve package" && form.form.fields.map(f => f.id).join() === "title,description,chapters,tags" && !form.actions);
 check("the chapters field holds the times", form.form.fields[2].value.split("\n")[1] === "1:35 The guns");
 check("it says what fill and save do and what is never touched", form.sections[0].rows.some(r => /never touched/.test(r.value)));
-const approved = C.approvedCard(Object.assign({ approvedAt: NOW, description: desc, chapters }, pkg), "es");
-check("the approved card offers Fill in Studio and says saving stays with the user", approved.actions[0].job.op === "studio_fill" && /Guardar sigue siendo cosa tuya/.test(approved.lead));
-const filled = C.filledCard(pkg, { ok: true, title: true, description: true, tags: 4, timing: "captions", matched: 2, video: "abcdefghijk" }, "en");
+const approved = C.approvedCard(Object.assign({ approvedAt: NOW, description: desc, chapters }, pkg));
+check("the approved card offers Fill in Studio and says saving stays with the user", approved.actions[0].job.op === "studio_fill" && /Saving stays with you/.test(approved.lead), approved.lead);
+const pkgEs = C.packFromScript(script, "es");
+check("a script written in Spanish keeps Spanish headings in its own description, while the card around it is English", /\nFuentes\n\[1\]/.test(pkgEs.description) && pkgEs.write === "es" && /^Capítulos\n0:00/.test(C.composeDescription("", chapters, "es")) && pkg.write === "en" && /^Review the package/.test(C.formCard(pkgEs).lead), pkgEs.description);
+const filled = C.filledCard(pkg, { ok: true, title: true, description: true, tags: 4, timing: "captions", matched: 2, video: "abcdefghijk" });
 check("the fill report says what went in and that nothing is saved", filled.hero.value === "Filled" && filled.sections[0].rows.some(r => r.label === "Saved" && /^No\./.test(r.value)) && /captions/.test(filled.sections[0].rows[3].value));
-const failed = C.filledCard(pkg, { ok: false, error: "open the video in YouTube Studio (Details) first." }, "en");
+const failed = C.filledCard(pkg, { ok: false, error: "open the video in YouTube Studio (Details) first." });
 check("a failed fill says why", failed.hero.value === "Not filled" && /Details/.test(failed.lead));
 check("no long dash on any create card", !/\u2014/.test(JSON.stringify([earn, sparse, form, approved, filled, failed])));
 void S;

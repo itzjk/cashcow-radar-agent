@@ -44,7 +44,7 @@ for (let i = 0; i < 305; i++) many = A.withPick(many, "h" + i + ".example", "ets
 check("picks are capped at 300 hosts, the oldest dropped", Object.keys(many).length === 300 && !many["h0.example"] && !!many["h304.example"]);
 
 function prompt(opts) {
-  const o = Object.assign({ surface: "chat", query: "What should I fix first?", context: T.context({ surface: "chat", agentOn: true, lang: "en", site: opts.site || null }) }, opts);
+  const o = Object.assign({ surface: "chat", query: "What should I fix first?", context: T.context({ surface: "chat", agentOn: true, site: opts.site || null }) }, opts);
   const parts = B.parts(o);
   const tools = B.tools("chat", Object.assign({ agentOn: true }, o))[0].functionDeclarations.map(t => t.name);
   return { parts, tools, part: id => parts.filter(p => p.id === id).map(p => p.text).join("\n"), agent: B.agentOf(o) };

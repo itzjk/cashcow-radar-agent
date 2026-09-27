@@ -265,9 +265,8 @@
   function context(o) {
     o = o || {};
     var day = new Date(Number(o.now) || Date.now()).toISOString().slice(0, 10);
-    var lang = o.lang === 'es' ? 'Spanish' : (o.lang === 'en' ? 'English' : 'the language of their message');
     var site = o.site && typeof o.site === 'object' && o.site.web === true && o.site.host ? o.site : null;
-    return 'CONTEXT: today is ' + day + '. The user ' + (o.surface === 'voice' ? 'speaks' : 'writes') + ' ' + lang + '; answer in that language. '
+    return 'CONTEXT: today is ' + day + '. '
       + (o.agentOn === true
         ? 'The Agent switch is on, so the tools that act in the browser are in your list.'
         : 'The Agent switch is off, so the tools that change things (opening pages, browser actions, saving, tracking, exporting, acting on the page) are not in your list. When the user asks for one, say that the Agent switch in the chat or in the ZERACK popup turns them on.')

@@ -32,7 +32,8 @@ const NOT = ["make it brief", "be brief", "the brief was short", "watch a movie"
   check("and sentences that are not a request stay out", loose.length === 0, loose.map(t => [t, W.intent(t)]));
   check("the brief hour is read, with pm and in words", W.intent("turn on the morning brief at 7").hour === 7 && W.intent("turn on the daily brief at 6 pm").hour === 18 && W.intent("activa el resumen de la mañana a las 8").hour === 8 && W.intent("activa el resumen de la mañana a las siete").hour === 7 && W.intent("turn on the morning brief at eight").hour === 8);
   check("a brief without an hour leaves it to the saved one", W.intent("turn on the morning brief").hour === null);
-  check("requests speak the language of the user", W.intent("dame el resumen de la mañana").lang === "es" && W.intent("Morning brief").lang === "en" && W.intent("qué piden los comentarios").lang === "es");
+  const briefEs = W.intent("dame el resumen de la mañana"), briefEn = W.intent("Morning brief"), askEs = W.intent("qué piden los comentarios");
+  check("Spanish requests route like English ones and carry no answer language", briefEs && briefEs.kind === "brief" && briefEn && briefEn.kind === "brief" && askEs && askEs.kind === "comments" && ![briefEs, briefEn, askEs].some(r => "lang" in r), [briefEs, briefEn, askEs]);
   const h = W.intent("watch @kurzgesagt");
   check("a named channel is the one watched", h.who && h.who.handle === "@kurzgesagt", h);
   check("this channel means the tab", W.intent("watch this channel").who.tab === true);
@@ -64,7 +65,7 @@ function up(i, views, hours, title) { return { videoId: ("v" + String(i).padStar
   check("too few uploads is said, not guessed", tiny.ok === false && /Only 1 uploads/.test(tiny.reason), tiny);
   const aged = W.outliers({ videos: [up(1, 100, 400)].concat(older), baseline: older.map(v => v.videoId) });
   check("an upload older than a week leaves the watch and joins the baseline", aged.aged.length === 1 && aged.rows.length === 0, aged.aged);
-  const txt = W.alertText({ name: "History Deep" }, o.hits[0], o.median, "en");
+  const txt = W.alertText({ name: "History Deep" }, o.hits[0], o.median);
   check("the notification names the channel, the multiple, the views, the age and the median", /History Deep: an outlier at 5\.7x its median/.test(txt.title) && /62K views after 20 hours/.test(txt.message) && /median is 10K/.test(txt.message), txt);
 }
 
@@ -89,7 +90,7 @@ function up(i, views, hours, title) { return { videoId: ("v" + String(i).padStar
     niches: [{ label: "Historia", name: "History", ok: true, count: 14, medianVph: 320, prevMedianVph: 200, top: { videoId: "ccccccccccc", title: "Ancient Rome explained", vph: 2400, channel: "X" } }],
     alerts: [{ name: "History Deep", channelUrl: "https://www.youtube.com/@HistoryDeep", videoId: "aaaaaaaaaaa", title: "The legion that vanished", views: 52000, multiple: 5.2, hours: 5, median: 10000 }],
     predictions: { settled: 1, picks: 10, pickHits: 3, controls: 10, controlHits: 1 }
-  }, "en");
+  });
   check("the brief counts one outlier even when the alarm already saw it, with the newest figure", card.hero.value === "1" && card.sections[0].rows.length === 1 && card.sections[0].rows[0].tag === "7x", card.sections[0]);
   check("it says the watched channels, the silent one and the one it could not read", card.sections[1].rows.length === 3 && /Silent: no upload in 45 days/.test(card.sections[1].rows[1].value) && /Could not be read/.test(card.sections[1].rows[2].value), card.sections[1].rows);
   check("a niche rising against the last brief is tagged", card.sections[2].rows[0].tag === "RISING" && /up from 200/.test(card.sections[2].rows[0].value), card.sections[2].rows);
@@ -97,11 +98,11 @@ function up(i, views, hours, title) { return { videoId: ("v" + String(i).padStar
   check("settled predictions ride along", card.sections.some(s => s.id === "predictions"));
   check("no model wrote it, and it says so", /No AI model/.test(card.source));
   check("the spoken brief stays short", card.say.split(" ").length <= 60, card.say);
-  const es = W.briefCard({ now, channels: [ch("A", [], 1000, 2)], niches: [] }, "es");
-  check("in Spanish too", /^Resumen de la mañana: noche tranquila/.test(es.lead), es.lead);
-  const empty = W.briefCard({ now, channels: [], niches: [] }, "en");
+  const quiet = W.briefCard({ now, channels: [ch("A", [], 1000, 2)], niches: [] });
+  check("a quiet night is said in English, with no language field", /^Morning brief: a quiet night/.test(quiet.lead) && !("lang" in quiet), quiet.lead);
+  const empty = W.briefCard({ now, channels: [], niches: [] });
   check("with nothing watched it says what to do", /Nothing to brief yet/.test(empty.lead) && /watch this channel/.test(JSON.stringify(empty.sections[1])));
-  const st = W.briefState({ on: true, hour: 7, channels: 3, niches: 2, next: now + HOUR }, "en");
+  const st = W.briefState({ on: true, hour: 7, channels: 3, niches: 2, next: now + HOUR });
   check("the settings card offers other hours and a switch", st.hero.value === "On" && st.actions.some(a => a.job.op === "brief_off") && st.actions.some(a => a.job.op === "brief_on" && a.job.hour === 8));
 }
 
@@ -130,23 +131,23 @@ function up(i, views, hours, title) { return { videoId: ("v" + String(i).padStar
   check("an unreadable channel is left out of both counts, not scored a miss", settled.picks.rows[9].gone === true && settled.picks.rows[9].hit === false);
   check("Fisher gives the textbook one-sided value", Math.abs(W.fisher(4, 9, 1, 10) - 0.1192) < 0.0005 && W.fisher(0, 10, 5, 10) > 0.99 && W.fisher(10, 10, 0, 10) < 0.0001, [W.fisher(4, 9, 1, 10)]);
   const ledger = { batches: [Object.assign({ settled }, batch)] };
-  const ev = W.evidence(ledger, "en");
+  const ev = W.evidence(ledger);
   check("one settled batch is too little data, whatever the gap", ev.key === "thin" && ev.level === 1 && ev.picks.hits === 4, ev);
   const many = { batches: [0, 1, 2].map(k => ({ hash: "h" + k, sealed, settled: { at: "", picks: { n: 10, hits: 5, gone: 0, rows: [] }, controls: { n: 10, hits: 1, gone: 0, rows: [] } } })) };
-  const ev3 = W.evidence(many, "en");
+  const ev3 = W.evidence(many);
   check("with 30 settled a side and 50 against 10 percent, the edge is strong", ev3.key === "strong" && ev3.level === 5 && ev3.p < 0.01, ev3);
   const flat = { batches: [0, 1, 2].map(k => ({ hash: "h" + k, sealed, settled: { at: "", picks: { n: 10, hits: 2, gone: 0, rows: [] }, controls: { n: 10, hits: 2, gone: 0, rows: [] } } })) };
-  check("picks that only tie the controls show no edge", W.evidence(flat, "en").key === "noedge");
-  const card = W.predictCard(ledger, "en", now + 15 * DAY);
+  check("picks that only tie the controls show no edge", W.evidence(flat).key === "noedge");
+  const card = W.predictCard(ledger, now + 15 * DAY);
   check("the card carries the meter, the settled table and the rule", card.sections[0].meter.level === 1 && card.sections[0].meter.label === "Too little data" && card.sections.some(s => s.id === "settled" && s.table.rows.length === 20) && card.sections.some(s => s.id === "rule"));
   check("it offers today's seal, the export and the daily switch", card.actions.map(a => a.job.op).join(",") === "predict_seal,predict_export,predict_daily", card.actions);
   check("the share image says picks against controls, never a bare hit rate", /44% vs 10%/.test(card.share.hero.value) && /random controls/.test(card.share.hero.label) && /controls/.test(card.share.post), card.share);
-  const fresh = W.predictCard({ batches: [{ hash, sealed }] }, "en", now + HOUR, { sealedNow: sealed });
+  const fresh = W.predictCard({ batches: [{ hash, sealed }] }, now + HOUR, { sealedNow: sealed });
   check("a fresh seal says when it settles, once", /^Sealed 10 picks and 10 controls from 28 young channels\. They settle on 10 Oct\.$/.test(fresh.lead) && !fresh.actions.some(a => a.job.op === "predict_seal"), fresh.lead);
   const exp = W.exportOf(ledger, now);
   check("the export explains how to verify each hash", exp.batches[0].sha256 === hash && /canonical/.test(exp.verify) && exp.evidence.picks.hits === 4);
-  const none = W.predictCard({ batches: [] }, "es", now);
-  check("with no batch it says so and offers to seal", /Todavía no hay predicciones/.test(none.lead) && none.actions[0].job.op === "predict_seal" && !none.share);
+  const none = W.predictCard({ batches: [] }, now);
+  check("with no batch it says so and offers to seal", /^No prediction is sealed yet/.test(none.lead) && none.actions[0].job.op === "predict_seal" && !none.share);
 }
 
 {
@@ -160,7 +161,7 @@ function up(i, views, hours, title) { return { videoId: ("v" + String(i).padStar
   add("es", 20, "Historias para dormir y relajarse", 120);
   add("es", 50, "Broma graciosa compilación", 100);
   add("de", 30, "Geschichte des alten Reiches", 50);
-  const card = W.arbitrage({ records: recs, sources: { corpus: 40, feed: 143 } }, "en");
+  const card = W.arbitrage({ records: recs, sources: { corpus: 40, feed: 143 } });
   const es = card.sections.find(s => s.id === "lang-es");
   check("history wins in English at over 1.2x the English median", card.sections[0].rows[0].label === "History" && /12 uploads at 3.6x/.test(card.sections[0].rows[0].value), card.sections[0].rows);
   check("and is missing in Spanish with 1 upload of 71", es.rows.some(r => r.label === "History" && r.tag === "MISSING" && /Only 1 Spanish upload of 71/.test(r.value)), es.rows);
@@ -168,9 +169,9 @@ function up(i, views, hours, title) { return { videoId: ("v" + String(i).padStar
   check("German with 30 titles is refused with the reason", card.sections.find(s => s.id === "lang-de").rows[0].label === "Not judged" && /Only 30 German uploads/.test(card.sections.find(s => s.id === "lang-de").rows[0].value));
   check("the refused markets are offered a measurement", card.actions[0].job.op === "arb_measure" && card.actions[0].job.langs.join() === "de,pt", card.actions);
   check("the lead names the gap and the counts behind it", /^Measured from 183 titles: 82 English, 71 Spanish, 30 German, 0 Portuguese\. History wins in English and is missing in Spanish\./.test(card.lead), card.lead);
-  const thin = W.arbitrage({ records: recs.filter(r => r.lang !== "en").concat(recs.filter(r => r.lang === "en").slice(0, 20)) }, "es");
-  check("with under 60 English titles it refuses in Spanish too, with the counts in Spanish", thin.hero.value === "Too little data" && /Muy pocos datos/.test(thin.lead) && /20 inglés, 71 español, 30 alemán, 0 portugués/.test(thin.lead), thin.lead);
-  const guessed = W.arbitrage({ records: [{ title: "Top 10 facts", vph: 100 }, { title: "La historia de los romanos y el imperio", vph: 50 }] }, "en");
+  const thin = W.arbitrage({ records: recs.filter(r => r.lang !== "en").concat(recs.filter(r => r.lang === "en").slice(0, 20)) });
+  check("with under 60 English titles it refuses in English, with the counts", thin.hero.value === "Too little data" && /Too little data to call a language gap/.test(thin.lead) && /20 English, 71 Spanish, 30 German, 0 Portuguese/.test(thin.lead), thin.lead);
+  const guessed = W.arbitrage({ records: [{ title: "Top 10 facts", vph: 100 }, { title: "La historia de los romanos y el imperio", vph: 50 }] });
   check("an unmarked title is left out instead of being called English", guessed.model.pools.en === 0 && guessed.model.pools.es === 1 && /1 titles with no clear language/.test(guessed.source), guessed.model);
 }
 
@@ -183,15 +184,15 @@ function up(i, views, hours, title) { return { videoId: ("v" + String(i).padStar
   check("while its theories, questions and jokes are not", !REAL_NOT.some(t => W.asks(t)), REAL_NOT.filter(t => W.asks(t)));
   const d = W.digest([{ text: "Can you make a video about the Aztecs?", likes: 1200 }, { text: "Great video", likes: 5000 }, { text: "Part 2 please", likes: 300 }, { text: "Why is this so good?", likes: 2 }, { text: "", likes: 9 }]);
   check("the digest counts, sorts by likes and skips empty comments", d.read === 4 && d.asks === 2 && d.requests[0].likes === 1200 && d.questions === 1, d);
-  const card = W.commentsCard({ video: { id: "abcdefghijk", title: "The fall of Rome", channel: "History Deep" }, digest: d, ai: { ok: true, by: "your local model", result: { ideas: [{ title: "The Aztec Empire in 30 minutes", answers: "a video about the Aztecs", comments: 1 }, { title: "The fall of Rome, part 2", answers: "part 2", comments: 1 }, { title: "Byzantium", answers: "", comments: 0 }], sentiment: { positive: 3, neutral: 1, negative: 0 }, summary: "They want more empires." } }, pages: 1 }, "en");
+  const card = W.commentsCard({ video: { id: "abcdefghijk", title: "The fall of Rome", channel: "History Deep" }, digest: d, ai: { ok: true, by: "your local model", result: { ideas: [{ title: "The Aztec Empire in 30 minutes", answers: "a video about the Aztecs", comments: 1 }, { title: "The fall of Rome, part 2", answers: "part 2", comments: 1 }, { title: "Byzantium", answers: "", comments: 0 }], sentiment: { positive: 3, neutral: 1, negative: 0 }, summary: "They want more empires." } }, pages: 1 });
   check("the card leads with what the audience asks", card.hero.value === "2 of 4" && /^2 of the 4 comments read ask for something\. The most liked ask: "Can you make a video about the Aztecs\?"\. Three ideas: 1, The Aztec Empire in 30 minutes/.test(card.lead), card.lead);
   check("the ideas come with what they answer and a copy button", card.sections[0].rows.length === 3 && /Answers: a video about the Aztecs/.test(card.sections[0].rows[0].note) && card.sections[0].copy.text.split("\n").length === 3);
   check("the asks show verbatim with their likes", card.sections[1].rows[0].label === "1.2K likes" && /Aztecs/.test(card.sections[1].rows[0].value));
   check("the share image carries the thumbnail and the ideas", card.share.image === "https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg" && card.share.rows.length === 3);
-  const noAi = W.commentsCard({ video: { id: "abcdefghijk", title: "x" }, digest: d, ai: { ok: false, reason: "Not written: no AI provider is set up." } }, "en");
+  const noAi = W.commentsCard({ video: { id: "abcdefghijk", title: "x" }, digest: d, ai: { ok: false, reason: "Not written: no AI provider is set up." } });
   check("without a provider the asks still show and the ideas say why", /no AI provider/.test(noAi.sections[0].note) && noAi.sections[1].rows.length === 2);
-  const none = W.commentsCard({ video: { id: "abcdefghijk", title: "x" }, digest: W.digest([]) }, "es");
-  check("no comments is said plainly", none.hero.value === "No comments" && /no muestra comentarios/.test(none.lead));
+  const none = W.commentsCard({ video: { id: "abcdefghijk", title: "x" }, digest: W.digest([]) });
+  check("no comments is said plainly", none.hero.value === "No comments" && /shows no comments/.test(none.lead));
 }
 
 {

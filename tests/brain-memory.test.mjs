@@ -8,7 +8,7 @@ const gsc = { host: "search.google.com", web: true, access: "act" };
 const lesson = (text, at) => ({ text, evidence: '"B" leads: 97.2% chance it is best, 1,240 of 2,410 impressions, e-value 34', host: "search.google.com", at: at || Date.UTC(2026, 8, 26) });
 
 function prompt(query, site, agentOn, playbook, memory) {
-  const parts = B.parts({ surface: "chat", query, site, playbook, pageTools: !!(site && site.web && agentOn), memory, context: T.context({ surface: "chat", agentOn, lang: "en", site }) });
+  const parts = B.parts({ surface: "chat", query, site, playbook, pageTools: !!(site && site.web && agentOn), memory, context: T.context({ surface: "chat", agentOn, site }) });
   const tools = B.tools("chat", { agentOn, site, query, playbook })[0].functionDeclarations;
   return { parts, tools, names: tools.map(t => t.name), text: JSON.stringify(parts) + JSON.stringify(tools), part: id => parts.filter(p => p.id === id).map(p => p.text).join("\n") };
 }

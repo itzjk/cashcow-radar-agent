@@ -8,7 +8,7 @@ const YT = /you ?tube|faceless|\bniches?\b|\bvph\b|thumbnail|\bchannels?\b|short
 const YT_VIDEO = /you ?tube|\bvph\b|thumbnail|views per hour/i;
 
 function prompt(query, site, agentOn, playbook, extra) {
-  const o = Object.assign({ surface: "chat", query, site, playbook, pageTools: !!(site && site.web && agentOn), context: T.context({ surface: "chat", agentOn, lang: "en", site }) }, extra || {});
+  const o = Object.assign({ surface: "chat", query, site, playbook, pageTools: !!(site && site.web && agentOn), context: T.context({ surface: "chat", agentOn, site }) }, extra || {});
   const parts = B.parts(o);
   const tools = B.tools("chat", Object.assign({ agentOn, site, query, playbook }, extra || {}))[0].functionDeclarations;
   return { parts, tools, ids: parts.map(p => p.id), names: tools.map(t => t.name), text: JSON.stringify(parts) + JSON.stringify(tools), part: id => (parts.find(p => p.id === id) || {}).text || "" };

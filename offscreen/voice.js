@@ -86,7 +86,7 @@
   ];
 
   // Mirrors the fixed lines of NSP_VOICE_LINES in background/service-worker.js and the confirmations in the voice brief; a SAY with cache: true is kept as well.
-  var FIXED_LINES = /^(?:listening|voice off|te escucho|voz apagada|opening youtube|searching|searching youtube|going back|back|forward|scanning|done|i did not catch that|yes|opening it|reloading|next tab|previous tab|closed|new tab|saved|opening the channel|that did not work|there is only one tab|there is nowhere to go|the agent is on|the agent is off|hands free is off|dime|abro youtube|busco en youtube|lo abro|atras|adelante|recargo|siguiente pestana|pestana anterior|cerrada|pestana nueva|guardado|escaneando|abro el canal|no funciono|solo hay una pestana|no hay adonde ir|agente activado|agente apagado|manos libres apagado|no te entendi)$/;
+  var FIXED_LINES = /^(?:listening|voice off|opening youtube|searching|searching youtube|going back|back|forward|scanning|done|i did not catch that|yes|opening it|reloading|next tab|previous tab|closed|new tab|saved|opening the channel|that did not work|there is only one tab|there is nowhere to go|the agent is on|the agent is off|hands free is off)$/;
   var STOP_RE = /^(?:never ?mind|forget it|thats all|thats it|stand down|go to sleep|cancel that|stop listening|nada|olvidalo|dejalo|no importa|cancela|cancelalo)$/;
   var NOT_SPEECH_RE = /^(?:you|thank you|thanks|thanks for watching|thank you for watching|bye|gracias|muchas gracias|gracias por ver(?: el video)?|suscribete|musica|subtitulos(?: realizados| hechos)? por .*|amara org.*)$/;
   var CALL_RE = /^(?:oye|hey|ey)$/;
@@ -1048,13 +1048,6 @@
     if (cur.trim()) out.push(cur);
     return out.map(function (s) { return s.trim(); }).filter(Boolean);
   }
-  function textLang(t) {
-    var s = ' ' + bare(t) + ' ';
-    if (/[ñ¿¡]/i.test(t)) return 'es';
-    var es = (s.match(/ (?:el|la|los|las|de|del|que|en|un|una|es|por|para|con|no|y|lo|te|se|hay|abro|busco) /g) || []).length;
-    var en = (s.match(/ (?:the|a|an|and|is|are|to|of|in|it|you|that|this|on|for|with|i|opening|searching) /g) || []).length;
-    return es > en ? 'es' : en > es ? 'en' : (lastLang === 'es' ? 'es' : 'en');
-  }
   function cacheKey(text, engine, p, forced) {
     var norm = bare(text);
     if (!norm || norm.length > CACHE_TEXT_MAX || !(forced || FIXED_LINES.test(norm))) return '';
@@ -1157,17 +1150,17 @@
     });
   }
   function langOf(v) { return String(v.lang || '').slice(0, 2).toLowerCase(); }
-  function bestVoiceFor(list, lang) {
-    var of = function (v) { return langOf(v) === lang; };
-    return (lang === 'en' && find(list, function (v) { return v.name === 'Google UK English Male'; }))
-      || find(list, function (v) { return /^Google\b/.test(v.name) && of(v); })
-      || find(list, function (v) { return v.localService && of(v); })
-      || find(list, of) || null;
+  function english(v) { return langOf(v) === 'en'; }
+  function bestVoice(list) {
+    return find(list, function (v) { return v.name === 'Google UK English Male'; })
+      || find(list, function (v) { return /^Google\b/.test(v.name) && english(v); })
+      || find(list, function (v) { return v.localService && english(v); })
+      || find(list, english) || null;
   }
-  function pickBrowserVoice(list, p, lang) {
+  function pickBrowserVoice(list, p) {
     var mine = find(list, function (v) { return v.name === p.browserVoice; });
-    if (mine && langOf(mine) === lang) return mine;
-    return bestVoiceFor(list, lang) || mine || find(list, function (v) { return v.default; }) || list[0] || null;
+    if (mine && english(mine)) return mine;
+    return bestVoice(list) || mine || find(list, function (v) { return v.default; }) || list[0] || null;
   }
   function sayChunks(parts, v, token, trn) {
     return parts.reduce(function (acc, part) {
@@ -1192,14 +1185,13 @@
     }, Promise.resolve());
   }
   function speakBrowser(t, token, p, key, trn) {
-    var lang = textLang(t);
     return browserVoices().then(function (list) {
       if (!window.speechSynthesis || token !== voice.token) return;
-      var v = pickBrowserVoice(list, p, lang);
+      var v = pickBrowserVoice(list, p);
       if (trn) trn.voice = v ? v.name : '';
       return sayChunks(chunksOf(t), v, token, trn).catch(function () {
         if (token !== voice.token || !v || v.localService) return;
-        var offline = find(list, function (x) { return x.localService && langOf(x) === lang; }) || find(list, function (x) { return x.localService; });
+        var offline = find(list, function (x) { return x.localService && english(x); }) || find(list, function (x) { return x.localService; });
         if (!offline) return;
         note('google_voice_failed');
         return sayChunks(chunksOf(t), offline, token, trn).catch(function () {});

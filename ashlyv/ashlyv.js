@@ -3377,7 +3377,7 @@ function handleScanAnalyze() {
 function initScanLanguageSelect() {
   var sel = document.getElementById('scan-lang-sel');
   if (!sel) return;
-  var current = sel.value || 'es';
+  var current = sel.value || 'en';
   var langs = getLanguageList().filter(function(item) { return item.code !== 'auto'; });
   if (!langs.length || sel.getAttribute('data-expanded') === '1') return;
   sel.innerHTML = '';

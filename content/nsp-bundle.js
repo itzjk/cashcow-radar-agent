@@ -12916,11 +12916,11 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
         }, 'pro-title-result');
         card(replicateView, '#00DC82', 'REPLICATE CONTENT', {
           grid: '1fr 82px 96px',
-          items: [proInput('pro-rep-channel', 'channel/url'), proSelect('pro-rep-language', [['es','ES'], ['en','EN'], ['pt','PT'], ['de','DE']]), proBtnSmall('pro-rep-btn', 'REPLICATE', '#00DC82', '#000', 'replicate')]
+          items: [proInput('pro-rep-channel', 'channel/url'), proSelect('pro-rep-language', [['en','EN'], ['es','ES'], ['pt','PT'], ['de','DE']]), proBtnSmall('pro-rep-btn', 'REPLICATE', '#00DC82', '#000', 'replicate')]
         }, 'pro-rep-result');
         card(brandView, '#FFD93D', 'BUILD BRAND', {
           grid: '1fr 80px 72px 62px',
-          items: [proInput('pro-brand-niche', 'niche'), proSelect('pro-brand-tone', [['pro','Pro'], ['drama','Drama'], ['casual','Casual'], ['edu','Edu']]), proSelect('pro-brand-language', [['es','ES'], ['en','EN'], ['pt','PT'], ['de','DE']]), proBtnSmall('pro-brand-btn', 'BUILD', '#FFD93D', '#000', 'brand')]
+          items: [proInput('pro-brand-niche', 'niche'), proSelect('pro-brand-tone', [['pro','Pro'], ['drama','Drama'], ['casual','Casual'], ['edu','Edu']]), proSelect('pro-brand-language', [['en','EN'], ['es','ES'], ['pt','PT'], ['de','DE']]), proBtnSmall('pro-brand-btn', 'BUILD', '#FFD93D', '#000', 'brand')]
         }, 'pro-brand-result');
         panel.appendChild(proPanel);
         var q = function(sel) { return proPanel.querySelector(sel); };
@@ -12956,17 +12956,6 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
           if (!text && typeof detectNicheLabel === 'function') text = detectNicheLabel((sc.title || '') + ' ' + ((typeof _session !== 'undefined' && _session && _session.query) || ''));
           return String(text || sc.title || 'General').replace(/[^\w\s\-&.,]/g, '').replace(/\s+/g, ' ').trim();
         };
-        var selectedScanLanguage = function() {
-          var item = selectedScanItem();
-          if (!item) return 'es';
-          try {
-            return (typeof detectTextLanguage === 'function' && typeof getAshlyVLanguageText === 'function')
-              ? (detectTextLanguage(getAshlyVLanguageText(item)) || 'es')
-              : 'es';
-          } catch(e) {
-            return 'es';
-          }
-        };
         var syncScanProFields = function() {
           var ch = selectedScanChannel();
           var niche = selectedScanNiche();
@@ -12978,9 +12967,6 @@ function showAshlyVScanOverlay(topResults, totalVideos, avgOS, avgRpm, topNiche,
             var el = q(sel);
             if (el) { el.value = niche; el.readOnly = true; el.title = 'Locked to the niche selected in the scan'; }
           });
-          var lang = selectedScanLanguage().slice(0, 2).toLowerCase();
-          var repLang = q('#pro-rep-language');
-          if (repLang && ['es', 'en', 'pt', 'de'].indexOf(lang) !== -1) repLang.value = lang;
           var needsChannel = ['#pro-age-btn', '#pro-viral-btn', '#pro-rep-btn'];
           needsChannel.forEach(function(sel) {
             var btn = q(sel);
@@ -20670,7 +20656,7 @@ function nspCoachBuildContextSummary() {
           if (reRep && reRep.ok && reRep.texto) {
             ctx += '\n=== REVERSE ENGINEERING OF THIS SCAN (real patterns pulled from the user titles; use it to give templates and concrete advice for THEIR niche, never generic advice) ===\n';
             ctx += reRep.texto + '\n';
-            ctx += 'INSTRUCTION FOR YOU: when the user asks for titles, ideas or what to do next, generate 8 to 10 new titles by filling the template above with the trigger words, the numbers and the real openings from this scan, in the same language as the scanned titles. Name one or two channels above to study. Never give generic advice: everything comes from this real data.\n';
+            ctx += 'INSTRUCTION FOR YOU: when the user asks for titles, ideas or what to do next, generate 8 to 10 new titles by filling the template above with the trigger words, the numbers and the real openings from this scan, in English unless the user asks for another language. Name one or two channels above to study. Never give generic advice: everything comes from this real data.\n';
             ctx += '=== END REVERSE ENGINEERING ===\n';
             console.log('[NSP COACH] reverse-engine: report injected, template =', reRep.plantilla);
           }

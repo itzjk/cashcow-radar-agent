@@ -102,15 +102,15 @@ check("Spanish numbers count as numbers", es.list.some(c => c.rasgos.numeros > 0
 check("3 clips under 10 minutes, 4 under 20, 5 from 20 minutes up", S.howMany(300) === 3 && S.howMany(700) === 4 && S.howMany(1300) === 5 && S.howMany(21265) === 5);
 check("the clock prints hours only when there are hours", S.clock(65) === "1:05" && S.clock(3725) === "1:02:05");
 
-const card = S.card({ result: hot, video: { id: "n82XWvEa22Q", title: "Hawks Film Room Ep 55", channel: "Hawks" }, captions: "en, auto-generated" }, "en");
+const card = S.card({ result: hot, video: { id: "n82XWvEa22Q", title: "Hawks Film Room Ep 55", channel: "Hawks" }, captions: "en, auto-generated" });
 const links = card.sections.flatMap(s => s.rows || []).filter(r => r.link).map(r => r.link);
 check("the card lists every clip with a link that opens the video at its start", card.kind === "shorts" && links.length === hot.clips.length && links.every((l, i) => l === "https://www.youtube.com/watch?v=n82XWvEa22Q&t=" + Math.floor(hot.clips[i].t0) + "s"), links);
 check("each clip names its hook line and why it was picked", card.sections.filter(s => /^clip/.test(s.id)).every(s => s.rows[0].label === "Hook line" && s.rows[1].label === "Why" && s.rows[1].value.length > 3));
 check("the card says the replay graph was used", /Measured/.test(card.sections.find(s => s.id === "how").rows[2].value));
 check("it can be copied as a cut list and shared", card.sections.find(s => s.id === "how").copy.text.split("\n").length === hot.clips.length + 1 && card.share && /ZERACK, open source/.test(card.share.post));
-const es2 = S.card({ result: hot, video: { id: "n82XWvEa22Q", title: "Ep 55" } }, "es");
-check("the lead is spoken in the language asked", /^Encontré \d momentos/.test(es2.lead));
-const none = S.card({ result: { ok: false, reason: "no_captions" }, video: { id: "n82XWvEa22Q", title: "Ep 55" } }, "en");
+const es2 = S.card({ result: hot, video: { id: "n82XWvEa22Q", title: "Ep 55" }, captions: "es, auto-generated" });
+check("the lead is spoken in English even for a video in Spanish", /^I found \d moments/.test(es2.lead) && !("lang" in es2), es2.lead);
+const none = S.card({ result: { ok: false, reason: "no_captions" }, video: { id: "n82XWvEa22Q", title: "Ep 55" } });
 check("a video with no captions says so and guesses nothing", none.hero.value === "No clean cut" && /no captions/.test(none.lead) && !none.sections.length && !none.share);
 const short = S.mine({ words: flat(30, ["The legion crossed the river at dawn."]), heat: [], seconds: 80 });
 check("a video too short for a clip says why", !short.ok && short.reason === "too_short", short);

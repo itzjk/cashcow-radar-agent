@@ -508,7 +508,6 @@
         status(note, '', '');
         var job = {};
         Object.keys(a.job).forEach(function (k) { job[k] = a.job[k]; });
-        if (card.lang === 'es' || card.lang === 'en') job.lang = card.lang;
         if (job.op === 'studio_pack' && rowId != null) job.rowId = String(rowId);
         Promise.resolve(opts.job(job, String(a.label))).then(function (ok) {
           b.disabled = false;
@@ -545,7 +544,6 @@
         var job = {};
         Object.keys(p.job).forEach(function (k) { job[k] = p.job[k]; });
         job.op = 'script';
-        if (card.lang === 'es' || card.lang === 'en') job.lang = card.lang;
         Promise.resolve(opts.job(job, 'Write it again with the pages I allowed: ' + String(p.job.topic || '').slice(0, 80))).then(function (ok) {
           b.disabled = false;
           if (!ok) status(note, 'The chat is busy. Wait for the answer and press it again.', 'err');
