@@ -149,6 +149,14 @@ function img(w, h, fn) {
   check("the winners themselves spread around the middle of their own cohort", scores[5] >= 25 && scores[5] <= 75 && scores[9] > scores[0], scores);
   const none = M.thumbJudge({ mine: flat, cohort: { ok: false, razon: "Only 3 winners." }, now: NOW }, "en");
   check("with no cohort it is not placed", none.hero.value === "NOT PLACED");
+  const es = M.thumbJudge({ mine: flat, preview: "data:image/jpeg;base64,AAAA", cohort, title: "La Legión", now: NOW }, "es");
+  check("asked in Spanish, the first change is spoken in Spanish too", /Primer cambio: \d+ de 10 ganadores llevan texto/.test(es.lead) && !/winners|yours|carry/.test(es.lead), es.lead);
+  check("while the card rows stay in English", /text or a logo band/.test(es.sections.find(s => s.id === "change").rows[0].value));
+  const plain = Array.from({ length: 10 }, (_, k) => { const m = MM.medirCompleto(img(480, 270, x => (x > 240 ? [230, 120 + k, 20] : [20, 30, 160 + k * 3])), 480, 270, 1280); m.id = "p" + k; return m; });
+  const noBands = { ok: true, dice: "10 winners", videos: plain.map((m, k) => ({ id: ("klmnopqrst" + k).slice(0, 11), titulo: "x", vph: 900 - k })), measured: plain };
+  const fine = MM.medirCompleto(img(480, 270, (x, y) => (y > 40 && y < 110 && x % 2 === 0) ? [255, 255, 255] : (x > 300 ? [230, 120, 20] : [20, 30, 60])), 480, 270, 1280);
+  const leads = [flat, fine].map(m => M.thumbJudge({ mine: m, cohort: noBands, now: NOW }, "es").lead);
+  check("a measured first change is spoken in Spanish as well", /Primer cambio: Sube el contraste/.test(leads[0]) && /Primer cambio: El color es más apagado/.test(leads[1]) && !/winners|yours|against/.test(leads.join(" ")), leads);
 }
 
 {
@@ -193,6 +201,11 @@ function img(w, h, fn) {
   check("the own floor adds a column", cost.sections.find(s => s.id === "month").table.head.includes("At your floor"));
   const bad = M.money({ niche: "history", views: null, now: NOW }, "en");
   check("no views, no number: the card asks", bad.hero.value === "NO NUMBER" && bad.form && bad.form.op === "money");
+  const es1 = M.money({ niche: "historia", views: 1e6, now: NOW }, "es");
+  const es2 = M.money({ niche: "historia", views: 2e6, cost: 9000, now: NOW }, "es");
+  const es3 = M.money({ niche: "historia", views: 20000, now: NOW }, "es");
+  check("in Spanish a million views reads un millón de vistas", /a un millón de vistas por video/.test(es1.lead) && /a 2 millones de vistas por video/.test(es2.lead) && /a 20 mil vistas por video/.test(es3.lead), [es1.lead, es2.lead, es3.lead]);
+  check("and the pay back views keep the same grammar", /se paga a las .*vistas/.test(es2.lead) && !/(millones|millón) vistas/.test(es1.lead + es2.lead), es2.lead);
 }
 
 {

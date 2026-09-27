@@ -6,8 +6,8 @@ const WINNER = "Su Tío Vendió la Casa y la Echó—Sin Saber el Secreto que el
 const LOSER = "TODOS SE RIERON DEL VIEJO POR REGAR CENIZA EN SU MILPA… 3 COSECHAS DESPUÉS, LE PIDIERON PERDÓN";
 const g = P.puntuar(WINNER), p = P.puntuar(LOSER);
 
-check("the 537,000 view title scores high", g.packagingScore >= 40, g.packagingScore);
-check("the 494 view title scores low", p.packagingScore <= 10, p.packagingScore);
+check("a title in the winning shape scores high", g.packagingScore >= 40, g.packagingScore);
+check("a title carrying three dead weights scores low", p.packagingScore <= 10, p.packagingScore);
 check("and the gap between them is wide", g.packagingScore - p.packagingScore >= 30, g.packagingScore - p.packagingScore);
 
 const neg = p.negativas.map(x => x.id);

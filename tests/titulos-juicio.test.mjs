@@ -38,7 +38,7 @@ const A = "Su Tío Vendió la Casa y la Echó—Sin Saber el Secreto que el gato
 const B = "TODOS SE RIERON DEL VIEJO POR REGAR CENIZA EN SU MILPA… 3 COSECHAS DESPUÉS, LE PIDIERON PERDÓN";
 const pa = N.puntuar(A), pb = N.puntuar(B, { nicho: "Melodrama campirano" });
 check("the melodrama title goes to its niche engine", pa.motor === "melodrama", pa.motor);
-check("and the 537,000 view one beats the 494 view one", pa.puntos > pb.puntos, [pa.puntos, pb.puntos]);
+check("and the winning shape beats the dead weight one", pa.puntos > pb.puntos, [pa.puntos, pb.puntos]);
 check("the melodrama reasons are English, keyed by stable ids", pa.aFavor.length > 0 && pa.aFavor.every(x => /^[a-z_]+$/.test(x.clave) && /^[a-z0-9 ,]+$/i.test(x.etiqueta)), pa.aFavor);
 const duel = N.comparar(A, B, { nicho: "Melodrama campirano" });
 check("the duel is called and gives its reasons", duel.estado === "llamado" && duel.gana === "a" && duel.motivos.length > 0, duel.estado);

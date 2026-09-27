@@ -131,6 +131,8 @@ const idle = channel({ length: 30, start: 118, every: 12, title: i => "Ancient R
   const med = axes.find(r => r.label === "Median video");
   check("the duel puts both channels on each axis with the winner", axes.length === 7 && med.tag === "B" && /Lucky One .* \u00b7 Steady One/.test(med.value), axes.map(a => [a.label, a.tag]));
   check("and says why it wins", /Steady One is \d+x higher\./.test(med.note), med.note);
+  const axesNote = d.sections.find(s => s.id === "axes").note;
+  check("the axes say which uploads the floor, median and ceiling come from, so the median is not mistaken for the X-ray's", /Floor, median and ceiling are read over each side's newest uploads, leaving out those younger than 7 days when enough are older \(Lucky One \d+, Steady One \d+\)/.test(axesNote) && /differ from the X-ray median/.test(axesNote), axesNote);
   check("the steadier channel wins the ratio axis", axes.find(r => r.label === "Ceiling over floor").tag === "B");
   check("the hero counts axes won", /^\d+ : \d+$/.test(d.hero.value), d.hero);
   check("the duel summary fits in about 20 seconds", words(d.say) <= 60, d.say);
