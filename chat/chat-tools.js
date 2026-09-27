@@ -17,7 +17,26 @@
     zerackCourse: 'Read the course',
     zerackBrowser: 'Browser',
     zerackOpenPage: 'Open a ZERACK page',
-    zerackYouTubeAgent: 'Ask the YouTube agent'
+    zerackYouTubeAgent: 'Ask the YouTube agent',
+    zerackXray: 'X-ray the channel',
+    zerackDuel: 'Duel two channels',
+    zerackFormula: 'Measure the formula of',
+    zerackVerdict: 'Luck or growth for',
+    zerackMyChannel: 'Wrap your channel',
+    zerackNextVideo: 'Find your next video',
+    zerackJudgeTitle: 'Judge the title',
+    zerackJudgeThumbnail: 'Judge the thumbnail',
+    zerackThumbnailIdeas: 'Thumbnail ideas for',
+    zerackPolicyCheck: 'Check before upload',
+    zerackMoneyCalc: 'Work out what it pays',
+    zerackBrief: 'Read the morning brief',
+    zerackPredictions: 'Read the prediction ledger',
+    zerackLanguageGaps: 'Measure the language gaps',
+    zerackCommentIdeas: 'Read the comments',
+    zerackSourcedScript: 'Write a sourced script about',
+    zerackShortsMiner: 'Find the Shorts in',
+    zerackChannelEarnings: 'Estimate the earnings of',
+    zerackStudioPackage: 'Open the Studio package'
   };
 
   var BROWSER_LABELS = {
@@ -38,7 +57,7 @@
       return what ? head + ' ' + clip(what, 60) : head;
     }
     var base = LABELS[name] || name;
-    var d = args.lesson || args.query || args.url || args.channelUrl || args.page || args.area || args.instruction || args.channelName || args.title || args.format || '';
+    var d = args.lesson || args.query || args.url || args.channelUrl || args.channel || args.channelB || args.page || args.area || args.instruction || args.channelName || args.title || args.format || args.niche || args.video || args.topic || '';
     return d ? base + ' ' + clip(d, 60) : base;
   }
 
@@ -56,9 +75,9 @@
 
   function history(list) {
     return (list || []).filter(function (m) {
-      return m && (m.role === 'user' || m.role === 'assistant') && String(m.text || m.content || '').trim();
+      return m && (m.role === 'user' || m.role === 'assistant' || m.role === 'intel') && String(m.text || m.content || '').trim();
     }).map(function (m) {
-      return { role: m.role, content: String(m.text != null ? m.text : m.content) };
+      return { role: m.role === 'intel' ? 'assistant' : m.role, content: String(m.text != null ? m.text : m.content) };
     }).slice(-HISTORY);
   }
 

@@ -385,3 +385,10 @@ body {
 .bubble-here { display: block; margin-top: 4px; padding: 0; background: none; border: 0; color: #fff; font: inherit; font-size: 11px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .bubble-here[hidden] { display: none; }
 .country-cta-btn { padding: 10px 14px; }
+.brief-row .agent-text { flex: 1 1 auto; min-width: 0; }
+.brief-hour { flex: 0 0 auto; background: #141414; color: #fff; border: 1px solid rgba(255,255,255,0.22); border-radius: 6px; padding: 3px 4px; font: inherit; font-size: 11px; cursor: pointer; }
+.brief-hour[hidden] { display: none; }
+.brief-hour:focus-visible { outline: 1px solid #ff2d2d; outline-offset: 1px; }
+body { overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.25) transparent; }
+.tab-panel { flex: 1 0 auto; min-height: 66px; }
+.footer { position: sticky; bottom: 0; z-index: 2; background: #000; }

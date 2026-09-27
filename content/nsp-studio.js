@@ -1308,4 +1308,289 @@
   setInterval(tick, 4000);
   var _lastUrl = window.location.href;
   setInterval(function() { if (window.location.href !== _lastUrl) { _lastUrl = window.location.href; setTimeout(tick, 800); } }, 1000);
+  var STUDIO_TITLE = '#title-textarea #textbox';
+  var STUDIO_DESC = '#description-textarea #textbox';
+  var STUDIO_TAGS = '#tags-container input, ytcp-free-text-chip-bar input, ytcp-chip-bar input';
+  var STUDIO_MORE = 'ytcp-button#toggle-button, #toggle-button';
+  var STUDIO_SAVE = 'ytcp-button#save, #save.ytcp-button, ytcp-button[id="save"]';
+  var bar = { host: null, root: null, state: '', video: '', dismissed: {}, filled: false, report: null };
+
+  function sVisible(sel, scope) {
+    var list = (scope || document).querySelectorAll(sel);
+    for (var i = 0; i < list.length; i++) {
+      var r = list[i].getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) return list[i];
+    }
+    return null;
+  }
+
+  function sText(el) {
+    return String((el && (el.innerText || el.textContent)) || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function sNorm(t) {
+    return String(t || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function sWait(find, ms) {
+    return new Promise(function(resolve) {
+      var until = Date.now() + ms;
+      (function look() {
+        var el = find();
+        if (el || Date.now() > until) { resolve(el || null); return; }
+        setTimeout(look, 150);
+      })();
+    });
+  }
+
+  function sWrite(el, value) {
+    if (!el) return false;
+    try { el.scrollIntoView({ block: 'center' }); } catch (e) {}
+    el.focus();
+    var sel = window.getSelection();
+    var range = document.createRange();
+    range.selectNodeContents(el);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    var ok = false;
+    try { ok = document.execCommand('insertText', false, value); } catch (e) { ok = false; }
+    if (!ok || sText(el) !== sNorm(value)) {
+      el.textContent = value;
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: value }));
+    }
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    try { el.blur(); } catch (e) {}
+    return sText(el) === sNorm(value);
+  }
+
+  function sUploadDialog() {
+    var d = document.querySelector('ytcp-uploads-dialog');
+    return !!(d && d.getBoundingClientRect().width > 0);
+  }
+
+  function sTags(tags) {
+    if (!tags || !tags.length) return Promise.resolve(0);
+    var input = sVisible(STUDIO_TAGS);
+    var open = input ? Promise.resolve(input) : (function() {
+      var more = sVisible(STUDIO_MORE);
+      if (more && /more|m[aá]s|mehr|plus/i.test(sText(more))) more.click();
+      return sWait(function() { return sVisible(STUDIO_TAGS); }, 3000);
+    })();
+    return open.then(function(box) {
+      if (!box) return 0;
+      var bar2 = box.closest('ytcp-free-text-chip-bar, ytcp-chip-bar, #tags-container') || box.parentNode;
+      var before = bar2 ? bar2.querySelectorAll('ytcp-chip, .ytcp-chip').length : 0;
+      box.focus();
+      try { document.execCommand('insertText', false, tags.join(',') + ','); } catch (e) {}
+      if (box.value) box.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: ',' }));
+      return sWait(function() { var n = bar2 ? bar2.querySelectorAll('ytcp-chip, .ytcp-chip').length : 0; return n > before ? n : null; }, 2000).then(function(after) {
+        try { box.blur(); } catch (e) {}
+        return after ? after - before : 0;
+      });
+    });
+  }
+
+  function sFill(pkg) {
+    var report = { ok: false, title: false, description: false, tags: 0 };
+    if (!pkg || typeof pkg.title !== 'string') { report.error = 'no package'; return Promise.resolve(report); }
+    var t = sVisible(STUDIO_TITLE);
+    var d = sVisible(STUDIO_DESC);
+    if (!t && !d) { report.error = 'the title and description boxes are not on this page. Open the video\'s Details page.'; return Promise.resolve(report); }
+    report.title = sWrite(t, String(pkg.title).slice(0, 100));
+    report.description = sWrite(d, String(pkg.description || '').slice(0, 5000));
+    return sTags(Array.isArray(pkg.tags) ? pkg.tags.slice(0, 30).map(String) : []).then(function(n) {
+      report.tags = n;
+      report.ok = report.title && report.description;
+      if (!report.ok) report.error = 'Studio did not keep the text in ' + (!report.title ? 'the title' : 'the description') + '.';
+      bar.filled = report.ok;
+      bar.report = report;
+      return report;
+    });
+  }
+
+  function sSave() {
+    if (sUploadDialog()) return Promise.resolve({ ok: false, why: 'upload' });
+    var save = sVisible(STUDIO_SAVE);
+    if (!save) return Promise.resolve({ ok: false, why: 'no_button' });
+    if (save.hasAttribute('disabled') || save.getAttribute('aria-disabled') === 'true') return Promise.resolve({ ok: false, why: 'nothing' });
+    save.click();
+    return sWait(function() {
+      var toast = document.querySelector('ytcp-toast, tp-yt-paper-toast#toast, #toast');
+      var saved = toast && /saved|guardad|gespeichert|enregistr/i.test(sText(toast));
+      var off = save.hasAttribute('disabled') || save.getAttribute('aria-disabled') === 'true';
+      return saved || off ? { ok: true } : null;
+    }, 15000).then(function(res) { return res || { ok: false, why: 'unconfirmed' }; });
+  }
+
+  var BAR_CSS = [
+    ':host { all: initial; }',
+    '.bar { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 2147483646; box-sizing: border-box; width: min(600px, calc(100vw - 32px)); display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 16px; background: #070707; color: #fff; font: 13px/1.4 Inter, "Helvetica Neue", Arial, sans-serif; box-shadow: 0 18px 50px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.12); }',
+    '.bar::before { content: ""; position: absolute; left: 16px; right: 16px; top: 0; height: 1px; background: linear-gradient(90deg, rgba(255,45,45,0), rgba(255,45,45,.7), rgba(255,45,45,0)); }',
+    '.mark { flex: 0 0 auto; width: 30px; height: 30px; }',
+    '.body { flex: 1 1 auto; min-width: 0; }',
+    '.kick { font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: #ff2d2d; }',
+    '.title { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }',
+    '.line { font-size: 12px; color: rgba(255,255,255,.62); margin-top: 2px; }',
+    '.line[data-kind="err"] { color: #ff9d9d; }',
+    '.line[data-kind="ok"] { color: #fff; }',
+    'button { all: unset; box-sizing: border-box; cursor: pointer; border-radius: 999px; padding: 8px 14px; font: 600 12.5px/1 Inter, "Helvetica Neue", Arial, sans-serif; white-space: nowrap; }',
+    'button.go { background: #fff; color: #000; }',
+    'button.go:hover { background: #e9e9e9; }',
+    'button.go[disabled] { opacity: .5; cursor: default; }',
+    'button.x { color: rgba(255,255,255,.6); padding: 8px 10px; font-size: 16px; }',
+    'button.x:hover { color: #fff; }',
+    'button:focus-visible { outline: 2px solid #ff2d2d; outline-offset: 2px; }'
+  ].join('\n');
+
+  function sBar() {
+    if (bar.host && document.documentElement.contains(bar.host)) return bar.root;
+    var host = document.createElement('div');
+    host.id = 'nsp-studio-fill-bar';
+    host.style.cssText = 'all:initial;position:fixed;z-index:2147483646;left:0;bottom:0;width:0;height:0;';
+    var root = host.attachShadow({ mode: 'closed' });
+    var style = document.createElement('style');
+    style.textContent = BAR_CSS;
+    root.appendChild(style);
+    var box = document.createElement('div');
+    box.className = 'bar';
+    box.setAttribute('role', 'region');
+    box.setAttribute('aria-label', 'ZERACK Studio package');
+    var img = document.createElement('img');
+    img.className = 'mark';
+    img.alt = '';
+    img.src = chrome.runtime.getURL('icons/zerack-bubble.svg');
+    var body = document.createElement('div');
+    body.className = 'body';
+    var kick = document.createElement('div');
+    kick.className = 'kick';
+    kick.textContent = 'ZERACK Studio package';
+    var title = document.createElement('div');
+    title.className = 'title';
+    title.id = 'title';
+    var line = document.createElement('div');
+    line.className = 'line';
+    line.id = 'line';
+    line.setAttribute('aria-live', 'polite');
+    body.appendChild(kick);
+    body.appendChild(title);
+    body.appendChild(line);
+    var go = document.createElement('button');
+    go.className = 'go';
+    go.id = 'go';
+    go.type = 'button';
+    var x = document.createElement('button');
+    x.className = 'x';
+    x.type = 'button';
+    x.setAttribute('aria-label', 'Hide');
+    x.textContent = '×';
+    box.appendChild(img);
+    box.appendChild(body);
+    box.appendChild(go);
+    box.appendChild(x);
+    root.appendChild(box);
+    document.documentElement.appendChild(host);
+    bar.host = host;
+    bar.root = root;
+    go.addEventListener('click', function(e) {
+      if (!e.isTrusted || go.disabled) return;
+      if (bar.state === 'ready') sPressFill();
+      else if (bar.state === 'filled') sPressSave();
+    });
+    x.addEventListener('click', function(e) {
+      if (!e.isTrusted) return;
+      bar.dismissed[bar.video || 'page'] = 1;
+      sHide();
+    });
+    return root;
+  }
+
+  function sHide() {
+    if (bar.host) bar.host.style.display = 'none';
+    bar.state = '';
+  }
+
+  function sPaint(state, title, text, kind, label) {
+    var root = sBar();
+    bar.host.style.display = '';
+    bar.state = state;
+    root.getElementById('title').textContent = title || '';
+    var line = root.getElementById('line');
+    line.textContent = text || '';
+    line.dataset.kind = kind || '';
+    var go = root.getElementById('go');
+    go.textContent = label || '';
+    go.hidden = !label;
+    go.style.display = label ? '' : 'none';
+    go.disabled = false;
+  }
+
+  function sAsk(msg) {
+    return new Promise(function(resolve) {
+      try {
+        chrome.runtime.sendMessage(msg, function(res) { resolve(chrome.runtime.lastError ? null : res); });
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  function sFilledLine(report) {
+    var bits = ['Title', 'description'];
+    if (report.tags) bits.push(report.tags + ' tags');
+    return bits.join(', ') + ' are in. Nothing is saved until you press Save.';
+  }
+
+  function sAfterFill(report, title) {
+    if (!report.ok) { sPaint('ready', title, 'Not filled: ' + (report.error || 'Studio did not take the text.'), 'err', 'Fill fields'); return; }
+    if (sUploadDialog()) { sPaint('done', title, 'Filled. In the upload dialog Studio keeps the draft itself; ZERACK never presses Next or Publish.', 'ok', ''); return; }
+    sPaint('filled', title, sFilledLine(report), 'ok', 'Save');
+  }
+
+  function sPressFill() {
+    var go = sBar().getElementById('go');
+    go.disabled = true;
+    var title = sBar().getElementById('title').textContent;
+    sPaint('busy', title, 'Timing the chapters and filling the fields', '', '');
+    sAsk({ type: 'NSP_STUDIO_PACKAGE', op: 'prepare', videoId: videoId() }).then(function(res) {
+      if (!res || !res.ok || !res.has || !res.pkg) { sPaint('ready', title, 'There is no approved package any more.', 'err', ''); return; }
+      return sFill(res.pkg).then(function(report) { sAfterFill(report, res.pkg.title); });
+    });
+  }
+
+  function sPressSave() {
+    var title = sBar().getElementById('title').textContent;
+    sPaint('busy', title, 'Saving in Studio', '', '');
+    sSave().then(function(res) {
+      if (res.ok) { sPaint('done', title, 'Saved in Studio. Visibility and monetization were not touched.', 'ok', ''); return; }
+      var why = res.why === 'no_button' ? 'Studio\'s Save button is not on this page.' : (res.why === 'nothing' ? 'Studio says there is nothing new to save.' : (res.why === 'upload' ? 'In the upload dialog Studio keeps the draft itself.' : 'Studio did not confirm the save. Check the page.'));
+      sPaint(res.why === 'nothing' || res.why === 'upload' ? 'done' : 'filled', title, why, 'err', res.why === 'unconfirmed' || res.why === 'no_button' ? 'Save' : '');
+    });
+  }
+
+  function sCheck() {
+    var vid = videoId();
+    var onEdit = !!vid && /\/video\/[^/]+\/edit/.test(location.pathname);
+    if (!onEdit && !sUploadDialog()) { if (bar.state !== 'busy') sHide(); bar.video = ''; return; }
+    if (bar.video === vid && bar.state) return;
+    bar.video = vid;
+    bar.filled = false;
+    if (bar.dismissed[vid || 'page']) return;
+    sAsk({ type: 'NSP_STUDIO_PACKAGE', op: 'peek' }).then(function(res) {
+      if (!res || !res.ok || !res.has) { sHide(); return; }
+      sPaint('ready', res.title, 'Approved in the ZERACK chat: title, description with ' + (res.chapters || 0) + ' chapters, ' + (res.tags || 0) + ' tags.', '', 'Fill fields');
+    });
+  }
+
+  chrome.runtime.onMessage.addListener(function(msg, sender, sendResponse) {
+    if (!msg || msg.type !== 'NSP_STUDIO_FILL') return false;
+    if (!sender || sender.id !== chrome.runtime.id || sender.tab) return false;
+    var pkg = msg.pkg || {};
+    sFill(pkg).then(function(report) {
+      bar.video = videoId();
+      sAfterFill(report, String(pkg.title || '').slice(0, 100));
+      sendResponse(report);
+    }, function(e) { sendResponse({ ok: false, error: String((e && e.message) || e) }); });
+    return true;
+  });
+
+  setTimeout(sCheck, 1800);
+  setInterval(sCheck, 2500);
 })();

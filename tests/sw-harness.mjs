@@ -19,7 +19,7 @@ function stub() {
   });
 }
 
-function area(store) {
+function area(store, onSet) {
   return {
     get(keys, cb) {
       const out = {};
@@ -29,7 +29,9 @@ function area(store) {
       return Promise.resolve(out);
     },
     set(items, cb) {
+      const before = onSet ? JSON.parse(JSON.stringify(store)) : null;
       Object.assign(store, JSON.parse(JSON.stringify(items)));
+      if (onSet) onSet(before, items);
       if (typeof cb === "function") { setImmediate(cb); return undefined; }
       return Promise.resolve();
     },
@@ -48,6 +50,15 @@ export function loadWorker(opts = {}) {
   const session = {};
   const fetches = [];
   const registered = (opts.registered || []).slice();
+  const alarms = {};
+  const alarmListeners = [];
+  const clickListeners = [];
+  const changeListeners = [];
+  const changed = opts.changes === true ? (before, items) => {
+    const changes = {};
+    for (const k of Object.keys(items)) changes[k] = { oldValue: before[k], newValue: JSON.parse(JSON.stringify(items[k])) };
+    setImmediate(() => changeListeners.forEach(fn => fn(changes, "local")));
+  } : null;
   const tabs = new Proxy({}, {
     get(t, name) {
       if (name === "onRemoved" || name === "onUpdated" || name === "onActivated") return { addListener() {}, removeListener() {}, hasListener() { return false; } };
@@ -69,9 +80,20 @@ export function loadWorker(opts = {}) {
       getPlatformInfo: cb => cb && cb({}),
       getContexts: () => Promise.resolve([])
     }, { get(t, k) { return k in t ? t[k] : stub(); } }),
-    storage: { local: area(local), session: area(session), sync: area({}), onChanged: { addListener() {} } },
+    storage: { local: area(local, changed), session: area(session), sync: area({}), onChanged: { addListener: fn => changeListeners.push(fn) } },
+    alarms: {
+      get: (name, cb) => { const a = alarms[name] ? Object.assign({}, alarms[name]) : undefined; if (cb) setImmediate(() => cb(a)); return Promise.resolve(a); },
+      create: (name, info) => { alarms[name] = { name, scheduledTime: info.when || Date.now() + (info.delayInMinutes || info.periodInMinutes || 0) * 60000, periodInMinutes: info.periodInMinutes }; calls.push({ api: "alarms.create", args: [name, info] }); },
+      clear: (name, cb) => { const had = !!alarms[name]; delete alarms[name]; calls.push({ api: "alarms.clear", args: [name] }); if (cb) setImmediate(() => cb(had)); return Promise.resolve(had); },
+      onAlarm: { addListener: fn => alarmListeners.push(fn) }
+    },
     declarativeNetRequest: { updateSessionRules: rules => { calls.push({ api: "dnr.updateSessionRules", args: [rules] }); return Promise.resolve(); } },
-    notifications: { create: (o, cb) => { calls.push({ api: "notifications.create", args: [o] }); if (cb) setImmediate(cb); } },
+    downloads: { download: (o, cb) => { calls.push({ api: "downloads.download", args: [o] }); if (cb) setImmediate(() => cb(1)); } },
+    notifications: {
+      create: (id, o, cb) => { if (typeof id !== "string") { cb = o; o = id; id = ""; } calls.push({ api: "notifications.create", args: [o, id] }); if (typeof cb === "function") setImmediate(cb); },
+      clear: (id, cb) => { calls.push({ api: "notifications.clear", args: [id] }); if (cb) setImmediate(() => cb(true)); },
+      onClicked: { addListener: fn => clickListeners.push(fn) }
+    },
     permissions: {
       contains: (p, cb) => { const has = !!opts.allSites; if (cb) setImmediate(() => cb(has)); return Promise.resolve(has); },
       onAdded: { addListener() {} }, onRemoved: { addListener() {} }
@@ -129,7 +151,9 @@ export function loadWorker(opts = {}) {
       if (!pending) setTimeout(() => respond(undefined), 30);
     });
   }
-  return { context, calls, local, session, fetches, send, registered };
+  const fireAlarm = name => alarmListeners.forEach(fn => fn({ name, scheduledTime: Date.now() }));
+  const clickNotification = id => clickListeners.forEach(fn => fn(id));
+  return { context, calls, local, session, fetches, send, registered, alarms, fireAlarm, clickNotification };
 }
 
 export const SENDERS = {
