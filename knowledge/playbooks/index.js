@@ -1,6 +1,6 @@
 (function (root) {
   var owns = Object.prototype.hasOwnProperty;
-  var IDS = ['etsy', 'shopify', 'seo', 'builders'];
+  var IDS = ['etsy', 'shopify', 'seo', 'builders', 'creators', 'freelance', 'local', 'amazon', 'newsletter', 'digital'];
   var PRIMER_MAX = 1900;
   var LOOKUP_MAX = 2;
   var KINDS = { Publish: 1, Delete: 1, Send: 1, Pay: 1, Fulfill: 1 };
@@ -199,6 +199,18 @@
     return hit;
   }
 
+  function terms(host, path) {
+    var c = clean(host, path);
+    var pb = get(forHost(c.host, c.path));
+    if (!pb || !pb.terms || !pb.terms.rule) return null;
+    return { playbook: pb.id, name: pb.name, rule: String(pb.terms.rule), pace: pb.terms.pace === true, source: pb.terms.source ? pb.terms.source.author + ', ' + pb.terms.source.title + ', ' + pb.terms.source.url : '' };
+  }
+
+  function leadsKind(id) {
+    var pb = typeof id === 'string' ? get(id) : id;
+    return pb && (pb.leads === 'place' || pb.leads === 'job') ? pb.leads : '';
+  }
+
   function readerFor(id, host, path) {
     var pb = typeof id === 'string' ? get(id) : id;
     if (!pb) return null;
@@ -251,6 +263,8 @@
       gateRules: gateRules,
       readOnly: readOnly,
       privatePage: privatePage,
+      terms: terms,
+      leadsKind: leadsKind,
       readerFor: readerFor,
       reader: reader,
       readersText: readersText

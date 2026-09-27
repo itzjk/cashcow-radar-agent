@@ -20,7 +20,10 @@
   var TYPES = { type: 1, fill: 1, paste: 1, append: 1 };
   var NAVIGATES = { navigate: 1, 'goto': 1, open: 1 };
   var STEP_KEYS = ['action', 'target', 'text', 'option', 'selector', 'submit', 'direction', 'amount', 'timeoutMs'];
+  var TYPED_MS = 30 * 60000;
+  var TYPED_MAX = 8;
   var pending = {};
+  var typedByTab = {};
 
   function sites() {
     return root.NSP_SITES;
@@ -65,6 +68,24 @@
     if (!P || typeof P.privatePage !== 'function') return null;
     var w = where(url);
     return w.host ? P.privatePage(w.host, w.path) : null;
+  }
+
+  function remember(tabId, text) {
+    var t = String(text || '');
+    if (!t || !(tabId >= 0)) return;
+    var now = Date.now();
+    var list = (typedByTab[tabId] || []).filter(function (x) { return now - x.at < TYPED_MS; });
+    list.push({ text: t.slice(0, 20000), at: now });
+    typedByTab[tabId] = list.slice(-TYPED_MAX);
+  }
+
+  function typedOf(tabId) {
+    var now = Date.now();
+    return (typedByTab[tabId] || []).filter(function (x) { return now - x.at < TYPED_MS; }).map(function (x) { return { text: x.text }; });
+  }
+
+  function forget(tabId) {
+    delete typedByTab[tabId];
   }
 
   function refusePrivate(host, priv) {
@@ -175,6 +196,11 @@
     var hands = self.NSP_HANDS.create({ hold: true, ledger: true, rules: rules || null, stopped: function () { return state.stop; } });
     self.__zerackPage = { doc: document, state: state, hands: hands };
     return 'ready';
+  }
+
+  function handsHere() {
+    var p = self.__zerackPage;
+    return p && p.doc === document ? 'here' : 'gone';
   }
 
   function handsStep(a) {
@@ -331,8 +357,16 @@
       if (moved && TYPES[act] === 1 && (a.submit === true || a.submit === 'true')) return { ok: true, typed: clip(a.target || 'the field', 120), submitted: true, nowAt: now.url, note: 'the page moved to a new address right after it was sent' };
       if (moved) return { ok: false, code: 'navigated', nowAt: now.url, error: 'the page moved to ' + now.url + ' during the step, so its answer was lost' };
       if (denied(x.error)) return { ok: false, code: 'site_not_allowed', error: 'Chrome did not let ZERACK into this page: ' + clip(x.error, 200) };
-      if (x.late) return { ok: false, code: 'timeout', error: x.error };
-      return { ok: false, error: 'the step could not run on the page: ' + clip(x.error, 200) };
+      var sent = CLICKS[act] === 1 || (TYPES[act] === 1 && (a.submit === true || a.submit === 'true'));
+      var reloaded = sent && now && now.url ? exec(tab.id, handsHere, []) : Promise.resolve(null);
+      return reloaded.then(function (h) {
+        if (h && h.ok && h.value === 'gone') {
+          if (CLICKS[act] === 1) return { ok: true, clicked: clip(a.target || 'the element', 120), nowAt: now.url, note: 'the page loaded again at the same address right after the click' };
+          return { ok: true, typed: clip(a.target || 'the field', 120), submitted: true, nowAt: now.url, note: 'the page loaded again at the same address right after it was sent' };
+        }
+        if (x.late) return { ok: false, code: 'timeout', error: x.error };
+        return { ok: false, error: 'the step could not run on the page: ' + clip(x.error, 200) };
+      });
     });
   }
 
@@ -341,7 +375,8 @@
     var until = Date.now() + PRESS_MS;
     var row = null;
     var evidence = first.evidence || null;
-    return Promise.resolve(ctx.add('press', first.line, { status: 'waiting', pressId: id, kind: first.kind, host: info.host, until: until, evidence: evidence ? clip(evidence.line, 300) : '' })).then(function (r) {
+    var leadLine = first.leadLine || '';
+    return Promise.resolve(ctx.add('press', first.line, { status: 'waiting', pressId: id, kind: first.kind, host: info.host, until: until, evidence: evidence ? clip(evidence.line, 300) : '', lead: leadLine })).then(function (r) {
       row = r;
       if (!row) return 'gone';
       ctx.typing('Waiting for your press');
@@ -366,7 +401,7 @@
           var out = { ok: false, code: code, kind: first.kind, error: (words[code] || 'Not run: ') + first.line + '. Do not ask again unless the user asks.' };
           if (first.typed) out.typed = first.typed;
           var status = code === 'declined' ? 'declined' : (code === 'timeout' ? 'expired' : 'stopped');
-          if (row) ctx.patch(row, { status: status, pressId: id, kind: first.kind, host: info.host, until: until, detail: '', evidence: evidence ? clip(evidence.line, 300) : '' });
+          if (row) ctx.patch(row, { status: status, pressId: id, kind: first.kind, host: info.host, until: until, detail: '', evidence: evidence ? clip(evidence.line, 300) : '', lead: leadLine });
           ledgerFor(ctx, info, a, first.field ? { ok: false, field: first.field, before: first.before, after: first.after } : { ok: false }, { decision: code, kind: first.kind, urlBefore: before, result: code, evidence: evidence });
           return out;
         });
@@ -386,7 +421,7 @@
         return settle(tab.id, before, true).then(function (now) {
           if (r && r.ok !== false && now && now.url && now.url !== before && !r.nowAt) r.nowAt = now.url;
           if (first.field && r && !r.field) { r.field = first.field; r.before = first.before; r.after = first.after; }
-          ctx.patch(row, { status: r && r.ok !== false ? 'done' : 'failed', pressId: id, kind: first.kind, host: info.host, until: until, pressedAt: pressedAt, evidence: evidence ? clip(evidence.line, 300) : '', detail: clip(r && r.ok !== false ? (r.nowAt ? 'Done. The page is now at ' + r.nowAt : 'Done.') : (r && r.error) || 'It did not run.', 300) });
+          ctx.patch(row, { status: r && r.ok !== false ? 'done' : 'failed', pressId: id, kind: first.kind, host: info.host, until: until, pressedAt: pressedAt, evidence: evidence ? clip(evidence.line, 300) : '', lead: leadLine, detail: clip(r && r.ok !== false ? (r.nowAt ? 'Done. The page is now at ' + r.nowAt : 'Done.') : (r && r.error) || 'It did not run.', 300) });
           ledgerFor(ctx, info, a, r, { decision: 'pressed', pressedAt: pressedAt, kind: first.kind, urlBefore: before, evidence: evidence });
           return r;
         });
@@ -419,6 +454,38 @@
     });
   }
 
+  function leadCheck(ctx, tab, info, a, first, before) {
+    if (typeof ctx.leads !== 'function') return askPress(ctx, tab, info, a, first, before);
+    var w = where(before);
+    var typed = typedOf(tab.id);
+    if (TYPES[actionOf(a)] === 1 && a.text) typed = typed.concat([{ text: String(a.text) }]);
+    var failed = { ok: false, code: 'lead_store', why: 'the lead store did not answer in time, so no send is offered' };
+    var late = new Promise(function (resolve) { setTimeout(function () { resolve(failed); }, EVIDENCE_MS); });
+    var ask = Promise.resolve(ctx.leads({ host: info.host, path: w.path, url: before, lead: clip(a.lead || '', 40), typed: typed })).then(null, function () { return failed; });
+    return Promise.race([ask, late]).then(function (v) {
+      if (v && v.ok === true && !v.lead) return askPress(ctx, tab, info, a, first, before);
+      if (v && v.ok === true) {
+        first.leadLine = clip(v.line, 300);
+        return askPress(ctx, tab, info, a, first, before).then(function (r) {
+          if (r && r.ok !== false && typeof ctx.leadSent === 'function') {
+            forget(tab.id);
+            r.lead = v.lead.id;
+            return Promise.resolve(ctx.leadSent(v.lead.id, info)).then(function () { return r; }, function () { return r; });
+          }
+          return r;
+        });
+      }
+      return exec(tab.id, handsRelease, []).then(function () {
+        var why = clip((v && v.why) || 'the lead rules said no', 400);
+        var said = why.charAt(0).toUpperCase() + why.slice(1);
+        var out = { ok: false, code: (v && v.code) || 'lead_blocked', kind: first.kind, why: said, error: 'Not offered: ' + first.line + '. ' + said + '.' + (v && v.hint ? ' To do it: ' + clip(v.hint, 200) + '.' : '') + ' Tell the user why in one line and do not retry.' };
+        if (v && v.lead) out.lead = v.lead;
+        ledgerFor(ctx, info, a, { ok: false, error: why }, { decision: 'lead_blocked', kind: first.kind, urlBefore: before, result: 'lead_blocked' });
+        return out;
+      });
+    });
+  }
+
   function navigate(ctx, tab, info, a) {
     var raw = String(a.url || '').trim();
     if (!raw && /^(https?:)?\/\//i.test(String(a.target || '').trim())) raw = String(a.target).trim();
@@ -438,8 +505,11 @@
           });
         });
       }
-      return new Promise(function (resolve) {
-        chrome.tabs.update(tab.id, { url: u.href }, function () { resolve(!chrome.runtime.lastError); });
+      var paced = typeof ctx.pace === 'function' ? Promise.resolve(ctx.pace(dest.host)).then(null, function () { return 0; }) : Promise.resolve(0);
+      return paced.then(function () {
+        return new Promise(function (resolve) {
+          chrome.tabs.update(tab.id, { url: u.href }, function () { resolve(!chrome.runtime.lastError); });
+        });
       }).then(function (okNav) {
         if (!okNav) return { ok: false, error: 'the tab did not move to ' + u.href };
         return sleep(200).then(function () { return settle(tab.id, before); }).then(function (now) {
@@ -491,7 +561,12 @@
                 });
               }
               var r = x.value;
-              if (r.code === 'needs_press' && r.handle) return r.kind === 'Pay' && r.spend !== false ? spendCheck(ctx, tab, info, a, r, before) : askPress(ctx, tab, info, a, r, before);
+              if (TYPES[act] === 1 && clean.text && (r.ok !== false || r.code === 'needs_press')) remember(tab.id, clean.text);
+              if (r.code === 'needs_press' && r.handle) {
+                if (r.kind === 'Pay' && r.spend !== false) return spendCheck(ctx, tab, info, a, r, before);
+                if (r.kind === 'Send' || a.lead) return leadCheck(ctx, tab, info, a, r, before);
+                return askPress(ctx, tab, info, a, r, before);
+              }
               var wrote = need === 'act';
               var settled = wrote ? settle(tab.id, before, !r.mayLeave) : Promise.resolve(null);
               return settled.then(function (now) {
@@ -530,6 +605,7 @@
         out.error = 'step ' + failed.step + ' (' + failed.did + ') did not work: ' + String((failed.result && failed.result.error) || 'no answer');
         if (failed.result && failed.result.code) out.code = failed.result.code;
         if (failed.result && Array.isArray(failed.result.missing)) out.missing = failed.result.missing;
+        if (failed.result && failed.result.why) out.why = failed.result.why;
       }
       if (steps.length < ((args && args.steps) || []).length) out.note = 'only the first ' + PLAN_MAX + ' steps run in one plan';
       return out;

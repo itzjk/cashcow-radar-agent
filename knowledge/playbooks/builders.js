@@ -36,7 +36,9 @@
     listing: src('Creating a great listing page', 'https://developer.chrome.com/docs/webstore/best-listing', CWS),
     counting: src('Counting characters', 'https://docs.x.com/fundamentals/counting-characters', X),
     intents: src('Web Intents', 'https://docs.x.com/x-for-websites/web-intents/overview', X),
-    npmCounts: src('Download counts', 'https://github.com/npm/registry/blob/main/docs/download-counts.md', 'npm registry docs')
+    npmCounts: src('Download counts', 'https://github.com/npm/registry/blob/main/docs/download-counts.md', 'npm registry docs'),
+    g2Authentic: src('How G2 ensures authentic reviews', 'https://documentation.g2.com/help/docs/how-g2-ensures-authentic-reviews', 'G2 Documentation'),
+    g2Guidelines: src('Community Guidelines', 'https://legal.g2.com/community-guidelines', 'G2 Legal')
   };
 
   var MODULES = [
@@ -170,6 +172,21 @@
           proof: 'Three watched pages and the date of their fourth reading.',
           surfaces: ['a rival repository or package'],
           sources: [S.npmCounts, S.listing]
+        },
+        {
+          id: 'b2-l6-rival-reviews',
+          title: 'Read what a rival\'s users dislike',
+          why: 'Every G2 review is checked by a human moderator, reviewers sign in with a business email, LinkedIn or Gmail account, and G2 does not edit reviews or hide negative ones, so the dislikes on a rival\'s page are real users naming the gap you can fill.',
+          steps: [
+            'Open the rival\'s reviews on G2 and read them with ZERACK: stars, the title, what reviewers like and what they dislike.',
+            'Read two rivals the same way.',
+            'Ask which request repeats: the dislikes are grouped with your issues and threads.',
+            'Build for the dislike with the most people behind it, and write your landing page headline around it.'
+          ],
+          doNow: 'Read the reviews of two rivals and ask which dislike repeats.',
+          proof: 'The dislike, its count and two reviews that say it.',
+          surfaces: ['a G2 reviews page'],
+          sources: [S.g2Authentic, S.g2Guidelines]
         }
       ]
     },
@@ -350,11 +367,12 @@
       { host: /^vercel\.com$/ },
       { host: /^(us|eu|app)\.posthog\.com$/ },
       { host: /^plausible\.io$/ },
+      { host: /^(www\.)?g2\.com$/, path: /^\/products\// },
       { host: /^appstoreconnect\.apple\.com$/ },
       { host: /^play\.google\.com$/, path: /^\/console/ },
       { host: /^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$/ }
     ],
-    named: /\b(?:saas|startups?|my app|mi app|mi aplicacion|side project|mrr|churn|product hunt|indie hackers?|paying users|usuarios de pago|product.?market fit|show hn|hacker news|build in public|changelog|release notes|github stars|my repo|mi repo|open source|npm package|chrome extension|my extension|mi extension)\b/,
+    named: /\b(?:saas|indie saas|g2 reviews|startups?|my app|mi app|mi aplicacion|side project|mrr|churn|product hunt|indie hackers?|paying users|usuarios de pago|product.?market fit|show hn|hacker news|build in public|changelog|release notes|github stars|my repo|mi repo|open source|npm package|chrome extension|my extension|mi extension)\b/,
     identity: 'You are ZERACK, the operator for builders: developers, indie hackers, founders and maintainers shipping a SaaS, an app, an extension, an agent or an open source project. You read their repository, their issues, their launch threads, their packages and their billing in front of them, and you prepare the work: the request that repeats, the rival that accelerates, the changelog, the launch kit and the post of the day. You are not an assistant: you are the partner who reads the numbers and does the work.',
     identityLean: 'You are ZERACK, a brutally honest operator for builders shipping a product in public, who thinks in users, revenue and weekly growth.',
     bottlenecks: 'nobody has the problem, a request users repeat and nobody builds, users who never reach the first useful moment, a weekly growth rate under 5%, revenue lost to failed payments, or a launch nobody hears about',
@@ -368,6 +386,7 @@
       [/\b(?:first users|primeros usuarios|onboarding|recruit|captar)\b/, 'b2-l3'],
       [/\b(?:traffic|trafico|visitors|visitas|referrers?|clones?)\b/, 'b2-l4'],
       [/\b(?:rivals?|rivales|competitors?|competencia|accelerat\w*|acelera\w*|watch|vigila\w*)\b/, 'b2-l5'],
+      [/\b(?:g2|reviews? of|resenas de|dislike\w*|no les gusta|complain\w*|quejas?)\b/, 'b2-l6'],
       [/\b(?:churn|failed payments?|pagos fallidos|past due|dunning|retries|mrr|revenue|ingresos)\b/, 'b3-l1'],
       [/\b(?:launch|lanzamiento|lanzar|product hunt|upvotes?|tagline|launch kit)\b/, 'b3-l2'],
       [/\b(?:show hn|hacker news)\b/, 'b3-l3'],
@@ -387,6 +406,7 @@
       { id: 'ph.product', host: /(^|\.)producthunt\.com$/, path: /^\/(products|posts)\//, label: 'a Product Hunt product or launch: upvotes, day rank, reviews, followers and the comments' },
       { id: 'npm.package', host: /^(www\.)?npmjs\.com$/, path: /^\/package\//, label: 'an npm package: weekly downloads, version, last publish, dependents' },
       { id: 'pypi.package', host: /^pypi\.org$/, path: /^\/project\//, label: 'a PyPI project: version, release date and release history' },
+      { id: 'g2.reviews', host: /^(www\.)?g2\.com$/, path: /^\/products\/[^\/]+\/reviews/, label: 'a G2 reviews page: every review on screen with its stars, title, what the reviewer likes and dislikes' },
       { id: 'table', as: 'stripe.subscriptions', host: /^dashboard\.stripe\.com$/, path: /subscriptions/, label: 'the Stripe subscriptions list, read only: customer, status, product, amount and date', opts: { as: 'stripe.subscriptions', label: 'Stripe subscriptions', columns: SUBS, need: ['status'] } },
       { id: 'table', as: 'stripe.payments', host: /^dashboard\.stripe\.com$/, path: /payments/, label: 'the Stripe payments list, read only: amount, status, customer and date', opts: { as: 'stripe.payments', label: 'Stripe payments', columns: PAYMENTS, need: ['amount', 'status'], types: { amount: 'money' } } },
       { id: 'tiles', as: 'stripe.home', host: /^dashboard\.stripe\.com$/, path: /^\/(test\/)?(dashboard|billing|home)?\/?$|^\/(test\/)?billing\/overview/, label: 'the Stripe home or billing overview, read only: gross and net volume, MRR, new customers, subscribers, churn', opts: { as: 'stripe.home', label: 'Stripe overview', tiles: STRIPE_TILES, types: STRIPE_TYPES } },
@@ -398,7 +418,8 @@
       'the Stripe dashboard': 'zerackExtract with reader stripe.subscriptions, stripe.payments or stripe.home reads the page on screen; ZERACK never changes anything on Stripe',
       'the repository traffic page': 'zerackExtract with reader github.traffic reads it when the user is signed in with push access',
       'a rival repository or package': 'zerackBuilder watch keeps a public repository, package or store listing and reads it once a day; zerackBuilder rivals says who accelerates',
-      'a repository': 'zerackExtract with reader github.repo reads it with its latest commits; zerackBuilder post, changelog and launch work from that read'
+      'a repository': 'zerackExtract with reader github.repo reads it with its latest commits; zerackBuilder post, changelog and launch work from that read',
+      'a G2 reviews page': 'zerackExtract with reader g2.reviews reads every review on screen; zerackBuilder requests groups the dislikes with the issues and threads read'
     },
     gate: {
       press: [

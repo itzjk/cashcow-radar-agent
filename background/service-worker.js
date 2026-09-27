@@ -5,7 +5,7 @@ try { importScripts('../knowledge/youtube-playbook.js'); } catch (ePlaybook) { c
 // The ASHLYV niche engine has no DOM: with it the worker rewrites, from ids and numbers, the opportunities and alerts
 // a YouTube tab sends, instead of storing the text the tab brought.
 try { importScripts('../ashlyv/ashlyv-engine.js'); } catch (eAshlyvEngine) { console.warn('[NSP SW] importScripts ASHLYV engine:', eAshlyvEngine && eAshlyvEngine.message); }
-try { importScripts('../knowledge/playbooks/etsy.js', '../knowledge/playbooks/shopify.js', '../knowledge/playbooks/seo.js', '../knowledge/playbooks/builders.js', '../knowledge/playbooks/index.js'); } catch (ePlaybooks) { console.warn('[NSP SW] importScripts business playbooks:', ePlaybooks && ePlaybooks.message); }
+try { importScripts('../knowledge/playbooks/etsy.js', '../knowledge/playbooks/shopify.js', '../knowledge/playbooks/seo.js', '../knowledge/playbooks/builders.js', '../knowledge/playbooks/creators.js', '../knowledge/playbooks/freelance.js', '../knowledge/playbooks/local.js', '../knowledge/playbooks/amazon.js', '../knowledge/playbooks/newsletter.js', '../knowledge/playbooks/digital.js', '../knowledge/playbooks/index.js'); } catch (ePlaybooks) { console.warn('[NSP SW] importScripts business playbooks:', ePlaybooks && ePlaybooks.message); }
 try { importScripts('../lib/nsp-brain.js'); } catch (eBrain) { console.warn('[NSP SW] importScripts brain:', eBrain && eBrain.message); }
 try { importScripts('../lib/nsp-data-tools.js', '../chat/chat-tools.js', '../lib/nsp-chat-store.js'); } catch (eChatLib) { console.warn('[NSP SW] importScripts chat tools:', eChatLib && eChatLib.message); }
 try { importScripts('../lib/nsp-rpm-tabla.js'); } catch (eRpmTable) { console.warn('[NSP SW] importScripts RPM table:', eRpmTable && eRpmTable.message); }
@@ -1513,6 +1513,9 @@ var NSP_VR_SAVE_NOT = /\b(?:cambios?|changes?|productos?|products?|pedidos?|orde
 var NSP_VR_SEARCH_LEAD = /^(?:busca(?:me)?|buscar|search(?: youtube)?(?: for)?|look up)\s+(.+)$/;
 var NSP_VR_SEARCH = /^(?:(?:quiero|puedes|podrias|necesito|vamos a|me puedes|can you|could you)\s+)?(?:que\s+)?(?:busca(?:me|lo|la)?|buscar|busques|busque|encuentra(?:me)?|search(?: youtube)?(?: for)?|look up|look for|find(?: me)?|pon(?:me)? videos? (?:de|sobre))\s+(.+)$/;
 var NSP_VR_OTHER_SITE = /\b(?:google|amazon|wikipedia|bing|spotify|netflix|tiktok|instagram|facebook|twitter|reddit|chatgpt|gmail|github|gitlab|npm|pypi|product ?hunt|hacker ?news|stripe|web store|vercel)\b/;
+var NSP_VR_BIZ_READ = /^(?:(?:puedes|podrias|quiero que|can you|could you)\s+)?(?:lee(?:me)?|leer|leas|analiza(?:me)?|analizar|analices|read|analyze|analyse)\s+(?:(?:esta|la|lo que hay en (?:la|esta)|this|the|what is on (?:this|the)|toda la|toda esta)\s+)?(?:pagina|page|pantalla|screen|web|tabla|table)(?:\s+(?:actual|abierta|que tengo abierta|de negocio|ya|ahora|now|for me|por mi))?$/;
+var NSP_VR_BIZ_LEADS = /^(?:(?:puedes|podrias|quiero que|can you|could you)\s+)?(?:busca(?:me)?|buscar|busques|encuentra(?:me)?|encontrar|encuentres|dame|find(?: me)?|get me|show me|muestrame)\s+(?:(?:los|las|unos|unas|mis|some|the|my)\s+)?(?:clientes|prospectos|leads?|clients|customers|prospects|trabajos para mi|jobs for me|negocios para contactar|businesses to (?:contact|pitch))(?:\s+(?:aqui|en esta pagina|en esta lista|de esta pagina|de esta lista|here|on this page|on this list|from this page))?$/;
+var NSP_VR_BIZ_STATUS = /^(?:cuantos|cuantas|how many)\s+(?:mensajes|correos|envios|propuestas|messages|emails|sends|proposals)\s+(?:me\s+)?(?:quedan|puedo mandar|puedo enviar|do i have left|have i left|are left|left|can i send)(?:\s+(?:hoy|today))?$|^(?:estado de (?:los )?(?:envios|leads|clientes)|leads status|sending status|cupo de (?:hoy|envios)|todays? (?:cap|sending cap))$/;
 var NSP_VR_PAGES = [
   { page: 'dashboard/dashboard.html', re: '(?:command center|comand center|commander center|centro de comandos?|centro de mando|dashboard|panel de control|panel principal)' },
   { page: 'niche-index/niche-index.html', re: '(?:indice de nichos?|niche index|nicho index|index of niches|indice)' },
@@ -1619,6 +1622,11 @@ function nspVrDecide(s, raw) {
   if (/^(?:para|parate|paralo|detente|detenlo|deten todo|para todo|para ya|ya para|stop|stop it|stop everything|basta|ya basta|alto|cancela|cancelalo|cancel|cancel it|cancel that|olvidalo|forget it|never mind|nevermind|dejalo|ya esta)$/.test(s)) return { kind: 'stop' };
 
   if (words.length > NSP_VR_MAX_WORDS) return null;
+  if (!NSP_VR_NEGATION.test(s)) {
+    if (NSP_VR_BIZ_READ.test(s)) return { kind: 'biz', biz: 'read' };
+    if (NSP_VR_BIZ_LEADS.test(s)) return { kind: 'biz', biz: 'leads' };
+    if (NSP_VR_BIZ_STATUS.test(s)) return { kind: 'biz', biz: 'status' };
+  }
   m = s.match(NSP_VR_SEARCH_LEAD);
   if (m && !NSP_VR_NEGATION.test(s)) {
     var lead = nspVrQuery(m[1], raw);
@@ -1787,6 +1795,10 @@ var NSP_VOICE_LINES = {
   no_provider: { en: 'No AI provider is set up. Add a key in Setup.', es: 'No hay proveedor de IA. Añade una clave en Setup.' },
   busy: { en: 'Every AI provider is busy. Try again in a moment.', es: 'Todos los proveedores están ocupados. Prueba en un momento.' },
   no_answer: { en: 'I did not get an answer.', es: 'No obtuve respuesta.' },
+  biz_no_page: { en: 'Open the page you want me to read first.', es: 'Abre primero la p\u00e1gina que quieres que lea.' },
+  biz_allow: { en: 'Allow ZERACK on this site from the chat first.', es: 'Primero permite a ZERACK en este sitio desde el chat.' },
+  biz_drift: { en: 'This page changed, so I report nothing rather than a wrong number.', es: 'Esta p\u00e1gina cambi\u00f3, as\u00ed que no doy ning\u00fan n\u00famero antes que uno falso.' },
+  biz_nothing: { en: 'There is nothing to judge here yet. Open a Maps search or an Upwork job search.', es: 'Aqu\u00ed a\u00fan no hay nada que juzgar. Abre una b\u00fasqueda de Maps o de trabajos en Upwork.' },
   slow_engine: { en: 'Speech recognition is not answering, so I switched to the slow local one.', es: 'El reconocimiento de voz no responde, así que uso el local, que es lento.' }
 };
 var NSP_VOICE_ASK_ERRORS = { no_provider_configured: 'no_provider', all_busy: 'busy' };
@@ -2276,7 +2288,91 @@ function nspVoiceRun(r, gen, fin, say) {
   if (r.kind === 'site') { nspVoiceOpenUrl(r.url, seen); return; }
   if (r.kind === 'page') { nspVoiceOpenPage(chrome.runtime.getURL(r.page), seen); return; }
   if (r.kind === 'scan' || r.kind === 'result' || r.kind === 'channel' || r.kind === 'save') { nspVoiceInPage(r, gen, say); fin(null); return; }
+  if (r.kind === 'biz') { nspVoiceBiz(r, gen, say); fin(null); return; }
   nspVoiceTabs(r.kind, lang, fin, say);
+}
+
+function nspVoiceBizSite(cb) {
+  nspTargetTab(function(tab) {
+    var url = tab ? String(tab.url || '') : '';
+    if (!tab || !self.NSP_PAGE_AGENT || !/^https?:/i.test(url) || NSP_VOICE_YOUTUBE.test(url)) { cb(null); return; }
+    self.NSP_PAGE_AGENT.site({ tabId: tab.id, windowId: tab.windowId }).then(function(site) {
+      if (!site || !site.host || site.youtube || !site.scriptable) { cb(null); return; }
+      var P = self.NSP_PLAYBOOKS;
+      var pb = P ? P.forUrl(site.url) : '';
+      cb({ tabId: site.tabId, windowId: tab.windowId, host: site.host, url: site.url, playbook: pb, access: site.access, web: true });
+    }, function() { cb(null); });
+  });
+}
+
+function nspVoicePageCtx(site) {
+  var store = self.NSP_CHAT_STORE;
+  return {
+    convId: 'voice',
+    tabId: site.tabId,
+    stopped: function() { return false; },
+    agentOn: nspAgentOn,
+    add: function() { return Promise.resolve(null); },
+    patch: function() { return Promise.resolve(); },
+    typing: function() {},
+    progress: function() {},
+    lastReply: function() { return Promise.resolve(''); },
+    ledger: function(entry) { return store ? store.addLedger(entry) : Promise.resolve(null); },
+    evidence: nspDecideEvidence,
+    leads: nspLeadsGate,
+    leadSent: nspLeadsSent,
+    pace: nspPaceWait
+  };
+}
+
+function nspVoiceBizSay(line, lang, gen) {
+  var text = String(line || '').trim();
+  if (!text) { nspVoiceLine('failed', lang); return; }
+  if (lang !== 'es') { nspVoiceSay(nspVoiceSpoken(text)); return; }
+  nspChatCascade({ messages: [{ role: 'user', content: 'Say this to the user in Spanish, in at most two short sentences, keeping every number and name exactly: ' + text }], maxTokens: 220 }, function(res) {
+    if (_nspVoice.gen !== gen) return;
+    var said = res && res.ok ? String(res.text || '').trim() : '';
+    nspVoiceSay(nspVoiceSpoken(said || text));
+  });
+}
+
+function nspVoiceBiz(r, gen, say) {
+  var lang = r.lang === 'es' ? 'es' : 'en';
+  nspVoiceBizSite(function(site) {
+    if (_nspVoice.gen !== gen) return;
+    if (r.biz === 'status') {
+      nspLeads({ action: 'status' }, {}).then(function(res) { if (_nspVoice.gen === gen) nspVoiceBizSay(res && res.line, lang, gen); });
+      return;
+    }
+    if (!site) { say('biz_no_page', lang); return; }
+    nspAgentOn().then(function(on) {
+      if (_nspVoice.gen !== gen) return;
+      if (!on) { say('agent_needed', lang); return; }
+      var page = nspVoicePageCtx(site);
+      var ctx = { origin: 'voice', lang: lang, playbook: site.playbook, site: { host: site.host, url: site.url }, page: page };
+      var job = r.biz === 'leads'
+        ? nspLeads({ action: 'find' }, ctx)
+        : nspPaceWait(site.host).then(function() { return self.NSP_PAGE_AGENT.run('zerackExtract', {}, page); }).then(nspBusinessRead);
+      Promise.resolve(job).then(function(res) {
+        if (_nspVoice.gen !== gen) return;
+        if (!res || res.ok !== true) {
+          var code = res && res.code;
+          if (code === 'site_not_allowed' || code === 'read_only') say('biz_allow', lang);
+          else if (code === 'drift') say('biz_drift', lang);
+          else if (code === 'missing' && r.biz === 'leads') say('biz_nothing', lang);
+          else if (code === 'agent_off') say('agent_needed', lang);
+          else say('failed', lang);
+          return;
+        }
+        var line = String(res.line || '');
+        if (r.biz === 'leads' && Array.isArray(res.leads)) {
+          var best = res.leads.filter(function(l) { return (l.verdict === 'pitch' || l.verdict === 'bid') && !l.contacted; })[0];
+          if (best) line += ' Best: ' + best.name + (best.reasons && best.reasons[0] ? ', because ' + best.reasons[0].charAt(0).toLowerCase() + best.reasons[0].slice(1) : '') + '.';
+        }
+        nspVoiceBizSay(line, lang, gen);
+      }, function() { if (_nspVoice.gen === gen) say('failed', lang); });
+    });
+  });
 }
 
 function nspVoiceRunAll(list, gen, cb) {
@@ -2304,6 +2400,42 @@ function nspVoiceSpoken(body) {
 
 function nspAssistVoice(text, lang, cb) {
   if (!self.NSP_BRAIN || !self.NSP_CHAT_TOOLS) { nspVoiceByCascade(text, 'the brain did not load', cb); return; }
+  nspVoiceBizSite(function(site) {
+    if (site && (site.playbook || site.access !== 'none')) nspAssistBusiness(text, lang, site, cb);
+    else nspAssistVoiceAll(text, lang, cb);
+  });
+}
+
+function nspAssistBusiness(text, lang, site, cb) {
+  var talk = nspVrLang(nspVrNorm(text), lang);
+  var P = self.NSP_PLAYBOOKS;
+  var pb = site.playbook || (P ? P.forQuery(text) : '');
+  var brainSite = { host: site.host, web: true, access: site.access };
+  var page = nspVoicePageCtx(site);
+  nspAgentOn().then(function(agentOn) {
+    return nspDecideMemory(site.host, pb).then(function(memory) {
+      return self.NSP_CHAT_TOOLS.loop({
+        systemParts: self.NSP_BRAIN.parts({ surface: 'chat', spoken: true, readOnly: true, query: text, site: brainSite, playbook: pb, pageTools: agentOn, memory: memory, context: self.NSP_CHAT_TOOLS.context({ surface: 'voice', agentOn: agentOn, lang: talk, site: brainSite }) }),
+        tools: self.NSP_BRAIN.tools('chat', { agentOn: agentOn, site: brainSite, playbook: pb, query: text, readOnly: true }),
+        messages: [{ role: 'user', content: text }],
+        maxRounds: NSP_VOICE_ASSIST_ROUNDS,
+        maxSteps: NSP_VOICE_ASSIST_STEPS,
+        maxTokens: 600,
+        ask: function(payload) { return new Promise(function(resolve) { nspChatCascade(payload, resolve); }); },
+        run: function(name, args) {
+          var usesPage = name === 'zerackExtract' || name === 'zerackLeads';
+          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'voice', lang: talk, playbook: pb, site: { host: site.host, url: site.url }, page: usesPage ? page : null }, resolve); });
+        }
+      });
+    });
+  }).then(function(out) {
+    console.log('[NSP SW] voice: the business agent answered in ' + out.rounds + ' model calls and ' + out.steps + ' tool steps, ' + (out.provider || 'no provider'));
+    if (out.ok && out.text) cb({ ok: true, answer: out.text, error: '', provider: out.provider, model: out.model });
+    else cb({ ok: false, answer: '', error: out.error || 'empty_answer' });
+  }, function(e) { cb({ ok: false, answer: '', error: String((e && e.message) || e) }); });
+}
+
+function nspAssistVoiceAll(text, lang, cb) {
   var talk = nspVrLang(nspVrNorm(text), lang);
   chrome.storage.local.get('nsp_agent_enabled', function(st) {
     var agentOn = !chrome.runtime.lastError && !!st && st.nsp_agent_enabled === true;
@@ -2466,7 +2598,7 @@ function nspVoiceToggle() {
 var NSP_CHAT_PAGE = 'chat/chat.html';
 var NSP_CHAT_TOKEN_TTL_MS = 60000;
 var NSP_CHAT_ROUTE_WORDS = 8;
-var NSP_CHAT_ROUTE_SKIP = { hush: 1, stop: 1, wake: 1, hello: 1 };
+var NSP_CHAT_ROUTE_SKIP = { hush: 1, stop: 1, wake: 1, hello: 1, biz: 1 };
 var NSP_CHAT_IN_PAGE = { scan: 1, result: 1, channel: 1, save: 1 };
 var NSP_CHAT_OK_LINES = { done: 1, youtube: 1, scanning: 1, saved: 1, open: 1, opening_channel: 1, agent_on: 1, agent_off: 1 };
 var NSP_CHAT_DONE = { youtube: 'Opened YouTube.', search: 'Searched YouTube.', site: 'Opened the page.', page: 'Opened the ZERACK page.', back: 'Went back.', forward: 'Went forward.', reload: 'Reloaded the tab.', next_tab: 'Moved to the next tab.', prev_tab: 'Moved to the previous tab.', close_tab: 'Closed the tab.', new_tab: 'Opened a new tab.' };
@@ -2728,6 +2860,7 @@ function nspChatToolNow(name, args, ctx, done) {
   if (name === 'zerackPlaybook') { done(self.NSP_PLAYBOOKS ? self.NSP_PLAYBOOKS.lookup(String(ctx.playbook || ''), args) : { ok: false, error: 'the playbooks did not load' }); return; }
   if (name === 'zerackDecide') { lib(nspDecide(args, ctx)); return; }
   if (name === 'zerackBuilder') { lib(nspBuilder(args, ctx)); return; }
+  if (name === 'zerackLeads') { lib(nspLeads(args, ctx)); return; }
   if (name === 'zerackBreakEven') {
     var pb = self.NSP_PLAYBOOKS ? self.NSP_PLAYBOOKS.get(String(ctx.playbook || '')) : null;
     done(self.NSP_BUSINESS ? self.NSP_BUSINESS.breakEven(args, pb, self.NspDineroEquilibrio) : { ok: false, error: 'the break-even engine did not load' });
@@ -2735,8 +2868,11 @@ function nspChatToolNow(name, args, ctx, done) {
   }
   if (NSP_CHAT_PAGE_TOOLS[name] === 1) {
     if (!self.NSP_PAGE_AGENT || !ctx.page) { done({ ok: false, error: name + ' runs only inside a chat turn' }); return; }
-    var ran = self.NSP_PAGE_AGENT.run(name, args, ctx.page);
-    lib(name === 'zerackExtract' ? Promise.resolve(ran).then(nspBusinessRead) : ran);
+    if (name === 'zerackExtract') {
+      lib(nspPaceWait(ctx.site && ctx.site.host).then(function() { return self.NSP_PAGE_AGENT.run(name, args, ctx.page); }).then(nspBusinessRead));
+      return;
+    }
+    lib(self.NSP_PAGE_AGENT.run(name, args, ctx.page));
     return;
   }
   if (name === 'zerackYouTubeAgent') {
@@ -2756,19 +2892,23 @@ var NSP_SERIES_WAIT_MS = 2000;
 function nspBusinessRead(result, opts) {
   var B = self.NSP_BUSINESS, store = self.NSP_CHAT_STORE;
   if (!B || !result || result.ok !== true) return result;
-  var out = B.analyze(result, { reverse: self.NSP_REVERSE_ENGINE, cadence: self.NSP_CADENCIA });
-  var snap = B.snapshot(result, out, Date.now());
-  if (!snap || !store || typeof store.lastSeries !== 'function') return out;
-  var remembered = Promise.resolve(store.lastSeries(snap.key)).then(function(prev) {
-    var diff = prev ? B.compare(prev, snap) : null;
-    if (diff) out.sinceLast = diff;
-    return store.addSeries(snap).then(function() {
-      if (!(opts && opts.quiet)) nspDecideAfterRead(snap);
-      return out;
+  var leadKind = self.NSP_LEADS && NSP_LEADS_READERS[result.reader] ? NSP_LEADS_READERS[result.reader] : '';
+  return (leadKind ? nspLeadsPolicyNow() : Promise.resolve(null)).then(function(policy) {
+    var out = B.analyze(result, { reverse: self.NSP_REVERSE_ENGINE, cadence: self.NSP_CADENCIA, leads: leadKind ? self.NSP_LEADS : null, policy: policy });
+    var found = leadKind ? nspLeadsFromRead(result) : Promise.resolve(null);
+    var snap = B.snapshot(result, out, Date.now());
+    if (!snap || !store || typeof store.lastSeries !== 'function') return found.then(function() { return out; });
+    var remembered = Promise.resolve(store.lastSeries(snap.key)).then(function(prev) {
+      var diff = prev ? B.compare(prev, snap) : null;
+      if (diff) out.sinceLast = diff;
+      return store.addSeries(snap).then(function() {
+        if (!(opts && opts.quiet)) nspDecideAfterRead(snap);
+        return out;
+      }, function() { return out; });
     }, function() { return out; });
-  }, function() { return out; });
-  var late = new Promise(function(resolve) { setTimeout(function() { resolve(out); }, NSP_SERIES_WAIT_MS); });
-  return Promise.race([remembered, late]);
+    var late = new Promise(function(resolve) { setTimeout(function() { resolve(out); }, NSP_SERIES_WAIT_MS); });
+    return Promise.all([Promise.race([remembered, late]), found]).then(function() { return out; });
+  });
 }
 
 var NSP_DECIDE_ALARM = 'nsp-decide';
@@ -3581,6 +3721,248 @@ try { chrome.runtime.onStartup.addListener(function() { nspWatchLoad().then(nspW
 try { chrome.runtime.onStartup.addListener(function() { nspDecideSchedule(); }); } catch (eDecideStart) {}
 try { chrome.runtime.onInstalled.addListener(function() { nspDecideSchedule(); }); } catch (eDecideInstall) {}
 
+try { importScripts('../lib/nsp-leads.js'); } catch (eLeads) { console.warn('[NSP SW] importScripts leads engine:', eLeads && eLeads.message); }
+
+var NSP_LEADS_FOUND_MS = 6 * 3600000;
+var NSP_LEADS_FRESH_READ_MS = 30 * 60000;
+var NSP_LEADS_READERS = { 'maps.results': 'place', 'maps.place': 'place', 'upwork.jobs': 'job', 'upwork.job': 'job' };
+var NSP_LEADS_OUTCOMES = { sent: 1, replied: 1, bounced: 1, complained: 1, opted_out: 1, skipped: 1 };
+var NSP_PACE_MS = 12000;
+var _nspLeads = { chain: Promise.resolve() };
+var _nspPace = {};
+
+function nspLeadsLoad() {
+  var L = self.NSP_LEADS;
+  return new Promise(function(resolve) {
+    try {
+      chrome.storage.local.get(L.key, function(r) { resolve(L.load(!chrome.runtime.lastError && r ? r[L.key] : null)); });
+    } catch (e) { resolve(L.load(null)); }
+  });
+}
+
+function nspLeadsUpdate(mutate) {
+  var L = self.NSP_LEADS;
+  var out;
+  _nspLeads.chain = _nspLeads.chain.then(function() {
+    return nspStorageUpdate(L.key, function(raw) {
+      var st = L.load(raw);
+      out = mutate(st);
+      return st;
+    }).then(function() { return out; });
+  }).then(null, function(e) { console.warn('[NSP SW] leads: update failed:', e && e.message); return out; });
+  return _nspLeads.chain;
+}
+
+function nspLeadRow(kind, result) {
+  if (result.reader === 'maps.place') {
+    var p = result.place || {};
+    return [{ name: p.name, rating: p.rating, reviews: p.reviews, category: p.category, address: p.address, phone: p.phone, website: p.website, hasWebsite: p.hasWebsite, url: p.url }];
+  }
+  if (result.reader === 'upwork.job') {
+    var j = result.job || {};
+    return [{ title: j.title, url: j.url, type: j.type, rateMin: j.rateMin, rateMax: j.rateMax, budget: j.budget, proposals: j.proposals, verified: j.verified, spent: j.spent, postedMin: j.postedMin, connects: j.connects, skills: j.skills, text: j.text }];
+  }
+  return result.rows || [];
+}
+
+function nspLeadsFromRead(result) {
+  var L = self.NSP_LEADS;
+  var kind = result && result.ok === true ? NSP_LEADS_READERS[result.reader] : '';
+  if (!L || !kind) return Promise.resolve(null);
+  var now = Date.now();
+  return nspLeadsUpdate(function(st) {
+    var found = L.find(st, nspLeadRow(kind, result), kind, st.policy, result.reader, now);
+    st.found = { at: now, url: String(result.url || '').slice(0, 600), reader: result.reader, kind: kind, ids: found.map(function(l) { return l.id; }).slice(0, 60) };
+    return found;
+  });
+}
+
+function nspLeadsPolicyNow() {
+  if (!self.NSP_LEADS) return Promise.resolve(null);
+  return nspLeadsLoad().then(function(st) { return st.policy; }, function() { return null; });
+}
+
+function nspPaceWait(host) {
+  var P = self.NSP_PLAYBOOKS;
+  var t = P && host ? P.terms(host, '/') : null;
+  if (!t || !t.pace) return Promise.resolve(0);
+  var now = Date.now();
+  var last = _nspPace[host] || 0;
+  var wait = Math.max(0, last + NSP_PACE_MS - now);
+  _nspPace[host] = now + wait;
+  if (!wait) return Promise.resolve(0);
+  return new Promise(function(resolve) { setTimeout(function() { resolve(wait); }, wait); });
+}
+
+function nspLeadsClip(s, n) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  return s.length > n ? s.slice(0, n - 3) + '...' : s;
+}
+
+function nspLeadView(l, contacted) {
+  return {
+    id: l.id,
+    kind: l.kind,
+    name: nspLeadsClip(l.name, 100),
+    verdict: l.verdict,
+    reasons: (l.reasons || []).slice(0, 3).map(function(r) { return nspLeadsClip(r.text, 140); }),
+    facts: (l.facts || []).filter(function(f) { return f.value !== l.name && f.what !== 'website'; }).slice(0, 4).map(function(f) { return nspLeadsClip(f.value, 120); }),
+    route: l.route ? l.route.kind : '',
+    url: nspBuilderUrl(l.url),
+    website: nspBuilderUrl(l.website),
+    phone: nspLeadsClip(l.phone, 40),
+    price: l.price ? { per: l.price.per, bid: l.price.bid, keepLow: l.price.keepLow } : null,
+    connects: l.connects != null ? l.connects : null,
+    status: l.status || 'found',
+    contacted: contacted || ''
+  };
+}
+
+function nspLeadsStatusView(s) {
+  return { cap: s.cap, sent: s.sent, left: s.left, bounces: s.bounces, stopAt: s.stopAt, on: s.on, inHours: s.inHours, hours: s.hours, ramp: s.ramp };
+}
+
+function nspLeadsCard(result, card) {
+  if (result && typeof result === 'object' && card) Object.defineProperty(result, 'card', { value: card, enumerable: false, configurable: true });
+  return result;
+}
+
+function nspLeadsEnsureRead(ctx) {
+  var page = ctx && ctx.page;
+  var site = ctx && ctx.site;
+  var P = self.NSP_PLAYBOOKS;
+  if (!page || !site || !self.NSP_PAGE_AGENT || !P) return Promise.resolve(null);
+  var url = String(site.url || '');
+  var pb = P.forUrl(url);
+  if (!P.leadsKind(pb)) return Promise.resolve(null);
+  return nspLeadsLoad().then(function(st) {
+    if (st.found && st.found.url === url && Date.now() - st.found.at < NSP_LEADS_FRESH_READ_MS) return null;
+    return nspPaceWait(site.host).then(function() {
+      return Promise.resolve(self.NSP_PAGE_AGENT.run('zerackExtract', {}, page)).then(function(r) {
+        return r && r.ok === true ? nspBusinessRead(r, { quiet: true }) : r;
+      });
+    });
+  }).then(null, function() { return null; });
+}
+
+function nspLeads(args, ctx) {
+  args = args && typeof args === 'object' ? args : {};
+  ctx = ctx || {};
+  var L = self.NSP_LEADS;
+  if (!L) return Promise.resolve({ ok: false, error: 'the leads engine did not load, reload the extension' });
+  var action = String(args.action || '').toLowerCase().trim();
+  var now = Date.now();
+  if (action === 'status') {
+    return nspLeadsLoad().then(function(st) {
+      var s = L.status(st, now);
+      var recent = Object.keys(st.leads).map(function(id) { return st.leads[id]; }).filter(function(l) { return l.sentAt; }).sort(function(a, b) { return b.sentAt - a.sentAt; }).slice(0, 6);
+      var line = s.sent + ' of ' + s.cap + ' sent today, ' + s.left + ' left' + (s.bounces ? ', ' + s.bounces + ' bounces or complaints' : '') + (s.stopped ? '; sending is stopped until tomorrow' : '') + (!s.on ? '; sending is switched off' : '') + (!s.inHours ? '; outside sending hours (' + s.hours[0] + ':00 to ' + s.hours[1] + ':00)' : '') + '. The cap grows by ' + s.ramp.step + ' a day up to ' + s.ramp.max + '.';
+      return nspLeadsCard({ ok: true, action: action, line: line, status: s, recent: recent.map(function(l) { return { id: l.id, name: l.name, status: l.status, sentAt: new Date(l.sentAt).toISOString() }; }) }, { kind: 'status', line: nspLeadsClip(line, 300), status: nspLeadsStatusView(s), recent: recent.map(function(l) { return { name: nspLeadsClip(l.name, 80), status: l.status, at: l.sentAt }; }) });
+    });
+  }
+  if (action === 'policy') {
+    var patch = {};
+    ['name', 'business', 'address', 'email', 'offer', 'skills', 'rate', 'budget', 'proof', 'max', 'start', 'step', 'on'].forEach(function(k) { if (args[k] != null && args[k] !== '') patch[k] = args[k]; });
+    if (args.hoursFrom != null || args.hoursTo != null) patch.hours = [args.hoursFrom != null ? args.hoursFrom : 8, args.hoursTo != null ? args.hoursTo : 21];
+    return nspLeadsUpdate(function(st) {
+      var r = L.setPolicy(st.policy, patch);
+      st.policy = r.policy;
+      return r;
+    }).then(function(r) {
+      var p = r.policy;
+      var missing = ['name', 'offer', 'address'].filter(function(k) { return !p[k]; });
+      var line = (r.changed.length ? 'Saved ' + r.changed.join(', ') + '.' : 'Nothing changed.') + (r.refused.length ? ' ' + r.refused.map(function(x) { return x.why; }).join('; ') + '.' : '') + (missing.length ? ' Still missing: ' + missing.join(', ') + '.' : '');
+      return nspLeadsCard({ ok: true, action: action, line: line, policy: p, changed: r.changed, refused: r.refused, missing: missing }, { kind: 'policy', line: nspLeadsClip(line, 300), policy: { name: p.name, business: p.business, address: p.address ? 'saved' : '', offer: nspLeadsClip(p.offer, 160), skills: nspLeadsClip(p.skills, 160), rate: p.rate, budget: p.budget, cap: { start: p.start, step: p.step, max: p.max }, hours: p.hours, on: p.on } });
+    });
+  }
+  if (action === 'mark') {
+    var outcome = String(args.outcome || '').toLowerCase().replace(/[\s-]+/g, '_');
+    if (NSP_LEADS_OUTCOMES[outcome] !== 1) return Promise.resolve({ ok: false, code: 'bad_outcome', error: 'outcome must be sent, replied, bounced, complained, opted_out or skipped' });
+    return nspLeadsUpdate(function(st) {
+      var lead = L.lookup(st, args.lead);
+      if (!lead) return { ok: false, code: 'no_lead', error: 'no lead matches ' + JSON.stringify(String(args.lead || '').slice(0, 60)) + '; use an id from zerackLeads find' };
+      var before = L.status(st, now);
+      L.record(st, lead.id, outcome, now, { by: 'user' });
+      var s = L.status(st, now);
+      var line = lead.name + ' marked ' + outcome.replace('_', ' ') + '.' + (outcome === 'sent' ? ' ' + s.sent + ' of ' + s.cap + ' sent today' + (before.sent >= before.cap ? ', which is past the cap' : '') + '.' : '') + (outcome === 'opted_out' || outcome === 'complained' ? ' ZERACK never writes to them again.' : '') + (s.stopped ? ' Sending stops until tomorrow after ' + s.bounces + ' bounces or complaints.' : '');
+      return { ok: true, action: action, lead: lead.id, outcome: outcome, line: line, status: s };
+    });
+  }
+  if (action === 'find') {
+    return nspLeadsEnsureRead(ctx).then(function() { return nspLeadsLoad(); }).then(function(st) {
+      var f = st.found;
+      if (!f || !(now - f.at < NSP_LEADS_FOUND_MS)) return { ok: false, code: 'missing', missing: ['a read of a Google Maps search or place, or of an Upwork job search or job'], error: 'nothing to judge yet: open a Google Maps search or an Upwork job search, read it with zerackExtract, then ask again' };
+      var list = f.ids.map(function(id) { return st.leads[id]; }).filter(Boolean);
+      var rank = { pitch: 0, bid: 0, look: 1, skip: 2 };
+      var views = list.map(function(l) { return nspLeadView(l, L.contacted(st, l) || ''); });
+      views.sort(function(a, b) { return (a.contacted ? 1 : 0) - (b.contacted ? 1 : 0) || rank[a.verdict] - rank[b.verdict]; });
+      var go = views.filter(function(v) { return (v.verdict === 'pitch' || v.verdict === 'bid') && !v.contacted; });
+      var s = L.status(st, now);
+      var p = st.policy;
+      var word = f.kind === 'job' ? 'Bid' : 'Pitch';
+      var line = list.length + (f.kind === 'job' ? ' jobs' : ' places') + ' judged: ' + go.length + ' ' + word + ', ' + views.filter(function(v) { return v.verdict === 'look'; }).length + ' Look at it, ' + views.filter(function(v) { return v.verdict === 'skip'; }).length + ' Skip' + (views.filter(function(v) { return v.contacted; }).length ? ', ' + views.filter(function(v) { return v.contacted; }).length + ' already contacted' : '') + '. ' + s.left + ' of ' + s.cap + ' sends left today.' + (f.kind === 'place' && !p.offer ? ' No offer saved yet: every angle counts until the user says what they sell.' : '') + (f.kind === 'job' && !p.skills ? ' No skills saved yet: the fit is not checked.' : '');
+      return nspLeadsCard({ ok: true, action: action, kind: f.kind, line: line, source: f.reader, leads: views.slice(0, 20), status: s }, { kind: 'leads', leadKind: f.kind, line: nspLeadsClip(line, 400), status: nspLeadsStatusView(s), leads: views.slice(0, 12) });
+    });
+  }
+  if (action === 'draft') {
+    return nspLeadsUpdate(function(st) {
+      var lead = L.lookup(st, args.lead);
+      if (!lead && !args.lead && st.found) lead = st.found.ids.map(function(id) { return st.leads[id]; }).filter(function(l) { return l && (l.verdict === 'pitch' || l.verdict === 'bid') && !L.contacted(st, l); })[0] || null;
+      if (!lead) return { ok: false, code: 'no_lead', error: 'no lead matches ' + JSON.stringify(String(args.lead || '').slice(0, 60)) + '; run zerackLeads find first and use one of its ids' };
+      var d = L.compose(lead, st.policy, { channel: args.route || args.channel });
+      if (!d.ok) return d;
+      d.at = now;
+      lead.draft = d;
+      lead.channel = d.channel;
+      L.record(st, lead.id, 'drafted', now, {});
+      var blocked = d.script ? null : L.why(lead, st, now);
+      var s = L.status(st, now);
+      return { d: d, lead: lead, blocked: blocked, s: s };
+    }).then(function(got) {
+      if (!got || got.ok === false) return got;
+      var d = got.d, lead = got.lead, s = got.s, blocked = got.blocked;
+      var route = lead.kind === 'job' ? lead.url : (d.channel === 'form' ? lead.website : '');
+      var line = (d.script ? 'Call script for ' : 'Draft for ') + lead.name + ', ' + d.checks.filter(function(c) { return c.ok; }).length + ' of ' + d.checks.length + ' checks pass. ' + (d.script ? 'Calls are yours to make.' : (blocked ? 'Held: ' + blocked.why + '.' : 'It can go out now, send ' + (s.sent + 1) + ' of ' + s.cap + ' today, after your press.'));
+      var result = { ok: true, action: 'draft', lead: lead.id, name: lead.name, channel: d.channel, subject: d.subject, body: d.body, checks: d.checks, sendable: !d.script && !blocked, blocked: blocked, route: route, status: s, line: line };
+      if (result.sendable) result.howToSend = 'Open ' + (route || 'their page') + ', type the subject and the body exactly as drafted with zerackPage passing lead ' + lead.id + ' on every step, then click the send button: the user presses Send in the chat.';
+      if (lead.kind === 'job' && lead.connects != null) result.connects = { needed: lead.connects, cost: lead.connectsCost };
+      return nspLeadsCard(result, {
+        kind: 'draft', line: nspLeadsClip(line, 400), lead: lead.id, name: nspLeadsClip(lead.name, 100), channel: d.channel, script: d.script === true, subject: nspLeadsClip(d.subject, 160), body: String(d.body).slice(0, 4000), chars: d.chars,
+        checks: d.checks.slice(0, 8).map(function(c) { return { ok: c.ok, what: nspLeadsClip(c.what, 120), source: nspLeadsClip(c.source, 120) }; }),
+        route: nspBuilderUrl(route), phone: nspLeadsClip(lead.phone, 40), blocked: blocked ? nspLeadsClip(blocked.why.charAt(0).toUpperCase() + blocked.why.slice(1), 240) : '', status: nspLeadsStatusView(s),
+        connects: lead.kind === 'job' && lead.connects != null ? lead.connects : null, price: lead.price ? { per: lead.price.per, bid: lead.price.bid } : null
+      });
+    });
+  }
+  return Promise.resolve({ ok: false, code: 'bad_action', error: 'action must be find, draft, status, mark or policy' });
+}
+
+function nspLeadsGate(q) {
+  var L = self.NSP_LEADS;
+  if (!L) return Promise.resolve({ ok: true });
+  q = q || {};
+  var now = Date.now();
+  return nspLeadsLoad().then(function(st) {
+    var lead = q.lead ? L.lookup(st, q.lead) : null;
+    if (q.lead && !lead) return { ok: false, code: 'no_lead', why: 'this message is not one ZERACK drafted and checked', hint: 'lead ' + String(q.lead).slice(0, 40) + ' was never drafted: run zerackLeads draft first' };
+    if (!lead) lead = L.fromTyped(st, q.typed, now);
+    var place = L.outreach(q.host, q.path);
+    if (!lead) return place ? { ok: false, code: 'lead_needed', why: 'this is ' + place + ', and only a message ZERACK drafted and checked goes out here, so the daily cap, the never-repeat list and the opt-out apply', hint: 'draft it with zerackLeads and type it with its lead id' } : { ok: true };
+    var w = L.why(lead, st, now);
+    if (w) return { ok: false, code: w.code, why: w.why, lead: lead.id };
+    var c = L.carries(lead, q.typed);
+    if (!c.ok) return { ok: false, code: 'draft_changed', why: 'the message typed on the page is missing ' + c.missing.join(' and ') + ', so it is not the checked draft', hint: 'type the draft from zerackLeads as it is', lead: lead.id };
+    var s = L.status(st, now);
+    return { ok: true, lead: { id: lead.id, name: lead.name }, line: lead.name + ': send ' + (s.sent + 1) + ' of ' + s.cap + ' today, never repeated' };
+  }, function() { return { ok: false, code: 'lead_store', why: 'the lead store could not be read, so no send is offered' }; });
+}
+
+function nspLeadsSent(id, info) {
+  var L = self.NSP_LEADS;
+  if (!L || !id) return Promise.resolve(null);
+  return nspLeadsUpdate(function(st) { return L.record(st, id, 'sent', Date.now(), { host: info && info.host, by: 'user' }); });
+}
+
 function nspChatProviders(sendResponse) {
   chrome.storage.local.get(['nsp_openai_api_key', 'nsp_groq_api_key', 'nsp_gemini_api_key', 'nsp_ollama_enabled', 'nsp_ollama_model', 'nsp_selected_model'], function(r) {
     r = (!chrome.runtime.lastError && r) || {};
@@ -3770,7 +4152,10 @@ function nspChatPageCtx(run, site) {
     },
     lastReply: function() { return nspChatLastReply(run); },
     ledger: function(entry) { return self.NSP_CHAT_STORE.addLedger(entry); },
-    evidence: nspDecideEvidence
+    evidence: nspDecideEvidence,
+    leads: nspLeadsGate,
+    leadSent: nspLeadsSent,
+    pace: nspPaceWait
   };
 }
 
@@ -3805,7 +4190,7 @@ function nspChatThink(run) {
           if (id) run.delegate = id;
           if (NSP_CHAT_NAV_TOOLS[name] === 1) nspChatMarkHost(run);
           nspChatTyping(run, name === 'zerackYouTubeAgent' ? 'The YouTube agent is working' : (NSP_CHAT_PAGE_TOOLS[name] === 1 ? 'Working on the page' : 'Working'));
-          var builder = name === 'zerackBuilder';
+          var builder = name === 'zerackBuilder' || name === 'zerackLeads';
           return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'chat', lang: run.lang, requestId: id, playbook: run.playbook, convId: run.convId, site: run.site, page: NSP_CHAT_PAGE_TOOLS[name] === 1 || builder ? run.page : null, allow: builder ? function(host, pattern, url) { return nspChatAdd(run, 'allow', host, { status: 'waiting', host: host, pattern: pattern, need: 'read', url: String(url || '').slice(0, 300) }); } : null }, resolve); }).then(function(res) {
             if (id) run.delegate = '';
             return res;
@@ -3826,6 +4211,7 @@ function nspChatThink(run) {
             var meta = { tool: name, status: failed ? 'failed' : 'done', detail: tools.note(result) };
             if (name === 'zerackDecide' && result && result.ok === true) meta.decision = nspDecideCard(result);
             if (name === 'zerackBuilder' && result && result.ok === true && result.card) meta.builder = result.card;
+            if (name === 'zerackLeads' && result && result.ok === true && result.card) meta.leads = result.card;
             if (result && result.code === 'needs_evidence' && Array.isArray(result.missing)) { meta.missing = result.missing.slice(0, 5).map(function(m) { return String(m).slice(0, 300); }); if (result.evidence) meta.evidence = String(result.evidence).slice(0, 300); }
             nspChatPatch(run, row, meta);
           });

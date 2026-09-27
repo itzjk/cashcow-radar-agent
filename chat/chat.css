@@ -227,7 +227,7 @@ textarea:focus, textarea:focus-visible { outline: none; }
 .card[data-status="running"] .dot { animation: pulse 1s ease-in-out infinite; }
 .card[data-status="failed"] .dot { background: var(--red); }
 .card[data-status="failed"] { border-color: rgba(255,45,45,.35); }
-.card .what { font-weight: 600; }
+.card .what { font-weight: 600; overflow-wrap: anywhere; }
 .card .detail { color: var(--muted); overflow-wrap: anywhere; }
 .card-text { min-width: 0; flex: 1; }
 
@@ -296,7 +296,7 @@ textarea:focus, textarea:focus-visible { outline: none; }
 .gate-no:hover { border-color: #fff; color: #fff; }
 .gate-go:focus-visible, .gate-no:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .gate button[disabled] { opacity: .45; cursor: default; }
-.gate-note { margin-top: 9px; font-size: 11.5px; color: var(--faint); }
+.gate-note { margin-top: 9px; font-size: 11.5px; color: var(--faint); overflow-wrap: anywhere; }
 .gate:not([data-status="waiting"]) .gate-note { color: var(--muted); font-size: 12.5px; }
 .gate[data-status="failed"] .gate-note { color: #ff9d9d; }
 
@@ -516,3 +516,13 @@ body[data-mode="overlay"] .only-overlay { display: inline-flex; }
 .bld-src:hover { color: #fff; text-decoration-color: #fff; }
 .card.build[data-status="done"] .what { display: none; }
 .card.build[data-status="done"] .bld-head { margin-top: 0; }
+.gate-evidence.lead .gate-evidence-tag { background: var(--red); color: #fff; }
+.card.leads .lead-row { padding-bottom: 8px; }
+.card.leads .lead-row[data-verdict="skip"] { opacity: .72; }
+.card.leads .lead-row .state-pill { font-size: 10px; padding: 3px 8px; }
+.lead-why { color: var(--faint); }
+.lead-cap { display: flex; align-items: center; gap: 9px; margin-top: 9px; }
+.lead-cap-num { flex: 0 0 auto; font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: #fff; font-variant-numeric: tabular-nums; }
+.lead-cap-bar { flex: 1 1 auto; min-width: 40px; height: 4px; border-radius: 999px; background: var(--surface-3); overflow: hidden; }
+.lead-cap-fill { height: 100%; width: 0; background: var(--red); border-radius: 999px; }
+.lead-cap-text { flex: 0 1 auto; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

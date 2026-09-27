@@ -6,7 +6,7 @@ const call = (w, fn, name, args, ctx) => new Promise(r => w.context[fn](name, ar
 {
   const w = loadWorker();
   const P = w.context.NSP_PLAYBOOKS;
-  check("the worker loads the four playbooks and the business engine", P && P.list().map(p => p.id).join() === "etsy,shopify,seo,builders" && typeof w.context.NSP_BUSINESS.analyze === "function");
+  check("the worker loads the ten playbooks and the business engine", P && P.list().map(p => p.id).join() === "etsy,shopify,seo,builders,creators,freelance,local,amazon,newsletter,digital" && typeof w.context.NSP_BUSINESS.analyze === "function");
   check("the worker loads the engines the business reads call", !!(w.context.NSP_REVERSE_ENGINE && w.context.NSP_CADENCIA && w.context.NspDineroEquilibrio));
   check("a saved site now records its playbook", w.context.NSP_SITES.playbookFor("www.etsy.com") === "etsy" && w.context.NSP_SITES.playbookFor("example.com") === "web" && w.context.NSP_SITES.playbookFor("www.youtube.com") === "youtube");
 
@@ -25,7 +25,7 @@ const call = (w, fn, name, args, ctx) => new Promise(r => w.context[fn](name, ar
   check("with the switch on, reading the page still needs a chat turn and its tab", noTurn.ok === false && /runs only inside a chat turn/.test(noTurn.error), noTurn);
   const drift = w.context.nspBusinessRead({ ok: false, code: "drift", error: "x" });
   check("a drift answer reaches the model untouched", drift.code === "drift");
-  const good = w.context.nspBusinessRead({ ok: true, reader: "github.issues", count: 2, pageTitle: "Issues", rows: [{ title: "Export to PDF", number: 1, comments: 3, labels: [] }, { title: "PDF export broken", number: 2, comments: 5, labels: [] }] });
+  const good = await w.context.nspBusinessRead({ ok: true, reader: "github.issues", count: 2, pageTitle: "Issues", rows: [{ title: "Export to PDF", number: 1, comments: 3, labels: [] }, { title: "PDF export broken", number: 2, comments: 5, labels: [] }] });
   check("a read the worker understands comes back with its line and analysis", good.ok && /2 issues read/.test(good.line) && good.analysis.repeated[0].word === "export" && good.analysis.repeated[0].comments === 8, good.line);
   const saved = [];
   w.context.NSP_CHAT_STORE = { lastSeries: key => Promise.resolve(saved.filter(x => x.key === key).pop() || null), addSeries: e => { saved.push(JSON.parse(JSON.stringify(e))); return Promise.resolve(e); } };

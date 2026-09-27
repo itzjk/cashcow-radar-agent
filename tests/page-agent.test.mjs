@@ -28,9 +28,14 @@ function fakeHands(page) {
           held = { handle: "h" + (++page.holds), perform: () => { page.placed++; return { ok: true, clicked: 'button "Boost listing"' }; } };
           return { ok: false, code: "needs_press", kind: "Pay", spend: true, line: 'Pay: click button "Boost listing" on shop.test/listing/1', handle: held.handle, error: "waiting for a press from the user" };
         }
+        if (/Send message|Send for [0-9]+ Connects/.test(t)) {
+          held = { handle: "h" + (++page.holds), perform: () => { page.sent = (page.sent || 0) + 1; return { ok: true, clicked: 'button "Send message"' }; } };
+          return { ok: false, code: "needs_press", kind: "Send", line: 'Send: click button "Send message" on ' + page.url.replace(/^https?:\/\//, ''), handle: held.handle, error: "waiting for a press from the user" };
+        }
         if (/Delete account/.test(t)) return { ok: false, code: "refused", error: "refused: click button \"Delete account\" on shop.test/settings: it deletes or closes the whole account" };
         if (/Next step/.test(t)) { page.go(page.url.replace(/\/one$/, "/two")); return { ok: true, clicked: 'link "Next step"', mayLeave: true }; }
         if (/Save and leave/.test(t)) { page.go(page.url + "?saved=1"); return undefined; }
+        if (/Post and stay/.test(t)) { page.go(page.url); return undefined; }
         if (/Publish now/.test(t)) {
           held = { handle: "h" + (++page.holds), perform: () => { page.placed++; page.go(page.url + "?published=1"); return undefined; } };
           return { ok: false, code: "needs_press", kind: "Publish", line: 'Publish: click button "Publish now" on shop.test/admin', handle: held.handle, error: "waiting" };
@@ -128,6 +133,9 @@ function world(opts = {}) {
     progress() {},
     lastReply: () => Promise.resolve("Last answer text"),
     ledger(e) { ledger.push(e); return Promise.resolve(e); },
+    leads: opts.leads,
+    leadSent: opts.leadSent,
+    pace: opts.pace,
     evidence: opts.evidence === undefined ? host => { evidenceAsked.push(host); return Promise.resolve({ ok: true, decision: 3, line: 'Which ad for the apron?: "Ad B" leads: over 99.9% chance it is best' }); } : opts.evidence
   });
   return { A: ctx.NSP_PAGE_AGENT, calls, rows, ledger, evidenceAsked, local, granted, tabs, newPage, run, stop: v => { stopped = v; }, setAgent: v => { agentOn = v; } };
@@ -457,6 +465,75 @@ async function pressCase(how) {
   w.newPage(8, "https://dashboard.stripe.com/test/apikeys");
   check("Stripe's API keys page is private, not only read only", (await w.A.run("zerackPage", { action: "read" }, w.run(8))).code === "private");
   check("the rule is in the agent, so every surface gets it", typeof w.A.privateOf === "function" && w.A.privateOf("https://github.com/settings/keys").why === "settings, tokens and keys stay with you" && w.A.privateOf("https://github.com/o/r") === null);
+}
+
+{
+  const w = world({ sites: shopSite, granted: ["http://shop.test/*"] });
+  w.newPage(5, SHOP + "/contact");
+  const r = await w.A.run("zerackPage", { action: "click", target: 'the "Post and stay" button' }, w.run(5));
+  check("a click whose form posts back to the same address counts as done: the page loaded again", r.ok === true && r.nowAt === SHOP + "/contact" && /loaded again at the same address/.test(r.note), r);
+  const r2 = await w.A.run("zerackPage", { action: "click", target: 'the "Nothing here" button' }, w.run(5));
+  check("a click that fails on a page that did not reload still fails", r2.ok === false, r2);
+}
+
+{
+  const paced = [];
+  const w = world({ sites: Object.assign({ "www.upwork.com": { mode: "act", since: 1 } }, shopSite), granted: ["http://shop.test/*", "https://www.upwork.com/*"], pace: host => { paced.push(host); return Promise.resolve(0); } });
+  w.newPage(5, "https://www.upwork.com/nx/search/jobs/");
+  const r = await w.A.run("zerackPage", { action: "navigate", url: "https://www.upwork.com/ab/proposals/job/~01/apply/" }, w.run(5));
+  check("before it moves the tab, the agent asks the pace for the destination host", r.ok === true && paced.join() === "www.upwork.com", [r, paced]);
+}
+
+const CEDAR = "https://www.cedarparksmiles.test";
+const cedarSite = { "www.cedarparksmiles.test": { mode: "act", since: 1 } };
+async function pressRow(w) {
+  let row = null;
+  for (let i = 0; i < 200 && !row; i++) { await wait(2); row = w.rows.find(x => x.role === "press"); }
+  return row;
+}
+{
+  const asked = [];
+  const w = world({ sites: cedarSite, granted: ["https://www.cedarparksmiles.test/*"], leads: q => { asked.push(q); return Promise.resolve({ ok: true }); } });
+  w.newPage(5, CEDAR + "/contact");
+  const out = w.A.run("zerackPage", { action: "click", target: 'the "Send message" button' }, w.run(5));
+  const row = await pressRow(w);
+  check("a Send press asks the lead rules first; an ordinary send gets the usual press with no lead line", row && row.meta.status === "waiting" && row.meta.kind === "Send" && !row.meta.lead && asked.length === 1 && asked[0].host === "www.cedarparksmiles.test" && asked[0].path === "/contact", [row && row.meta, asked]);
+  w.A.confirm("c1", row.meta.pressId, false);
+  check("and declining it sends nothing", (await out).code === "declined" && !w.tabs[5].sent);
+}
+{
+  const asked = [], sent = [];
+  const w = world({ sites: cedarSite, granted: ["https://www.cedarparksmiles.test/*"], leads: q => { asked.push(q); return Promise.resolve({ ok: true, lead: { id: "L7", name: "Cedar Park Smiles" }, line: "Cedar Park Smiles: send 1 of 5 today, never repeated" }); }, leadSent: (id, info) => { sent.push([id, info.host]); return Promise.resolve(); } });
+  w.newPage(5, CEDAR + "/contact");
+  await w.A.run("zerackPage", { action: "type", target: 'the "Message" field', text: "Hi Cedar Park Smiles team, the draft body" }, w.run(5));
+  const out = w.A.run("zerackPage", { action: "click", target: 'the "Send message" button', lead: "L7" }, w.run(5));
+  const row = await pressRow(w);
+  check("a lead send shows the lead and today's count on the press", row && row.meta.lead === "Cedar Park Smiles: send 1 of 5 today, never repeated", row && row.meta);
+  check("the lead rules get the lead id and what was typed on this tab", asked[0].lead === "L7" && asked[0].typed.some(t => /the draft body/.test(t.text)), asked[0]);
+  w.A.confirm("c1", row.meta.pressId, true);
+  const r = await out;
+  check("after the user's press the message goes once and the lead is recorded as sent", r.ok === true && w.tabs[5].sent === 1 && r.lead === "L7" && sent.length === 1 && sent[0].join() === "L7,www.cedarparksmiles.test", [r, sent]);
+  const out2 = w.A.run("zerackPage", { action: "click", target: 'the "Send message" button' }, w.run(5));
+  await pressRow(w);
+  check("what was typed is forgotten after the send, so it cannot count twice", asked[1].typed.length === 0, asked[1]);
+  w.A.confirm("c1", w.rows.filter(x => x.role === "press").pop().meta.pressId, false);
+  await out2;
+}
+{
+  const w = world({ sites: cedarSite, granted: ["https://www.cedarparksmiles.test/*"], leads: () => Promise.resolve({ ok: false, code: "cap", why: "today's cap of 5 is used up; it rises by 5 each day up to 30", lead: "L7" }) });
+  w.newPage(5, CEDAR + "/contact");
+  const r = await w.A.run("zerackPage", { action: "click", target: 'the "Send message" button', lead: "L7" }, w.run(5));
+  check("past the cap the send is not offered at all, and says why", r.ok === false && r.code === "cap" && /cap of 5 is used up/.test(r.error) && r.why === "Today's cap of 5 is used up; it rises by 5 each day up to 30" && r.lead === "L7", r);
+  check("no press row, nothing sent, the held button released", !w.rows.some(x => x.role === "press") && !w.tabs[5].sent && w.tabs[5].released >= 1);
+  check("the ledger keeps the refusal", w.ledger.some(e => e.decision === "lead_blocked" && e.kind === "Send"), w.ledger.map(e => e.decision));
+  const plan = await w.A.run("zerackPagePlan", { steps: [{ action: "type", target: 'the "Message" field', text: "x", lead: "L7" }, { action: "click", target: 'the "Send message" button', lead: "L7" }] }, w.run(5));
+  check("a plan stopped by the lead rules carries the reason for the chat row", plan.ok === false && plan.code === "cap" && plan.why === "Today's cap of 5 is used up; it rises by 5 each day up to 30" && plan.stoppedAt === 2, plan);
+}
+{
+  const w = world({ sites: cedarSite, granted: ["https://www.cedarparksmiles.test/*"], leads: () => new Promise(() => {}) });
+  w.newPage(5, CEDAR + "/contact");
+  const r = await w.A.run("zerackPage", { action: "click", target: 'the "Send message" button' }, w.run(5));
+  check("if the lead rules never answer, no send is offered", r.code === "lead_store" && !w.rows.some(x => x.role === "press"), r);
 }
 
 done("page-agent");

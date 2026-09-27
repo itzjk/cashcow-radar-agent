@@ -213,6 +213,12 @@
       ev.appendChild(node('span', 'gate-evidence-text', String(m.evidence)));
       box.appendChild(ev);
     }
+    if (m.lead) {
+      var ld = node('div', 'gate-evidence lead');
+      ld.appendChild(node('span', 'gate-evidence-tag', 'Lead'));
+      ld.appendChild(node('span', 'gate-evidence-text', String(m.lead)));
+      box.appendChild(ld);
+    }
     if (live) {
       var acts = node('div', 'gate-actions');
       var go = node('button', 'gate-go', PRESS_VERBS[m.kind] || 'Do it');
@@ -663,6 +669,106 @@
     }
   }
 
+  var LEAD_KICKERS = { leads: 'Who to contact', draft: 'Draft', status: 'Sending today', policy: 'Your sender details' };
+  var LEAD_PILLS = { pitch: ['Pitch', 'is-keep'], bid: ['Bid', 'is-keep'], look: ['Look at it', 'is-look'], skip: ['Skip', 'is-drop'] };
+  var LEAD_CHANNELS = { proposal: 'Proposal', email: 'Email', form: 'Contact form', dm: 'Message', call: 'Call script' };
+
+  function capEl(parent, s) {
+    if (!s || !(s.cap > 0)) return;
+    var box = node('div', 'lead-cap');
+    box.appendChild(node('span', 'lead-cap-num', s.sent + ' / ' + s.cap));
+    var bar = node('div', 'lead-cap-bar');
+    var fill = node('div', 'lead-cap-fill');
+    fill.style.width = Math.min(100, Math.round(s.sent * 100 / s.cap)) + '%';
+    bar.appendChild(fill);
+    box.appendChild(bar);
+    var bits = [s.left + ' left today'];
+    if (s.bounces) bits.push(s.bounces + (s.bounces === 1 ? ' bounce' : ' bounces'));
+    if (s.on === false) bits.push('switched off');
+    else if (s.inHours === false && s.hours) bits.push('sends ' + s.hours[0] + ':00 to ' + s.hours[1] + ':00');
+    box.appendChild(node('span', 'lead-cap-text', bits.join(' \u00b7 ')));
+    parent.appendChild(box);
+  }
+
+  function leadsEl(parent, c, card) {
+    card.classList.add('build', 'leads');
+    card.dataset.kind = String(c.kind || '');
+    bldHead(parent, c.kind === 'draft' ? (LEAD_CHANNELS[c.channel] || 'Draft') + (c.name ? ' for ' + c.name : '') : (LEAD_KICKERS[c.kind] || 'Leads'), c.kind === 'draft' ? '' : c.line);
+    if (c.kind === 'leads') {
+      capEl(parent, c.status);
+      (c.leads || []).forEach(function (l) {
+        var row = node('div', 'bld-row lead-row');
+        row.dataset.verdict = String(l.verdict || '');
+        var top = node('div', 'bld-row-top');
+        var pill = LEAD_PILLS[l.verdict] || LEAD_PILLS.look;
+        top.appendChild(node('span', 'state-pill ' + pill[1], pill[0]));
+        top.appendChild(node('span', 'bld-name', l.name));
+        if (l.contacted) top.appendChild(node('span', 'bld-chip ghost', l.contacted === 'opted_out' ? 'Asked not to' : 'Contacted'));
+        row.appendChild(top);
+        var sub = (l.facts || []).slice(0, 3);
+        if (l.price && l.price.bid) sub.push((l.price.per === 'hour' ? 'bid $' + l.price.bid + ' an hour' : 'bid $' + l.price.bid));
+        if (l.connects != null) sub.push(l.connects + ' Connects');
+        if (sub.length) row.appendChild(node('div', 'bld-sub', sub.join(' \u00b7 ')));
+        (l.reasons || []).slice(0, 2).forEach(function (r) { row.appendChild(node('div', l.verdict === 'skip' ? 'bld-sub lead-why' : 'bld-miss', r)); });
+        var acts = node('div', 'bld-actions');
+        if (l.url) acts.appendChild(linkBtn(l.kind === 'job' ? 'Open job' : 'Open on Maps', l.url, null, 'mini'));
+        if (l.website) acts.appendChild(linkBtn('Website', l.website, null, 'mini'));
+        if (acts.childNodes.length) row.appendChild(acts);
+        parent.appendChild(row);
+      });
+      if (!(c.leads || []).length) parent.appendChild(node('div', 'bld-empty', 'Nothing was judged yet. Read a Google Maps search or an Upwork job search first.'));
+      parent.appendChild(node('div', 'bld-note', 'Verdicts come from the numbers on the page and your saved offer. Nothing is sent from here.'));
+    } else if (c.kind === 'draft') {
+      if (c.subject) {
+        var kv = node('div', 'bld-kv');
+        kv.appendChild(node('span', 'bld-k', 'Subject'));
+        kv.appendChild(node('span', 'bld-v', c.subject));
+        parent.appendChild(kv);
+      }
+      var box = node('div', 'bld-draft');
+      box.appendChild(node('div', 'bld-draft-text', c.body));
+      var foot = node('div', 'bld-draft-foot');
+      foot.appendChild(node('span', 'bld-meter', (c.chars || 0) + ' chars'));
+      var acts = node('div', 'bld-actions');
+      acts.appendChild(copyBtn(c.script ? 'Copy script' : 'Copy', (c.subject ? c.subject + '\n\n' : '') + c.body));
+      if (c.route) acts.appendChild(linkBtn(c.channel === 'proposal' ? 'Open job' : 'Open their site', c.route, null, c.blocked ? '' : 'primary'));
+      foot.appendChild(acts);
+      box.appendChild(foot);
+      parent.appendChild(box);
+      (c.checks || []).forEach(function (x) {
+        var r = node('div', 'bld-check' + (x.ok ? ' ok' : ' bad'));
+        r.appendChild(node('span', 'bld-check-mark', x.ok ? 'Pass' : 'Fix'));
+        r.appendChild(node('span', '', x.what));
+        parent.appendChild(r);
+      });
+      if (c.script) parent.appendChild(node('div', 'bld-note', 'Calls are yours to make' + (c.phone ? ': ' + c.phone : '') + '. Tell ZERACK how it went and it records it.'));
+      else if (c.blocked) {
+        var hb = node('div', 'bld-hand');
+        hb.appendChild(node('span', 'bld-hand-mark', 'Held'));
+        hb.appendChild(node('span', '', c.blocked));
+        parent.appendChild(hb);
+      } else parent.appendChild(node('div', 'bld-note', 'ZERACK can type it on their page; Send waits for your press, inside today\'s cap.' + (c.connects != null ? ' Applying costs ' + c.connects + ' Connects.' : '')));
+      capEl(parent, c.status);
+    } else if (c.kind === 'status') {
+      capEl(parent, c.status);
+      (c.recent || []).forEach(function (r) {
+        var row = node('div', 'bld-kv');
+        row.appendChild(node('span', 'bld-k', r.at ? new Date(r.at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''));
+        row.appendChild(node('span', 'bld-v', r.name + ', ' + String(r.status || '').replace(/_/g, ' ')));
+        parent.appendChild(row);
+      });
+    } else if (c.kind === 'policy') {
+      var p = c.policy || {};
+      [['Name', p.name], ['Business', p.business], ['Address', p.address ? 'Saved' : ''], ['Offer', p.offer], ['Skills', p.skills], ['Rate', p.rate ? '$' + p.rate + ' an hour' : ''], ['Cap', p.cap ? p.cap.start + ' a day, +' + p.cap.step + ' a day, up to ' + p.cap.max : ''], ['Hours', p.hours ? p.hours[0] + ':00 to ' + p.hours[1] + ':00' : '']].forEach(function (x) {
+        if (!x[1]) return;
+        var r = node('div', 'bld-kv');
+        r.appendChild(node('span', 'bld-k', x[0]));
+        r.appendChild(node('span', 'bld-v', String(x[1])));
+        parent.appendChild(r);
+      });
+    }
+  }
+
   function msgEl(row) {
     var box;
     if (row.role === 'press') return pressEl(row);
@@ -690,6 +796,7 @@
       inner.appendChild(node('div', 'what', row.text));
       if (meta.decision && typeof meta.decision === 'object') decisionEl(inner, meta.decision, box);
       else if (meta.builder && typeof meta.builder === 'object' && meta.status !== 'running') builderEl(inner, meta.builder, box);
+      else if (meta.leads && typeof meta.leads === 'object' && meta.status !== 'running') leadsEl(inner, meta.leads, box);
       else if (meta.detail) inner.appendChild(node('div', 'detail', meta.detail));
       if (Array.isArray(meta.missing) && meta.missing.length) missingEl(inner, meta.missing, 'Missing before ZERACK offers to spend', 'You can still do it yourself on the page.');
       box.appendChild(inner);

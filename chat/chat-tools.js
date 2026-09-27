@@ -24,7 +24,18 @@
     zerackPlaybook: 'Read the playbook',
     zerackBreakEven: 'Work out the break-even',
     zerackDecide: 'Decide with the numbers',
-    zerackBuilder: 'Do the builder work'
+    zerackBuilder: 'Do the builder work',
+    zerackLeads: 'Work the leads'
+  };
+
+  var LEAD_CODES = { lead_needed: 1, no_lead: 1, cap: 1, repeat: 1, opted_out: 1, bounces: 1, hours: 1, off: 1, draft_changed: 1, draft_incomplete: 1, weak: 1, generic: 1, no_draft: 1, lead_store: 1 };
+
+  var LEADS_LABELS = {
+    find: 'Judge who to contact',
+    draft: 'Draft the message',
+    status: 'Check today\'s sending cap',
+    mark: 'Record what happened',
+    policy: 'Save your sender details'
   };
 
   var BUILDER_LABELS = {
@@ -63,7 +74,26 @@
     'reddit.thread': 'Read the Reddit thread',
     'ph.product': 'Read the Product Hunt page',
     'npm.package': 'Read the npm package',
-    'pypi.package': 'Read the PyPI project'
+    'pypi.package': 'Read the PyPI project',
+    'tiktok.profile': 'Read the TikTok profile',
+    'tiktok.video': 'Read the TikTok video',
+    'instagram.profile': 'Read the Instagram profile',
+    'upwork.jobs': 'Read the jobs on the page',
+    'upwork.job': 'Read the job',
+    'fiverr.gigs': 'Read the gigs on the page',
+    'maps.results': 'Read the places on the map',
+    'maps.place': 'Read the place and its reviews',
+    'amazon.search': 'Read the Amazon results',
+    'amazon.product': 'Read the Amazon product',
+    'kdp.reports': 'Read the KDP report',
+    'seller.business': 'Read the business report',
+    'substack.archive': 'Read the Substack archive',
+    'substack.stats': 'Read the post stats',
+    'beehiiv.posts': 'Read the post stats',
+    'gumroad.product': 'Read the Gumroad product',
+    'gumroad.analytics': 'Read the sales dashboard',
+    'lemonsqueezy.home': 'Read the sales dashboard',
+    'g2.reviews': 'Read the G2 reviews'
   };
 
   var BROWSER_LABELS = {
@@ -73,7 +103,7 @@
 
   function clip(s, n) {
     s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
-    return s.length > n ? s.slice(0, n - 1) + '…' : s;
+    return s.length > n ? s.slice(0, n - 1) + '\u2026' : s;
   }
 
   function pageStep(a) {
@@ -101,6 +131,10 @@
       var act = String(args.action || '').toLowerCase();
       var head = BUILDER_LABELS[act] || LABELS.zerackBuilder;
       return (act === 'watch' || act === 'unwatch') && args.url ? head + ' ' + clip(String(args.url).replace(/^https?:\/\//, ''), 60) : head;
+    }
+    if (name === 'zerackLeads') {
+      var la = String(args.action || '').toLowerCase();
+      return (LEADS_LABELS[la] || LABELS.zerackLeads) + (la === 'mark' && args.outcome ? ': ' + clip(String(args.outcome).replace(/_/g, ' '), 20) : '');
     }
     if (name === 'zerackBreakEven') return args.price != null && args.price !== '' ? 'Work out what a ' + clip('$' + args.price, 12) + ' sale leaves' : LABELS.zerackBreakEven;
     if (name === 'zerackPagePlan') {
@@ -146,6 +180,8 @@
     if (result.ok === false && result.code === 'kept_read_only') return clip('ZERACK only reads ' + (result.host || 'this site') + ': this step is yours', 160);
     if (result.ok === false && result.code === 'missing' && Array.isArray(result.missing)) return clip('Needs ' + result.missing.join(' and ') + ' from you first', 160);
     if (result.ok === false && result.code === 'needs_evidence') return 'Not offered: spending waits for a measured test on this site';
+    if (result.ok === false && result.code === 'lead_needed' && !result.why) return 'Not offered: this send needs a drafted lead, so the cap and the opt-out apply';
+    if (result.ok === false && result.why && LEAD_CODES[result.code] === 1) return clip('Not offered: ' + result.why, 180);
     if (result.ok === false && PAGE_ENDS[result.code]) return PAGE_ENDS[result.code];
     if (result.ok === false) return clip(result.error || result.code || 'failed', 160);
     if (typeof result.ran === 'number' && typeof result.of === 'number') return result.ran + ' of ' + result.of + ' steps done';
