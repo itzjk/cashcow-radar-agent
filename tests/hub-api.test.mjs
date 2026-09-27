@@ -184,6 +184,56 @@ await test("6. the count, age and date parsers read the formats YouTube serves",
   assert.equal(API.normalizeChannelUrl("mystery documentary"), null);
 });
 
+function pageFunction(page, name) {
+  const at = page.indexOf("function " + name + "(");
+  assert.ok(at >= 0, name + " is missing from ashlyv.js");
+  let depth = 0;
+  for (let k = page.indexOf("{", at); k < page.length; k++) {
+    if (page[k] === "{") depth++;
+    else if (page[k] === "}" && --depth === 0) return page.slice(at, k + 1);
+  }
+  throw new Error(name + " never closes");
+}
+
+await test("7. a hub search opens YouTube in the language of what it searches, English when that is unclear, never Spanish by default", () => {
+  const page = read(PAGE_FILE);
+  assert.ok(!/searchNicheTerm\([^;]*'es'\)/.test(page), "a search still passes Spanish as its language");
+  const ctx = { console, URLSearchParams };
+  ctx.window = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(read(join(ROOT, "ashlyv/ashlyv-engine.js")), ctx);
+  const start = page.indexOf("var YOUTUBE_LOCALE_OVERRIDES");
+  const locales = page.slice(start, page.indexOf("};", start) + 2);
+  const fns = ["getLanguageList", "getLanguageMeta", "getYouTubeLocale", "buildYouTubeSearchUrl", "detectDashboardLanguageFromText", "searchNicheTerm"].map(n => pageFunction(page, n)).join("\n");
+  vm.runInContext("var engine = window.ASHLYVEngine || null; var app = { state: { selectedLanguage: 'auto' } }; var opened = [];\nfunction closeAshlyVToolWorkspace() {}\nfunction openYouTubeSearch(q, code) { opened.push(new URL(buildYouTubeSearchUrl(q, code)).searchParams.get('hl')); }\n" + locales + "\n" + fns, Object.assign(ctx, { URL }));
+  const hl = (text, code) => { ctx.opened.length = 0; ctx.searchNicheTerm(text, code); return ctx.opened[0]; };
+  assert.equal(hl("How ancient Rome works in history: the part nobody explains"), "en", "an English idea title");
+  assert.equal(hl("stoicism"), "en", "a word of no clear language");
+  assert.equal(hl("Kurzgesagt", undefined), "en", "a channel name");
+  assert.equal(hl("historia antigua para dormir"), "es", "a Spanish niche is searched where it lives");
+  assert.equal(hl("dark history", "de"), "de", "a language the entry carries");
+  assert.equal(hl("dark history", "unknown"), "en", "an entry whose language was not detected");
+});
+
+await test("8. the voice tool offers an English voice first", () => {
+  const els = {};
+  const el = () => ({ value: "", textContent: "", options: [], children: [], style: {}, addEventListener() {}, appendChild(c) { this.children.push(c); }, set innerHTML(v) { this.children = []; } });
+  const voices = [{ name: "Paulina", lang: "es-MX" }, { name: "Anna", lang: "de-DE" }, { name: "Daniel", lang: "en-GB" }, { name: "Monica", lang: "es-ES" }, { name: "Samantha", lang: "en-US" }];
+  const ctx = {
+    console,
+    TK: { mountHead() {}, status() {}, download() {} },
+    document: { getElementById: id => els[id] || (els[id] = el()), createElement: el },
+    localStorage: { getItem: () => null, removeItem() {} },
+    SpeechSynthesisUtterance: function () {}
+  };
+  ctx.window = ctx;
+  ctx.window.speechSynthesis = { getVoices: () => voices.slice(), cancel() {}, speak() {} };
+  vm.createContext(ctx);
+  vm.runInContext(read(join(ROOT, "ashlyv/tools/voxforge.js")), ctx);
+  const shown = els.voice.children.map(o => o.textContent);
+  assert.ok(/ en-/.test(shown[0]) && / en-/.test(shown[1]), "first voices offered: " + shown.join(", "));
+});
+
 console.log("hub-api.test.mjs  (client: " + API_FILE.replace(ROOT + "/", "") + ")");
 console.log(results.join("\n"));
 console.log(failures ? "\n" + failures + " failed" : "\nall passed");

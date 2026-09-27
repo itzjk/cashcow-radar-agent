@@ -13,7 +13,7 @@
     if (!synth) return;
     voices = synth.getVoices() || [];
     voices.sort(function (a, b) {
-      var pa = /^es/i.test(a.lang) ? 0 : 1, pb = /^es/i.test(b.lang) ? 0 : 1;
+      var pa = /^en/i.test(a.lang) ? 0 : 1, pb = /^en/i.test(b.lang) ? 0 : 1;
       return pa - pb || a.lang.localeCompare(b.lang);
     });
     voiceSel.innerHTML = '';

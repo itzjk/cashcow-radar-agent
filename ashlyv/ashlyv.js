@@ -2021,7 +2021,8 @@ function buildAshlyVToolModal(route, options) {
   }
   function searchNicheTerm(text, languageCode) {
     closeAshlyVToolWorkspace();
-    openYouTubeSearch(text, languageCode || 'es');
+    var code = languageCode && languageCode !== 'unknown' ? languageCode : detectDashboardLanguageFromText(text);
+    openYouTubeSearch(text, code !== 'unknown' ? code : '');
   }
   function openChannelTarget(channel) {
     if (!channel) return;
@@ -2030,7 +2031,7 @@ function buildAshlyVToolModal(route, options) {
       try { window.open(url, '_blank', 'noopener'); } catch (e) {}
       return;
     }
-    searchNicheTerm(channel.name || channel.channelName || '', 'es');
+    searchNicheTerm(channel.name || channel.channelName || '');
   }
   function collectTopTitles(list, limit) {
     return (list || []).slice(0, limit || 5).map(function(item, index) {
@@ -2148,7 +2149,7 @@ function buildAshlyVToolModal(route, options) {
         copy.textContent = (index + 1) + '. ' + titleText;
         row.appendChild(copy);
         row.appendChild(toolButton('COPY', function() { copyToolText(titleText, 'Idea copied'); }));
-        row.appendChild(toolButton('SEARCH', function() { searchNicheTerm(titleText, 'es'); }, true));
+        row.appendChild(toolButton('SEARCH', function() { searchNicheTerm(titleText); }, true));
         out.appendChild(row);
       });
     }
@@ -2203,7 +2204,7 @@ function buildAshlyVToolModal(route, options) {
         copy.style.cssText = 'flex:1;font-size:13px;line-height:1.6;';
         copy.textContent = (item.title || 'Untitled') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0);
         row.appendChild(copy);
-        row.appendChild(toolButton('SEARCH', function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); }, true));
+        row.appendChild(toolButton('SEARCH', function() { searchNicheTerm(item.title || item.niche || '', item.language); }, true));
         out.appendChild(row);
       });
       if (!matches.length) {
@@ -2231,7 +2232,7 @@ function buildAshlyVToolModal(route, options) {
     buttons.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;';
     buttons.appendChild(toolButton('SEARCH GAP', function() {
       var item = gaps[Number(select.value || 0)];
-      if (item) searchNicheTerm(item.title || item.niche || '', item.language || 'es');
+      if (item) searchNicheTerm(item.title || item.niche || '', item.language);
     }, true));
     buttons.appendChild(toolButton('COPY GAP', function() {
       var item = gaps[Number(select.value || 0)];
@@ -2351,7 +2352,7 @@ function buildAshlyVToolModal(route, options) {
       subtitle: 'Reads your archive and lets you act on the best RPM without leaving the dashboard.',
       render: function() {
         actionBar([
-          { label: 'SEARCH TOP RPM', primary: true, onClick: function() { if (topByRpm[0]) searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language || 'es'); } },
+          { label: 'SEARCH TOP RPM', primary: true, onClick: function() { if (topByRpm[0]) searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language); } },
           { label: 'COPY TOP 5', onClick: function() { copyToolText(collectTopTitles(topByRpm, 5), 'Top RPM copied'); } },
           { label: 'OPEN SCAN', onClick: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } }
         ]);
@@ -2360,7 +2361,7 @@ function buildAshlyVToolModal(route, options) {
         statCard(grid, 'Average RPM', rpmLabel(avgRpm), 'Archive average');
         statCard(grid, 'Best RPM', rpmLabel(topByRpm[0] && topByRpm[0].rpm || 0), topByRpm[0] ? topByRpm[0].title : 'No leader yet');
         section('TOP RPM', topByRpm.slice(0, 10).map(function(item) {
-          return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); }, secondaryLabel: 'COPY', secondaryAction: function() { copyToolText(item.title || '', 'Title copied'); } };
+          return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language); }, secondaryLabel: 'COPY', secondaryAction: function() { copyToolText(item.title || '', 'Title copied'); } };
         }));
         buildMarketWorkbench();
         buildLiveRunner(
@@ -2409,7 +2410,7 @@ function buildAshlyVToolModal(route, options) {
       render: function() {
         actionBar([
           { label: 'OPEN TOP CHANNEL', primary: true, onClick: function() { if (topChannels[0]) openChannelTarget(topChannels[0]); } },
-          { label: 'SEARCH COMPETITORS', onClick: function() { if (topChannels[0]) searchNicheTerm(topChannels[0].name || topChannels[0].channelName || '', 'es'); } },
+          { label: 'SEARCH COMPETITORS', onClick: function() { if (topChannels[0]) searchNicheTerm(topChannels[0].name || topChannels[0].channelName || ''); } },
           { label: 'COPY CHANNELS', onClick: function() { copyToolText(collectTopTitles(topChannels, 8), 'Channels copied'); } }
         ]);
         var grid = cardGrid();
@@ -2457,14 +2458,14 @@ function buildAshlyVToolModal(route, options) {
           return (toNumber(b.rpm || 0) * 8 + toNumber(b.os || 0)) - (toNumber(a.rpm || 0) * 8 + toNumber(a.os || 0));
         });
         actionBar([
-          { label: 'SEARCH TOP GAP', primary: true, onClick: function() { if (gaps[0]) searchNicheTerm(gaps[0].title || gaps[0].niche || '', gaps[0].language || 'es'); } },
+          { label: 'SEARCH TOP GAP', primary: true, onClick: function() { if (gaps[0]) searchNicheTerm(gaps[0].title || gaps[0].niche || '', gaps[0].language); } },
           { label: 'COPY GAPS', onClick: function() { copyToolText(collectTopTitles(gaps, 6), 'Gaps copied'); } }
         ]);
         var grid = cardGrid();
         statCard(grid, 'Gaps detected', String(gaps.length), 'Rarely repeated niche with a strong signal');
         statCard(grid, 'Best gap RPM', rpmLabel(gaps[0] && gaps[0].rpm || 0), gaps[0] ? gaps[0].title : 'No data');
         section('RECOMMENDED GAPS', gaps.slice(0, 10).map(function(item) {
-          return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | RPM ' + rpmLabel(item.rpm || 0) + ' | OS ' + Math.round(toNumber(item.os || 0)), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); } };
+          return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | RPM ' + rpmLabel(item.rpm || 0) + ' | OS ' + Math.round(toNumber(item.os || 0)), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language); } };
         }));
         buildGapWorkbench(gaps);
         buildLiveRunner(
@@ -2493,14 +2494,14 @@ function buildAshlyVToolModal(route, options) {
       render: function() {
         actionBar([
           { label: 'COPY PATTERNS', primary: true, onClick: function() { copyToolText(keywordStats.map(function(item, index) { return (index + 1) + '. ' + item.word + ' (' + item.count + ')'; }).join('\n'), 'Patterns copied'); } },
-          { label: 'SEARCH TOP PATTERN', onClick: function() { if (keywordStats[0]) searchNicheTerm(keywordStats[0].word, 'es'); } }
+          { label: 'SEARCH TOP PATTERN', onClick: function() { if (keywordStats[0]) searchNicheTerm(keywordStats[0].word); } }
         ]);
         var grid = cardGrid();
         statCard(grid, 'Titles analyzed', String(nicheCount), 'Base used for patterns');
         statCard(grid, 'Main pattern', keywordStats[0] ? keywordStats[0].word.toUpperCase() : 'N/A', keywordStats[0] ? (keywordStats[0].count + ' repeats') : 'No data');
         statCard(grid, 'Last saved', recentNichos[0] ? String(recentNichos[0].title || 'N/A').slice(0, 28) : 'N/A', recentNichos[0] ? rpmLabel(recentNichos[0].rpm || 0) : 'No data');
         section('REPEATED WORDS', keywordStats.map(function(item) {
-          return { title: item.word, meta: item.count + ' appearances in saved titles', actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.word, 'es'); } };
+          return { title: item.word, meta: item.count + ' appearances in saved titles', actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.word); } };
         }));
         buildPatternWorkbench();
         buildLiveRunner(
@@ -2533,7 +2534,7 @@ function buildAshlyVToolModal(route, options) {
       subtitle: 'Turns your most recent saves into actions: search, copy or dig deeper right now.',
       render: function() {
         actionBar([
-          { label: 'SEARCH MOST RECENT', primary: true, onClick: function() { if (recentNichos[0]) searchNicheTerm(recentNichos[0].title || recentNichos[0].niche || '', recentNichos[0].language || 'es'); } },
+          { label: 'SEARCH MOST RECENT', primary: true, onClick: function() { if (recentNichos[0]) searchNicheTerm(recentNichos[0].title || recentNichos[0].niche || '', recentNichos[0].language); } },
           { label: 'COPY RECENT', onClick: function() { copyToolText(collectTopTitles(recentNichos, 8), 'Recent copied'); } }
         ]);
         var grid = cardGrid();
@@ -2541,7 +2542,7 @@ function buildAshlyVToolModal(route, options) {
         statCard(grid, 'Best recent RPM', rpmLabel(recentNichos[0] && recentNichos[0].rpm || 0), recentNichos[0] ? recentNichos[0].title : 'N/A');
         statCard(grid, 'Visible pool', moneyLabel(recentNichos.slice(0, 20).reduce(function(sum, item) { return sum + toNumber(item.revMonth || 0); }, 0)), 'Sum of visible revenue');
         section('RECENT AND STRONG', recentNichos.slice(0, 12).map(function(item) {
-          return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); } };
+          return { title: item.title || 'Untitled', meta: (item.niche || 'General') + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + moneyLabel(item.revMonth || 0), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language); } };
         }));
       }
     },
@@ -2552,14 +2553,14 @@ function buildAshlyVToolModal(route, options) {
         var topRevenue = nichos.slice().sort(function(a, b) { return toNumber(b.revMonth || 0) - toNumber(a.revMonth || 0); });
         actionBar([
           { label: 'COPY TOP REVENUE', primary: true, onClick: function() { copyToolText(collectTopTitles(topRevenue, 8), 'Top revenue copied'); } },
-          { label: 'SEARCH LEADER', onClick: function() { if (topRevenue[0]) searchNicheTerm(topRevenue[0].title || topRevenue[0].niche || '', topRevenue[0].language || 'es'); } }
+          { label: 'SEARCH LEADER', onClick: function() { if (topRevenue[0]) searchNicheTerm(topRevenue[0].title || topRevenue[0].niche || '', topRevenue[0].language); } }
         ]);
         var grid = cardGrid();
         statCard(grid, 'Total visible revenue', moneyLabel(nichos.reduce(function(sum, item) { return sum + toNumber(item.revMonth || 0); }, 0)), 'Archive total');
         statCard(grid, 'Average revenue', moneyLabel(nicheCount ? (nichos.reduce(function(sum, item) { return sum + toNumber(item.revMonth || 0); }, 0) / nicheCount) : 0), 'Average per save');
         statCard(grid, 'Average RPM', rpmLabel(avgRpm), 'Basis of the calculation');
         section('TOP MONTHLY REVENUE', topRevenue.slice(0, 10).map(function(item) {
-          return { title: item.title || 'Untitled', meta: moneyLabel(item.revMonth || 0) + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + (item.niche || 'General'), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language || 'es'); } };
+          return { title: item.title || 'Untitled', meta: moneyLabel(item.revMonth || 0) + ' | ' + rpmLabel(item.rpm || 0) + ' | ' + (item.niche || 'General'), actionLabel: 'SEARCH', action: function() { searchNicheTerm(item.title || item.niche || '', item.language); } };
         }));
         buildRevenueInput();
       }
@@ -2571,7 +2572,7 @@ function buildAshlyVToolModal(route, options) {
         actionBar([
           { label: 'OPEN SCAN', primary: true, onClick: function() { closeAshlyVToolWorkspace(); openScanModal('channel'); } },
           { label: 'OPEN IDEAS', onClick: function() { closeAshlyVToolWorkspace(); openThumbnailModal(); setTimeout(function() { thumbSetTab('ideas'); }, 40); } },
-          { label: 'SEARCH TOP', onClick: function() { if (topByRpm[0]) searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language || 'es'); } }
+          { label: 'SEARCH TOP', onClick: function() { if (topByRpm[0]) searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language); } }
         ]);
         var grid = cardGrid();
         statCard(grid, 'Niches', String(nicheCount), 'Saved in the archive');
@@ -2579,7 +2580,7 @@ function buildAshlyVToolModal(route, options) {
         statCard(grid, 'Top RPM', rpmLabel(topByRpm[0] && topByRpm[0].rpm || 0), topByRpm[0] ? topByRpm[0].niche : 'No data');
         statCard(grid, 'Languages', String(langRows.length), 'Current coverage');
         section('NEXT MOVE', [
-          { title: topByRpm[0] ? ('Start with: ' + (topByRpm[0].niche || topByRpm[0].title || 'General')) : 'Save more niches first', meta: topByRpm[0] ? ('RPM ' + rpmLabel(topByRpm[0].rpm || 0) + ' | Visible revenue ' + moneyLabel(topByRpm[0].revMonth || 0)) : 'Not enough data to prioritize.', actionLabel: topByRpm[0] ? 'SEARCH' : '', action: topByRpm[0] ? function() { searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language || 'es'); } : null }
+          { title: topByRpm[0] ? ('Start with: ' + (topByRpm[0].niche || topByRpm[0].title || 'General')) : 'Save more niches first', meta: topByRpm[0] ? ('RPM ' + rpmLabel(topByRpm[0].rpm || 0) + ' | Visible revenue ' + moneyLabel(topByRpm[0].revMonth || 0)) : 'Not enough data to prioritize.', actionLabel: topByRpm[0] ? 'SEARCH' : '', action: topByRpm[0] ? function() { searchNicheTerm(topByRpm[0].title || topByRpm[0].niche || '', topByRpm[0].language); } : null }
         ]);
       }
     },
@@ -3387,7 +3388,7 @@ function initScanLanguageSelect() {
     opt.textContent = item.label || item.nativeLabel || item.code;
     sel.appendChild(opt);
   });
-  sel.value = langs.some(function(item) { return item.code === current; }) ? current : 'es';
+  sel.value = langs.some(function(item) { return item.code === current; }) ? current : 'en';
   sel.setAttribute('data-expanded', '1');
 }
 
