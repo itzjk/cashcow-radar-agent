@@ -345,41 +345,41 @@ function bindBubbleSwitch() {
 }
 
 function bindBriefSwitch() {
-  const btn = document.getElementById('btn-brief');
-  const hint = document.getElementById('brief-hint');
-  const sel = document.getElementById('brief-hour');
+  var btn = document.getElementById('btn-brief');
+  var hint = document.getElementById('brief-hint');
+  var sel = document.getElementById('brief-hour');
   if (!btn || !sel) return;
-  const label = (h) => (h < 10 ? '0' : '') + h + ':00';
-  for (let h = 5; h <= 11; h++) {
-    const o = document.createElement('option');
+  var label = function (h) { return (h < 10 ? '0' : '') + h + ':00'; };
+  var addHour = function (h) {
+    var o = document.createElement('option');
     o.value = String(h);
     o.textContent = label(h);
     sel.appendChild(o);
-  }
-  let state = { on: false, hour: 7 };
-  const paint = (counts) => {
+  };
+  for (var h = 5; h <= 11; h++) addHour(h);
+  var state = { on: false, hour: 7 };
+  var paint = function (counts) {
     btn.setAttribute('aria-checked', state.on ? 'true' : 'false');
     sel.value = String(state.hour);
     sel.hidden = !state.on;
-    const what = counts.watching + (counts.watching === 1 ? ' channel, ' : ' channels, ') + counts.niches + (counts.niches === 1 ? ' niche' : ' niches');
+    var what = counts.watching + (counts.watching === 1 ? ' channel, ' : ' channels, ') + counts.niches + (counts.niches === 1 ? ' niche' : ' niches');
     hint.textContent = state.on ? 'On, every day: ' + what + '.' : 'Off. A daily brief of your watched channels and saved niches.';
   };
-  const read = () => chrome.storage.local.get(['nsp_brief', 'nsp_watching', 'ashlyv_nichos'], (r) => {
-    const b = (r && r.nsp_brief && typeof r.nsp_brief === 'object') ? r.nsp_brief : {};
-    state = { on: b.on === true, hour: b.hour >= 0 && b.hour <= 23 ? Number(b.hour) : 7 };
-    if (!sel.querySelector('option[value="' + state.hour + '"]')) {
-      const o = document.createElement('option');
-      o.value = String(state.hour);
-      o.textContent = label(state.hour);
-      sel.appendChild(o);
-    }
-    paint({ watching: r && r.nsp_watching && typeof r.nsp_watching === 'object' ? Object.keys(r.nsp_watching).length : 0, niches: r && Array.isArray(r.ashlyv_nichos) ? r.ashlyv_nichos.length : 0 });
-  });
-  const write = (next) => chrome.storage.local.get('nsp_brief', (r) => {
-    const b = Object.assign({}, (r && r.nsp_brief && typeof r.nsp_brief === 'object') ? r.nsp_brief : {}, next);
-    chrome.storage.local.set({ nsp_brief: b }, read);
-  });
-  btn.addEventListener('click', () => write({ on: btn.getAttribute('aria-checked') !== 'true', hour: state.hour }));
-  sel.addEventListener('change', () => write({ hour: Number(sel.value) }));
+  var read = function () {
+    chrome.storage.local.get(['nsp_brief', 'nsp_watching', 'ashlyv_nichos'], function (r) {
+      var b = (r && r.nsp_brief && typeof r.nsp_brief === 'object') ? r.nsp_brief : {};
+      state = { on: b.on === true, hour: b.hour >= 0 && b.hour <= 23 ? Number(b.hour) : 7 };
+      if (!sel.querySelector('option[value="' + state.hour + '"]')) addHour(state.hour);
+      paint({ watching: r && r.nsp_watching && typeof r.nsp_watching === 'object' ? Object.keys(r.nsp_watching).length : 0, niches: r && Array.isArray(r.ashlyv_nichos) ? r.ashlyv_nichos.length : 0 });
+    });
+  };
+  var write = function (next) {
+    chrome.storage.local.get('nsp_brief', function (r) {
+      var b = Object.assign({}, (r && r.nsp_brief && typeof r.nsp_brief === 'object') ? r.nsp_brief : {}, next);
+      chrome.storage.local.set({ nsp_brief: b }, read);
+    });
+  };
+  btn.addEventListener('click', function () { write({ on: btn.getAttribute('aria-checked') !== 'true', hour: state.hour }); });
+  sel.addEventListener('change', function () { write({ hour: Number(sel.value) }); });
   read();
 }

@@ -509,9 +509,9 @@ async function pressCase(how) {
 
 const CEDAR = "https://www.cedarparksmiles.test";
 const cedarSite = { "www.cedarparksmiles.test": { mode: "act", since: 1 } };
-async function pressRow(w) {
+async function pressRow(w, nth = 0) {
   let row = null;
-  for (let i = 0; i < 200 && !row; i++) { await wait(2); row = w.rows.find(x => x.role === "press"); }
+  for (let i = 0; i < 200 && !row; i++) { await wait(2); row = w.rows.filter(x => x.role === "press")[nth] || null; }
   return row;
 }
 {
@@ -537,8 +537,8 @@ async function pressRow(w) {
   const r = await out;
   check("after the user's press the message goes once and the lead is recorded as sent", r.ok === true && w.tabs[5].sent === 1 && r.lead === "L7" && sent.length === 1 && sent[0].join() === "L7,www.cedarparksmiles.test", [r, sent]);
   const out2 = w.A.run("zerackPage", { action: "click", target: 'the "Send message" button' }, w.run(5));
-  await pressRow(w);
-  check("what was typed is forgotten after the send, so it cannot count twice", asked[1].typed.length === 0, asked[1]);
+  await pressRow(w, 1);
+  check("what was typed is forgotten after the send, so it cannot count twice", asked[1] && asked[1].typed.length === 0, asked[1]);
   w.A.confirm("c1", w.rows.filter(x => x.role === "press").pop().meta.pressId, false);
   await out2;
 }
