@@ -154,7 +154,7 @@ const ETSY_GRID = "https://www.etsy.com/c/home-and-living";
   vm.runInContext(SRC, planted);
   const own = Object.prototype.hasOwnProperty.call(planted, "NSP_EXTRACT") ? await planted.NSP_EXTRACT.read("etsy.grid", {}) : null;
   check("an element named NSP_EXTRACT on the page cannot stand in for the reader", own && own.ok && own.count === 36, own && own.rows && own.rows[0]);
-  check("the reader writes no markup", !/innerHTML|outerHTML|insertAdjacentHTML|document\.write/.test(SRC));
+  check("the reader writes no markup: it may read the page source, never set it", !/\b(?:innerHTML|outerHTML)\s*\+?=(?!=)|insertAdjacentHTML|document\.write|createContextualFragment|DOMParser/.test(SRC) && (SRC.match(/outerHTML/g) || []).length === 2);
 }
 {
   const fixtures = ["etsy-grid.html", "etsy-shop.html", "etsy-listing.html", "github-issues.html", "shopify-dawn-collection.html", "gsc-performance.html", "shopify-admin-orders.html", "stripe-subscriptions.html", "wp-posts.html"];

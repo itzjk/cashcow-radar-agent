@@ -60,6 +60,17 @@
     return P.readOnly(w.host, w.path);
   }
 
+  function privateOf(url) {
+    var P = playbooks();
+    if (!P || typeof P.privatePage !== 'function') return null;
+    var w = where(url);
+    return w.host ? P.privatePage(w.host, w.path) : null;
+  }
+
+  function refusePrivate(host, priv) {
+    return { ok: false, code: 'private', host: host, why: priv.why, error: 'ZERACK neither reads nor acts on this page of ' + host + ': ' + priv.why + '. Tell the user this page is theirs alone. Do not retry.' };
+  }
+
   function clip(s, n) {
     s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
     return s.length > n ? s.slice(0, n - 3) + '...' : s;
@@ -416,6 +427,8 @@
     if (!u || !sites().parse(u.href)) return Promise.resolve({ ok: false, error: 'navigate needs an http or https address' });
     var before = String(tab.url || '');
     return accessFor(u.href).then(function (dest) {
+      var priv = privateOf(u.href);
+      if (priv) return refusePrivate(dest.host, priv);
       if (!sites().allows(dest.access, 'read')) return notAllowed(ctx, dest, 'read', u.href);
       if (a.newTab === true || a.newTab === 'true') {
         return new Promise(function (resolve) {
@@ -454,6 +467,8 @@
         return accessFor(url).then(function (acc) {
           var info = { host: acc.host, pattern: acc.pattern, access: acc.access, playbook: playbookOf(url) || sites().playbookFor(acc.host) };
           if (sites().isYouTube(acc.host)) return { ok: false, code: 'youtube', error: 'this tab is on YouTube: hand YouTube work to zerackYouTubeAgent instead' };
+          var priv = NAVIGATES[act] === 1 ? null : privateOf(url);
+          if (priv) return refusePrivate(acc.host, priv);
           var kept = need === 'act' ? keptReadOnly(url) : null;
           if (kept && NAVIGATES[act] === 1) need = 'read';
           else if (kept) return { ok: false, code: 'kept_read_only', host: acc.host, error: 'ZERACK only reads ' + acc.host + ': ' + kept.why + '. Tell the user this step is theirs to do. Do not retry.' };
@@ -574,6 +589,8 @@
           var pbId = playbookOf(url);
           var info = { host: acc.host, pattern: acc.pattern, access: acc.access, playbook: pbId || sites().playbookFor(acc.host) };
           if (sites().isYouTube(acc.host)) return { ok: false, code: 'youtube', error: 'this tab is on YouTube: hand YouTube work to zerackYouTubeAgent instead' };
+          var priv = privateOf(url);
+          if (priv) return refusePrivate(acc.host, priv);
           if (!sites().allows(acc.access, 'read')) return notAllowed(ctx, info, 'read', url);
           var pick = pickReader(pbId, url, args);
           var once = function () { return exec(tab.id, extractStep, [pick.id, pick.opts]); };
@@ -629,6 +646,7 @@
     accessFor: accessFor,
     playbookOf: playbookOf,
     rulesFor: rulesFor,
+    privateOf: privateOf,
     run: run,
     confirm: confirm,
     halt: halt,

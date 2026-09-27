@@ -1,7 +1,7 @@
 import { loadWorker, SENDERS, check, done } from "./sw-harness.mjs";
 import { source, RIVAL } from "./engines.mjs";
 
-const GLOBALS = ["NSP_VEREDICTO", "NSP_CADENCIA", "NSP_PACKAGING", "NSP_RPM_TABLA", "NSP_RIVAL_FORMULA", "NSP_RIVAL_QUIEBRE", "NSP_RIVAL_REPLICABLE", "NSP_RIVAL_EXPEDIENTE", "NSP_RIVAL_SATURACION", "NSP_RIVAL_VENTANA", "NSP_RIVAL_DUELO", "NSP_TITULOS_SENALES", "NSP_TITULOS_TABLA", "NSP_TITULOS", "NspAreas", "NspMiniatura", "NspMiniaturaCohorte", "NspMiniaturaMercado", "NspDineroRpm", "NspDineroEquilibrio", "NspDineroCartera", "NspDineroCoste", "NspDineroRiesgo", "NSP_REVERSE_ENGINE", "NSP_DECIDE"];
+const GLOBALS = ["NSP_VEREDICTO", "NSP_CADENCIA", "NSP_PACKAGING", "NSP_RPM_TABLA", "NSP_RIVAL_FORMULA", "NSP_RIVAL_QUIEBRE", "NSP_RIVAL_REPLICABLE", "NSP_RIVAL_EXPEDIENTE", "NSP_RIVAL_SATURACION", "NSP_RIVAL_VENTANA", "NSP_RIVAL_DUELO", "NSP_TITULOS_SENALES", "NSP_TITULOS_TABLA", "NSP_TITULOS", "NspAreas", "NspMiniatura", "NspMiniaturaCohorte", "NspMiniaturaMercado", "NspDineroRpm", "NspDineroEquilibrio", "NspDineroCartera", "NspDineroCoste", "NspDineroRiesgo", "NSP_REVERSE_ENGINE", "NSP_DECIDE", "NSP_BUILDERS", "NSP_EXTRACT"];
 
 const EN_ID = "UCaaaaaaaaaaaaaaaaaaaaaa";
 const ES_ID = "UCbbbbbbbbbbbbbbbbbbbbbb";
@@ -28,6 +28,7 @@ const WORKER_CODE = source("background/service-worker.js").split("\n").filter(l 
   check("every engine the worker loads is one the worker calls", idle.length === 0, idle);
   check("the policy engine in the worker carries the narration check", typeof w.context.NSPPolicy.evidenceOfNarration === "function");
   check("the worker loads the decision engine it calls for zerackDecide, the alarm and the spend rule", w.context.NSP_DECIDE && typeof w.context.NSP_DECIDE.ab === "function" && /\bNSP_DECIDE\.(?:decide|recheck|spendEvidence|firmLessons)\b/.test(WORKER_CODE));
+  check("the worker loads the builder engine and the page parsers it calls for zerackBuilder and the daily watch", w.context.NSP_BUILDERS && w.context.NSP_EXTRACT && /\bNSP_BUILDERS\b/.test(WORKER_CODE) && /\bNSP_EXTRACT\.text\b/.test(WORKER_CODE));
 }
 
 const EN_VIDEOS = Array.from({ length: 30 }, (_, i) => ["en" + String(i).padStart(9, "0"), "Why the Roman Empire Really Fell, Part " + i, (i === 12 ? "4,512,338" : String(20000 + i * 1000)) + " views", (i + 1) + " weeks ago"]);

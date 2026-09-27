@@ -27,6 +27,7 @@ class Text extends Node {
 class Element extends Node {
   constructor(name, attrs) { super(1); this.localName = name; this.attrs = attrs; }
   get tagName() { return this.localName.toUpperCase(); }
+  get outerHTML() { return serialize(this); }
   get nodeName() { return this.tagName; }
   get id() { return this.attrs.id || ""; }
   get className() { return this.attrs.class || ""; }
@@ -59,6 +60,16 @@ class Document extends Node {
   querySelectorAll(sel) { return Element.prototype.querySelectorAll.call(this, sel); }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
   getElementById(id) { return this.querySelector("#" + id.replace(/([^\w-])/g, "\\$1")); }
+}
+
+function escText(t) { return String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\u00a0/g, "&nbsp;"); }
+function escAttr(t) { return String(t).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/\u00a0/g, "&nbsp;"); }
+function serialize(n) {
+  if (n.nodeType === 3) return n.parentNode && RAW.has(n.parentNode.localName) && n.parentNode.localName !== "title" && n.parentNode.localName !== "textarea" ? n.data : escText(n.data);
+  if (n.nodeType !== 1) return n.childNodes.map(serialize).join("");
+  const attrs = Object.keys(n.attrs).map(k => " " + k + '="' + escAttr(n.attrs[k]) + '"').join("");
+  if (VOID.has(n.localName)) return "<" + n.localName + attrs + ">";
+  return "<" + n.localName + attrs + ">" + n.childNodes.map(serialize).join("") + "</" + n.localName + ">";
 }
 
 function walk(root, fn) {

@@ -1,0 +1,721 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- zerack-fixture: Captured 2026-09-27 signed out from github.com/itzjk/cashcow-radar-agent/commits.atom, the owner's own public repository. -->
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:media="http://search.yahoo.com/mrss/" xml:lang="en-US">
+  <id>tag:github.com,2008:/itzjk/cashcow-radar-agent/commits/main</id>
+  <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commits/main"/>
+  <link type="application/atom+xml" rel="self" href="https://github.com/itzjk/cashcow-radar-agent/commits/main.atom"/>
+  <title>Recent Commits to cashcow-radar-agent:main</title>
+  <updated>2026-09-25T06:39:32Z</updated>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/258ae02f8ad72de030b6a167c8a522ee3a839cbc</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/258ae02f8ad72de030b6a167c8a522ee3a839cbc"/>
+    <title>
+        Saved channels and scan memory keep their shape, and the page world s…
+    </title>
+    <updated>2026-09-25T06:39:32Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;Saved channels and scan memory keep their shape, and the page world stops calling chrome.runtime
+
+The worker stored a channel from YouTube as the page sent it, including any field and a blocked flag the page
+could set on hub channels. It is now rebuilt field by field: a YouTube channel address, text without markup,
+bounded numbers, an avatar only from YouTube&amp;#39;s image hosts, and no blocked flag. Scan memory entries and the one-shot
+legacy data are shaped the same way, and the country feed takes only country and language codes, since both end up
+in a storage key name. The bundle still had three direct chrome.runtime.sendMessage calls that could never run in
+the page world: an unused legacy sender, a fallback in the scan memory, and the channel batch, whose data the door
+serves only to extension pages. The first two are gone and the batch now says why it has no data.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/e139aad3bc8b03432970ae5d805a3c0e418e6c44</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/e139aad3bc8b03432970ae5d805a3c0e418e6c44"/>
+    <title>
+        YouTube sends numbers and the worker writes the alert, the opportunit…
+    </title>
+    <updated>2026-09-25T06:10:46Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;YouTube sends numbers and the worker writes the alert, the opportunity and the preferences
+
+A YouTube tab could hand the worker a ready-made alert, whose title and text were stored and shown as given,
+opportunity rows with any fields, and scan preferences of any shape. The worker now loads the ASHLYV engine and
+rebuilds each one from ids and numbers: the niche and language must exist in the engine, and the niche name, the
+bands, the verdict and the alert title and text come from the engine. Dismissing an alert marks it and takes it off
+the unread count (it did nothing), a tab opens the hub at most once every 2 s and ten times in 10 minutes, and the
+live alert card no longer calls a money helper that never existed.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/e413901fcae51b5a031815bbe1eb2c65cf230a1b</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/e413901fcae51b5a031815bbe1eb2c65cf230a1b"/>
+    <title>
+        face-api runs in the isolated world, out of YouTube&#39;s globals
+    </title>
+    <updated>2026-09-25T03:30:29Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;face-api runs in the isolated world, out of YouTube&amp;#39;s globals
+
+face-api 0.22.2 and its TensorFlow runtime ran in youtube.com&amp;#39;s page
+world, where they sat among the page&amp;#39;s globals and any script could read
+or replace them. They now load in the isolated world with a small reader,
+content/nsp-faces.js, that answers NSP_FACE_DETECT with the face boxes
+and the image size for an i.ytimg.com thumbnail; the scan turns those
+into the same verdict as before. The bridge no longer publishes the model
+folder in the DOM.
+
+Measured in Chrome for Testing on the same eleven thumbnails, including
+two with a face: both builds gave the same verdict, face count and
+confidence for all eleven (2.6 s in the page world, 3.8 s isolated,
+model load included), and faceapi is no longer defined on youtube.com.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/e8ac5c495207f18d9204ffc1d622c9c46fa6607c</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/e8ac5c495207f18d9204ffc1d622c9c46fa6607c"/>
+    <title>
+        The bubble asks before it runs on other sites, localhost is two ports…
+    </title>
+    <updated>2026-09-25T03:30:17Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;The bubble asks before it runs on other sites, localhost is two ports, and keys stay out of localStorage
+
+The bubble was a content script on every http and https page, so the
+install prompt asked for all data on all sites for a button. It now runs
+from the manifest on YouTube and Studio only. Every other site is an
+optional host permission: the popup&amp;#39;s switch asks Chrome for it from the
+click, the worker registers the bubble for all sites once it is granted
+(nspBubbleSync on onAdded, onRemoved and startup), and turning the switch
+off gives the access back. Alt+X and CHAT still reach the current tab
+through activeTab.
+
+The host permissions granted localhost and 127.0.0.1 on any port. They
+are now the ports the code calls: 11434 for Ollama and 7788 for the local
+voice server. Options accepts only those two Ollama addresses and says
+why, and the worker falls back to the default for anything else it finds
+stored, with one check shared through NSP_MODELS.ollamaUrl.
+
+Setup copied the OpenAI and Fish keys into localStorage along with the
+voice preferences and never removed them. The copy now holds
+preferences only, and Setup and the voice document remove keys an older
+build left there. The TypeSafe and Vercel AI Gateway fields stored keys
+nothing read; they are gone.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/ef38442d8c7c80d7063732363e64d0018eeca907</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/ef38442d8c7c80d7063732363e64d0018eeca907"/>
+    <title>
+        A grant needs our own control, and the page stores and shows only wha…
+    </title>
+    <updated>2026-09-25T03:30:03Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;A grant needs our own control, and the page stores and shows only what fits
+
+An audit of c756442 found that the spend grant opened on any trusted
+click over an element carrying data-nsp-grant: a script on youtube.com
+could put the attribute on &amp;lt;body&amp;gt; and turn every click of the user into
+45 model calls. The bridge now creates the controls itself when the page
+asks (nspGrantControl) and keeps them in a WeakMap no page script can
+reach; a grant opens only for a real press on one of them while it is
+connected, visible, of a button&amp;#39;s size and under the pointer. The bridge
+loads before the page world so the SCAN buttons are such controls.
+
+Storage writes from the page went straight into 19 keys with whatever
+objects the page sent, among them nsp_selected_model, nsp_pending_action
+and ashlyv_nichos, which skipped the niche sanitizer and reached an
+innerHTML in ThumbLab. The bridge now hands writes to the worker, which
+rebuilds each value against its key&amp;#39;s shape (NSP_PAGE_STORE), caps maps,
+lists and size, and refuses with the reason. The model, the saved
+niches, the switches and the dashboard&amp;#39;s hand-off are read only from the
+page; the model changes through NSP_MODEL_SELECT on a real press of the
+model menu, and the hand-off may only be cleared. Stored conversations
+are roles and text under a size cap.
+
+Notifications carried the page&amp;#39;s own title and text with the ZERACK
+icon. The page now sends a code and numbers, the worker writes the words
+and allows three per tab per quarter hour.
+
+The HTML setter removed a block list of tags and let STYLE, SVG,
+ANIMATE, SET and USE through; it now keeps an allow list of tags and
+attributes and refuses url() in styles. Error messages in the dashboard
+and ThumbLab&amp;#39;s status label are written as text.
+
+tests/sw-page-writes and new cases in tests/bridge cover each of these
+and fail against c756442.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/c756442d73a9d1ea47be6e120edcff72e9346a49</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/c756442d73a9d1ea47be6e120edcff72e9346a49"/>
+    <title>
+        The docs describe the boundary as it is now
+    </title>
+    <updated>2026-09-25T02:39:16Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;The docs describe the boundary as it is now
+
+The README said the bridge forwards sixteen message types and that the
+worker refuses the agent&amp;#39;s tools when the Agent switch is off; neither
+was true. It now has a section on who can ask the worker for what: the
+door, grants on a trusted press, the worker&amp;#39;s own prompts, the one HTML
+path into youtube.com and the read-only switches. Line numbers that no
+longer point anywhere are gone, and so are the Pollinations and
+Openverse hosts the manifest stopped asking for.
+
+CONTRIBUTING said nothing imports Whisper, but the voice falls back to
+it; it pointed at a workflow file that is not there; and it listed
+MobileNet. It now says what fetch-assets.sh is for, describes the new
+smoke checks and tests/, and keeps the steps to switch the workflow on.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/9581e2400c197e9799fa9d7582a41e1ed4be6125</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/9581e2400c197e9799fa9d7582a41e1ed4be6125"/>
+    <title>
+        Drop MobileNet, which nothing loads
+    </title>
+    <updated>2026-09-25T02:39:06Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;Drop MobileNet, which nothing loads
+
+lib/mobilenet held 15 MB, two thirds of the checkout: four weight
+shards, TensorFlow.js, MobileNet and a frame page, mnet-frame.html, that
+no page, script or manifest entry opens. It was also exposed to every
+website as a web accessible resource. The faceless check uses face-api&amp;#39;s
+tinyFaceDetector, which stays. The history still carries the files; a
+fresh checkout no longer does.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/6ded7f490d344fa3740ef1f96169cbcdf4bcda8b</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/6ded7f490d344fa3740ef1f96169cbcdf4bcda8b"/>
+    <title>
+        The hub reads real data or says it cannot
+    </title>
+    <updated>2026-09-25T02:38:55Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;The hub reads real data or says it cannot
+
+ashlyv.js called nine methods ashlyv-api.js never exported, so channel
+age, viral metrics, title search, subniches, batch scan, the full
+channel scan, REPLICATOR and BRAND answered &amp;quot;API.x is not a function&amp;quot;.
+Seven more rejected every call because the backend they posted to does
+not ship, and the three AI calls sent a message shape the worker does
+not read, so they failed even with a provider set up. The channel
+scanner that did run was a model inventing RPM and revenue.
+
+ashlyv-api.js is one client over the worker, sendToSW(type, fields),
+with an explicit reason for every failure. What can be measured is
+measured: channel age from the join date, viral metrics from the real
+views and ages of the latest uploads, competitors, gaps and patterns
+from a live search, thumbnails in the browser with canvas (contrast,
+brightness, saturation, detail, 16:9, the list-size view). What is
+generation goes to the model and is labelled as a suggestion; REPLICATE
+and BRAND use the worker&amp;#39;s tasks, so their prompts exist once for the
+hub and the YouTube panel. What a model cannot know (a score per
+language, a click rate from pixels, RPM presented as measured) is gone
+from the page.
+
+The ?d= parameter let any website open the hub with niches it wrote,
+painted with innerHTML: it is removed, and data is painted with
+textContent. The popup&amp;#39;s watchlist buttons that were only an emoji,
+never drawn because their container does not exist, are removed with
+their CSS. Two ternaries the purge emptied in the hub and ThumbLab hold
+identifiers again.
+
+tests/hub-api.test.mjs fails if ashlyv.js calls a method the client
+does not export, if an AI call leaves the worker&amp;#39;s message shape, if a
+ternary has two empty branches, or if ?d= is read again.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/18ad8648e5de8cdef02b8b6b1ca0f28127588b45</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/18ad8648e5de8cdef02b8b6b1ca0f28127588b45"/>
+    <title>
+        Retired models out of every list, and a partial radar says it is partial
+    </title>
+    <updated>2026-09-25T02:38:31Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;Retired models out of every list, and a partial radar says it is partial
+
+Groq retired llama-3.1-70b-versatile and mixtral-8x7b-32768, and Google
+retired the Gemini 1.5 family, all in 2025. They were still in the
+model picker, the Options dropdown, the Options key test and the tool
+pages, and the in-page coach forced gemini-1.5-flash, which the worker
+put first in its chain: every Gemini turn began with a failed request.
+They are gone from every list. A retired model an older build saved is
+mapped to a live one with a warning, and the model a caller names is
+ignored: the user picks it in Options.
+
+The country radar dropped the errors of the searches that failed and
+answered ok with whatever the others returned, and an answer in a shape
+the parser does not know read as &amp;quot;no videos&amp;quot;. It now answers partial,
+with how many of the searches failed and why, does not cache a partial
+feed as the whole market, and reports no_renderers_recognized when every
+search answered and nothing could be read. The radar page says so under
+the results.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/f3ee40c5e4df5017a62cc0e2f5486b812df08976</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/f3ee40c5e4df5017a62cc0e2f5486b812df08976"/>
+    <title>
+        Channel stats, uploads and InnerTube searches read what YouTube shows
+    </title>
+    <updated>2026-09-25T02:37:38Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;Channel stats, uploads and InnerTube searches read what YouTube shows
+
+Measured in Chrome for Testing, every InnerTube call from the service
+worker got 403: YouTube refuses requests whose Origin is
+chrome-extension://, and a worker cannot drop that header. The country
+radar, the market search the agent and Studio use, and the corpus
+fetch all came back empty. One declarativeNetRequest session rule now
+removes Origin from this extension&amp;#39;s own requests to youtubei, scoped
+with initiatorDomains to the extension id so the page&amp;#39;s requests are
+never touched. The permission is declarativeNetRequestWithHostAccess,
+which adds no install warning over the hosts already granted.
+
+The channel stats reader ran regexes over the About HTML and returned
+someone else&amp;#39;s numbers: for Veritasium it gave 29.7 M subscribers, 172
+videos, 55 M views and a join date of &amp;quot;DateText&amp;quot;, where YouTube shows
+21.3 M, 536, 4.59 B and Jul 21, 2010. The agent was told to trust these
+as real. It now reads the aboutChannelViewModel the About panel renders,
+in English, and returns numbers, a join date, or an explicit
+about_panel_not_found instead of a guess. The Command Center reads the
+numeric subscriber count.
+
+The uploads reader dropped views and age on the first visit of a fresh
+profile, where YouTube serves a compact layout (&amp;quot;4,7 M&amp;quot;, &amp;quot;hace 3 d&amp;quot;). It
+reads the accessibility label, which keeps the full words.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/69d5836d8b0f9f156b44a52c9d6c57ef39200a1c</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/69d5836d8b0f9f156b44a52c9d6c57ef39200a1c"/>
+    <title>
+        A script on youtube.com can no longer use the extension&#39;s privileges
+    </title>
+    <updated>2026-09-25T02:37:06Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;A script on youtube.com can no longer use the extension&amp;#39;s privileges
+
+Any script on youtube.com can post to the page, not only ours, and the
+bridge forwarded what it asked for. With the Agent switch off, a page
+script could list the URL and title of every open tab, close them, open
+any https address, and use the user&amp;#39;s OpenAI, Groq or Gemini key as a
+free proxy with its own system prompt, model and tools. It could also
+set the vision consent flag itself and then make the worker download
+four arbitrary URLs.
+
+The service worker now checks the sender of every message at one door.
+NSP_MESSAGE_CALLERS names, for each of the 64 message types, who may
+send it: a page of this extension, the bridge on youtube.com, the Studio
+script or the bubble. Listing, switching and closing tabs, navigating
+and reading other sites are for extension pages only. From youtube.com,
+spending needs a grant: the worker opens one when it hands the tab a
+turn from the chat or the voice, and the bridge asks for one only on a
+trusted press (isTrusted) of a ZERACK control marked data-nsp-grant. A
+grant is per tab, ends by count and by time, and never adds up. The
+page sends a task and data (NSP_AI_TASK); the system prompt, the tools
+and the model are the worker&amp;#39;s. The bridge forwards a fixed list,
+rebuilt field by field, and the consent switches are read only from the
+page. Opening a tab from the panel needs its grant, the Agent switch
+and a YouTube host, all checked in the worker.
+
+The bundle registered a Trusted Types policy named default that passed
+any string, which switched YouTube&amp;#39;s own protection off for every script
+on the page. It is gone. nspSetHTML parses markup inert through a policy
+only its closure holds, removes scripts, frames, handlers and javascript:
+links, and moves the clean nodes in.
+
+Four panels always said &amp;quot;no AI provider&amp;quot; because their key getter
+returned an empty string; a fifth could not reach the worker at all. The
+thumbnail check and the A/B view now measure faces, contrast and
+brightness in the browser and show no invented score. Title Lab and the
+comment reader ask the model through the worker, labelled as its
+opinion, and the comment reader reads the comments YouTube has loaded,
+since the Data API key does not ship. The PRO panel read channel age by
+asking a model to guess it from the name: its tools now read the real
+About page, uploads and search, and the language score is gone. An
+unreachable second PRO panel of about 1,000 lines is deleted.
+
+Also: the extension id is no longer published in the DOM, web
+accessible resources are only the face-api weights for youtube.com and
+the chat for the bubble, both on dynamic URLs, the scan history the
+assistant reads comes from the niche index every scan writes instead of
+a key nobody wrote, saved niches are rebuilt and deduplicated in the
+worker, and Studio&amp;#39;s panel is a closed shadow root that answers real
+presses only.
+
+tests/ load the real worker and bridge in a Node vm with a fake chrome
+and the senders Chrome passes; the smoke runs them, and gains checks for
+the door table, for no default Trusted Types policy, and for the bridge
+forwarding only what youtube.com has a seat on.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/1d965cba1eac6a54ae5c2348097ecad7c7c4e772</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/1d965cba1eac6a54ae5c2348097ecad7c7c4e772"/>
+    <title>
+        Undo what the emoji purge broke: reject lists that matched every video
+    </title>
+    <updated>2026-09-25T02:35:26Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;Undo what the emoji purge broke: reject lists that matched every video
+
+The text purge that turned the smoke green deleted emoji inside regexes
+and comparisons, not only in copy. Three reject lists lost their emoji
+alternatives and were left with empty ones, and an empty alternative
+matches every string: OBVIOUS_REJECT in the faceless filter,
+HARD_REJECT, and the sports and news check of the feed fallback all
+matched every title. The emoji are back as escapes, so the smoke&amp;#39;s emoji
+rule still holds.
+
+The RPM trend was stored as an arrow; the purge made all three values
+the empty string, so the leaderboard could never show a trend. It is now
+stored as an id, up, down, flat or new, with the words kept apart.
+
+The same pass ate the spaces around string literals on 119 lines: search
+queries became &amp;quot;history2025&amp;quot;, panels read &amp;quot;3/10with traction&amp;quot;, and the
+Stealth scan toast glued the country to the text. Those lines are
+restored from the pre-purge code with the emoji removed and nothing
+else. Buttons that were only an emoji (close, drag, save, the drop zone
+icon) have text and an aria-label again, and the Studio hook chips say
+&amp;quot;has&amp;quot; or &amp;quot;no&amp;quot; instead of relying on colour alone.
+
+smoke.mjs gains a check: no regex literal may have an empty alternative.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/cb6a215e245426c72f0473a6c766423e29a03513</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/cb6a215e245426c72f0473a6c766423e29a03513"/>
+    <title>
+        A bubble on every site that opens a private chat, a voice that hears,…
+    </title>
+    <updated>2026-09-24T06:40:39Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;A bubble on every site that opens a private chat, a voice that hears, and the course inside the assistant
+
+The ouroboros is the new mark: redrawn as vector, it is the toolbar icon
+and a 52 px bubble in the bottom-right corner of every page. A click
+opens the chat over the page; holding it is hold-to-talk. The chat runs
+in a cross-origin frame opened with a one-time token, so a website can
+neither read it nor drive it, and its switches refuse clicks while
+anything covers it. History lives in IndexedDB on this computer. Typed
+commands run at once with no model call; anything else goes to the same
+assistant as the YouTube panel, with the model picker, the agent switch
+and a Voice history that shows what was heard, done or dropped and why.
+Alt+X opens it, and the side panel takes over where pages cannot host
+the bubble.
+
+Voice, measured in Chrome for Testing: every spoken confirmation used to
+deafen the ear for up to 4.6 s, two quick commands merged into one the
+router refused, background speech made hands-free deaf for a minute,
+Google rarely wrote the name, and every drop was silent. Now the ear
+keeps listening while ZERACK talks and filters its own echo, acts on the
+stable interim text (0.65 to 0.88 s median instead of about 1.4 s),
+splits merged commands, confirms visible actions with a short sound,
+and marks background noise on the bubble. Hold-to-talk answers 0.08 s
+after release and caught 6 of 6 phrases in quiet and 4 of 6 under a
+narrator, where hands-free caught none. Only phrases that look like a
+command beep when ignored, so talk in the room stays quiet.
+
+The course is no longer a page for the owner. It is the assistant&amp;#39;s
+method: a 33-lesson list in every prompt and a zerackCourse tool that
+returns whole lessons with their sources. One brain file feeds the
+YouTube panel, the chat and the voice, and each provider now gets a
+prompt fitted to its limit instead of Groq silently losing everything
+after 9,000 characters. The old knowledge block that contradicted the
+course is gone.
+
+Four reviewers found 33 defects; two skeptics each confirmed all 33 and
+they are fixed, among them the fetch tool reaching any host, the typed
+router hijacking questions, and the bubble covering YouTube&amp;#39;s controls.
+Smoke green, load checks 8 of 8, router 70 of 71 with no false action.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/b7fac789564ffaa28ec8786d4c2e26e102cef554</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/b7fac789564ffaa28ec8786d4c2e26e102cef554"/>
+    <title>
+        Voice that listens by itself and acts on what it hears
+    </title>
+    <updated>2026-09-23T21:59:53Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;Voice that listens by itself and acts on what it hears
+
+One switch turns the voice on or off: the round button on YouTube, the
+dot in the popup, or Alt+Z. The side panel is gone. While it is on, the
+microphone stays open in an offscreen document and Chrome&amp;#39;s own speech
+recognition, handed that microphone track, turns each phrase into text
+under a second after it ends. Local Whisper took about 33 seconds per
+phrase on a busy machine and misheard short Spanish commands; it stays
+only as the fallback when Chrome&amp;#39;s recognizer cannot run, and is no
+longer loaded otherwise.
+
+A browser command runs as soon as it is heard, with no wake word.
+Anything else is dropped unless it starts with oye, hey or the name, and
+then it goes to the assistant in the YouTube tab, which is brought to the
+front or opened first instead of answering blind from another page.
+While any tab is playing sound, commands need the name as well, so a
+video cannot give orders. Recognition pauses while ZERACK speaks, so it
+never hears itself.
+
+The assistant now decides: when the data it needs is missing it fetches
+it with its own tools instead of telling the user which scan to run, and
+it no longer asks for location, budget or language before recommending.
+Spoken replies are cut to their opening sentences; the full answer stays
+in the panel.
+
+A question that reached YouTube within a second of the page loading was
+cancelled as a leftover from the previous page. The leftover check now
+reads the mark before any turn of this page can write one.
+
+Verified in Chrome for Testing with a fake microphone: with the voice on,
+&amp;#39;busca historia para dormir&amp;#39; opened the search, &amp;#39;oye, abre YouTube&amp;#39; and
+&amp;#39;ahora YouTube&amp;#39; opened YouTube, &amp;#39;me gusta mucho este video&amp;#39; did nothing,
+the same search with a tab playing sound was dropped, and &amp;#39;oye, que
+nicho me recomiendas&amp;#39; from a blank tab opened YouTube and came back
+answered and spoken. The orb and the popup button switch it on and off,
+and it stayed listening for 75 seconds of silence. Router: 65 of 66,
+no false actions. Smoke green.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/bd6d3f490cf3a3ccdba448850566dd012680a949</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/bd6d3f490cf3a3ccdba448850566dd012680a949"/>
+    <title>
+        A voice for the assistant, and the extension loads in Chrome again
+    </title>
+    <updated>2026-09-23T19:21:50Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;A voice for the assistant, and the extension loads in Chrome again
+
+Two characters in the agent commit broke the whole extension: raw U+FFFF
+noncharacters as the top of two regex ranges. Chrome reported the file
+as not UTF-8 and refused to load anything, scanner included. They are
+escapes now and mean the same range. The smoke gained a check that
+decodes every script as strict UTF-8 and rejects noncharacters; it goes
+red on the exact bug and names the line.
+
+The voice lives in Chrome&amp;#39;s side panel, so the microphone is granted to
+the extension and never to youtube.com. Speech to text runs on the local
+Whisper model, so audio never leaves the machine. Push to talk is the
+default; the wake word is a toggle, off by default, and shows plainly
+when it is listening. What the user says goes through the in-page
+assistant exactly as if typed, so the agent switch, its step cap and
+STOP all apply unchanged. With no YouTube tab it still answers questions.
+
+Voices: the browser voice, free; the ZERACK brand voice on Fish Audio;
+OpenAI&amp;#39;s onyx; and a local voice server when one answers. The paid ones
+are labelled paid and run only while selected. Any failure falls back to
+the browser voice and says why once, so the assistant never goes silent.
+
+Setup gained fields for the Fish Audio key and voice, and for Jev through
+TypeSafe or Vercel AI Gateway, all optional.
+
+Verified in Chrome for Testing against this tree: the extension loads,
+the scanner boots on YouTube, the agent refuses to act while off, a page
+script cannot turn it on, turned on from the extension it reads and
+clicks, and a spoken question from a fake microphone was transcribed
+locally, answered, and sent to Fish with the ZERACK voice.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/15c59ce98dfb4aa876bcf3a493469650a854e98d</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/15c59ce98dfb4aa876bcf3a493469650a854e98d"/>
+    <title>
+        The assistant can act in the browser, behind a switch the page cannot…
+    </title>
+    <updated>2026-09-23T18:23:53Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;The assistant can act in the browser, behind a switch the page cannot flip
+
+A single action tool takes what to do and a target described in words,
+and resolves the target on the live page by visible text, label, role,
+placeholder or title. Plans run up to 30 steps, an instruction up to 40,
+and a visible STOP ends the chain at once. It never types into password,
+one time code or payment fields, never acts outside YouTube&amp;#39;s hosts, and
+stops once to ask before it publishes, deletes, sends or comments.
+
+The switch lives in the popup and defaults to off. The assistant panel
+runs inside youtube.com, so a switch there could be flipped by any script
+on that page; the bridge now has a read only list, and the page world can
+read nsp_agent_enabled but never write it. Every step, alone or inside a
+plan, passes through one gate that checks it.
+
+The smoke learned both halves. Its string extractor paired quotes wrongly
+around short strings and read the code between two literals as text; it
+now matches every literal and filters by length afterwards. And it only
+saw storage keys written in quotes, so an object literal write from the
+page slipped through green. It now goes red on a page write to a read
+only key and names the line.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/cacced52d878b4a8b56eabf2a4f1ee98b33a0bed</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/cacced52d878b4a8b56eabf2a4f1ee98b33a0bed"/>
+    <title>
+        A course inside the extension, built from sources that were checked
+    </title>
+    <updated>2026-09-23T17:43:52Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;A course inside the extension, built from sources that were checked
+
+Six modules and 33 lessons that take someone from zero to a faceless
+channel that pays: picking a niche with the scanner, packaging,
+production, publishing, reading your own numbers, and knowing when to
+stop or double down.
+
+Every lesson carries its sources, 74 in total, each fetched and checked
+the day it was written: YouTube Help pages matched on a key phrase, posts
+on X confirmed with their author. A claim that could not be sourced was
+cut, and one lesson went because its cited post said the opposite.
+
+Progress is saved per lesson in extension storage, survives a reload, and
+does not break when lessons are added or removed. Each lesson that uses a
+part of the extension has a button that opens it. The popup gets one
+COURSE row.
+
+The assistant header also counts an OpenAI key now: the bridge used to
+check only Groq, the local model and Gemini, so a user whose only key was
+OpenAI saw NO PROVIDER while the assistant answered normally.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/34893b36dd36f2d2bfbe603787a6069269e9dd29</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/34893b36dd36f2d2bfbe603787a6069269e9dd29"/>
+    <title>
+        The project is signed by the brand, not by a person
+    </title>
+    <updated>2026-09-11T03:49:13Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;The project is signed by the brand, not by a person
+
+Copyright now reads ZERACK. Every commit in the history carries the same
+name and a neutral address, so cloning the repository does not hand out
+the author&amp;#39;s real name or the name of the machine it was built on.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/a43ccc8ce9580555067c77f594cf4d62ca886992</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/a43ccc8ce9580555067c77f594cf4d62ca886992"/>
+    <title>
+        Park the CI workflow until the token carries the workflow scope
+    </title>
+    <updated>2026-09-11T03:35:21Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;Park the CI workflow until the token carries the workflow scope
+
+GitHub refuses a push that creates .github/workflows from a token without
+that scope, so the file waits in ci/ and CONTRIBUTING says how to move it
+back in one command.&lt;/pre&gt;
+    </content>
+  </entry>
+  <entry>
+    <id>tag:github.com,2008:Grit::Commit/56ada52fa9078c3136bf6ba9085dacfec5127da3</id>
+    <link type="text/html" rel="alternate" href="https://github.com/itzjk/cashcow-radar-agent/commit/56ada52fa9078c3136bf6ba9085dacfec5127da3"/>
+    <title>
+        OpenAI joins the cascade, first in line
+    </title>
+    <updated>2026-09-11T02:29:44Z</updated>
+    <author>
+      <name>itzjk</name>
+      <uri>https://github.com/itzjk</uri>
+    </author>
+    <content type="html">
+      &lt;pre style=&#39;white-space:pre-wrap;width:81ex&#39;&gt;OpenAI joins the cascade, first in line
+
+The owner has an OpenAI key and the local model is too slow to film
+with. OpenAI was the one provider the cascade did not know about.
+
+It is wired the same way as the rest: the key lives in storage, the
+model comes from the shared catalog, and it sits first in the fallback
+order, so a failure there still falls through to Groq, the local model
+and Gemini rather than ending the answer.
+
+Proved with a deliberately wrong key: the request reaches OpenAI in 369
+milliseconds and comes back 401, then the cascade carries on and the
+assistant still answers from the local model. With a real key the whole
+answer lands in about a second.
+
+GPT-4o mini, GPT-4o and GPT-4.1 mini are in the model picker, the key
+field is on the setup page, and api.openai.com is in host permissions.&lt;/pre&gt;
+    </content>
+  </entry>
+</feed>

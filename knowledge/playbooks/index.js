@@ -187,6 +187,18 @@
     return hit;
   }
 
+  function privatePage(host, path) {
+    var c = clean(host, path);
+    var hit = null;
+    list().some(function (pb) {
+      return (pb.private || []).some(function (r) {
+        if (ruleHits(r, c.host, c.path)) { hit = { playbook: pb.id, name: pb.name, why: String(r.why || '') }; return true; }
+        return false;
+      });
+    });
+    return hit;
+  }
+
   function readerFor(id, host, path) {
     var pb = typeof id === 'string' ? get(id) : id;
     if (!pb) return null;
@@ -238,6 +250,7 @@
       lessonsFor: lessonsFor,
       gateRules: gateRules,
       readOnly: readOnly,
+      privatePage: privatePage,
       readerFor: readerFor,
       reader: reader,
       readersText: readersText

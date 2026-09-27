@@ -54,6 +54,16 @@ const etsySite = { host: "www.etsy.com", web: true, access: "act" };
   check("no YouTube word for builders", !YT_BUILDERS.test(p.text), (p.text.match(YT_BUILDERS) || [])[0]);
   const local = prompt("Why do users drop off in my onboarding?", { host: "localhost", web: true, access: "act" }, true, P.forHost("localhost", "/"));
   check("an app running on localhost is the builder's own app", /operator for builders/.test(local.part("identity")) && /b2-l3/.test(local.part("lessons")));
+  check("builders get the builder tool and the part that says when to call it", p.names.includes("zerackBuilder") && /zerackBuilder: requests for the request that repeats/.test(p.part("builder")) && /on Hacker News the user writes the text by hand/.test(p.part("builder")), p.names);
+  check("the builder tool lists every action and says every post waits for the user press", /requests \| askers \| rivals \| watch \| unwatch \| post \| changelog \| launch \| check/.test(JSON.stringify(p.tools.find(t => t.name === "zerackBuilder"))) && /waits for the user press/.test(p.tools.find(t => t.name === "zerackBuilder").description));
+  const post = prompt("What should I post today?", { host: "github.com", web: true, access: "act" }, true, "builders");
+  check("the post question brings the build in public lesson", /b4-l2/.test(post.part("lessons")) && /280 characters/.test(post.part("lessons")), post.part("lessons").slice(0, 160));
+  const lean = B.layout(post.parts, 3200);
+  check("with the local model's 3,200 characters the builder part still fits", lean.text.length <= 3200 && lean.parts.some(x => x.id === "builder" && x.chars > 0), lean.parts);
+  const etsy = prompt("How do I raise conversion on my Etsy shop?", etsySite, true, "etsy");
+  check("the builder tool is only for builders", !etsy.names.includes("zerackBuilder") && !etsy.ids.includes("builder"), etsy.names);
+  const ask = prompt("Write the changelog for my repo", null, false, P.forQuery("Write the changelog for my repo"));
+  check("a builder question with no page open still gets the builder tool", P.forQuery("Write the changelog for my repo") === "builders" && ask.names.includes("zerackBuilder"), ask.names);
 }
 {
   const p = prompt("What niche should I start this week on YouTube?", etsySite, true, "etsy");

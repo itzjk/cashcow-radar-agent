@@ -574,6 +574,7 @@ chrome.alarms.onAlarm.addListener(function(alarm) {
     runTrendCheck();
   }
   if (alarm.name === NSP_DECIDE_ALARM) nspDecideTick();
+  if (alarm.name === NSP_WATCH_ALARM) nspWatchTick();
 });
 
 // ── TREND ALERTS — Check watched channels for new outlier videos ─────────────
@@ -1511,7 +1512,7 @@ var NSP_VR_SAVE = /\b(?:guarda(?:lo|la|me|melo|mela)?|guardar(?:lo|la)?|salva(?:
 var NSP_VR_SAVE_NOT = /\b(?:cambios?|changes?|productos?|products?|pedidos?|orders?|borrador|draft|titulos? del|titles? of|product titles?|precios?|prices?|formulario|form|tienda|store|shop|ajustes|settings)\b/;
 var NSP_VR_SEARCH_LEAD = /^(?:busca(?:me)?|buscar|search(?: youtube)?(?: for)?|look up)\s+(.+)$/;
 var NSP_VR_SEARCH = /^(?:(?:quiero|puedes|podrias|necesito|vamos a|me puedes|can you|could you)\s+)?(?:que\s+)?(?:busca(?:me|lo|la)?|buscar|busques|busque|encuentra(?:me)?|search(?: youtube)?(?: for)?|look up|look for|find(?: me)?|pon(?:me)? videos? (?:de|sobre))\s+(.+)$/;
-var NSP_VR_OTHER_SITE = /\b(?:google|amazon|wikipedia|bing|spotify|netflix|tiktok|instagram|facebook|twitter|reddit|chatgpt|gmail)\b/;
+var NSP_VR_OTHER_SITE = /\b(?:google|amazon|wikipedia|bing|spotify|netflix|tiktok|instagram|facebook|twitter|reddit|chatgpt|gmail|github|gitlab|npm|pypi|product ?hunt|hacker ?news|stripe|web store|vercel)\b/;
 var NSP_VR_PAGES = [
   { page: 'dashboard/dashboard.html', re: '(?:command center|comand center|commander center|centro de comandos?|centro de mando|dashboard|panel de control|panel principal)' },
   { page: 'niche-index/niche-index.html', re: '(?:indice de nichos?|niche index|nicho index|index of niches|indice)' },
@@ -2726,6 +2727,7 @@ function nspChatToolNow(name, args, ctx, done) {
   }
   if (name === 'zerackPlaybook') { done(self.NSP_PLAYBOOKS ? self.NSP_PLAYBOOKS.lookup(String(ctx.playbook || ''), args) : { ok: false, error: 'the playbooks did not load' }); return; }
   if (name === 'zerackDecide') { lib(nspDecide(args, ctx)); return; }
+  if (name === 'zerackBuilder') { lib(nspBuilder(args, ctx)); return; }
   if (name === 'zerackBreakEven') {
     var pb = self.NSP_PLAYBOOKS ? self.NSP_PLAYBOOKS.get(String(ctx.playbook || '')) : null;
     done(self.NSP_BUSINESS ? self.NSP_BUSINESS.breakEven(args, pb, self.NspDineroEquilibrio) : { ok: false, error: 'the break-even engine did not load' });
@@ -3186,6 +3188,396 @@ function nspDecideEvidence(host) {
   return nspDecideLate(ask, { ok: false, missing: ['the decision store did not answer in time, so no evidence could be read'] });
 }
 
+try { importScripts('../lib/nsp-extract.js', '../lib/nsp-builders.js'); } catch (eBuilders) { console.warn('[NSP SW] importScripts builder engine:', eBuilders && eBuilders.message); }
+
+var NSP_BUILDER_READERS = ['github.issues', 'github.repo', 'github.commits', 'github.releases', 'hn.item', 'reddit.thread', 'ph.product', 'npm.package', 'pypi.package', 'cws.listing'];
+var NSP_BUILDER_RIVAL_READERS = { 'github.repo': 1, 'npm.package': 1, 'pypi.package': 1, 'cws.listing': 1, 'ph.product': 1 };
+var NSP_BUILDER_DAYS = 45;
+var NSP_BUILDER_FRESH_MS = 30 * 60000;
+var NSP_BUILDER_MINE = 'nsp_builder_repo';
+var NSP_WATCH_KEY = 'nsp_watch';
+var NSP_WATCH_ALARM = 'nsp-watch';
+var NSP_WATCH_MAX = 30;
+var NSP_WATCH_EVERY_MS = 20 * 3600000;
+var NSP_WATCH_FETCH_MS = 25000;
+var _nspWatch = { chain: Promise.resolve(), gap: [4000, 9000] };
+
+function nspBuilderReady() {
+  var st = self.NSP_CHAT_STORE;
+  return !!(self.NSP_BUILDERS && self.NSP_EXTRACT && self.NSP_BUSINESS && st && typeof st.listSeries === 'function');
+}
+
+function nspBuilderRules() {
+  var pb = self.NSP_PLAYBOOKS ? self.NSP_PLAYBOOKS.get('builders') : null;
+  return pb && pb.rules ? pb.rules : {};
+}
+
+function nspBuilderClip(s, n) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  return s.length > n ? s.slice(0, n - 3) + '...' : s;
+}
+
+function nspBuilderUrl(u) {
+  u = String(u || '');
+  return /^https?:\/\/[^\s]+$/i.test(u) ? u.slice(0, 600) : '';
+}
+
+function nspBuilderLatest(rows) {
+  var byKey = {};
+  rows.forEach(function(r) { if (!byKey[r.key] || byKey[r.key].id < r.id) byKey[r.key] = r; });
+  return Object.keys(byKey).map(function(k) { return byKey[k]; });
+}
+
+function nspBuilderItems(rows, kinds) {
+  var out = [];
+  nspBuilderLatest(rows).forEach(function(r) {
+    (r.items || []).forEach(function(it) {
+      if (kinds && kinds.indexOf(it.kind) < 0) return;
+      var x = {};
+      Object.keys(it).forEach(function(k) { x[k] = it[k]; });
+      x.host = r.host;
+      x.reader = r.reader;
+      out.push(x);
+    });
+  });
+  return out;
+}
+
+function nspBuilderRepoKey(text) {
+  var t = String(text || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/+$/, '');
+  var m = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/.exec(t);
+  return m ? ('https://github.com/' + m[1] + '/' + m[2].replace(/\.git$/, '')).toLowerCase() : '';
+}
+
+function nspBuilderRepo(rows, want) {
+  var repoRows = rows.filter(function(r) { return (r.reader === 'github.repo' || r.reader === 'github.commits' || r.reader === 'github.releases') && r.facts && r.facts.url; });
+  repoRows.sort(function(a, b) { return b.id - a.id; });
+  var target = want ? repoRows.filter(function(r) { return String(r.facts.url).toLowerCase() === want; })[0] : (repoRows.filter(function(r) { return r.reader === 'github.repo'; })[0] || repoRows[0]);
+  if (!target) return null;
+  var url = String(target.facts.url);
+  var mine = repoRows.filter(function(r) { return String(r.facts.url).toLowerCase() === url.toLowerCase(); });
+  var home = mine.filter(function(r) { return r.reader === 'github.repo'; })[0] || null;
+  var withCommits = mine.filter(function(r) { return (r.items || []).some(function(i) { return i.kind === 'commit'; }); })[0] || null;
+  var withReleases = mine.filter(function(r) { return r.reader === 'github.releases' || (r.items || []).some(function(i) { return i.kind === 'release'; }); })[0] || null;
+  var starRows = mine.filter(function(r) { return r.reader === 'github.repo' && typeof (r.metrics || {}).stars === 'number'; });
+  var facts = home ? home.facts : target.facts;
+  return {
+    url: url,
+    facts: facts,
+    metrics: home ? home.metrics : {},
+    readAt: (home || target).at,
+    commits: withCommits ? (withCommits.items || []).filter(function(i) { return i.kind === 'commit'; }) : [],
+    releases: withReleases ? (withReleases.items || []).filter(function(i) { return i.kind === 'release' || i.kind === 'tag'; }) : [],
+    stars: starRows.map(function(r) { return { t: r.at, value: r.metrics.stars }; }).sort(function(a, b) { return a.t - b.t; })
+  };
+}
+
+function nspBuilderSeries(since) {
+  return self.NSP_CHAT_STORE.listSeries({ since: since, readers: NSP_BUILDER_READERS, limit: 3000 });
+}
+
+function nspBuilderTabRepo(ctx) {
+  var site = ctx && ctx.site;
+  var m = site ? /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)(?:\/tree\/[^?#]*)?\/?(?:[?#].*)?$/.exec(String(site.url || '')) : null;
+  if (!m || /^(settings|orgs|topics|marketplace|explore|notifications|login|sponsors|features|pricing|search|new)$/i.test(m[1])) return '';
+  return nspBuilderRepoKey(m[1] + '/' + m[2]);
+}
+
+function nspBuilderEnsureRead(ctx) {
+  var page = ctx && ctx.page;
+  var where = nspBuilderTabRepo(ctx);
+  if (!page || !self.NSP_PAGE_AGENT || !where) return Promise.resolve(null);
+  return self.NSP_CHAT_STORE.listSeries({ since: Date.now() - NSP_BUILDER_FRESH_MS, readers: ['github.repo'], limit: 50 }).then(function(rows) {
+    if (rows.some(function(r) { return r.facts && String(r.facts.url || '').toLowerCase() === where; })) return null;
+    return Promise.resolve(self.NSP_PAGE_AGENT.run('zerackExtract', { reader: 'github.repo' }, page)).then(function(r) {
+      return r && r.ok === true ? nspBusinessRead(r, { quiet: true }) : null;
+    });
+  }).then(null, function() { return null; });
+}
+
+function nspBuilderMine(url) {
+  return new Promise(function(resolve) {
+    try {
+      if (url) chrome.storage.local.set({ nsp_builder_repo: String(url).slice(0, 300) }, function() { void chrome.runtime.lastError; resolve(String(url)); });
+      else chrome.storage.local.get(NSP_BUILDER_MINE, function(r) { resolve(!chrome.runtime.lastError && r && typeof r[NSP_BUILDER_MINE] === 'string' ? r[NSP_BUILDER_MINE] : ''); });
+    } catch (e) { resolve(''); }
+  });
+}
+
+function nspBuilderCard(result, card) {
+  if (result && typeof result === 'object' && card) Object.defineProperty(result, 'card', { value: card, enumerable: false, configurable: true });
+  return result;
+}
+
+function nspBuilderSourceLine(s) {
+  return s && s.url ? { text: nspBuilderClip(s.author + ', ' + s.title, 120), url: nspBuilderUrl(s.url) } : null;
+}
+
+function nspBuilder(args, ctx) {
+  args = args && typeof args === 'object' ? args : {};
+  ctx = ctx || {};
+  if (!nspBuilderReady()) return Promise.resolve({ ok: false, error: 'the builder engine did not load, reload the extension' });
+  var K = self.NSP_BUILDERS;
+  var rules = nspBuilderRules();
+  var action = String(args.action || '').toLowerCase().trim();
+  var now = Date.now();
+  if (action === 'watch' || action === 'unwatch') return nspWatch(action, args, ctx);
+  if (action === 'check') {
+    var checked = K.check({ tagline: args.tagline, name: args.name, description: args.description, firstComment: args.firstComment, title: args.title, post: args.post }, rules);
+    return Promise.resolve(nspBuilderCard(checked, { kind: 'check', line: nspBuilderClip(checked.line, 300), checks: checked.checks.slice(0, 8).map(function(c) { return { field: c.field, ok: c.ok, what: nspBuilderClip(c.what, 120), rule: nspBuilderClip(c.rule, 200), source: nspBuilderSourceLine(c.source) }; }) }));
+  }
+  if (['requests', 'askers', 'rivals', 'post', 'changelog', 'launch'].indexOf(action) < 0) return Promise.resolve({ ok: false, code: 'bad_action', error: 'action must be requests, askers, rivals, watch, unwatch, post, changelog, launch or check' });
+  var needsRepo = action === 'post' || action === 'changelog' || action === 'launch';
+  var want = nspBuilderRepoKey(args.repo);
+  return (needsRepo || action === 'askers' ? nspBuilderEnsureRead(ctx) : Promise.resolve(null)).then(function() {
+    return Promise.all([nspBuilderSeries(now - NSP_BUILDER_DAYS * 86400000), nspBuilderMine(''), nspWatchLoad()]);
+  }).then(function(got) {
+    var rows = got[0], mineUrl = got[1], watched = got[2];
+    var mineKey = String(mineUrl || '').toLowerCase();
+    var repo = nspBuilderRepo(rows, want || (needsRepo ? nspBuilderTabRepo(ctx) || mineKey : mineKey));
+    if (!repo && needsRepo && !want) repo = nspBuilderRepo(rows, '');
+    if (needsRepo && !repo) return { ok: false, code: 'missing', missing: ['a read of the repository'], error: 'no repository read yet: open the repository on GitHub and read it with zerackExtract reader github.repo, then ask again' };
+    if (action === 'requests') {
+      var own = repo ? [repo.facts.repo || '', repo.facts.owner || ''] : [];
+      var r = K.requests(nspBuilderItems(rows, ['issue', 'comment']), { own: own });
+      return nspBuilderCard({ ok: true, action: action, line: r.line, considered: r.considered, requests: r.requests, bugsSkipped: r.bugsSkipped, askedOnce: r.askedOnce, clusters: r.clusters }, {
+        kind: 'requests', line: nspBuilderClip(r.line, 400), askedOnce: r.askedOnce, bugs: r.bugsSkipped,
+        clusters: r.clusters.slice(0, 5).map(function(c) { return { label: nspBuilderClip(c.label, 60), count: c.count, people: c.people, sources: Object.keys(c.sources).map(function(k) { return { name: nspBuilderClip(k, 40), n: c.sources[k] }; }), examples: c.examples.slice(0, 3).map(function(e) { return { text: nspBuilderClip(e.text, 160), url: nspBuilderUrl(e.url), source: nspBuilderClip(e.source, 40) }; }) }; })
+      });
+    }
+    if (action === 'askers') {
+      var words = String(args.keywords || '').split(/[,;]+/).map(function(w) { return w.trim(); }).filter(Boolean);
+      if (!words.length && repo) words = [repo.facts.description || ''].concat(String(repo.facts.topics || '').split(/,\s*/));
+      var a = K.askers(nspBuilderItems(rows, ['comment', 'story']), { keywords: words, name: repo ? repo.facts.repo : '', url: repo ? repo.url : '', what: repo ? repo.facts.description : '', rules: rules, now: now });
+      if (!a.ok) return a;
+      return nspBuilderCard({ ok: true, action: action, line: a.line, keywords: a.keywords, matches: a.matches, more: a.more, rule: a.rule }, {
+        kind: 'askers', line: nspBuilderClip(a.line, 400), rule: a.rule ? { text: nspBuilderClip(a.rule.rule, 200), source: nspBuilderSourceLine(a.rule.source) } : null,
+        matches: a.matches.slice(0, 6).map(function(m) { return { source: nspBuilderClip(m.source, 40), by: nspBuilderClip(m.by, 40), url: nspBuilderUrl(m.url), at: m.at, excerpt: nspBuilderClip(m.excerpt, 280), matched: m.matched.slice(0, 4), handwrite: m.handwrite === true, closed: m.closed === true, draft: m.reply && m.reply.draft ? nspBuilderClip(m.reply.draft, 280) : '', outline: (m.reply && m.reply.outline || []).slice(0, 4).map(function(o) { return nspBuilderClip(o, 160); }) }; })
+      });
+    }
+    if (action === 'rivals') {
+      var groups = {};
+      rows.forEach(function(r) {
+        if (NSP_BUILDER_RIVAL_READERS[r.reader] !== 1) return;
+        var metric = K.metricFor(r.reader);
+        var v = (r.metrics || {})[metric];
+        if (typeof v !== 'number') return;
+        var g = groups[r.key] || (groups[r.key] = { key: r.key, reader: r.reader, metric: metric, url: String(r.key).slice(String(r.key).indexOf('|') + 1), name: '', points: [] });
+        g.points.push({ t: r.at, value: v });
+        var f = r.facts || {};
+        if (!g.name) g.name = f.owner && f.repo ? f.owner + '/' + f.repo : (f.name || '');
+      });
+      var watchedUrls = watched.map(function(w) { return w.url; });
+      var list = Object.keys(groups).map(function(k) { var g = groups[k]; g.watched = watchedUrls.indexOf(g.url) >= 0; return g; });
+      var rv = K.rivals(list, { decide: self.NSP_DECIDE, now: now, mine: mineUrl });
+      return nspBuilderCard({ ok: true, action: action, line: rv.line, accelerating: rv.accelerating, rows: rv.rows, watching: watched.length }, {
+        kind: 'rivals', line: nspBuilderClip(rv.line, 400), watching: watched.length,
+        rows: rv.rows.slice(0, 8).map(function(x) { return { name: nspBuilderClip(x.name, 80), url: nspBuilderUrl(x.url), metric: x.metric, now: x.now, perDay: x.perDay, readings: x.readings, state: x.state, label: x.label, missing: x.missing.slice(0, 1).map(function(m) { return nspBuilderClip(m, 160); }), watched: x.watched, mine: x.mine }; })
+      });
+    }
+    return nspBuilderMine(repo.url).then(function() {
+      var facts = repo.facts || {};
+      if (action === 'post') {
+        var p = K.post({ repo: { name: facts.repo || '', url: repo.url, created: facts.created }, commits: repo.commits, releases: repo.releases, stars: repo.stars, now: now, rules: rules.x || {} });
+        return nspBuilderCard({ ok: true, action: action, line: p.line, decision: p.decision, why: p.why, facts: p.facts, drafts: p.drafts.map(function(d) { return { kind: d.kind, text: d.text, chars: d.chars, max: d.max, uses: d.uses }; }), readAt: new Date(repo.readAt).toISOString() }, {
+          kind: 'post', decision: p.decision, why: nspBuilderClip(p.why, 300), line: nspBuilderClip(p.line, 300), repo: nspBuilderUrl(repo.url),
+          facts: p.facts.slice(0, 5).map(function(f) { return nspBuilderClip(f.text, 160); }),
+          drafts: p.drafts.slice(0, 3).map(function(d) { return { kind: d.kind, text: String(d.text).slice(0, 1200), chars: d.chars, max: d.max, intent: /^https:\/\/x\.com\/intent\/tweet\?text=/.test(d.intent) ? d.intent.slice(0, 4000) : '' }; }),
+          source: nspBuilderSourceLine(rules.x && rules.x.source)
+        });
+      }
+      if (action === 'changelog') {
+        var c = K.changelog({ repo: { url: repo.url, branch: facts.branch }, commits: repo.commits, releases: repo.releases, totalCommits: repo.metrics && typeof repo.metrics.commits === 'number' ? repo.metrics.commits : null, now: now, rules: rules });
+        return nspBuilderCard({ ok: true, action: action, line: c.line, version: c.version, commits: c.commits, since: c.since, markdown: c.markdown, releaseNotes: c.releaseNotes, feedNote: c.feedNote, noise: c.noise }, {
+          kind: 'changelog', line: nspBuilderClip(c.line, 400), version: { from: nspBuilderClip(c.version.from, 40), to: nspBuilderClip(c.version.to, 40), why: nspBuilderClip(c.version.why, 240) }, markdown: String(c.markdown).slice(0, 6000), notes: String(c.releaseNotes).slice(0, 6000), feedNote: nspBuilderClip(c.feedNote, 200),
+          groups: Object.keys(c.groups).map(function(g) { return { name: g, n: c.groups[g].length }; }), noise: Object.keys(c.noise).reduce(function(n, k) { return n + c.noise[k]; }, 0), commits: c.commits, repo: nspBuilderUrl(repo.url),
+          sources: c.rules.map(function(x) { return nspBuilderSourceLine(x.source); }).filter(Boolean)
+        });
+      }
+      var threads = nspBuilderLatest(rows).filter(function(r) { return r.reader === 'hn.item' && r.facts && r.facts.showHn === 'yes'; }).map(function(r) { return { title: r.facts.title, url: r.facts.url, item: String(r.key).slice(String(r.key).indexOf('|') + 1) }; });
+      var kit = K.launch({ repo: { repo: facts.repo, owner: facts.owner, url: repo.url, description: facts.description, homepage: facts.homepage, license: facts.license, created: facts.created, stars: repo.metrics ? repo.metrics.stars : null, commits: repo.metrics ? repo.metrics.commits : null, headings: String(facts.headings || '').split(' | ').filter(Boolean).map(function(t, i) { return { level: i === 0 ? 1 : 2, text: t }; }) }, threads: threads, now: now, rules: rules });
+      if (!kit.ok) return kit;
+      var drafts = { tagline: args.tagline, name: args.name, description: args.description, firstComment: args.firstComment, title: args.title };
+      var anyDraft = Object.keys(drafts).some(function(k) { return drafts[k] != null && drafts[k] !== ''; });
+      var chk = anyDraft ? K.check(drafts, rules) : null;
+      var ph = kit.producthunt, hn = kit.showhn;
+      return nspBuilderCard({ ok: true, action: action, line: kit.line + (chk ? ' ' + chk.line : ''), producthunt: { name: ph.name.text, taglines: ph.taglines, description: ph.description, gallery: ph.gallery.captions, firstComment: ph.firstComment.outline, timing: ph.timing }, showhn: { title: hn.title, handwrite: true, handwriteRule: hn.handwriteRule.rule, cover: hn.cover, facts: hn.facts, tryable: hn.tryable.ask, repeat: hn.repeat }, check: chk ? chk.checks : null }, {
+        kind: 'launch', line: nspBuilderClip(kit.line, 400), name: nspBuilderClip(ph.name.text, 60),
+        taglines: ph.taglines.slice(0, 3).map(function(t) { return { text: nspBuilderClip(t.text, 80), chars: t.chars, fits: t.fits, why: nspBuilderClip(t.why, 120) }; }),
+        description: { text: nspBuilderClip(ph.description.text, 520), chars: ph.description.chars },
+        gallery: ph.gallery.captions.slice(0, 5).map(function(g) { return nspBuilderClip(g.caption, 70); }), galleryRule: nspBuilderClip(ph.gallery.rule, 160),
+        comment: ph.firstComment.outline.slice(0, 5).map(function(o) { return nspBuilderClip(o, 180); }), commentRule: nspBuilderClip(ph.firstComment.rule, 160),
+        timing: nspBuilderClip(ph.timing.next, 60), timingAt: ph.timing.at, timingRule: nspBuilderClip(ph.timing.rule, 200), votesRule: nspBuilderClip(ph.votes.rule, 120),
+        title: { text: nspBuilderClip(hn.title.text, 120), chars: hn.title.chars, problems: hn.title.problems.slice(0, 4).map(function(x) { return nspBuilderClip(x.what, 100); }) },
+        cover: hn.cover.slice(0, 5), facts: hn.facts.slice(0, 4).map(function(f) { return { what: f.what, value: nspBuilderClip(f.value, 240) }; }),
+        handwrite: nspBuilderClip(hn.handwriteRule.rule, 200), tryable: nspBuilderClip(hn.tryable.ask, 160),
+        submit: /^https:\/\/news\.ycombinator\.com\/submitlink\?u=/.test(hn.submit) ? hn.submit.slice(0, 2000) : '',
+        checks: chk ? chk.checks.slice(0, 6).map(function(x) { return { field: x.field, ok: x.ok, what: nspBuilderClip(x.what, 120) }; }) : [],
+        sources: [ph.taglineRule.source, ph.firstComment.source, ph.votes.source, hn.handwriteRule.source, hn.title.source].map(nspBuilderSourceLine).filter(Boolean).filter(function(x, i, arr) { return arr.map(function(y) { return y.url; }).indexOf(x.url) === i; })
+      });
+    });
+  }).then(null, function(e) { return { ok: false, error: 'the builder work failed: ' + String((e && e.message) || e) }; });
+}
+
+function nspWatchKind(url) {
+  var u;
+  try { u = new URL(String(url || '')); } catch (e) { return null; }
+  var host = u.hostname.toLowerCase();
+  var p = u.pathname.split('/').filter(Boolean);
+  if (host === 'github.com' && p.length >= 2 && self.NSP_EXTRACT && /^[A-Za-z0-9_.-]+$/.test(p[0]) && !/^(settings|orgs|topics|marketplace|explore|notifications|login|sponsors|features|pricing|search|new)$/i.test(p[0])) return { reader: 'github.repo', url: 'https://github.com/' + p[0] + '/' + p[1].replace(/\.git$/, '') };
+  if (host === 'chromewebstore.google.com' && p[0] === 'detail' && p.length >= 2) return { reader: 'cws.listing', url: 'https://chromewebstore.google.com/' + p.slice(0, 3).join('/') };
+  if ((host === 'www.npmjs.com' || host === 'npmjs.com') && p[0] === 'package' && p.length >= 2) return { reader: 'npm.package', url: 'https://www.npmjs.com/package/' + (p[1].charAt(0) === '@' && p[2] ? p[1] + '/' + p[2] : p[1]) };
+  if (host === 'pypi.org' && p[0] === 'project' && p.length >= 2) return { reader: 'pypi.package', url: 'https://pypi.org/project/' + p[1] + '/' };
+  return null;
+}
+
+function nspWatchLoad() {
+  return new Promise(function(resolve) {
+    try {
+      chrome.storage.local.get(NSP_WATCH_KEY, function(r) {
+        var list = !chrome.runtime.lastError && r && Array.isArray(r[NSP_WATCH_KEY]) ? r[NSP_WATCH_KEY] : [];
+        resolve(list.filter(function(w) { return w && typeof w.url === 'string' && nspWatchKind(w.url); }).slice(0, NSP_WATCH_MAX));
+      });
+    } catch (e) { resolve([]); }
+  });
+}
+
+function nspWatchSave(list) {
+  return nspStorageUpdate(NSP_WATCH_KEY, function() { return list.slice(0, NSP_WATCH_MAX); });
+}
+
+function nspWatchSchedule(list) {
+  try {
+    if (!list.length) { chrome.alarms.clear(NSP_WATCH_ALARM, function() { void chrome.runtime.lastError; }); return; }
+    chrome.alarms.get(NSP_WATCH_ALARM, function(a) {
+      void chrome.runtime.lastError;
+      if (!a) chrome.alarms.create(NSP_WATCH_ALARM, { delayInMinutes: 60, periodInMinutes: 360 });
+    });
+  } catch (e) {}
+}
+
+function nspWatchAllowed(url) {
+  var S = self.NSP_SITES;
+  if (!S) return Promise.resolve({ ok: false, host: '', pattern: '' });
+  var host = S.hostOf(url), pattern = S.patternOf(url);
+  return Promise.all([S.load(), new Promise(function(resolve) {
+    try { chrome.permissions.contains({ origins: [pattern] }, function(has) { resolve(!chrome.runtime.lastError && has === true); }); } catch (e) { resolve(false); }
+  })]).then(function(got) {
+    return { ok: got[1] && S.allows(S.accessIn(got[0], host), 'read'), host: host, pattern: pattern };
+  });
+}
+
+function nspWatchParse(kind, html, url) {
+  var T = self.NSP_EXTRACT.text;
+  if (kind === 'github.repo') { var g = T.githubRepo(html, url); return g.ok ? { ok: true, reader: kind, label: 'GitHub repository', rows: [], repo: g.repo, releaseList: [] } : g; }
+  if (kind === 'cws.listing') { var c = T.cws(html, url); return c.ok ? { ok: true, reader: kind, label: 'Chrome Web Store listing', rows: [], listing: c.listing } : c; }
+  if (kind === 'npm.package') { var n = T.npm(html, url); return n.ok ? { ok: true, reader: kind, label: 'npm package', rows: [], pkg: n.pkg } : n; }
+  if (kind === 'pypi.package') { var y = T.pypi(html, url); return y.ok ? { ok: true, reader: kind, label: 'PyPI project', rows: y.pkg.history.slice(0, 40), pkg: { name: y.pkg.name, version: y.pkg.version, summary: y.pkg.summary, released: y.pkg.released, releases: y.pkg.releases } } : y; }
+  return { ok: false, code: 'not_watchable', error: 'not a page ZERACK can watch' };
+}
+
+function nspWatchSample(entry) {
+  var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  var timer = setTimeout(function() { if (ctrl) ctrl.abort(); }, NSP_WATCH_FETCH_MS);
+  return nspWatchAllowed(entry.url).then(function(acc) {
+    if (!acc.ok) return { ok: false, code: 'site_not_allowed', error: 'ZERACK is not allowed to read ' + acc.host + ' any more' };
+    return fetch(entry.url, { credentials: 'omit', cache: 'no-store', redirect: 'follow', signal: ctrl ? ctrl.signal : undefined, headers: { Accept: 'text/html' } }).then(function(res) {
+      if (!res.ok) return { ok: false, code: 'http', error: 'the page answered HTTP ' + res.status };
+      var landed = String(res.url || entry.url);
+      return res.text().then(function(html) {
+        var got = nspWatchParse(entry.reader, String(html || '').slice(0, 6000000), landed);
+        if (!got.ok) return got.code === 'drift' ? got : { ok: false, code: got.code || 'not_read', error: got.error || 'the page did not read' };
+        got.url = entry.url;
+        got.host = acc.host;
+        got.playbook = 'builders';
+        got.count = (got.rows || []).length;
+        return nspBusinessRead(got, { quiet: true }).then(function(out) { return out && out.ok ? out : got; });
+      });
+    });
+  }).then(function(r) { clearTimeout(timer); return r; }, function(e) { clearTimeout(timer); return { ok: false, code: 'network', error: 'the page did not load: ' + String((e && e.message) || e).slice(0, 120) }; });
+}
+
+function nspWatchTick(force) {
+  _nspWatch.chain = _nspWatch.chain.then(function() {
+    return nspWatchLoad().then(function(list) {
+      var now = Date.now();
+      var due = list.filter(function(w) { return force || !(w.lastAt > now - NSP_WATCH_EVERY_MS); });
+      return due.reduce(function(p, w, i) {
+        return p.then(function() {
+          var wait = i ? _nspWatch.gap[0] + Math.floor(Math.random() * (_nspWatch.gap[1] - _nspWatch.gap[0])) : 0;
+          return new Promise(function(r) { setTimeout(r, wait); }).then(function() { return nspWatchSample(w); }).then(function(r) {
+            w.lastAt = Date.now();
+            w.lastOk = !!(r && r.ok);
+            w.error = r && r.ok ? '' : String((r && (r.error || r.code)) || 'not read').slice(0, 200);
+            if (r && r.ok && r.line) w.lastLine = String(r.line).slice(0, 300);
+            if (r && r.ok && r.analysis) { var a = r.analysis; w.name = String((a.repo && a.repo.owner ? a.repo.owner + '/' + a.repo.repo : '') || (a.listing && a.listing.name) || (a.pkg && a.pkg.name) || w.name || '').slice(0, 120); }
+          });
+        });
+      }, Promise.resolve()).then(function() {
+        return nspWatchLoad().then(function(fresh) {
+          var byUrl = {};
+          list.forEach(function(w) { byUrl[w.url] = w; });
+          var merged = fresh.map(function(w) { return byUrl[w.url] || w; });
+          return nspWatchSave(merged).then(function() { nspWatchSchedule(merged); return due.length; });
+        });
+      });
+    });
+  }).then(null, function(e) { console.warn('[NSP SW] watch: tick failed:', e && e.message); return 0; });
+  return _nspWatch.chain;
+}
+
+function nspWatch(action, args, ctx) {
+  var site = ctx.site && ctx.site.url ? ctx.site : null;
+  var want = nspWatchKind(args.url || (site ? site.url : ''));
+  if (!want) return Promise.resolve({ ok: false, code: 'not_watchable', error: 'ZERACK can watch a public GitHub repository, an npm or PyPI package, or a Chrome Web Store listing: give its address' });
+  return nspWatchLoad().then(function(list) {
+    if (action === 'unwatch') {
+      var left = list.filter(function(w) { return w.url !== want.url; });
+      return nspWatchSave(left).then(function() {
+        nspWatchSchedule(left);
+        return nspBuilderCard({ ok: true, action: action, line: left.length < list.length ? 'Stopped watching ' + want.url + '.' : 'It was not watched: ' + want.url + '.', watching: left.length }, { kind: 'watch', line: left.length < list.length ? 'Stopped watching ' + want.url + '.' : 'It was not watched.', list: nspWatchView(left) });
+      });
+    }
+    return nspAgentOn().then(function(on) {
+      if (!on) return { ok: false, code: 'agent_off', error: NSP_AGENT_OFF_REFUSAL };
+      return nspWatchAllowed(want.url).then(function(acc) {
+        if (!acc.ok) {
+          if (typeof ctx.allow === 'function') ctx.allow(acc.host, acc.pattern, want.url);
+          return { ok: false, code: 'site_not_allowed', host: acc.host, error: 'ZERACK is not allowed to read ' + acc.host + ' yet. The chat now shows the user an Allow button for this site. Tell them to press it, then ask again. Do not retry now.' };
+        }
+        var had = list.filter(function(w) { return w.url === want.url; })[0];
+        if (!had && list.length >= NSP_WATCH_MAX) return { ok: false, code: 'full', error: 'ZERACK already watches ' + NSP_WATCH_MAX + ' pages: stop one first' };
+        var entry = had || { url: want.url, reader: want.reader, host: acc.host, since: Date.now(), lastAt: 0, lastOk: false, error: '', name: '' };
+        var next = had ? list : list.concat([entry]);
+        return nspWatchSave(next).then(function() {
+          nspWatchSchedule(next);
+          return nspWatchSample(entry);
+        }).then(function(r) {
+          entry.lastAt = Date.now();
+          entry.lastOk = !!(r && r.ok);
+          entry.error = r && r.ok ? '' : String((r && (r.error || r.code)) || '').slice(0, 200);
+          if (r && r.ok && r.analysis) { var a = r.analysis; entry.name = String((a.repo && a.repo.owner ? a.repo.owner + '/' + a.repo.repo : '') || (a.listing && a.listing.name) || (a.pkg && a.pkg.name) || '').slice(0, 120); entry.lastLine = String(r.line || '').slice(0, 300); }
+          return nspWatchLoad().then(function(fresh) {
+            var merged = fresh.map(function(w) { return w.url === entry.url ? entry : w; });
+            return nspWatchSave(merged).then(function() {
+              var reading = String((r && r.line) || '').replace(/\.$/, '');
+              if (entry.name && reading.indexOf(entry.name + ': ') === 0) reading = reading.slice(entry.name.length + 2);
+              var line = (had ? 'Already watched' : 'Watching') + ' ' + (entry.name || want.url) + ': ' + (r && r.ok ? 'first reading today, ' + reading : 'the first reading failed (' + entry.error + ')') + '. ZERACK reads it once a day at human pace; it can say whether it accelerates after four readings.';
+              return nspBuilderCard({ ok: true, action: action, line: line, reading: r && r.ok ? r.line : '', watching: merged.length }, { kind: 'watch', line: nspBuilderClip(line, 400), list: nspWatchView(merged) });
+            });
+          });
+        });
+      });
+    });
+  });
+}
+
+function nspWatchView(list) {
+  return list.slice(0, 12).map(function(w) { return { url: nspBuilderUrl(w.url), name: nspBuilderClip(w.name || w.url, 80), reader: String(w.reader || ''), lastAt: Number(w.lastAt) || 0, ok: w.lastOk === true, error: nspBuilderClip(w.error, 120) }; });
+}
+
+try { chrome.runtime.onStartup.addListener(function() { nspWatchLoad().then(nspWatchSchedule); }); } catch (eWatchStart) {}
+
 try { chrome.runtime.onStartup.addListener(function() { nspDecideSchedule(); }); } catch (eDecideStart) {}
 try { chrome.runtime.onInstalled.addListener(function() { nspDecideSchedule(); }); } catch (eDecideInstall) {}
 
@@ -3413,7 +3805,8 @@ function nspChatThink(run) {
           if (id) run.delegate = id;
           if (NSP_CHAT_NAV_TOOLS[name] === 1) nspChatMarkHost(run);
           nspChatTyping(run, name === 'zerackYouTubeAgent' ? 'The YouTube agent is working' : (NSP_CHAT_PAGE_TOOLS[name] === 1 ? 'Working on the page' : 'Working'));
-          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'chat', lang: run.lang, requestId: id, playbook: run.playbook, convId: run.convId, site: run.site, page: NSP_CHAT_PAGE_TOOLS[name] === 1 ? run.page : null }, resolve); }).then(function(res) {
+          var builder = name === 'zerackBuilder';
+          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'chat', lang: run.lang, requestId: id, playbook: run.playbook, convId: run.convId, site: run.site, page: NSP_CHAT_PAGE_TOOLS[name] === 1 || builder ? run.page : null, allow: builder ? function(host, pattern, url) { return nspChatAdd(run, 'allow', host, { status: 'waiting', host: host, pattern: pattern, need: 'read', url: String(url || '').slice(0, 300) }); } : null }, resolve); }).then(function(res) {
             if (id) run.delegate = '';
             return res;
           });
@@ -3432,6 +3825,7 @@ function nspChatThink(run) {
             var failed = !result || result.ok === false;
             var meta = { tool: name, status: failed ? 'failed' : 'done', detail: tools.note(result) };
             if (name === 'zerackDecide' && result && result.ok === true) meta.decision = nspDecideCard(result);
+            if (name === 'zerackBuilder' && result && result.ok === true && result.card) meta.builder = result.card;
             if (result && result.code === 'needs_evidence' && Array.isArray(result.missing)) { meta.missing = result.missing.slice(0, 5).map(function(m) { return String(m).slice(0, 300); }); if (result.evidence) meta.evidence = String(result.evidence).slice(0, 300); }
             nspChatPatch(run, row, meta);
           });

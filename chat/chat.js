@@ -354,6 +354,315 @@
     parent.appendChild(row);
   }
 
+  var BUILD_KICKERS = { requests: 'Repeated requests', askers: 'People asking for it', rivals: 'Rivals', watch: 'Watching', post: 'What to post today', changelog: 'Changelog', launch: 'Launch kit', check: 'Rule check' };
+  var OPEN_OK = /^https?:\/\/[^\s]+$/i;
+  var INTENT_OK = /^https:\/\/x\.com\/intent\/tweet\?text=/;
+  var SUBMIT_OK = /^https:\/\/news\.ycombinator\.com\/submitlink\?u=/;
+
+  function openUrl(url, ok) {
+    url = String(url || '');
+    if (!(ok || OPEN_OK).test(url)) return;
+    try { chrome.tabs.create({ url: url }); } catch (e) {}
+  }
+
+  function copyText(text) {
+    text = String(text || '');
+    var viaArea = function () {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      return ok;
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return viaArea(); });
+    } catch (e) {}
+    return Promise.resolve(viaArea());
+  }
+
+  function bldBtn(label, cls, onClick) {
+    var b = node('button', 'bld-btn' + (cls ? ' ' + cls : ''), label);
+    b.type = 'button';
+    b.addEventListener('click', function (e) { if (e.isTrusted) onClick(b); });
+    return b;
+  }
+
+  function copyBtn(label, text) {
+    return bldBtn(label, '', function (b) {
+      copyText(text).then(function (ok) {
+        b.textContent = ok ? 'Copied' : 'Copy failed';
+        b.classList.toggle('done', !!ok);
+        setTimeout(function () { b.textContent = label; b.classList.remove('done'); }, 1600);
+      });
+    });
+  }
+
+  function linkBtn(label, url, ok, cls) {
+    return bldBtn(label, cls || '', function () { openUrl(url, ok); });
+  }
+
+  function bldHead(parent, kicker, line) {
+    var head = node('div', 'bld-head');
+    head.appendChild(node('span', 'bld-kicker', kicker));
+    parent.appendChild(head);
+    if (line) parent.appendChild(node('div', 'bld-line', line));
+  }
+
+  function bldSection(parent, title) {
+    var sec = node('div', 'bld-sec');
+    if (title) sec.appendChild(node('div', 'bld-sec-title', title));
+    parent.appendChild(sec);
+    return sec;
+  }
+
+  function bldSources(parent, list) {
+    list = (list || []).filter(function (s) { return s && s.url; });
+    if (!list.length) return;
+    var foot = node('div', 'bld-sources');
+    foot.appendChild(node('span', 'bld-sources-head', 'Sources'));
+    list.slice(0, 5).forEach(function (s) {
+      var a = node('button', 'bld-src', s.text);
+      a.type = 'button';
+      a.title = s.url;
+      a.addEventListener('click', function (e) { if (e.isTrusted) openUrl(s.url); });
+      foot.appendChild(a);
+    });
+    parent.appendChild(foot);
+  }
+
+  function statePill(state, label) {
+    var p = node('span', 'state-pill ' + (state === 'keep' ? 'is-keep' : (state === 'drop' ? 'is-drop' : 'is-look')), label || DECIDE_STATES[state] || 'LOOK AT IT');
+    return p;
+  }
+
+  function bldNum(n) {
+    return typeof n === 'number' && isFinite(n) ? n.toLocaleString('en-US') : '';
+  }
+
+  function builderEl(parent, b, card) {
+    card.classList.add('build');
+    card.dataset.kind = String(b.kind || '');
+    bldHead(parent, BUILD_KICKERS[b.kind] || 'Builder', b.kind === 'post' || b.kind === 'launch' || (b.kind === 'changelog' && b.markdown) ? '' : b.line);
+    if (b.kind === 'requests') {
+      (b.clusters || []).forEach(function (c) {
+        var row = node('div', 'bld-row');
+        var top = node('div', 'bld-row-top');
+        top.appendChild(node('span', 'bld-count', String(c.count)));
+        top.appendChild(node('span', 'bld-name', c.label));
+        row.appendChild(top);
+        var chips = node('div', 'bld-chips');
+        (c.sources || []).forEach(function (s) { chips.appendChild(node('span', 'bld-chip', s.name + ' ' + s.n)); });
+        if (c.people) chips.appendChild(node('span', 'bld-chip ghost', c.people + (c.people === 1 ? ' person' : ' people')));
+        row.appendChild(chips);
+        (c.examples || []).slice(0, 2).forEach(function (e) {
+          var q = node('div', 'bld-quote');
+          q.appendChild(node('span', 'bld-quote-text', e.text));
+          if (e.url) q.appendChild(linkBtn('Open', e.url, null, 'mini'));
+          row.appendChild(q);
+        });
+        parent.appendChild(row);
+      });
+      if (!(b.clusters || []).length) parent.appendChild(node('div', 'bld-empty', 'No request repeats yet. Read more issues or threads, then ask again.'));
+    } else if (b.kind === 'rivals') {
+      (b.rows || []).forEach(function (r) {
+        var row = node('div', 'bld-row rival');
+        var top = node('div', 'bld-row-top');
+        top.appendChild(statePill(r.state, r.label));
+        top.appendChild(node('span', 'bld-name', r.name + (r.mine ? ' (yours)' : '')));
+        row.appendChild(top);
+        var bits = [];
+        if (r.now != null) bits.push(bldNum(r.now) + ' ' + r.metric);
+        if (r.perDay != null) bits.push((r.perDay >= 0 ? '+' : '') + r.perDay + ' a day');
+        bits.push(r.readings + (r.readings === 1 ? ' reading' : ' readings'));
+        if (r.watched) bits.push('watched daily');
+        row.appendChild(node('div', 'bld-sub', bits.join(' · ')));
+        if (r.missing && r.missing[0]) row.appendChild(node('div', 'bld-miss', 'Needs ' + r.missing[0]));
+        if (r.url) { var act = node('div', 'bld-actions'); act.appendChild(linkBtn('Open', r.url, null, 'mini')); row.appendChild(act); }
+        parent.appendChild(row);
+      });
+    } else if (b.kind === 'watch') {
+      (b.list || []).forEach(function (w) {
+        var row = node('div', 'bld-row');
+        var top = node('div', 'bld-row-top');
+        top.appendChild(node('span', 'bld-dot' + (w.ok ? '' : ' off')));
+        top.appendChild(node('span', 'bld-name', w.name));
+        row.appendChild(top);
+        row.appendChild(node('div', 'bld-sub', w.lastAt ? 'Last read ' + new Date(w.lastAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + (w.ok ? '' : ': ' + w.error) : 'Not read yet'));
+        parent.appendChild(row);
+      });
+    } else if (b.kind === 'post') {
+      var decision = node('div', 'bld-decision ' + (b.decision === 'post' ? 'go' : 'skip'));
+      decision.appendChild(node('span', 'state-pill ' + (b.decision === 'post' ? 'is-keep' : 'is-look'), b.decision === 'post' ? 'POST' : 'SKIP TODAY'));
+      decision.appendChild(node('span', 'bld-why', b.why));
+      parent.appendChild(decision);
+      if ((b.facts || []).length) {
+        var fl = node('ul', 'bld-facts');
+        b.facts.forEach(function (f) { fl.appendChild(node('li', '', f)); });
+        parent.appendChild(fl);
+      }
+      (b.drafts || []).forEach(function (d, i) {
+        var box = node('div', 'bld-draft');
+        box.appendChild(node('div', 'bld-draft-text', d.text));
+        var foot = node('div', 'bld-draft-foot');
+        var meter = node('span', 'bld-meter' + (d.chars > d.max ? ' over' : ''), d.chars + ' / ' + d.max);
+        foot.appendChild(meter);
+        var acts = node('div', 'bld-actions');
+        acts.appendChild(copyBtn('Copy', d.text));
+        if (d.intent && INTENT_OK.test(d.intent)) acts.appendChild(linkBtn(i === 0 ? 'Post on X' : 'Open in X', d.intent, INTENT_OK, i === 0 ? 'primary' : ''));
+        foot.appendChild(acts);
+        box.appendChild(foot);
+        parent.appendChild(box);
+      });
+      if (b.decision === 'post') parent.appendChild(node('div', 'bld-note', 'X opens with the text filled in. Nothing is posted until you press Post there.'));
+      bldSources(parent, [b.source]);
+    } else if (b.kind === 'changelog') {
+      var ver = node('div', 'bld-version');
+      ver.appendChild(node('span', 'bld-tag', b.version && b.version.to ? b.version.to : ''));
+      ver.appendChild(node('span', 'bld-why', b.version ? 'Next version' + (b.version.from ? ' after ' + b.version.from : '') + ': ' + b.version.why + '.' : ''));
+      parent.appendChild(ver);
+      var gchips = node('div', 'bld-chips');
+      if (b.commits) gchips.appendChild(node('span', 'bld-chip ghost', b.commits + (b.commits === 1 ? ' commit' : ' commits')));
+      (b.groups || []).forEach(function (g) { gchips.appendChild(node('span', 'bld-chip', g.name + ' ' + g.n)); });
+      if (b.noise) gchips.appendChild(node('span', 'bld-chip ghost', b.noise + ' left out as noise'));
+      parent.appendChild(gchips);
+      if (b.feedNote) parent.appendChild(node('div', 'bld-note', b.feedNote));
+      if (b.markdown) {
+        var pre = node('pre', 'bld-md', b.markdown);
+        parent.appendChild(pre);
+        var ca = node('div', 'bld-actions');
+        ca.appendChild(copyBtn('Copy changelog', b.markdown));
+        if (b.notes) ca.appendChild(copyBtn('Copy release notes', b.notes));
+        if (b.repo) ca.appendChild(linkBtn('New release', b.repo + '/releases/new', null, 'primary'));
+        parent.appendChild(ca);
+        parent.appendChild(node('div', 'bld-note', 'Publishing the release on GitHub waits for your press.'));
+      }
+      bldSources(parent, b.sources);
+    } else if (b.kind === 'launch') {
+      parent.appendChild(node('div', 'bld-line', b.line));
+      var ph = bldSection(parent, 'Product Hunt');
+      var tl = node('div', 'bld-kv');
+      tl.appendChild(node('span', 'bld-k', 'Name'));
+      tl.appendChild(node('span', 'bld-v', b.name));
+      ph.appendChild(tl);
+      (b.taglines || []).forEach(function (t) {
+        var r = node('div', 'bld-pick');
+        r.appendChild(node('span', 'bld-pick-text', t.text));
+        r.appendChild(node('span', 'bld-meter' + (t.fits ? '' : ' over'), t.chars + ' / 60'));
+        r.appendChild(copyBtn('Copy', t.text));
+        ph.appendChild(r);
+      });
+      if (b.description && b.description.text) {
+        var dr = node('div', 'bld-pick');
+        dr.appendChild(node('span', 'bld-pick-text muted', b.description.text));
+        dr.appendChild(node('span', 'bld-meter', b.description.chars + ' / 500'));
+        dr.appendChild(copyBtn('Copy', b.description.text));
+        ph.appendChild(dr);
+      }
+      if ((b.gallery || []).length) {
+        ph.appendChild(node('div', 'bld-label', 'Gallery, 1270x760, one image each'));
+        var gl = node('ol', 'bld-list');
+        b.gallery.forEach(function (g) { gl.appendChild(node('li', '', g)); });
+        ph.appendChild(gl);
+      }
+      ph.appendChild(node('div', 'bld-label', 'First comment, in your words'));
+      var cl = node('ul', 'bld-list');
+      (b.comment || []).forEach(function (c) { cl.appendChild(node('li', '', c)); });
+      ph.appendChild(cl);
+      var when = node('div', 'bld-kv');
+      when.appendChild(node('span', 'bld-k', 'Launch'));
+      when.appendChild(node('span', 'bld-v', b.timing + (b.timingAt ? ', ' + new Date(b.timingAt).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' your time' : '')));
+      ph.appendChild(when);
+      ph.appendChild(node('div', 'bld-note', b.votesRule));
+      var hn = bldSection(parent, 'Show HN');
+      var title = node('div', 'bld-pick');
+      title.appendChild(node('span', 'bld-pick-text strong', b.title ? b.title.text : ''));
+      title.appendChild(node('span', 'bld-meter', (b.title ? b.title.chars : 0) + ' chars'));
+      title.appendChild(copyBtn('Copy', b.title ? b.title.text : ''));
+      hn.appendChild(title);
+      (b.title && b.title.problems || []).forEach(function (p) { hn.appendChild(node('div', 'bld-miss', 'Fix: ' + p)); });
+      var hand = node('div', 'bld-hand');
+      hand.appendChild(node('span', 'bld-hand-mark', 'By hand'));
+      hand.appendChild(node('span', '', b.handwrite));
+      hn.appendChild(hand);
+      hn.appendChild(node('div', 'bld-label', 'Cover, in your own words'));
+      var cv = node('ul', 'bld-list');
+      (b.cover || []).forEach(function (c) { cv.appendChild(node('li', '', c)); });
+      hn.appendChild(cv);
+      (b.facts || []).forEach(function (f) {
+        var kv = node('div', 'bld-kv');
+        kv.appendChild(node('span', 'bld-k', f.what));
+        kv.appendChild(node('span', 'bld-v', f.value));
+        hn.appendChild(kv);
+      });
+      hn.appendChild(node('div', 'bld-note', b.tryable));
+      if (b.submit && SUBMIT_OK.test(b.submit)) {
+        var ha = node('div', 'bld-actions');
+        ha.appendChild(linkBtn('Open the Show HN form', b.submit, SUBMIT_OK, 'primary'));
+        hn.appendChild(ha);
+        hn.appendChild(node('div', 'bld-note', 'Hacker News opens with the link and title filled in. You write the text and press submit there.'));
+      }
+      if ((b.checks || []).length) {
+        var ck = bldSection(parent, 'Your drafts');
+        b.checks.forEach(function (c) {
+          var r = node('div', 'bld-check' + (c.ok ? ' ok' : ' bad'));
+          r.appendChild(node('span', 'bld-check-mark', c.ok ? 'Pass' : 'Fix'));
+          r.appendChild(node('span', '', c.field + ': ' + c.what));
+          ck.appendChild(r);
+        });
+      }
+      bldSources(parent, b.sources);
+    } else if (b.kind === 'askers') {
+      (b.matches || []).forEach(function (m) {
+        var row = node('div', 'bld-row');
+        var top = node('div', 'bld-row-top');
+        top.appendChild(node('span', 'bld-chip', m.source));
+        top.appendChild(node('span', 'bld-name', m.by || 'someone'));
+        if (m.at) top.appendChild(node('span', 'bld-date', m.at));
+        row.appendChild(top);
+        row.appendChild(node('div', 'bld-quote-text block', m.excerpt));
+        if ((m.matched || []).length) {
+          var mc = node('div', 'bld-chips');
+          m.matched.forEach(function (w) { mc.appendChild(node('span', 'bld-chip ghost', w)); });
+          row.appendChild(mc);
+        }
+        if (m.handwrite) {
+          var h = node('div', 'bld-hand');
+          h.appendChild(node('span', 'bld-hand-mark', 'By hand'));
+          h.appendChild(node('span', '', m.closed ? 'This thread is older than two weeks, so Hacker News no longer takes replies there.' : 'Write this reply yourself:'));
+          row.appendChild(h);
+          if (!m.closed) {
+            var ol = node('ul', 'bld-list');
+            (m.outline || []).forEach(function (o) { ol.appendChild(node('li', '', o)); });
+            row.appendChild(ol);
+          }
+        } else if (m.draft) {
+          row.appendChild(node('div', 'bld-draft-text small', m.draft));
+        }
+        var ra = node('div', 'bld-actions');
+        if (m.draft && !m.handwrite) ra.appendChild(copyBtn('Copy reply', m.draft));
+        if (m.url) ra.appendChild(linkBtn('Open thread', m.url, null, 'primary'));
+        row.appendChild(ra);
+        parent.appendChild(row);
+      });
+      if (b.rule) parent.appendChild(node('div', 'bld-note', b.rule.text));
+      if (b.rule) bldSources(parent, [b.rule.source]);
+    } else if (b.kind === 'check') {
+      (b.checks || []).forEach(function (c) {
+        var r = node('div', 'bld-check' + (c.ok ? ' ok' : ' bad'));
+        r.appendChild(node('span', 'bld-check-mark', c.ok ? 'Pass' : 'Fix'));
+        r.appendChild(node('span', '', c.field + ': ' + c.what + (c.ok ? '' : '. ' + c.rule)));
+        parent.appendChild(r);
+      });
+      bldSources(parent, (b.checks || []).map(function (c) { return c.source; }));
+    }
+  }
+
   function msgEl(row) {
     var box;
     if (row.role === 'press') return pressEl(row);
@@ -380,6 +689,7 @@
       var inner = node('div', 'card-text');
       inner.appendChild(node('div', 'what', row.text));
       if (meta.decision && typeof meta.decision === 'object') decisionEl(inner, meta.decision, box);
+      else if (meta.builder && typeof meta.builder === 'object' && meta.status !== 'running') builderEl(inner, meta.builder, box);
       else if (meta.detail) inner.appendChild(node('div', 'detail', meta.detail));
       if (Array.isArray(meta.missing) && meta.missing.length) missingEl(inner, meta.missing, 'Missing before ZERACK offers to spend', 'You can still do it yourself on the page.');
       box.appendChild(inner);

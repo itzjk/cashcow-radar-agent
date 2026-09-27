@@ -159,7 +159,7 @@ section("4. No inline script and no inline handler, the CSP blocks both");
   let bad = 0;
   for (const page of htmlFiles) {
     const html = read(page);
-    const inline = (html.match(/<script(?![^>]*\ssrc)[^>]*>[\s\S]*?<\/script>/gi) || [])
+    const inline = (html.match(/<script(?![^>]*\ssrc)(?![^>]*\stype=["']application\/(?:ld\+)?json["'])[^>]*>[\s\S]*?<\/script>/gi) || [])
       .filter(b => b.replace(/<\/?script[^>]*>/gi, "").trim().length > 0);
     if (!inline.length) continue;
     if (linked(page)) { bad++; fail(rel(page) + " has " + inline.length + " inline script block(s) and something links to it, so the CSP kills the page inside Chrome"); }

@@ -440,4 +440,23 @@ async function pressCase(how) {
   check("moving to another Stripe page is a read, so it runs", nav.ok === true && w.tabs[5].url === "https://dashboard.stripe.com/payments", nav);
 }
 
+{
+  const w = world({ playbooks: true, sites: { "github.com": { mode: "act", since: 1 }, "dashboard.stripe.com": { mode: "act", since: 1 } }, granted: ["https://github.com/*", "https://dashboard.stripe.com/*"] });
+  w.newPage(5, "https://github.com/settings/tokens");
+  const read = await w.A.run("zerackPage", { action: "read" }, w.run(5));
+  check("a settings or tokens page is private: not even read, with its reason", read.ok === false && read.code === "private" && /tokens and keys stay with you/.test(read.error) && !w.calls.some(c => c.api === "executeScript"), read);
+  const ext = await w.A.run("zerackExtract", {}, w.run(5));
+  check("the page readers refuse it too", ext.code === "private" && !w.calls.some(c => c.api === "executeScript"), ext);
+  w.newPage(6, "https://github.com/itzjk/cashcow-radar-agent/settings/secrets/actions");
+  check("so is a repository's settings, secrets included", (await w.A.run("zerackPage", { action: "click", target: '"New repository secret"' }, w.run(6))).code === "private");
+  w.newPage(7, "https://github.com/itzjk/cashcow-radar-agent");
+  const nav = await w.A.run("zerackPage", { action: "navigate", url: "https://github.com/settings/personal-access-tokens/new" }, w.run(7));
+  check("and the agent does not walk into one", nav.code === "private" && w.tabs[7].url === "https://github.com/itzjk/cashcow-radar-agent", nav);
+  const repo = await w.A.run("zerackPage", { action: "read" }, w.run(7));
+  check("the repository itself reads as usual", repo.ok === true, repo);
+  w.newPage(8, "https://dashboard.stripe.com/test/apikeys");
+  check("Stripe's API keys page is private, not only read only", (await w.A.run("zerackPage", { action: "read" }, w.run(8))).code === "private");
+  check("the rule is in the agent, so every surface gets it", typeof w.A.privateOf === "function" && w.A.privateOf("https://github.com/settings/keys").why === "settings, tokens and keys stay with you" && w.A.privateOf("https://github.com/o/r") === null);
+}
+
 done("page-agent");

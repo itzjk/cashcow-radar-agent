@@ -82,7 +82,9 @@ const cases = [
   ["search.google.com", "/search-console/removals", "New request", "Delete"], ["search.google.com", "/search-console/disavow-links", "Disavow links", "refused"],
   ["search.google.com", "/search-console/users", "Add user", "refused"], ["search.google.com", "/search-console/performance", "Export", "free"],
   ["github.com", "/o/r/pull/5", "Merge pull request", "Publish"], ["github.com", "/o/r/issues/5", "Close issue", "Publish"], ["github.com", "/o/r/settings", "Delete this repository", "refused"],
-  ["github.com", "/o/r/issues", "Label", "free"], ["www.producthunt.com", "/posts/x", "Upvote", "Publish"], ["vercel.com", "/team/app", "Redeploy", "Publish"],
+  ["github.com", "/o/r/issues", "Label", "free"], ["www.producthunt.com", "/posts/x", "Upvote", "refused"], ["github.com", "/o/r", "Star", "refused"], ["github.com", "/o/r", "You must be signed in to star a repository", "refused"], ["github.com", "/o/r", "Star this repository (41)", "refused"], ["github.com", "/o/r", "Starred", "refused"], ["github.com", "/o/r", "Watch 3", "refused"], ["www.producthunt.com", "/products/x", "Follow Cashcow Radar", "refused"], ["www.producthunt.com", "/products/x", "Watch the demo", "free"], ["github.com", "/o/r", "Stars", "free"], ["github.com", "/someone", "Follow", "refused"], ["github.com", "/o/r", "Sponsor", "refused"],
+  ["news.ycombinator.com", "/item", "add comment", "Send"], ["news.ycombinator.com", "/reply", "reply", "Send"], ["news.ycombinator.com", "/item", "upvote", "refused"], ["github.com", "/o/r/releases/new", "Publish release", "Publish"],
+  ["github.com", "/o/r", "Fork", "Publish"], ["github.com", "/o/r/issues/new", "Submit new issue", "Send"], ["github.com", "/o/r/compare/main...x", "Create pull request", "Send"], ["github.com", "/o/r/releases/new", "Save draft", "free"], ["vercel.com", "/team/app", "Redeploy", "Publish"],
   ["x.com", "/messages", "DM", "Send"], ["www.linkedin.com", "/in/x", "Send direct message", "Send"], ["example-shop.com", "/admin/orders/1", "Mark as shipped", "Fulfill"]
 ];
 const off = cases.filter(([h, p, n, want]) => kind(gate(h, p, n)) !== want);

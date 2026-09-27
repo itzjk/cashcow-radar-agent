@@ -23,7 +23,20 @@
     zerackExtract: 'Read the numbers on the page',
     zerackPlaybook: 'Read the playbook',
     zerackBreakEven: 'Work out the break-even',
-    zerackDecide: 'Decide with the numbers'
+    zerackDecide: 'Decide with the numbers',
+    zerackBuilder: 'Do the builder work'
+  };
+
+  var BUILDER_LABELS = {
+    requests: 'Find the requests that repeat',
+    askers: 'Find people asking for it',
+    rivals: 'Check which rivals accelerate',
+    watch: 'Watch',
+    unwatch: 'Stop watching',
+    post: 'Decide what to post today',
+    changelog: 'Write the changelog',
+    launch: 'Build the launch kit',
+    check: 'Check the drafts against the rules'
   };
 
   var READER_LABELS = {
@@ -38,7 +51,19 @@
     'wp.posts': 'Read the posts on the page',
     'github.issues': 'Read the issues on the page',
     'stripe.subscriptions': 'Read the Stripe list on the page',
-    'stripe.payments': 'Read the Stripe payments on the page'
+    'stripe.payments': 'Read the Stripe payments on the page',
+    'stripe.home': 'Read the Stripe overview on the page',
+    'plausible.stats': 'Read the analytics on the page',
+    'github.repo': 'Read the repository',
+    'github.commits': 'Read the latest commits',
+    'github.releases': 'Read the releases',
+    'github.traffic': 'Read the repository traffic',
+    'hn.item': 'Read the Hacker News thread',
+    'hn.list': 'Read the Hacker News list',
+    'reddit.thread': 'Read the Reddit thread',
+    'ph.product': 'Read the Product Hunt page',
+    'npm.package': 'Read the npm package',
+    'pypi.package': 'Read the PyPI project'
   };
 
   var BROWSER_LABELS = {
@@ -72,6 +97,11 @@
     if (name === 'zerackPage') return pageStep(args);
     if (name === 'zerackExtract') return READER_LABELS[String(args.reader || '')] || LABELS.zerackExtract;
     if (name === 'zerackDecide') return args.question ? 'Decide: ' + clip(args.question, 70) : LABELS.zerackDecide;
+    if (name === 'zerackBuilder') {
+      var act = String(args.action || '').toLowerCase();
+      var head = BUILDER_LABELS[act] || LABELS.zerackBuilder;
+      return (act === 'watch' || act === 'unwatch') && args.url ? head + ' ' + clip(String(args.url).replace(/^https?:\/\//, ''), 60) : head;
+    }
     if (name === 'zerackBreakEven') return args.price != null && args.price !== '' ? 'Work out what a ' + clip('$' + args.price, 12) + ' sale leaves' : LABELS.zerackBreakEven;
     if (name === 'zerackPagePlan') {
       var n = Array.isArray(args.steps) ? args.steps.length : 0;
@@ -110,6 +140,7 @@
     if (result.ok === false && result.code === 'read_only') return 'Only reading is allowed on ' + (result.host || 'this site');
     if (result.ok === false && result.code === 'refused' && result.why) return clip('Refused: ' + result.why + '. Only you can do this', 160);
     if (result.ok === false && result.code === 'sensitive') return 'Refused: this field is yours to fill in';
+    if (result.ok === false && result.code === 'private') return clip('Not read: ' + (result.why || 'this page holds your settings, tokens or keys'), 160);
     if (result.ok === false && result.code === 'drift') return 'The site changed this page, so nothing was reported instead of a wrong number';
     if (result.ok === false && result.code === 'not_exposed') return 'This site hides that data: hidden, not empty';
     if (result.ok === false && result.code === 'kept_read_only') return clip('ZERACK only reads ' + (result.host || 'this site') + ': this step is yours', 160);
