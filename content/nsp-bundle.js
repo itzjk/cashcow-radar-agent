@@ -1,4 +1,4 @@
-﻿console.log('[NSP] v4.92.1 starting');
+﻿console.log('[NSP] v0.1.0 starting');
 
 // Only path that writes HTML into the youtube.com DOM. YouTube enforces Trusted Types, and this file never registers a
 // 'default' policy: one that passes every string would switch that protection off for every script on the page. The
