@@ -134,7 +134,7 @@
   var BUSINESS = { asin: ['(child) asin', 'child asin', 'asin', '(parent) asin'], title: ['title'], sessions: ['sessions - total', 'sessions', 'sessions total'], unitSession: ['unit session percentage', 'unit session percentage - b2b'], units: ['units ordered'], sales: ['ordered product sales'] };
   var BUSINESS_TYPES = { sessions: 'int', unitSession: 'pct', units: 'int', sales: 'money' };
 
-  var RETAIL = /(^|\.)amazon\.(com|ca|co\.uk|de|fr|it|es|nl|se|pl|ie|com\.mx|com\.au|com\.br|co\.jp|in|com\.be)$/;
+  var RETAIL = /^(?:www\.|smile\.)?amazon\.(com|ca|co\.uk|de|fr|it|es|nl|se|pl|ie|com\.mx|com\.au|com\.br|co\.jp|in|com\.be)$/;
 
   var PLAYBOOK = {
     id: 'amazon',

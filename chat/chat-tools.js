@@ -198,7 +198,7 @@
     if (result.ok === false && result.code === 'not_exposed') return 'This site hides that data: hidden, not empty';
     if (result.ok === false && result.code === 'kept_read_only') return clip('ZERACK only reads ' + (result.host || 'this site') + ': this step is yours', 160);
     if (result.ok === false && result.code === 'missing' && Array.isArray(result.missing)) return clip('Needs ' + result.missing.join(' and ') + ' from you first', 160);
-    if (result.ok === false && result.code === 'needs_evidence') return 'Not offered: spending waits for a measured test on this site';
+    if (result.ok === false && result.code === 'needs_evidence') return 'Not offered: ad spend waits for a measured test on this page';
     if (result.ok === false && result.code === 'lead_needed' && !result.why) return 'Not offered: this send needs a drafted lead, so the cap and the opt-out apply';
     if (result.ok === false && result.why && LEAD_CODES[result.code] === 1) return clip('Not offered: ' + result.why, 180);
     if (result.ok === false && PAGE_ENDS[result.code]) return PAGE_ENDS[result.code];

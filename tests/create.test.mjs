@@ -29,6 +29,7 @@ NOT.forEach(t => check("stays with the model: " + t, C.intent(t) === null, C.int
 check("the length asked for is kept", C.intent("write a 10 minute script about the Voynich manuscript").minutes === 10);
 check("a video link is the target of the Shorts miner", C.intent("find the best shorts in https://www.youtube.com/watch?v=n82XWvEa22Q").target.video === "n82XWvEa22Q");
 check("a handle is the target of the earnings", C.intent("cuánto dinero gana @veritasium").who.handle === "@veritasium");
+["how much does she make", "cuánto gana él", "cuánto gana este tipo", "how much does the guy make", "¿Cuánto gana este chico?", "cuánto gana ella"].forEach(t => check("a person on screen is the tab, never a channel search: " + t, (C.intent(t) || {}).who && C.intent(t).who.tab === true, C.intent(t)));
 check("Spanish asks answer in Spanish", C.intent("cuánto gana este canal").lang === "es" && C.intent("how much does this channel earn").lang === "en");
 
 const DAY = 86400000, NOW = Date.UTC(2026, 8, 27);
@@ -53,6 +54,17 @@ const mixed = videos.map((v, i) => Object.assign({}, v, { title: i === 3 ? "How 
 const byAll = C.earnings({ channel: { name: "Rome Deep" }, videos: mixed, stats, language: "en", now: NOW }, "en");
 const byVote = C.earnings({ channel: { name: "Rome Deep" }, videos: mixed, stats, language: "en", now: NOW, niche: { label: "Historia", name: "History", count: 29 } }, "en");
 check("one finance title does not turn a history channel into finance when the niche is voted title by title", byAll.model.niche === "Finance" && byVote.model.niche === "History" && byVote.model.rpmUsed < byAll.model.rpmUsed && /29 of 30 uploads read as History/.test(byVote.sections.find(s => s.id === "rate").note), { all: byAll.model.niche, vote: byVote.model.niche });
+{
+  const T = g.NSP_RPM_TABLA;
+  const spread = videos.map((v, i) => Object.assign({}, v, { title: i < 6 ? "AI agents and ChatGPT tricks, part " + i : (i < 8 ? "The physics of black holes and the universe " + i : "Weird stories people told me, episode " + i) }));
+  const label = T.resolver(spread[0].title, {}).label;
+  const vote = { label, name: T.nombreDe(label), count: 6, n: 30, mixed: true };
+  const single = g.NspDineroRpm.proyeccion({ tema: spread.slice(0, 6).map(v => v.title).join(" . "), vistasMes: 1000, duracionSegundos: 1450, idioma: "en" });
+  const m = C.earnings({ channel: { name: "Spread" }, videos: spread, stats, language: "en", now: NOW, niche: vote }, "en");
+  check("a niche that holds 6 of 30 titles is not used to price the whole channel", m.model.rpmUsed < single.rpm && /mixed niche/.test(m.lead) && /holds only 6 of 30/.test(m.sections.find(s => s.id === "rate").note), { used: m.model.rpmUsed, single: single.rpm, lead: m.lead });
+  const es = C.earnings({ channel: { name: "Spread" }, videos: spread, stats, language: "en", now: NOW, niche: vote }, "es");
+  check("and in Spanish it says so too", /nicho mixto/.test(es.lead), es.lead);
+}
 check("ages parse to days", C.daysOf("3 weeks ago") === 21 && C.daysOf("2 days ago") === 2 && Math.round(C.daysOf("1 month ago")) === 30);
 
 const chapters = C.parseChapters("0:00 The walls\n1:35 The guns\n(4:10) The chain\n12:05 - The last night\nnot a chapter");

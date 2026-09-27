@@ -39,13 +39,14 @@ const hosts = [
   ["localhost", "/", "builders"], ["app.localhost", "/", "builders"], ["notetsy.com", "/", ""], ["etsy.com.evil.example", "/", ""], ["www.youtube.com", "/", ""], ["example.com", "/", ""],
   ["www.tiktok.com", "/@duolingo", "creators"], ["www.instagram.com", "/nasa/reels/", "creators"], ["tiktok.com.evil.example", "/", ""],
   ["www.upwork.com", "/nx/search/jobs/", "freelance"], ["www.fiverr.com", "/categories/x", "freelance"], ["www.google.com", "/maps/search/dentist", "local"], ["www.google.com", "/search", ""], ["maps.google.com", "/", "local"], ["business.google.com", "/locations", "local"],
-  ["www.amazon.com", "/s", "amazon"], ["www.amazon.de", "/dp/B000000000", "amazon"], ["kdp.amazon.com", "/en_US/bookshelf", "amazon"], ["sellercentral.amazon.com", "/home", "amazon"], ["amazon.com.evil.example", "/", ""],
+  ["www.amazon.com", "/s", "amazon"], ["www.amazon.de", "/dp/B000000000", "amazon"], ["kdp.amazon.com", "/en_US/bookshelf", "amazon"], ["sellercentral.amazon.com", "/home", "amazon"], ["amazon.com.evil.example", "/", ""], ["console.aws.amazon.com", "/billing/home", ""], ["aws.amazon.com", "/", ""], ["docs.aws.amazon.com", "/lambda/", ""], ["developer.amazon.com", "/alexa", ""], ["music.amazon.com", "/", ""], ["amazon.com", "/", "amazon"], ["smile.amazon.com", "/", "amazon"],
   ["lenny.substack.com", "/archive", "newsletter"], ["app.beehiiv.com", "/posts", "newsletter"], ["taskspaces.gumroad.com", "/l/x", "digital"], ["app.lemonsqueezy.com", "/dashboard", "digital"], ["payhip.com", "/b/x", "digital"], ["www.g2.com", "/products/notion/reviews", "builders"], ["www.g2.com", "/categories/x", ""]
 ];
 const wrong = hosts.filter(([h, p, want]) => P.forHost(h, p) !== want);
 check("each host and path lands on the right playbook, and look-alike hosts on none", wrong.length === 0, wrong.map(([h, p, w]) => h + p + " -> " + P.forHost(h, p) + " want " + w));
 check("a URL finds its playbook too", P.forUrl("https://www.etsy.com/listing/1/x") === "etsy" && P.forUrl("chrome://extensions") === "");
 check("a question that names the business finds its playbook with no page open",
+  P.forQuery("How should I price this fishing reel?") === "" && P.forQuery("Which of my gigs posters sells best?") === "" && P.forQuery("It connects to Stripe") === "" && P.forQuery("Should I post Instagram reels?") === "creators" && P.forQuery("My Fiverr gigs get no orders") === "freelance" &&
   P.forQuery("My TikTok views dropped") === "creators" && P.forQuery("Which Upwork jobs should I bid on?") === "freelance" && P.forQuery("Find local clients for my agency") === "local" && P.forQuery("What does my KDP paperback leave?") === "amazon" && P.forQuery("How do I raise my newsletter open rate?") === "newsletter" && P.forQuery("Should I move from Gumroad to Payhip?") === "digital" && P.forQuery("Reading my rivals' G2 reviews") === "builders" &&
   P.forQuery("How do I get more sales on my Etsy shop?") === "etsy" && P.forQuery("Mi tienda de Shopify no vende") === "shopify" && P.forQuery("My SaaS churn is 8% a month") === "builders" && P.forQuery("How do I rank on Google Search Console?") === "seo" && P.forQuery("What should I cook tonight?") === "" && P.forQuery("I run a team of home builders") === "" && P.forQuery("Employee onboarding checklist") === "");
 
@@ -53,7 +54,7 @@ const orders = P.readerFor("shopify", "admin.shopify.com", "/store/x/orders");
 check("the Shopify orders list reads with the orders table columns", orders && orders.id === "table" && orders.as === "shopify.orders" && orders.opts.columns.fulfillment.includes("fulfillment status"), orders);
 check("the Shopify admin never gets the storefront catalog reader", !P.readerFor("shopify", "admin.shopify.com", "/store/x/settings"), P.readerFor("shopify", "admin.shopify.com", "/store/x/settings"));
 check("an Etsy listing, shop and search each get their own reader", P.readerFor("etsy", "www.etsy.com", "/listing/123/x").id === "etsy.listing" && P.readerFor("etsy", "www.etsy.com", "/shop/Northwind").id === "etsy.shop" && P.readerFor("etsy", "www.etsy.com", "/search").id === "etsy.grid");
-check("a reader can be asked for by name, table readers included", P.reader("seo", "gsc.queries").opts.need.join() === "clicks,impressions,position" && P.reader("shopify", "shopify.products").id === "shopify.products");
+check("a reader can be asked for by name, table readers included", P.reader("seo", "gsc.queries").opts.need.join() === "clicks,impressions" && P.reader("shopify", "shopify.products").id === "shopify.products");
 
 const one = P.lookup("etsy", { lesson: "e1-l2" });
 check("a lesson comes back with its steps, tools and sources", one.ok && one.lessons[0].id === "e1-l2" && one.lessons[0].sources[0].includes("https://www.etsy.com/seller-handbook/article/1399426136697") && one.lessons[0].youCanRun.some(t => /zerackPage/.test(t)), one);

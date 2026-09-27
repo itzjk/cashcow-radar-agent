@@ -229,10 +229,20 @@ const card = (store, convId, kind) => until(() => { const r = store.rows.filter(
   check("the message carries no save, publish or visibility order", sent.length === 1 && Object.keys(sent[0].msg).join() === "type,pkg" && Object.keys(sent[0].msg.pkg).join() === "title,description,tags");
   check("the report says it is filled and not saved", filled && filled.hero.value === "Filled" && filled.sections[0].rows.some(r => r.label === "Saved" && /^No\./.test(r.value)), filled && filled.hero);
 
-  const peek = await w.send({ type: "NSP_STUDIO_PACKAGE", op: "peek" }, SENDERS.studio);
-  check("the Studio page can see that a package is approved", peek && peek.has === true && peek.title === "The Night the City Fell" && !peek.pkg);
+  check("the first fill binds the package to the video it went into", w.local.nsp_studio_package.video === "abcdefghijk", w.local.nsp_studio_package.video);
+  const peek = await w.send({ type: "NSP_STUDIO_PACKAGE", op: "peek", videoId: "abcdefghijk" }, SENDERS.studio);
+  check("the Studio page can see that a package is approved for its video", peek && peek.has === true && peek.bound === true && peek.title === "The Night the City Fell" && !peek.pkg);
+  const other = await w.send({ type: "NSP_STUDIO_PACKAGE", op: "peek", videoId: "zzzzzzzzzzz" }, SENDERS.studio);
+  const otherPrep = await w.send({ type: "NSP_STUDIO_PACKAGE", op: "prepare", videoId: "zzzzzzzzzzz" }, SENDERS.studio);
+  check("another video's Details page is not offered that package, and cannot fetch it", other && other.has === false && other.video === "abcdefghijk" && otherPrep && !otherPrep.pkg, { other, otherPrep });
   const prep = await w.send({ type: "NSP_STUDIO_PACKAGE", op: "prepare", videoId: "abcdefghijk" }, SENDERS.studio);
   check("and fetch it to fill on the user's press there", prep && prep.pkg && prep.pkg.title === "The Night the City Fell" && prep.timing === "script");
+  const saved = await w.send({ type: "NSP_STUDIO_PACKAGE", op: "saved", videoId: "abcdefghijk" }, SENDERS.studio);
+  const after = await w.send({ type: "NSP_STUDIO_PACKAGE", op: "peek", videoId: "abcdefghijk" }, SENDERS.studio);
+  check("once Studio confirms the save the package is spent and not offered again", saved && saved.ok === true && after && after.has === false && after.spent === true, { saved, after });
+  sent.length = 0;
+  await job(w, "p-1", { op: "studio_fill" }, "Fill in Studio");
+  check("and the chat will not fill a spent package into Studio again", sent.length === 0);
   const fromYt = await w.send({ type: "NSP_STUDIO_PACKAGE", op: "prepare" }, SENDERS.youtube);
   const fromSite = await w.send({ type: "NSP_STUDIO_PACKAGE", op: "prepare" }, SENDERS.site);
   check("no other page can read the package", fromYt && fromYt.error === "sender_not_allowed" && fromSite && fromSite.error === "sender_not_allowed");
@@ -266,6 +276,36 @@ const card = (store, convId, kind) => until(() => { const r = store.rows.filter(
   const { w, store } = worker({}, "https://www.youtube.com/watch?v=" + VID);
   const res = await new Promise(r => w.context.nspChatToolNow("zerackShortsMiner", { video: VID }, { origin: "chat", lang: "en", chatRun: { convId: "t-1", tabId: -1, stopped: false, gone: false, chain: Promise.resolve() } }, r));
   check("the model tool shows the Shorts card and returns the cuts", res && res.ok && res.card === "shorts" && res.data.clips.length >= 3 && store.rows.some(r => r.convId === "t-1" && r.meta.card.kind === "shorts"), res && res.data);
+}
+
+{
+  const TABS = [
+    { id: 61, url: "https://mail.proton.me/u/0/inbox", title: "Inbox: The fall of Constantinople notes" },
+    { id: 62, url: "https://app.hubspot.com/contacts/1/record/0-1/5", title: "Constantinople fall contact" },
+    { id: 63, url: "https://github.com/settings/tokens", title: "Personal access tokens: fall of Constantinople" },
+    { id: 64, url: "https://en.wikipedia.org/wiki/Fall_of_Constantinople", title: "Fall of Constantinople - Wikipedia" }
+  ];
+  const TEXT = { 61: "Secret mail about the fall of Constantinople in 1453, token 1234", 62: "Contact record: fall of Constantinople customer", 63: "ghp_abcdefghijklmnopqrstuvwxyz0123456789 fall of Constantinople", 64: "The Fall of Constantinople was the capture of the Byzantine capital by the Ottoman Empire in 1453." };
+  const boot = sites => {
+    const w = loadWorker({ allSites: true, local: sites ? { nsp_agent_sites: sites } : {} });
+    const read = [];
+    w.context.chrome.tabs = { query: (q, cb) => setImmediate(() => cb(TABS)) };
+    w.context.chrome.scripting = { executeScript: inj => { read.push(inj.target.tabId); const t = TABS.find(x => x.id === inj.target.tabId); return Promise.resolve([{ result: { title: t.title, url: t.url, lang: "en", text: TEXT[t.id], password: false } }]); } };
+    return { w, read };
+  };
+  const a = boot(null);
+  const none = await a.w.context.nspCreatePages("the fall of Constantinople");
+  check("with Chrome's blanket grant from the bubble switch but no consent in ZERACK, no open tab is read", a.read.length === 0 && none.pages.length === 0, { read: a.read, pages: none.pages.map(p => p.url) });
+  check("the tabs about the topic are asked for instead, one site at a time, never a mail inbox or a CRM", none.origins.join() === "https://en.wikipedia.org/*" && none.sites.every(x => x.consent === "none"), none.origins);
+  check("a settings, tokens or keys page is never read nor asked for", !none.origins.includes("https://github.com/*") && !a.read.includes(63) && none.tried.some(t => /private page/.test(t.why)), none.tried);
+  const now = Date.now();
+  const b = boot({ "en.wikipedia.org": { mode: "read", playbook: "web", since: now }, "github.com": { mode: "act", playbook: "builders", since: now } });
+  const got = await b.w.context.nspCreatePages("the fall of Constantinople");
+  check("a site the user allowed is read, and only that one", b.read.join() === "64" && got.pages.length === 1 && /Byzantine capital/.test(got.pages[0].text), { read: b.read, pages: got.pages.map(p => p.url) });
+  check("an allowed site's private page stays unread", !b.read.includes(63) && !got.pages.some(p => /ghp_/.test(p.text)));
+  const c = boot({});
+  await c.w.context.nspCreatePages("the fall of Constantinople");
+  check("after Stop ZERACK on a site removes its consent, the Chrome grant alone reads nothing", c.read.length === 0, c.read);
 }
 
 clearInterval(keep);

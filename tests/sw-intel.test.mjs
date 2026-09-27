@@ -32,7 +32,7 @@ function fetchTable(url, init) {
   if (/youtubei\/v1\/search/.test(url)) {
     const body = JSON.parse(init.body);
     searches.push(body);
-    if (body.params === "EgIQAg==") return { status: 200, body: /nobody/.test(body.query) ? { contents: [] } : { contents: [{ channelRenderer: { channelId: ID, navigationEndpoint: { browseEndpoint: { canonicalBaseUrl: "/@hist" } } } }] } };
+    if (body.params === "EgIQAg==") return { status: 200, body: /nobody/.test(body.query) ? { contents: [] } : (/^(?:she|el)$/.test(body.query) ? { contents: [{ channelRenderer: { channelId: "UCssssssssssssssssssssss", title: { simpleText: "Sheet Music Daily" }, navigationEndpoint: { browseEndpoint: { canonicalBaseUrl: "/@sheetmusic" } } } }] } : { contents: [{ channelRenderer: { channelId: ID, title: { simpleText: "History Deep" }, navigationEndpoint: { browseEndpoint: { canonicalBaseUrl: "/@hist" } } } }] }) };
     return { status: 200, body: { contents: NEAR.concat([ID]).map((cid, i) => ({ videoRenderer: { videoId: "s" + String(i).padStart(10, "0"), title: { runs: [{ text: "Ancient empire secrets" }] }, ownerText: { runs: [{ text: "C", navigationEndpoint: { browseEndpoint: { browseId: cid } } }] } } })) } };
   }
   if (/feeds\/videos\.xml/.test(url)) return { status: 404, body: "" };
@@ -98,10 +98,14 @@ const CHAT = { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=overlay", t
   const w = loadWorker({ fetch: fetchTable });
   const store = fakeStore();
   w.context.NSP_CHAT_STORE = store;
-  w.context.nspIntelTabUrl = () => Promise.resolve("https://www.google.com/search?q=cats");
-  w.context.nspChatRun({ convId: "conv-2", text: "why did this blow up", lang: "en" }, CHAT, () => {});
-  const row = await until(() => store.rows.find(r => r.role === "assistant"));
-  check("off YouTube it says to open a channel, and reads nothing", row && /Open a YouTube channel or video first/.test(row.text) && !store.rows.some(r => r.role === "intel") && !w.fetches.some(f => /youtube\.com/.test(f.url)), row);
+  w.context.nspIntelTabUrl = () => Promise.resolve("https://github.com/acme/widget");
+  const thought = [];
+  const think = w.context.nspChatThink;
+  w.context.nspChatThink = run => { thought.push(run.text); return Promise.resolve(null); };
+  for (const [i, t] of ["why did this blow up", "Is this dead?", "track this", "how much does she make"].entries()) w.context.nspChatRun({ convId: "conv-2" + i, text: t, lang: "en" }, CHAT, () => {});
+  await until(() => thought.length === 4, 5000);
+  check("off YouTube a phrase about this tab goes to the model, never to a YouTube card, and reads nothing on YouTube", thought.length === 4 && !store.rows.some(r => r.role === "intel" || /Open a YouTube channel/.test(r.text)) && !w.fetches.some(f => /youtube\.com/.test(f.url)), { thought, rows: store.rows.map(r => [r.role, String(r.text).slice(0, 60)]) });
+  w.context.nspChatThink = think;
   w.context.nspIntelTabUrl = () => Promise.resolve("https://www.youtube.com/@hist/videos");
   w.context.nspChatRun({ convId: "conv-3", text: "compara este canal con nobody here", lang: "es" }, CHAT, () => {});
   const none = await until(() => store.rows.find(r => r.convId === "conv-3" && r.role === "assistant"));
@@ -117,6 +121,8 @@ const CHAT = { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=overlay", t
   check("the model's verdict tool shows the card and returns its numbers", res.ok && res.shownInChat && res.data.verdict && store.rows.some(r => r.role === "intel" && r.meta.card.kind === "verdict"), res);
   const f = await new Promise(r => w.context.nspChatToolNow("zerackFormula", { channel: "History Deep" }, { origin: "chat", lang: "en", chatRun: run }, r));
   check("a channel named in words is found by a channel search", f.ok && f.data.channel === "History Deep", f);
+  check("a search hit whose title and handle do not match the name is not taken", await w.context.nspIntelSearch("she") === "" && await w.context.nspIntelSearch("History Deep") === "https://www.youtube.com/@hist", null);
+  check("a partial name that starts the channel title is taken", await w.context.nspIntelSearch("history") === "https://www.youtube.com/@hist");
   check("with no pixels to read, the thumbnail style is marked not measured", f.data.thumbnails === "not measured", f.data.thumbnails);
   const d = await new Promise(r => w.context.nspChatToolNow("zerackDuel", { channelA: "@hist" }, { origin: "chat", lang: "en", chatRun: run }, r));
   check("a duel with one side asks for the second channel", d.ok === false && /second channel/.test(d.error), d);

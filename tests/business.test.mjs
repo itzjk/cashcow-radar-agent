@@ -33,7 +33,7 @@ check("the video cadence still reads the same", C.NSP_CADENCIA.medir([{ views: 1
   check("ads, Star Sellers and free shipping are counted, not guessed", a.ads.count === 12 && a.starSeller.count === 24 && a.freeShipping.count === 28 && a.reviewsNotShown === 0);
   check("the reverse engine names the words the most reviewed titles share", a.titles.leaders && a.titles.leaders.count === 12 && a.titles.leaders.wordsTheyShare.join() === "gift,wall" && a.titles.leaders.examples[0].metric === 61800, a.titles.leaders);
   check("the most reviewed card leads the list", a.mostReviewed[0].reviews === 61800 && a.mostReviewed[0].price === 14.62);
-  check("the line the chat shows carries the numbers", r.line === "36 listings read, median price $102.54 ($37.89 to $178.48), 12 ads, 24 Star Sellers, the most reviewed sit at $24.99.", r.line);
+  check("the line the chat shows carries the numbers", r.line === "36 listings read, median price $102.54 (middle half $37.89 to $178.48, all $6.60 to $1915.00), 12 ads, 24 Star Sellers, the most reviewed quarter has a median price of $24.99.", r.line);
   check("the model gets 12 compact rows and knows 24 more exist", r.rows.length === 12 && r.moreRows === 24 && !("metric" in r.rows[0]) && !("bestseller" in r.rows[0]));
   check("the result fits what the brain passes on for this tool", JSON.stringify(r).length < 9000 && /^\{"ok":true,"reader":"etsy.grid","label":"Etsy listings","count":36,"url":"[^"]+","pageTitle":"[^"]+","line":/.test(JSON.stringify(r)));
 }
@@ -59,13 +59,17 @@ check("the video cadence still reads the same", C.NSP_CADENCIA.medir([{ views: 1
   check("the catalog line says what a rival launches and how often", /^120 products, median price \$14\.00, 23 launched in the last 30 days, a new batch every 14 days, the last one 9 days ago, 1 on sale\.$/.test(r.line), r.line);
 }
 {
-  const r = B.analyze(await read("gsc-performance.html", "https://search.google.com/search-console/performance/search-analytics", "table", tableOpts("search.google.com", "/search-console/x")), ENGINES);
+  const gscRead = await read("gsc-performance.html", "https://search.google.com/search-console/performance/search-analytics", "table", tableOpts("search.google.com", "/search-console/x"));
+  const gscRows = JSON.parse(JSON.stringify(gscRead.rows));
+  const r = B.analyze(gscRead, ENGINES);
   const a = r.analysis;
   check("Search Console totals are the sum of the rows", a.clicks === 1778 && a.impressions === 69485 && a.ctr === 2.56, a);
   check("rows under 200 impressions are not judged", a.tooFewImpressions === 2 && a.judged === 16 && a.minimumImpressions === 200);
   check("page two lists positions 8 to 20 by impressions", a.pageTwo.map(x => x.name).join("|") === "personalized coffee mug|custom mug|custom mug gift for dad|large coffee mug 20 oz|speckled mug|birthday mug", a.pageTwo.map(x => x.name));
   check("seen and not clicked compares a row with this site's own rows at a similar position", a.seenNotClicked.length === 1 && a.seenNotClicked[0].name === "large coffee mug 20 oz" && a.seenNotClicked[0].ctr === 0.2 && a.seenNotClicked[0].ctrOfSimilar === 1.1, a.seenNotClicked);
   check("a query under 200 impressions at position 9.9 is never put on page two", !a.pageTwo.some(x => x.name === "blue glazed mug"));
+  const bare = B.analyze({ ok: true, reader: "gsc.queries", rows: gscRows.map(x => ({ query: x.query, clicks: x.clicks, impressions: x.impressions })) }, ENGINES);
+  check("with Average position off, the totals still read and the line says to turn it on", bare.analysis.clicks === 1778 && bare.analysis.positionShown === false && bare.analysis.pageTwo.length === 0 && /turn it on above the chart/.test(bare.line), bare.line);
 }
 {
   const r = B.analyze(await read("shopify-admin-orders.html", "https://admin.shopify.com/store/northwind-demo/orders", "table", tableOpts("admin.shopify.com", "/store/x/orders")), ENGINES);

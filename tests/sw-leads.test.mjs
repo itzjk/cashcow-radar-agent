@@ -67,7 +67,9 @@ const SENDER = { name: "Ana Ruiz", business: "Ruiz Studio", address: "500 Main S
 
   const q = { host: "www.cedarparksmiles.test", path: "/contact", url: "https://www.cedarparksmiles.test/contact" };
   const plainSend = await w.context.nspLeadsGate(Object.assign({}, q, { typed: [{ text: "Hello, is the office open on Saturday?" }] }));
-  check("a Send on an ordinary site with no draft typed is not a lead send", plainSend.ok === true && !plainSend.lead, plainSend);
+  check("a hand-written Send on a lead's own site is held to the lead rules: only its checked draft goes out", plainSend.ok === false && plainSend.code === "draft_changed" && plainSend.lead === d.lead, plainSend);
+  const elsewhere = await w.context.nspLeadsGate({ host: "www.unrelated-shop.test", path: "/contact", typed: [{ text: "Hello, is the office open on Saturday?" }] });
+  check("a Send on a site no lead lives on is an ordinary send", elsewhere.ok === true && !elsewhere.lead, elsewhere);
   const typed = [{ text: "Ana Ruiz" }, { text: "ana@ruiz.test" }, { text: d.body }];
   const byText = await w.context.nspLeadsGate(Object.assign({}, q, { typed }));
   check("typing the draft makes the Send a lead send, inside the cap", byText.ok === true && byText.lead.id === d.lead && /Cedar Park Smiles: send 1 of 5 today/.test(byText.line), byText);
@@ -86,8 +88,16 @@ const SENDER = { name: "Ana Ruiz", business: "Ruiz Studio", address: "500 Main S
   const refound = await call(w, "zerackLeads", { action: "find" });
   check("find marks the contacted place and sinks it to the bottom", refound.leads[refound.leads.length - 1].name === "Cedar Park Smiles" && refound.leads[refound.leads.length - 1].contacted === "repeat" && /1 already contacted/.test(refound.line), refound.line);
 
+  const reworded = await w.context.nspLeadsGate(Object.assign({}, q, { typed: [{ text: "Hi again, following up on my note about your site." }] }));
+  check("a reworded follow-up with no lead id on a contacted place is refused as a repeat", reworded.ok === false && reworded.code === "repeat", reworded);
   const mark = await call(w, "zerackLeads", { action: "mark", lead: "Brightway Dental Care", outcome: "opted out" });
   check("mark records what the user reports; an opt-out is never written to again", mark.ok && mark.outcome === "opted_out" && /never writes to them again/.test(mark.line) && w.local.nsp_leads.never.length >= 1, mark);
+  const bright = w.local.nsp_leads.never.find(k => /^site:/.test(k));
+  if (bright) {
+    const host = bright.slice(5);
+    const opted = await w.context.nspLeadsGate({ host: "www." + host, path: "/contact", typed: [{ text: "A hand-written pitch with no lead id" }] });
+    check("a hand-written pitch to a place that opted out is refused, lead id or not", opted.ok === false && opted.code === "opted_out", opted);
+  } else check("the opted-out place has a site key to match its contact form", false, w.local.nsp_leads.never);
   const badMark = await call(w, "zerackLeads", { action: "mark", lead: "Brightway Dental Care", outcome: "ignored" });
   check("an unknown outcome is refused", badMark.ok === false && badMark.code === "bad_outcome");
   const call1 = await call(w, "zerackLeads", { action: "draft", lead: "Oakridge Family Dental" });
@@ -140,6 +150,8 @@ const SENDER = { name: "Ana Ruiz", business: "Ruiz Studio", address: "500 Main S
   const waited = await w.context.nspPaceWait("www.upwork.com");
   check("reads on a site whose terms limit automation are spaced at human pace: the next read waits 12 s", waited === 0 && w.context._nspPace["www.upwork.com"] > 0 && w.context.NSP_PACE_MS === 12000);
   check("sites with no such terms are not slowed", (await w.context.nspPaceWait("github.com")) === 0 && !w.context._nspPace["github.com"]);
+  check("Google Maps is paced too: its terms hang on the /maps path of www.google.com", (await w.context.nspPaceWait("www.google.com", "/maps/place/Joe")) === 0 && w.context._nspPace["www.google.com"] > 0);
+  check("while a Google Docs page is not", (await w.context.nspPaceWait("docs.google.com", "/document/d/x")) === 0 && !w.context._nspPace["docs.google.com"]);
 }
 
 done("sw-leads");

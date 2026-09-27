@@ -29,7 +29,7 @@ Each one is reached by typing in the chat (English or Spanish), by voice, from t
 
 12. **Outlier alerts.** Watched channels are read every hour; one notification per new upload that reaches 5x the median of the channel's uploads older than a week. The click opens its X-ray.
 13. **Morning brief.** Off by default. At your hour: new uploads, outliers and silent channels among the ones you watch, and your saved niches rising or cooling. It never calls a model.
-14. **Sealed predictions.** Once a day, young channels from your scans that look set to double in 14 days, next to random controls, stored with a SHA-256 chained to the previous batch. After 14 days they are read again and a one-sided Fisher test compares picks with controls, with no verdict under 20 settled calls a side.
+14. **Sealed predictions.** Off until you turn on daily sealing on the card. Then once a day, young channels from your scans that look set to double in 14 days, next to random controls, stored with a SHA-256 chained to the previous batch. After 14 days they are read again and a one-sided Fisher test compares picks with controls, with no verdict under 20 settled calls a side.
 15. **Language gaps.** Niches that win in English and are missing or weak in Spanish, German or Portuguese, with the counts behind each call; *Measure* runs the Country radar when data is short.
 16. **Comments to ideas.** The top 100 public comments, the ones that ask for something sorted by likes, and three ideas from your provider.
 
@@ -37,7 +37,7 @@ Each one is reached by typing in the chat (English or Spanish), by voice, from t
 
 17. **Sourced script.** Written only from numbered passages of the top videos' captions and pages you allowed; every line without a real source, or with a number its passage lacks, is cut and listed. With fewer than two sources it refuses and calls no model.
 18. **Shorts miner.** 3 to 5 clips from the public captions and the most replayed graph, with the hook line, why each was picked and a link at that second.
-19. **Studio package.** Title, description with chapters and tags, stored only after *Approve*, filled into the video open in Studio from the chat, by voice or from the ZERACK bar there, and saved only on a real press on that bar. Visibility, audience and monetization are never touched.
+19. **Studio package.** Title, description with chapters and tags, stored only after *Approve*, filled into the video open in Studio from the chat, by voice or from the ZERACK bar there, and saved only on a real press on that bar. The first fill ties the package to that video and a confirmed save spends it, so it is never offered on another video. Visibility, audience and monetization are never touched.
 20. **Hands-free.** Every card above by voice, plus *next*, *save this channel* and *how much does this channel earn*, each answered aloud.
 
 ## Off YouTube: the business agent
@@ -53,11 +53,11 @@ Each one is reached by typing in the chat (English or Spanish), by voice, from t
 - **Builders**: GitHub, Hacker News, Product Hunt, Reddit, npm, PyPI, the Chrome Web Store, Stripe and Plausible tiles, G2 reviews, and your app on localhost.
 - **Creators** on TikTok and Instagram, **freelancers** on Upwork and Fiverr, **local businesses** on Google Maps and the agencies that sell to them, **Amazon** sellers and KDP authors, **newsletters** on Substack and beehiiv, and **digital products** on Gumroad, Lemon Squeezy and Payhip.
 
-**Decisions with numbers** (`lib/nsp-decide.js`). Every answer is KEEP, LOOK AT IT or DROP with its number and what is still missing: which title, ad, listing or price wins (A/B), whether a number accelerates, whether it is still rising, whether a rate clears a bar. Each decision books a re-measure; the lesson is kept only if the new numbers agree, and kept lessons reach the model on the next question for that site. A press that spends (buy, boost, renew, upgrade) is offered only after an A/B result on the same site from the last 14 days.
+**Decisions with numbers** (`lib/nsp-decide.js`). Every answer is KEEP, LOOK AT IT or DROP with its number and what is still missing: which title, ad, listing or price wins (A/B), whether a number accelerates, whether it is still rising, whether a rate clears a bar. Each decision books a re-measure; the lesson is kept only if a later reading of the page agrees, never on numbers typed in the chat, and kept lessons reach the model on the next question for that site as quoted data. Buying, ordering, renewing or upgrading waits for the Pay press; putting money into ads, boosts or budgets is offered only after an A/B test read from that page came back KEEP for what is boosted.
 
 **The builders operator** (`lib/nsp-builders.js`). Requests that repeat across issues and threads, people asking for what you build, rivals that accelerate (a daily cookie-less read of public pages you allowed), what to post today or *skip today*, the changelog in Keep a Changelog format with the next SemVer version, and the Product Hunt and Show HN kit. Hacker News text is written by hand, so ZERACK gives an outline and the facts, never finished text.
 
-**Leads** (`lib/nsp-leads.js`). Places or jobs judged Pitch or Bid, Look at it or Skip, with the fact behind each. Every draft carries one specific fact, an AI disclosure and an opt-out line, and emails the ad line and postal address US anti-spam law asks for. It sends only on your press, inside a daily cap that starts at 5 and rises to 30 (never above 50), 8:00 to 21:00, stops after 3 bounces, and never writes twice to the same place or to anyone who opted out. On TikTok, Instagram, Upwork, Fiverr, Maps and Amazon, whose terms limit automation, it reads only the page you opened, 12 seconds apart, and never in the daily watch.
+**Leads** (`lib/nsp-leads.js`). Places or jobs judged Pitch or Bid, Look at it or Skip, with the fact behind each. Every draft carries one specific fact, an AI disclosure and an opt-out line, and emails the ad line and postal address US anti-spam law asks for. It sends only on your press, inside a daily cap that starts at 5 and rises to 30 (never above 50), 8:00 to 21:00, stops after 3 bounces, and never writes twice to the same place or to anyone who opted out: any Send on a lead's own site, with or without its lead id, goes through those rules. On TikTok, Instagram, Upwork, Fiverr, Maps and Amazon, whose terms limit automation, it reads only the page you opened, 12 seconds apart, and never in the daily watch.
 
 **Activity page** (`activity/`, *Activity, decisions and lessons* in the chat menu): every action with who pressed and how to undo it, every decision with its history, kept and deleted lessons, *Measure now* and *Forget*. By voice: *read this page*, *find clients here* and *how many can I send today*; any other spoken question on a business page goes to that playbook's agent, which can read but not click, type or send.
 
@@ -117,7 +117,7 @@ The heavy content script runs in YouTube's **MAIN** world because it needs YouTu
 | `declarativeNetRequestWithHostAccess` | one rule that removes the `Origin` header from this extension's own InnerTube requests, which YouTube answers `403` otherwise |
 | `tabs` | opening pages, knowing the active tab, and the page agent's tab |
 | `sidePanel` | the chat where no content script can run |
-| optional `http://*/*`, `https://*/*` | the bubble on other sites, a page you allowed as a script source, and the business agent on a site you allowed. Never asked at install: Chrome asks inside your click, one site at a time |
+| optional `http://*/*`, `https://*/*` | the bubble on other sites, a page you allowed as a script source, and the business agent on a site you allowed. Never asked at install: Chrome asks inside your click, one site at a time. Chrome's grant alone reads nothing: a site is read only while ZERACK's own consent for it stands, and *Stop ZERACK on this site* ends it |
 | `alarms` | the rescan, the hourly outlier check, the morning brief, the daily prediction seal, decision re-measures and the builders' daily watch |
 | `cookies` | writing YouTube's `PREF` cookie, the only way to switch market |
 | `notifications` | scans, outlier alerts, the morning brief and settled predictions |
@@ -140,11 +140,11 @@ Run `node smoke.mjs` for the machine-checkable list. These are the ones a checke
 - **Many page readers were never run on a live page.** The Shopify admin, Search Console, Stripe, WordPress, KDP, Seller Central, Upwork, Google Maps, Reddit, npm, PyPI, Product Hunt and the TikTok and Instagram grids were read from archived or synthetic pages, because they need a sign-in or block automated reads. If the real layout differs, they answer *drift*, not a number.
 - **Nobody has clicked through Chrome's real site-permission dialog yet.** The Allow button opens it inside the click; the tests ran on a copy that already had access.
 - **Fees are US only**, and Fiverr's commission is not stated because it could not be checked on Fiverr's own pages.
-- **Only an A/B result counts as evidence for spending.** On YouTube the panel cannot read the decision store, so its spending presses (Join, Super Thanks, buy, rent) are refused with what is missing.
+- **Only an A/B result read from the page counts as evidence for ad spend**, and only for what it measured. Purchases, Join and Super Thanks wait for a press with no test.
 - **One daily cap for all leads**, and bounces and replies are marked by hand. Rival trends need 4 daily readings.
 - **Voice drives the business agent only to read.** Clicking, typing and sending on other sites happen from the chat.
 - **The YouTube panel's own agent still runs in the page's world**, so a page could tamper with it; the business agent on other sites cannot be reached that way.
-- **The X-ray's niche window is only as good as its search** from the channel's own title words, and often comes back unmeasured. Video openings and section rhythm are not measured, because public pages do not show them.
+- **The X-ray's niche window is only as good as its search**: the niche's own query when the titles vote for one niche, otherwise the topic words the best titles repeat. Channels whose titles share nothing with the subject are left out, so it often comes back unmeasured. Upload rhythm comes from exact times or from the dates YouTube shows, and is left unmeasured when those are too coarse. Video openings and section rhythm are not measured, because public pages do not show them.
 - **Language gaps move near their thresholds**: with 130 to 240 titles a language, a borderline gap can appear or vanish between runs.
 - **Image drawing and Studio fill were tested against a mock and a stub.** Real Gemini and OpenAI image calls, and the real signed-in Studio, were not exercised.
 - **Shorts cut at pauses** when captions carry no punctuation, so a clip can start mid-phrase; the card says so. Earnings are only as good as the RPM table.

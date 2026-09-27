@@ -408,7 +408,12 @@
       }
       var pressedAt = Date.now();
       ctx.typing('Working');
-      return exec(tab.id, handsPress, [first.handle]).then(function (x) {
+      return getTab(tab.id).then(function (now) {
+        if (!now || sameAddress(String(now.url || ''), before)) return exec(tab.id, handsPress, [first.handle]);
+        return exec(tab.id, handsRelease, []).then(function () {
+          return { ok: true, value: { ok: false, code: 'changed', error: 'the page moved to ' + clip(now.url, 200) + ' while the press waited, so nothing was done: ' + first.line } };
+        });
+      }).then(function (x) {
         if (answered(x)) return x.value;
         return lost({ action: 'click', target: a.target }, tab, x, before).then(function (r) {
           if (!r.ok) return r;
@@ -429,8 +434,18 @@
     });
   }
 
+  function sameAddress(a, b) {
+    var cut = function (u) {
+      try {
+        var x = new URL(u);
+        return x.origin + x.pathname + x.search + (/^#[!\/]/.test(x.hash) ? x.hash : '');
+      } catch (e) { return String(u || ''); }
+    };
+    return cut(a) === cut(b);
+  }
+
   function spendCheck(ctx, tab, info, a, first, before) {
-    var ask = typeof ctx.evidence === 'function' ? ctx.evidence(info.host) : null;
+    var ask = typeof ctx.evidence === 'function' ? ctx.evidence(info.host, { url: before, what: first.line }) : null;
     var late = new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, missing: ['the decision store did not answer in time, so no evidence could be read'] }); }, EVIDENCE_MS); });
     var got = ask ? Promise.race([Promise.resolve(ask).then(null, function () { return { ok: false, missing: ['the decision store could not be read'] }; }), late]) : Promise.resolve({ ok: false, missing: ['no decision store is connected, so no evidence can be read'] });
     return got.then(function (ev) {
@@ -445,7 +460,7 @@
           code: 'needs_evidence',
           kind: 'Pay',
           missing: missing,
-          error: 'Not offered: ' + first.line + '. ZERACK offers a press that spends money only after a measured test on this site says it is worth it. Missing: ' + missing.join('; ') + '. Tell the user what is missing and that they can still do it themselves on the page. Do not retry.'
+          error: 'Not offered: ' + first.line + '. ZERACK offers a press that puts money into ads, boosts or budgets only after a measured test on this site says what is being boosted wins. Missing: ' + missing.join('; ') + '. Tell the user what is missing and that they can still do it themselves on the page. Do not retry.'
         };
         if (ev && ev.line) out.evidence = clip(ev.line, 300);
         ledgerFor(ctx, info, a, { ok: false, error: 'Missing: ' + missing.join('; ') }, { decision: 'no_evidence', kind: 'Pay', urlBefore: before, result: 'no_evidence', evidence: ev && Number(ev.decision) > 0 && ev.line ? { decision: Number(ev.decision), line: ev.line } : null });
@@ -505,7 +520,7 @@
           });
         });
       }
-      var paced = typeof ctx.pace === 'function' ? Promise.resolve(ctx.pace(dest.host)).then(null, function () { return 0; }) : Promise.resolve(0);
+      var paced = typeof ctx.pace === 'function' ? Promise.resolve(ctx.pace(dest.host, u.pathname)).then(null, function () { return 0; }) : Promise.resolve(0);
       return paced.then(function () {
         return new Promise(function (resolve) {
           chrome.tabs.update(tab.id, { url: u.href }, function () { resolve(!chrome.runtime.lastError); });
@@ -563,7 +578,7 @@
               var r = x.value;
               if (TYPES[act] === 1 && clean.text && (r.ok !== false || r.code === 'needs_press')) remember(tab.id, clean.text);
               if (r.code === 'needs_press' && r.handle) {
-                if (r.kind === 'Pay' && r.spend !== false) return spendCheck(ctx, tab, info, a, r, before);
+                if (r.kind === 'Pay' && r.spend !== false && r.informed === true) return spendCheck(ctx, tab, info, a, r, before);
                 if (r.kind === 'Send' || a.lead) return leadCheck(ctx, tab, info, a, r, before);
                 return askPress(ctx, tab, info, a, r, before);
               }

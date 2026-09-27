@@ -54,8 +54,16 @@ check("brings the break", e.quiebre.ok === true && e.quiebre.hubo === true, e.qu
 check("brings the formula", e.formula.ok === true, e.formula.muestra);
 check("brings the rebuildable verdict", e.replicable.ok === true, e.replicable.etiqueta);
 check("brings the niche and its reference RPM", e.nicho.ok === true, e.nicho);
-check("and the niche a person reads is in English", e.nicho.nombre && /Niche read as [A-Z][a-z]/.test(e.nicho.dice), e.nicho.dice);
-check("and it says the RPM is an estimate", e.nicho.medido === false && /estimate|unknown/i.test(e.nicho.dice), e.nicho.dice);
+check("a niche that holds only 3 of 30 titles reads as mixed, not as that niche", e.nicho.clasificado === false && e.nicho.nombre === "Mixed" && /3 of 30/.test(e.nicho.dice), e.nicho.dice);
+check("and it says the RPM is unknown, not low", e.nicho.medido === false && /unknown/i.test(e.nicho.dice), e.nicho.dice);
+{
+  const fin = E.armar({ videos: channel("How the stock market really works", Array(30).fill(0).map((x, i) => 10000 + i)).map((v, i) => i % 3 ? Object.assign({}, v, { title: ["A quiet walk in the forest", "My morning coffee routine"][i % 2] + " " + i }) : v) });
+  check("a niche that holds 10 of 30 titles is read title by title as that niche", fin.nicho.clasificado === true && fin.nicho.voto.count === 10 && /title by title as [A-Z]/.test(fin.nicho.dice), fin.nicho);
+  const court = channel("Rockets and the physics of flight", Array(30).fill(0).map((x, i) => 10000 + i));
+  court[3] = Object.assign({}, court[3], { title: "The wrong science in court for 50 years" });
+  const c = E.armar({ videos: court });
+  check("one title about a court does not make a science channel a legal niche", !(c.nicho.clasificado && /legal/i.test(c.nicho.nicho)), c.nicho);
+}
 check("the summary has one line per piece", e.resumen.length === 7, e.resumen.length);
 check("and no summary line is empty", e.resumen.every(l => l && l.length > 10), e.resumen);
 check("declares zero quota", e.cuota === 0, e.cuota);

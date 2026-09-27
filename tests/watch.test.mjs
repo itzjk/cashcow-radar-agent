@@ -194,4 +194,13 @@ function up(i, views, hours, title) { return { videoId: ("v" + String(i).padStar
   check("no comments is said plainly", none.hero.value === "No comments" && /no muestra comentarios/.test(none.lead));
 }
 
+{
+  const op = t => { const r = W.intent(t); return r ? r.kind + ":" + (r.op || "") : null; };
+  for (const t of ["Ponme el resumen de la mañana", "pon el resumen de hoy", "start the brief", "start my morning brief"]) check('"' + t + '" shows the brief now and switches nothing on', op(t) === "brief:now", W.intent(t));
+  for (const t of ["pon el resumen de la mañana a las 7", "start the brief every day", "activa el resumen de la mañana", "turn on the morning brief at 8"]) check('"' + t + '" switches the daily brief on', op(t) === "brief:on", W.intent(t));
+  for (const t of ["hey watch this", "watch this", "watch this one", "watch this for me", "track this", "monitor this", "vigila este"]) check('"' + t + '" adds nothing to the watch list', W.intent(t) === null, W.intent(t));
+  for (const t of ["watch this channel", "vigila este canal", "track this channel for me", "watch @veritasium"]) check('"' + t + '" still watches the channel', op(t) === "watch:add", W.intent(t));
+  check("daily prediction sealing is off until switched on, and an old explicit on is kept", W.dailyOn({}) === false && W.dailyOn({ on: true }) === true && W.dailyOn({ off: false }) === true && W.dailyOn({ off: true }) === false);
+}
+
 done("watch");

@@ -1559,7 +1559,7 @@
     var title = sBar().getElementById('title').textContent;
     sPaint('busy', title, 'Saving in Studio', '', '');
     sSave().then(function(res) {
-      if (res.ok) { sPaint('done', title, 'Saved in Studio. Visibility and monetization were not touched.', 'ok', ''); return; }
+      if (res.ok) { sAsk({ type: 'NSP_STUDIO_PACKAGE', op: 'saved', videoId: videoId() }); sPaint('done', title, 'Saved in Studio. Visibility and monetization were not touched.', 'ok', ''); return; }
       var why = res.why === 'no_button' ? 'Studio\'s Save button is not on this page.' : (res.why === 'nothing' ? 'Studio says there is nothing new to save.' : (res.why === 'upload' ? 'In the upload dialog Studio keeps the draft itself.' : 'Studio did not confirm the save. Check the page.'));
       sPaint(res.why === 'nothing' || res.why === 'upload' ? 'done' : 'filled', title, why, 'err', res.why === 'unconfirmed' || res.why === 'no_button' ? 'Save' : '');
     });
@@ -1573,9 +1573,9 @@
     bar.video = vid;
     bar.filled = false;
     if (bar.dismissed[vid || 'page']) return;
-    sAsk({ type: 'NSP_STUDIO_PACKAGE', op: 'peek' }).then(function(res) {
+    sAsk({ type: 'NSP_STUDIO_PACKAGE', op: 'peek', videoId: vid }).then(function(res) {
       if (!res || !res.ok || !res.has) { sHide(); return; }
-      sPaint('ready', res.title, 'Approved in the ZERACK chat: title, description with ' + (res.chapters || 0) + ' chapters, ' + (res.tags || 0) + ' tags.', '', 'Fill fields');
+      sPaint('ready', res.title, 'Approved in the ZERACK chat' + (res.bound ? ' for this video' : '') + ': title, description with ' + (res.chapters || 0) + ' chapters, ' + (res.tags || 0) + ' tags.', '', 'Fill fields');
     });
   }
 

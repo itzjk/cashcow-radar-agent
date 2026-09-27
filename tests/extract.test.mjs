@@ -114,7 +114,9 @@ const ETSY_GRID = "https://www.etsy.com/c/home-and-living";
   check("the Search Console table reads 18 query rows with typed numbers", r.ok && r.count === 18 && r.reader === "gsc.queries", r.count);
   check("one row matches the fixture: 188 clicks, 14,020 impressions, 1.3% CTR, position 9.4", row && row.clicks === 188 && row.impressions === 14020 && row.ctr === 1.3 && row.position === 9.4, row);
   const moved = await read("gsc-performance.html", "https://search.google.com/search-console/performance/search-analytics", "table", o, null, h => h.replace(">Impressions<", ">Views<").replace(">Position<", ">Rank<"));
-  check("a table whose columns were renamed answers drift and names what is missing", moved.ok === false && moved.code === "drift" && moved.missing.join() === "impressions,position" && moved.headersSeen.includes("views"), moved);
+  check("a table whose columns were renamed answers drift and names what is missing", moved.ok === false && moved.code === "drift" && moved.missing.join() === "impressions" && moved.headersSeen.includes("views"), moved);
+  const plain = await read("gsc-performance.html", "https://search.google.com/search-console/performance/search-analytics", "table", o, null, h => h.replace(/<th[^>]*>(?:(?!<\/th>)[\s\S])*?<span>CTR<\/span>(?:(?!<\/th>)[\s\S])*?<\/th>/, "").replace(/<th[^>]*>(?:(?!<\/th>)[\s\S])*?<span>Position<\/span>(?:(?!<\/th>)[\s\S])*?<\/th>/, "").replace(/(<tr[^>]*>(?:\s*<td[^>]*>[\s\S]*?<\/td>){3})(?:\s*<td[^>]*>[\s\S]*?<\/td>){2}/g, "$1"));
+  check("the default Performance view, clicks and impressions only, reads its rows instead of drift", plain.ok === true && plain.count === 18 && plain.columns.length === 3 && plain.rows.every(x => typeof x.impressions === "number" && x.position == null), plain.ok ? { cols: plain.columns, row: plain.rows[0] } : plain);
 }
 {
   const r = await read("shopify-admin-orders.html", "https://admin.shopify.com/store/northwind-demo/orders", "table", opts("admin.shopify.com", "/store/northwind-demo/orders"));

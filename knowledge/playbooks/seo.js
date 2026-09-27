@@ -177,7 +177,7 @@
       [/\b(?:remov\w*|disavow|eliminar url)\b/, 'g3-l2']
     ],
     readers: [
-      { id: 'table', as: 'gsc.queries', host: /^search\.google\.com$/, label: 'the Search Console Performance table: each query or page with clicks, impressions, CTR and position', opts: { as: 'gsc.queries', label: 'Search Console performance', columns: GSC, need: ['clicks', 'impressions', 'position'], types: { clicks: 'int', impressions: 'int', ctr: 'pct', position: 'num' } } },
+      { id: 'table', as: 'gsc.queries', host: /^search\.google\.com$/, label: 'the Search Console Performance table: each query or page with clicks, impressions, CTR and position', opts: { as: 'gsc.queries', label: 'Search Console performance', columns: GSC, need: ['clicks', 'impressions'], types: { clicks: 'int', impressions: 'int', ctr: 'pct', position: 'num' } } },
       { id: 'table', as: 'wp.posts', path: /^\/wp-admin\/edit\.php/, label: 'the WordPress posts list: title, author, categories and date of each post', opts: { as: 'wp.posts', label: 'WordPress posts', columns: WP, need: ['title'], strip: '.row-actions, .screen-reader-text, .toggle-row, .post-state', linkField: 'title' } }
     ],
     surfaces: {

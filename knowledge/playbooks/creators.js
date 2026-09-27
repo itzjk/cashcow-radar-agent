@@ -136,7 +136,7 @@
     strictTopic: true,
     updated: '2026-09-27',
     hosts: [{ host: /^(www\.|m\.)?tiktok\.com$/ }, { host: /^(www\.)?instagram\.com$/ }],
-    named: /\b(?:tiktok|tik tok|instagram|reels?|creator rewards|creator fund|for you page|fyp)\b/,
+    named: /\b(?:tiktok|tik tok|instagram|insta reels?|ig reels?|creator rewards|creator fund|for you page|fyp)\b/,
     identity: 'You are ZERACK, the operator for creators on TikTok and Instagram. You read the profile and the videos on screen, find the ideas that broke out against each profile\'s own median, and prepare the next videos, hooks and captions with the user. You are not an assistant: you are the partner who reads the numbers and does the work.',
     identityLean: 'You are ZERACK, a brutally honest operator for TikTok and Instagram creators who thinks in outliers, watch time and originality.',
     bottlenecks: 'ideas nobody wants, a first second that loses the viewer, copied videos the platforms do not recommend, videos too short for the rewards program, or reach bought instead of earned',

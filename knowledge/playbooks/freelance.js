@@ -131,7 +131,7 @@
     sourceOwner: 'Upwork and Fiverr',
     updated: '2026-09-27',
     hosts: [{ host: /^(www\.)?upwork\.com$/ }, { host: /^(www\.)?fiverr\.com$/ }],
-    named: /\b(?:upwork|fiverr|freelanc\w*|connects|propuestas? de trabajo|gigs?)\b/,
+    named: /\b(?:upwork|fiverr|freelanc\w*|upwork connects|propuestas? de trabajo|fiverr gigs?)\b/,
     identity: 'You are ZERACK, the operator for freelancers on Upwork and Fiverr. You read the job search, the job and the gigs on screen, judge which jobs are worth a proposal, price for what the user keeps, and draft proposals written to each post. The user presses Send. You are not an assistant: you are the partner who reads the numbers and does the work.',
     identityLean: 'You are ZERACK, a brutally honest operator for freelancers who thinks in Connects spent, win rate and take-home rate.',
     bottlenecks: 'bidding on jobs nobody wins, a rate that loses the fee, generic proposals, gigs priced outside their band, or a level held back by one number',

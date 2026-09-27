@@ -532,7 +532,7 @@
     var hosts = origins.map(function (o) { return o.replace(/^https:\/\//, '').replace(/\/\*$/, ''); });
     var box = el('div', 'ic-perm');
     box.appendChild(el('div', 'ic-perm-title', hosts.length === 1 ? 'A page you have open is about this topic' : hosts.length + ' pages you have open are about this topic'));
-    box.appendChild(el('div', 'ic-perm-text', hosts.join(', ') + '. ZERACK reads a site only after you allow it, and sends its text only to the AI provider you chose.'));
+    box.appendChild(el('div', 'ic-perm-text', hosts.join(', ') + '. ZERACK reads a site only after you allow it here, sends its text only to the AI provider you chose, and stops when you press Stop ZERACK on that site.'));
     var row = el('div', 'ic-perm-row');
     var b = button(hosts.length === 1 ? 'Allow it and write again' : 'Allow them and write again', ICON_UP);
     b.classList.add('primary');
@@ -551,10 +551,15 @@
           if (!ok) status(note, 'The chat is busy. Wait for the answer and press it again.', 'err');
         });
       };
+      var consent = (Array.isArray(p.sites) ? p.sites : []).filter(function (x) { return x && origins.indexOf(String(x.pattern)) >= 0 && x.consent === 'none'; });
       try {
         chrome.permissions.request({ origins: origins }, function (granted) {
           if (chrome.runtime.lastError || !granted) { b.disabled = false; status(note, 'Not allowed, so those pages stay unread.', 'err'); return; }
-          rerun();
+          if (!consent.length || !opts.allow) { rerun(); return; }
+          Promise.all(consent.map(function (x) { return opts.allow(String(x.host), String(x.pattern)); })).then(function (res) {
+            if (res.some(function (r) { return !r || r.ok !== true; })) { b.disabled = false; status(note, 'ZERACK could not save the permission. Try again.', 'err'); return; }
+            rerun();
+          });
         });
       } catch (x) {
         b.disabled = false;

@@ -221,5 +221,15 @@ const job = (w, convId, jobSpec, text) => new Promise(r => w.context.nspMineRunM
   check("the chat learns the saved channel's handle and that Studio is open, never a URL", res && res.ok && res.mine && res.mine.handle === "@mine" && res.studio === true && !("url" in res.mine), res);
 }
 
+{
+  const vr = (id, title, views, age) => ({ videoRenderer: { videoId: id, title: { runs: [{ text: title }] }, viewCountText: { simpleText: views }, publishedTimeText: { simpleText: age }, ownerText: { runs: [{ text: "Canal", navigationEndpoint: { browseEndpoint: { browseId: ID } } }] } } });
+  const es = Array.from({ length: 12 }, (_, i) => vr(("s" + String(i).padStart(10, "0")).slice(0, 11), "Historia antigua documental " + i, (788277 + i * 1000).toLocaleString("de-DE") + " visualizaciones", ["hace 4 semanas", "hace 7 días", "hace 6 horas", "hace 2 semanas"][i % 4]));
+  const w = loadWorker({ fetch: url => /youtubei\/v1\/search/.test(url) ? { status: 200, body: { contents: es } } : null });
+  const list = await w.context.nspMineSearchCohort("historia antigua documental", "es");
+  check("a Spanish niche search keeps every upload whose age YouTube writes in Spanish", list.length === 12, list.length);
+  check("and reads Spanish grouped view counts whole", list.every(v => v.vistas >= 788277 && v.vistas < 1000000), list.map(v => v.vistas));
+  check("with the age in hours from the Spanish text", list.some(v => v.vph === Math.round(v.vistas / 6)), list.map(v => v.vph));
+}
+
 clearInterval(keep);
 done("sw-mine");

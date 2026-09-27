@@ -15,7 +15,7 @@ const ASK = [
   ["por qué explotó esto", "xray", "tab"], ["¿Por qué explotó este canal?", "xray", "tab"], ["por que exploto este video", "xray", "tab"],
   ["why did this blow up", "xray", "tab"], ["Why did this channel blow up?", "xray", "tab"], ["Why did @kurzgesagt blow up?", "xray", "handle"],
   ["rayo x", "xray", "tab"], ["rayos x de este canal", "xray", "tab"], ["X-ray @kurzgesagt", "xray", "handle"],
-  ["X-ray https://www.youtube.com/@veritasium", "xray", "url"], ["haz rayos x a kurzgesagt", "xray", "name"], ["oye zerack por qué explotó esto", "xray", "tab"],
+  ["X-ray https://www.youtube.com/@veritasium", "xray", "url"], ["haz rayos x al canal kurzgesagt", "xray", "name"], ["oye zerack por qué explotó esto", "xray", "tab"],
   ["what made this channel blow up", "xray", "tab"], ["why did this video go viral", "xray", "tab"], ["por qué se hizo viral este video", "xray", "tab"],
   ["compara este canal con kurzgesagt", "duel", "tab,name"], ["compare @veritasium with @kurzgesagt", "duel", "handle,handle"], ["@veritasium vs @kurzgesagt", "duel", "handle,handle"],
   ["duelo con @kurzgesagt", "duel", "tab,handle"], ["compare this channel with https://www.youtube.com/@veritasium", "duel", "tab,url"],
@@ -31,7 +31,8 @@ const NOT = [
   "dame la receta de la paella", "dame la receta", "haz un duelo", "que es un rayo x", "vs", "abre el video de kurzgesagt", "busca por qué explotó el bitcoin",
   "is it luck or skill to grow on youtube?", "what's your verdict on this title?", "mi canal está muerto", "fue suerte que lloviera ayer en la boda de mi prima",
   "why did the roman empire fall", "hola", "abre youtube", "escribe una fórmula para títulos", "give me the formula for compound interest", "por que no exploto esto",
-  "why did he blow up at me", "my verdict"
+  "why did he blow up at me", "my verdict", "busca rayos x de tórax", "rayos x de tórax", "search x ray of the knee", "busca videos de rayos x", "one hit wonder songs of the eighties",
+  "What is the formula?", "cuál es la fórmula", "haz rayos x a kurzgesagt"
 ];
 {
   const miss = ASK.filter(([t, k, w]) => { const r = I.intent(t); return !r || r.kind !== k || who(r) !== w; });
@@ -147,7 +148,19 @@ const idle = channel({ length: 30, start: 118, every: 12, title: i => "Ancient R
   check("the window lands on the X-ray card and in its summary", card.sections.find(s => s.id === "window").state === "done" && /window is open/.test(card.lead) && card.share.rows.some(r => r.label === "Entry window" && r.value === "open"), card.share.rows);
   const few = I.windowOf(subject, neighbors.slice(0, 2), "en");
   check("with fewer than five channels the window stays unmeasured", few.rows[0].value === "Not measured" && /Only 3 channels/.test(few.note), few);
-  check("the niche query is built from the words the best titles repeat", I.nicheQuery(steady) === "ancient rome explained", I.nicheQuery(steady));
+  check("a channel whose titles vote for one niche searches that niche", I.nicheQuery(steady) === "history documentary ancient mysteries", I.nicheQuery(steady));
+  const sci = ["There Is Something Faster Than Light", "Something is jamming GPS signals worldwide", "What Happens If You Fall Into Lava", "The Surprising Physics of Rockets", "Why Rockets Explode on the Pad", "What Happens When Physics Breaks", "Something Strange About Rockets", "The Physics Nobody Taught You"].map((t, i) => ({ title: t, viewsNum: 900000 - i * 50000, published: (i + 2) + " weeks ago" }));
+  check("titles that vote for science search the science niche", I.nicheQuery(sci) === "science space universe documentary", I.nicheQuery(sci));
+  const odd = ["Something Happens At The Lighthouse At Night", "What Happens To An Old Lighthouse", "Lighthouse Keepers Were Strange", "Something Nobody Tells Lighthouse Keepers", "The Last Lighthouse Standing"].map((t, i) => ({ title: t, viewsNum: 90000 - i * 1000 }));
+  const q = I.nicheQuery(odd);
+  check("a channel with no clear niche searches the topic words its best titles repeat, never filler like something or happens", q === "lighthouse keepers", q);
+  check("and a fallback query never repeats a word", !/\b(\w+)\b.*\b\1\b/.test(I.nicheQuery([{ title: "The Day The AI Bubble Bursts: Day One", viewsNum: 10 }])), I.nicheQuery([{ title: "The Day The AI Bubble Bursts: Day One", viewsNum: 10 }]));
+  const gospel = ["Pray Until Something Happens live worship", "Gospel choir sings Holy Spirit", "Sunday worship night with the choir"].map(t => ({ title: t, viewsNum: 100 }));
+  check("a channel whose titles share nothing with the subject is not counted in its niche", I.related(sci, gospel) === false);
+  check("a channel that shares its topic words is", I.related(sci, ["Rockets and the physics of reentry", "How physics shapes a rocket nozzle"].map(t => ({ title: t }))) === true);
+  const ownRows = w.rows.filter(r => /^subject/.test(r.label));
+  check("the window rows leave out the channel on the card, which has its own median above", ownRows.length === 0, w.rows.map(r => r.label));
+  check("a channel with hundreds of videos is not shown with a lower-bound age", w.rows.filter(r => /^d$/.test(r.label)).every(r => !/at least/.test(r.value) && /400 videos/.test(r.value)), w.rows);
 }
 
 if (existsSync(join(ROOT, "tests/fixtures/rancho-channel.json"))) {
@@ -155,6 +168,36 @@ if (existsSync(join(ROOT, "tests/fixtures/rancho-channel.json"))) {
   check("on the owner's reference channel the X-ray finds the 7.2x break at upload 12 of 30", c.hero.value === "7.2x" && /el video 12 de los 30/.test(c.lead), c.lead);
   const v = I.verdict({ channel: head({ name: "Rancho" }), videos: rancho(), now: NOW }, "en");
   check("and calls its recent run real growth", v.hero.value === "REAL GROWTH" && /last 10 uploads/.test(v.hero.label), v.hero);
+}
+
+{
+  const tiny = n => Array.from({ length: n }, (_, i) => ({ videoId: ("t" + String(i).padStart(10, "0")).slice(0, 11), title: "Tiny upload " + i, viewsNum: [480, 9000, 400][i] || 500, published: (10 + i * 5) + " days ago" }));
+  for (const n of [1, 2, 3]) {
+    const v = I.verdict({ channel: head({ name: "Tiny channel" }), videos: tiny(n), now: NOW }, "en");
+    check("a channel with " + n + " upload" + (n === 1 ? "" : "s") + " gets no verdict, and says how many are needed", v.hero.value === "NO VERDICT" && /only \d+ upload/.test(v.hero.label) && /6 needed/.test(v.hero.label) && !/real growth|lucky hit/i.test(v.lead) && !/real growth|lucky hit/i.test(v.share.post), { hero: v.hero, lead: v.lead });
+  }
+  const es = I.verdict({ channel: head({ name: "Tiny channel" }), videos: tiny(1), now: NOW }, "es");
+  check("in Spanish too, in the singular", /solo 1 video tiene edad para juzgar/.test(es.lead), es.lead);
+  const ages = ["5 days ago", "1 month ago", "1 month ago", "2 months ago", "2 months ago", "3 months ago", "3 months ago", "3 months ago", "3 months ago", "4 months ago", "4 months ago", "5 months ago"];
+  const coarse = ages.map((a, i) => ({ videoId: ("c" + String(i).padStart(10, "0")).slice(0, 11), title: "The physics of something " + i, viewsNum: 3000000 + i * 500000, published: a, length: "33:00" }));
+  const f = I.formula({ channel: head(), videos: coarse, now: NOW }, "en");
+  const fRow = f.sections.find(x => x.id === "structure").rows.find(r => r.label === "Upload rhythm");
+  check("uploads dated only in months never read as several videos a day", fRow && fRow.value === "A video every 13 days" && !/several a day/i.test(f.lead) && !f.share.rows.some(r => /Several/.test(r.value)), { row: fRow, lead: f.lead });
+  const yearly = coarse.map((v, i) => Object.assign({}, v, { published: i < 9 ? "1 year ago" : "2 years ago" }));
+  const fy = I.formula({ channel: head(), videos: yearly, now: NOW }, "en");
+  const yRow = fy.sections.find(x => x.id === "structure").rows.find(r => r.label === "Upload rhythm");
+  check("uploads dated only in years leave the rhythm not measured, with why", yRow && yRow.value === "Not measured" && /too coarse/.test(yRow.note), yRow);
+  const d = I.duel({ channel: head({ name: "Yearly", total: 500 }), videos: yearly, now: NOW }, { channel: head({ name: "Weekly", total: 900 }), videos: coarse, now: NOW }, "en");
+  const cad = d.sections.find(x => x.id === "axes").rows.find(r => r.label === "A video every");
+  const age = d.sections.find(x => x.id === "axes").rows.find(r => r.label === "Age");
+  check("the duel does not award the upload rhythm to a side it could not measure", cad.tag === "N/A", cad);
+  check("and two lower-bound ages rank nothing and count for no one", age.tag === "N/A" && /at least/.test(age.value) && /lower bounds/.test(age.note), age);
+  const win = ctxWindow();
+  function ctxWindow() {
+    const W = ctx.NSP_RIVAL_VENTANA;
+    return W.medir({ ok: true, jovenes: 1, jovenesQueAterrizan: 1, pisoUtil: 10000, canales: 6, jovenDias: 120 });
+  }
+  check("one recent channel reads in the singular", win.cifra === "1 of 1 recent channel lands, but only 1 recent channel was swept" && !/1 recent channels/.test(win.razon), win);
 }
 
 done("intel");

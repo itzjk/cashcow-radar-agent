@@ -65,6 +65,24 @@ const EN_VIDEOS = Array.from({ length: 30 }, (_, i) => ["en" + String(i).padStar
   check("and the dossier puts every piece together", e.ok === true && e.cadencia.ok && e.quiebre.ok && e.formula.ok && e.replicable.ok && e.nicho.ok, e.faltan);
 }
 
+{
+  const collab = (id, title, parts) => ({ richItemRenderer: { content: { lockupViewModel: { contentType: "LOCKUP_CONTENT_TYPE_VIDEO", contentId: id, metadata: { lockupMetadataViewModel: {
+    title: { content: title }, metadata: { contentMetadataViewModel: { metadataRows: [{ metadataParts: parts }] } } } } } } } });
+  const items = [
+    collab("kSCGkiPetQa", "Google Maps is unreasonably fast", [{ text: { content: "Veritasium" } }, { text: { content: "and 2swap" } }, { text: { content: "8.5M" }, accessibilityLabel: "8.5 million views" }, { text: { content: "3mo ago" }, accessibilityLabel: "3 months ago" }]),
+    collab("kSCGkiPetQb", "A video with two partners", [{ text: { content: "3Blue1Brown" } }, { text: { content: "and 2 more" } }, { text: { content: "1.2M" } }, { text: { content: "1 year ago" } }]),
+    collab("kSCGkiPetQc", "A premiere with no count yet", [{ text: { content: "3Blue1Brown" } }, { text: { content: "2 days ago" } }]),
+    lockup("kSCGkiPetQd", "A plain upload", "11M views", "4 months ago")
+  ];
+  const w = loadWorker({ fetch: url => /\/@collab\/videos/.test(url) ? { status: 200, body: page(EN_ID, "Collab channel", items) } : null });
+  const res = await w.context.nspReadChannelVideos("https://www.youtube.com/@collab", 30, { titles: false });
+  const by = id => res.videos.find(v => v.videoId === id) || {};
+  check("a collab upload reads its view count, not the partner named in the same row", by("kSCGkiPetQa").viewsNum === 8500000, by("kSCGkiPetQa"));
+  check("a partner list with a count in its name is skipped for the count after it", by("kSCGkiPetQb").viewsNum === 1200000, by("kSCGkiPetQb"));
+  check("a row with no view count reads as no count, never as the channel name", by("kSCGkiPetQc").viewsNum === null && by("kSCGkiPetQc").views === "", by("kSCGkiPetQc"));
+  check("a plain row still reads as before", by("kSCGkiPetQd").viewsNum === 11000000, by("kSCGkiPetQd"));
+}
+
 const ES_ORIGINAL = Array.from({ length: 30 }, (_, i) => "La verdadera historia del imperio romano que nadie te conto, parte " + i);
 const ES_ON_EN_PAGE = ES_ORIGINAL.map((t, i) => i % 2 ? "The true story of the Roman empire that nobody told you, part " + i : t);
 {

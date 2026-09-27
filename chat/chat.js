@@ -783,7 +783,7 @@
 
   function msgEl(row) {
     var box;
-    if (row.role === 'intel' && INTEL) return INTEL.render(row, { submit: submit, fill: fillInput, job: runJob, setup: function () { openPage('setup/setup.html'); } });
+    if (row.role === 'intel' && INTEL) return INTEL.render(row, { submit: submit, fill: fillInput, job: runJob, setup: function () { openPage('setup/setup.html'); }, allow: function (host, pattern) { return send({ type: 'NSP_CHAT_ALLOW_SITE', host: host, pattern: pattern, mode: 'read' }); } });
     if (row.role === 'press') return pressEl(row);
     if (row.role === 'allow') return allowEl(row);
     if (row.role === 'user') {

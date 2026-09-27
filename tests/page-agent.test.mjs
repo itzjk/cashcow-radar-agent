@@ -18,7 +18,7 @@ function fakeHands(page) {
         if (/Add to cart/.test(t)) { page.cart++; return { ok: true, clicked: 'button "Add to cart"' }; }
         if (/Place your order/.test(t)) {
           held = { handle: "h" + (++page.holds), perform: () => { page.placed++; return { ok: true, clicked: 'button "Place your order"', confirmedByUser: true }; } };
-          return { ok: false, code: "needs_press", kind: "Pay", line: 'Pay: click button "Place your order" on shop.test/checkout', handle: held.handle, error: "waiting for a press from the user" };
+          return { ok: false, code: "needs_press", kind: "Pay", spend: true, informed: false, line: 'Pay: click button "Place your order" on shop.test/checkout', handle: held.handle, error: "waiting for a press from the user" };
         }
         if (/Mark as paid/.test(t)) {
           held = { handle: "h" + (++page.holds), perform: () => { page.paid++; return { ok: true, clicked: 'button "Mark as paid"' }; } };
@@ -26,7 +26,7 @@ function fakeHands(page) {
         }
         if (/Boost listing/.test(t)) {
           held = { handle: "h" + (++page.holds), perform: () => { page.placed++; return { ok: true, clicked: 'button "Boost listing"' }; } };
-          return { ok: false, code: "needs_press", kind: "Pay", spend: true, line: 'Pay: click button "Boost listing" on shop.test/listing/1', handle: held.handle, error: "waiting for a press from the user" };
+          return { ok: false, code: "needs_press", kind: "Pay", spend: true, informed: true, line: 'Pay: click button "Boost listing" on shop.test/listing/1', handle: held.handle, error: "waiting for a press from the user" };
         }
         if (/Send message|Send for [0-9]+ Connects/.test(t)) {
           held = { handle: "h" + (++page.holds), perform: () => { page.sent = (page.sent || 0) + 1; return { ok: true, clicked: 'button "Send message"' }; } };
@@ -136,7 +136,7 @@ function world(opts = {}) {
     leads: opts.leads,
     leadSent: opts.leadSent,
     pace: opts.pace,
-    evidence: opts.evidence === undefined ? host => { evidenceAsked.push(host); return Promise.resolve({ ok: true, decision: 3, line: 'Which ad for the apron?: "Ad B" leads: over 99.9% chance it is best' }); } : opts.evidence
+    evidence: opts.evidence === undefined ? (host, target) => { evidenceAsked.push(host); if (target) evidenceAsked.target = target; return Promise.resolve({ ok: true, decision: 3, line: 'Which ad for the apron?: "Ad B" leads: over 99.9% chance it is best' }); } : opts.evidence
   });
   return { A: ctx.NSP_PAGE_AGENT, calls, rows, ledger, evidenceAsked, local, granted, tabs, newPage, run, stop: v => { stopped = v; }, setAgent: v => { agentOn = v; } };
 }
@@ -259,6 +259,29 @@ check("the library cannot be replaced once loaded", Object.isFrozen(world().A));
   const r = await out;
   const e = w.ledger[w.ledger.length - 1];
   check("after the press the ledger keeps the evidence it was offered on", r.ok === true && w.tabs[5].placed === 1 && e.decision === "pressed" && e.evidence && e.evidence.decision === 3 && /Ad B/.test(e.evidence.line), e);
+}
+{
+  const w = world({ sites: shopSite, granted: ["http://shop.test/*"], evidence: () => Promise.resolve({ ok: false, missing: ["no test"] }) });
+  w.newPage(5, SHOP + "/checkout");
+  const out = w.A.run("zerackPage", { action: "click", target: 'the "Place your order" button' }, w.run(5));
+  let row = null;
+  for (let i = 0; i < 200 && !row; i++) { await wait(2); row = w.rows.find(x => x.role === "press"); }
+  check("an ordinary checkout order is offered as the plain Pay press, with no A/B test asked for", row && row.meta.status === "waiting" && row.meta.kind === "Pay" && !row.meta.evidence, row && row.meta);
+  w.A.confirm("c1", row.meta.pressId, true);
+  const r = await out;
+  check("and a real press places it once", r.ok === true && w.tabs[5].placed === 1, r);
+}
+{
+  const w = world({ sites: shopSite, granted: ["http://shop.test/*"] });
+  w.newPage(5, SHOP + "/listing/1");
+  const out = w.A.run("zerackPage", { action: "click", target: 'the "Boost listing" button' }, w.run(5));
+  let row = null;
+  for (let i = 0; i < 200 && !row; i++) { await wait(2); row = w.rows.find(x => x.role === "press"); }
+  check("the evidence check is told which page and which press it is for", w.evidenceAsked.target && /listing\/1$/.test(w.evidenceAsked.target.url) && /Boost listing/.test(w.evidenceAsked.target.what), w.evidenceAsked.target);
+  w.tabs[5].url = SHOP + "/listing/2";
+  w.A.confirm("c1", row.meta.pressId, true);
+  const r = await out;
+  check("a press confirmed after the page moved to another address does nothing", r.ok === false && r.code === "changed" && w.tabs[5].placed === 0 && /moved to/.test(r.error), r);
 }
 {
   const w = world({ sites: shopSite, granted: ["http://shop.test/*"], evidence: () => Promise.resolve({ ok: false, missing: ["x"] }) });

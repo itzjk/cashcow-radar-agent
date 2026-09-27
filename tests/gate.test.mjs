@@ -129,7 +129,23 @@ for (const [label, want] of [["Fulfill items", "Fulfill"], ["Fulfill", "Fulfill"
 check("Fulfill is one of the kinds the gate names", G.kinds.includes("Fulfill") && G.version === 4);
 for (const label of ["Place your order", "Boost listing", "Promote", "Launch campaign", "Set daily budget", "Renew", "Upgrade", "Refund", "Buy shipping label", "Confirm and pay"]) {
   const d = click(label);
-  check('"' + label + '" asks as Pay and counts as spending, so it needs evidence first', needsPress(d) && d.kind === "Pay" && d.spend === true, d);
+  check('"' + label + '" asks as Pay and counts as spending', needsPress(d) && d.kind === "Pay" && d.spend === true, d);
+}
+for (const label of ["Boost listing", "Promote", "Launch campaign", "Set daily budget", "Increase budget", "Boost post", "Increase ad budget", "Edit campaign daily budget", "Buy ad credits"]) {
+  check('"' + label + '" is ad spend a measured test informs, so it needs evidence first', click(label).informed === true, click(label));
+}
+for (const label of ["Place your order", "Renew", "Upgrade", "Buy shipping label", "Confirm and pay", "Buy now", "Buy ad-free plan"]) {
+  check('"' + label + '" is an ordinary purchase: the Pay press, no A/B test needed', click(label).informed === false, click(label));
+}
+for (const [label, where] of [["Zahlungspflichtig bestellen", "shop.example/kasse/"], ["Jetzt kaufen", "shop.example/order/review"], ["Kostenpflichtig bestellen", "shop.example/products/1"], ["Commander", "shop.example/panier/validation"], ["Valider ma commande", "shop.example/products/1"], ["Finalizar pedido", "shop.example/products/1"], ["Acquista ora", "shop.example/products/1"], ["Bestellen", "shop.example/products/1"], ["Order now", "shop.example/products/1"], ["Start free trial", "shop.example/products/1"]]) {
+  const d = click(label, where);
+  check('"' + label + '" places an order, so it waits for the Pay press', needsPress(d) && d.kind === "Pay" && d.spend === true, d);
+}
+check("inside a POST form a final-order button still asks as Pay, not Send", click("Zahlungspflichtig bestellen", "shop.example/kasse/", { submit: true, method: "post" }).kind === "Pay" && click("Place order", "shop.example/checkout", { submit: true, method: "post", ids: ["place_order"] }).kind === "Pay");
+check("WooCommerce's place_order button asks as Pay whatever its label", click("Weiter", "shop.example/kasse/", { ids: ["place_order"] }).kind === "Pay");
+check("localized cart and checkout paths count as payment pages", ["/kasse/", "/panier/validation", "/carrito", "/warenkorb", "/order/review"].every(p => G.checkoutPath(p)));
+for (const label of ["Add to cart", "Weiter einkaufen", "Seguir comprando", "Order history", "Voir ma commande", "Ordina per prezzo"]) {
+  check('"' + label + '" on a product page stays free', free(click(label)), click(label));
 }
 for (const label of ["Capture payment", "Mark as paid", "Collect payment", "Charge customer", "Mark order as paid"]) {
   const d = click(label, SHOP_ADMIN, { kind: "Pay" });
@@ -138,7 +154,7 @@ for (const label of ["Capture payment", "Mark as paid", "Collect payment", "Char
 check("a payment page press counts as spending", click("Continue", "shop.example.com/checkout").spend === true && click("Continue", "shop.example.com/products/1", { cardFields: true }).spend === true);
 check("a press that is not Pay carries no spending flag", !("spend" in click("Publish")) && !("spend" in click("Delete")));
 check("the hands pass the spending flag on with the press", /out\.spend = d\.spend !== false/.test(source("lib/nsp-hands.js")));
-check("hands that confirm in the page themselves ask an evidence hook before a spending press, and without one say what is missing", /var spends = d\.kind === 'Pay' && d\.spend !== false;/.test(source("lib/nsp-hands.js")) && /typeof hooks\.evidence === 'function'/.test(source("lib/nsp-hands.js")) && /code: 'needs_evidence'/.test(source("lib/nsp-hands.js")));
+check("hands that confirm in the page themselves ask an evidence hook before a spending press, and without one say what is missing", /var spends = d\.kind === 'Pay' && d\.spend !== false && d\.informed === true;/.test(source("lib/nsp-hands.js")) && /typeof hooks\.evidence === 'function'/.test(source("lib/nsp-hands.js")) && /code: 'needs_evidence'/.test(source("lib/nsp-hands.js")));
 check("a Fulfill link that only opens a page stays free", free(click("Fulfillment settings", SHOP_ADMIN, { link: true })) && free(click("Unfulfilled", SHOP_ADMIN, { link: true })));
 {
   const rules = G.compileRules({ press: [{ kind: "Fulfill", source: "^(complete (the )?order)\\b" }, { kind: "Nope", source: "^x" }, { kind: "Pay", source: "(" }], never: [{ why: "it is the playbook's own no", source: "^(disavow)" }, { source: "^y" }] });

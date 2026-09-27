@@ -195,4 +195,27 @@ function img(w, h, fn) {
   check("no views, no number: the card asks", bad.hero.value === "NO NUMBER" && bad.form && bad.form.op === "money");
 }
 
+{
+  for (const [t, v] of [["cuánto gano con historia a 1 millón de vistas por video", 1e6], ["cuánto gano con historia a 2 millones de visitas", 2e6], ["cuánto gano con historia a 1,5 millones de vistas", 1.5e6], ["cuánto gano con historia a un millón de vistas", 1e6], ["cuánto gano con historia a 20 mil de vistas", 20000]]) {
+    const r = M.intent(t);
+    check('"' + t + '" reads ' + v + " views and keeps the niche clean", r && r.kind === "money" && r.views === v && r.niche === "historia", r);
+  }
+  const loose = M.intent("cuánto gano con historia a 1 millón");
+  check("an amount with no views word is left out of the niche instead of polluting it", loose && loose.niche === "historia" && loose.views === null, loose);
+  const mk = hours => hours.map((h, i) => ({ videoId: ("v" + String(i).padStart(10, "0")).slice(0, 11), title: "Some history video " + i, viewsNum: 1000 + (i % 5) * 300, publishedAt: Date.UTC(2026, 7, 1 + i * 2, h), published: (40 - i * 2) + " days ago" }));
+  const spread = M.wrapped({ channel: { name: "X" }, videos: mk([15, 16, 17, 0, 1, 3, 4, 6, 7, 9, 12, 21]), offsetMin: 0, now: Date.UTC(2026, 8, 27) }, "en");
+  check("uploads spread across the day are not called a fixed habit", !/almost every time/.test(spread.lead) && /spread across the day/.test(spread.lead) && !spread.share.rows.some(r => /Publishes/.test(r.label)), spread.lead);
+  const habit = M.wrapped({ channel: { name: "X" }, videos: mk([22, 22, 22, 22, 22, 23, 22, 22, 21, 22, 10, 22]), offsetMin: 0, now: Date.UTC(2026, 8, 27) }, "en");
+  check("a real habit names its window and how many uploads it holds", /between 21:00 and 00:00 almost every time, 11 of 12/.test(habit.lead), habit.lead);
+  const titles = ["What It Would Be Like To Time Travel To Medieval England | Boring History For Sleep", "Why New Orleans Was America's Craziest City | Boring History For Sleep"].concat(Array.from({ length: 20 }, (_, i) => "Life In A Medieval Village Part " + i + " | Boring History For Sleep"));
+  const vids = titles.map((t, i) => ({ videoId: ("n" + String(i).padStart(10, "0")).slice(0, 11), title: t, viewsNum: i === 0 ? 16000 : (i === 1 ? 9700 : 3000 + (i % 4) * 100), published: (i + 1) * 3 + " days ago" }));
+  const nv = M.nextVideo({ channel: { name: "History & Sleep" }, videos: vids, signals: {}, language: "en", now: Date.UTC(2026, 8, 27) }, "en");
+  check("the next topic reads as a phrase from the real title, not a lowercase keyword string", /^Time Travel To Medieval England$/.test(nv.hero.value) && /Your next video: Time Travel To Medieval England\./.test(nv.lead), { hero: nv.hero.value, lead: nv.lead });
+  const w = nv.sections.find(x => x.id === "write").rows[0];
+  check("the skeleton row never carries a judge score for a filled slot, and nothing is spoken as the title before the writer answers", (w.label === "Your skeleton" || /slot suggestion/.test(w.note)) && !/percentile/i.test(JSON.stringify(nv.sections.find(x => x.id === "write"))) && !/Title:/.test(nv.say + nv.lead), w);
+  const tpl = M.nextVideo({ channel: { name: "T" }, videos: vids.map((v, i) => Object.assign({}, v, { title: i === 0 ? v.title : "The Strange Story Of Topic " + i + " | Boring History For Sleep" })), signals: {}, language: "en", now: Date.UTC(2026, 8, 27) }, "en");
+  const tw = tpl.sections.find(x => x.id === "write").rows[0];
+  check("when the titles repeat a skeleton it is filled with the readable phrase and labelled as a slot suggestion", tw.label === "Your skeleton" || (/Time Travel To Medieval England/.test(tw.value) && /slot suggestion/.test(tw.note)), tw);
+}
+
 done("mine");
