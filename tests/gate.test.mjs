@@ -126,7 +126,19 @@ for (const [label, want] of [["Fulfill items", "Fulfill"], ["Fulfill", "Fulfill"
   const d = click(label, SHOP_ADMIN);
   check('"' + label + '" waits for a press as ' + want + " on any site, the words the last check flagged", needsPress(d) && d.kind === want, d);
 }
-check("Fulfill is one of the kinds the gate names", G.kinds.includes("Fulfill") && G.version === 3);
+check("Fulfill is one of the kinds the gate names", G.kinds.includes("Fulfill") && G.version === 4);
+for (const label of ["Place your order", "Boost listing", "Promote", "Launch campaign", "Set daily budget", "Renew", "Upgrade", "Refund", "Buy shipping label", "Confirm and pay"]) {
+  const d = click(label);
+  check('"' + label + '" asks as Pay and counts as spending, so it needs evidence first', needsPress(d) && d.kind === "Pay" && d.spend === true, d);
+}
+for (const label of ["Capture payment", "Mark as paid", "Collect payment", "Charge customer", "Mark order as paid"]) {
+  const d = click(label, SHOP_ADMIN, { kind: "Pay" });
+  check('"' + label + '" asks as Pay but brings money in, so it is not spending', needsPress(d) && d.kind === "Pay" && d.spend === false, d);
+}
+check("a payment page press counts as spending", click("Continue", "shop.example.com/checkout").spend === true && click("Continue", "shop.example.com/products/1", { cardFields: true }).spend === true);
+check("a press that is not Pay carries no spending flag", !("spend" in click("Publish")) && !("spend" in click("Delete")));
+check("the hands pass the spending flag on with the press", /out\.spend = d\.spend !== false/.test(source("lib/nsp-hands.js")));
+check("hands that confirm in the page themselves ask an evidence hook before a spending press, and without one say what is missing", /var spends = d\.kind === 'Pay' && d\.spend !== false;/.test(source("lib/nsp-hands.js")) && /typeof hooks\.evidence === 'function'/.test(source("lib/nsp-hands.js")) && /code: 'needs_evidence'/.test(source("lib/nsp-hands.js")));
 check("a Fulfill link that only opens a page stays free", free(click("Fulfillment settings", SHOP_ADMIN, { link: true })) && free(click("Unfulfilled", SHOP_ADMIN, { link: true })));
 {
   const rules = G.compileRules({ press: [{ kind: "Fulfill", source: "^(complete (the )?order)\\b" }, { kind: "Nope", source: "^x" }, { kind: "Pay", source: "(" }], never: [{ why: "it is the playbook's own no", source: "^(disavow)" }, { source: "^y" }] });

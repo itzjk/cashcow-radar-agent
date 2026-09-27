@@ -229,7 +229,31 @@ textarea:focus, textarea:focus-visible { outline: none; }
 .card[data-status="failed"] { border-color: rgba(255,45,45,.35); }
 .card .what { font-weight: 600; }
 .card .detail { color: var(--muted); overflow-wrap: anywhere; }
-.card-text { min-width: 0; }
+.card-text { min-width: 0; flex: 1; }
+
+.card.decide { padding: 10px 12px 9px; background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 70%), var(--surface); border-color: var(--line-strong); }
+.card.decide .dot { display: none; }
+.card.decide[data-state="drop"] { border-color: rgba(255,45,45,.4); }
+.decide-head { display: flex; align-items: flex-start; gap: 9px; margin-top: 7px; min-width: 0; }
+.state-pill { flex: 0 0 auto; font-size: 10.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; border-radius: 999px; padding: 3px 9px; line-height: 1.3; }
+.card.decide[data-state="keep"] .state-pill { background: #fff; color: #000; }
+.card.decide[data-state="look"] .state-pill { background: transparent; color: #fff; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.card.decide[data-state="drop"] .state-pill { background: var(--red); color: #fff; }
+.decide-num { min-width: 0; font-size: 13px; line-height: 1.45; color: rgba(255,255,255,.9); overflow-wrap: anywhere; }
+.decide-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--faint); }
+.decide-link { flex: 0 0 auto; background: none; border: 1px solid var(--line-strong); border-radius: 999px; color: rgba(255,255,255,.85); font-size: 11.5px; padding: 3px 10px; cursor: pointer; }
+.decide-link:hover { border-color: #fff; color: #fff; }
+.decide-link:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.missing { margin-top: 8px; }
+.missing-head { font-size: 10.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+.missing-list { margin: 4px 0 0; padding: 0; list-style: none; }
+.missing-list li { position: relative; padding-left: 14px; margin: 3px 0; color: rgba(255,255,255,.8); line-height: 1.45; overflow-wrap: anywhere; }
+.missing-list li::before { content: ""; position: absolute; left: 2px; top: .62em; width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+.missing-foot { margin-top: 5px; color: var(--muted); }
+.card[data-status="failed"] .missing-list li { color: rgba(255,255,255,.8); }
+.gate-evidence { display: flex; align-items: flex-start; gap: 8px; margin-top: 9px; padding: 7px 9px; border-radius: 9px; background: rgba(255,255,255,.04); border: 1px solid var(--line); font-size: 12px; line-height: 1.45; }
+.gate-evidence-tag { flex: 0 0 auto; font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #000; background: #fff; border-radius: 999px; padding: 2px 7px; margin-top: 1px; }
+.gate-evidence-text { min-width: 0; color: rgba(255,255,255,.85); overflow-wrap: anywhere; }
 
 .gate {
   position: relative;

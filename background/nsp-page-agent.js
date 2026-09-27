@@ -2,6 +2,7 @@
   if (Object.prototype.hasOwnProperty.call(root, 'NSP_PAGE_AGENT')) return;
 
   var PRESS_MS = 120000;
+  var EVIDENCE_MS = 4000;
   var STEP_MS = 45000;
   var LOAD_MS = 25000;
   var PLAN_MAX = 30;
@@ -301,7 +302,8 @@
       urlAfter: (r && r.nowAt) || extra.urlAfter || '',
       stateChanged: (r && r.stateChanged) || '',
       result: r && r.ok !== false ? 'done' : (extra.result || 'failed'),
-      detail: clip((r && (r.error || r.clicked || r.typed || r.picked)) || '', 600)
+      detail: clip((r && (r.error || r.clicked || r.typed || r.picked)) || '', 600),
+      evidence: extra.evidence || null
     })).catch(function () { return null; });
   }
 
@@ -327,7 +329,8 @@
     var id = nonce();
     var until = Date.now() + PRESS_MS;
     var row = null;
-    return Promise.resolve(ctx.add('press', first.line, { status: 'waiting', pressId: id, kind: first.kind, host: info.host, until: until })).then(function (r) {
+    var evidence = first.evidence || null;
+    return Promise.resolve(ctx.add('press', first.line, { status: 'waiting', pressId: id, kind: first.kind, host: info.host, until: until, evidence: evidence ? clip(evidence.line, 300) : '' })).then(function (r) {
       row = r;
       if (!row) return 'gone';
       ctx.typing('Waiting for your press');
@@ -352,8 +355,8 @@
           var out = { ok: false, code: code, kind: first.kind, error: (words[code] || 'Not run: ') + first.line + '. Do not ask again unless the user asks.' };
           if (first.typed) out.typed = first.typed;
           var status = code === 'declined' ? 'declined' : (code === 'timeout' ? 'expired' : 'stopped');
-          if (row) ctx.patch(row, { status: status, pressId: id, kind: first.kind, host: info.host, until: until, detail: '' });
-          ledgerFor(ctx, info, a, first.field ? { ok: false, field: first.field, before: first.before, after: first.after } : { ok: false }, { decision: code, kind: first.kind, urlBefore: before, result: code });
+          if (row) ctx.patch(row, { status: status, pressId: id, kind: first.kind, host: info.host, until: until, detail: '', evidence: evidence ? clip(evidence.line, 300) : '' });
+          ledgerFor(ctx, info, a, first.field ? { ok: false, field: first.field, before: first.before, after: first.after } : { ok: false }, { decision: code, kind: first.kind, urlBefore: before, result: code, evidence: evidence });
           return out;
         });
       }
@@ -372,10 +375,35 @@
         return settle(tab.id, before, true).then(function (now) {
           if (r && r.ok !== false && now && now.url && now.url !== before && !r.nowAt) r.nowAt = now.url;
           if (first.field && r && !r.field) { r.field = first.field; r.before = first.before; r.after = first.after; }
-          ctx.patch(row, { status: r && r.ok !== false ? 'done' : 'failed', pressId: id, kind: first.kind, host: info.host, until: until, pressedAt: pressedAt, detail: clip(r && r.ok !== false ? (r.nowAt ? 'Done. The page is now at ' + r.nowAt : 'Done.') : (r && r.error) || 'It did not run.', 300) });
-          ledgerFor(ctx, info, a, r, { decision: 'pressed', pressedAt: pressedAt, kind: first.kind, urlBefore: before });
+          ctx.patch(row, { status: r && r.ok !== false ? 'done' : 'failed', pressId: id, kind: first.kind, host: info.host, until: until, pressedAt: pressedAt, evidence: evidence ? clip(evidence.line, 300) : '', detail: clip(r && r.ok !== false ? (r.nowAt ? 'Done. The page is now at ' + r.nowAt : 'Done.') : (r && r.error) || 'It did not run.', 300) });
+          ledgerFor(ctx, info, a, r, { decision: 'pressed', pressedAt: pressedAt, kind: first.kind, urlBefore: before, evidence: evidence });
           return r;
         });
+      });
+    });
+  }
+
+  function spendCheck(ctx, tab, info, a, first, before) {
+    var ask = typeof ctx.evidence === 'function' ? ctx.evidence(info.host) : null;
+    var late = new Promise(function (resolve) { setTimeout(function () { resolve({ ok: false, missing: ['the decision store did not answer in time, so no evidence could be read'] }); }, EVIDENCE_MS); });
+    var got = ask ? Promise.race([Promise.resolve(ask).then(null, function () { return { ok: false, missing: ['the decision store could not be read'] }; }), late]) : Promise.resolve({ ok: false, missing: ['no decision store is connected, so no evidence can be read'] });
+    return got.then(function (ev) {
+      if (ev && ev.ok === true) {
+        first.evidence = { decision: Number(ev.decision) || 0, line: String(ev.line || '') };
+        return askPress(ctx, tab, info, a, first, before);
+      }
+      return exec(tab.id, handsRelease, []).then(function () {
+        var missing = ev && Array.isArray(ev.missing) && ev.missing.length ? ev.missing.slice(0, 5).map(function (m) { return clip(m, 300); }) : ['a measured test on ' + info.host];
+        var out = {
+          ok: false,
+          code: 'needs_evidence',
+          kind: 'Pay',
+          missing: missing,
+          error: 'Not offered: ' + first.line + '. ZERACK offers a press that spends money only after a measured test on this site says it is worth it. Missing: ' + missing.join('; ') + '. Tell the user what is missing and that they can still do it themselves on the page. Do not retry.'
+        };
+        if (ev && ev.line) out.evidence = clip(ev.line, 300);
+        ledgerFor(ctx, info, a, { ok: false, error: 'Missing: ' + missing.join('; ') }, { decision: 'no_evidence', kind: 'Pay', urlBefore: before, result: 'no_evidence', evidence: ev && Number(ev.decision) > 0 && ev.line ? { decision: Number(ev.decision), line: ev.line } : null });
+        return out;
       });
     });
   }
@@ -448,7 +476,7 @@
                 });
               }
               var r = x.value;
-              if (r.code === 'needs_press' && r.handle) return askPress(ctx, tab, info, a, r, before);
+              if (r.code === 'needs_press' && r.handle) return r.kind === 'Pay' && r.spend !== false ? spendCheck(ctx, tab, info, a, r, before) : askPress(ctx, tab, info, a, r, before);
               var wrote = need === 'act';
               var settled = wrote ? settle(tab.id, before, !r.mayLeave) : Promise.resolve(null);
               return settled.then(function (now) {
@@ -486,6 +514,7 @@
         out.stoppedAt = failed.step;
         out.error = 'step ' + failed.step + ' (' + failed.did + ') did not work: ' + String((failed.result && failed.result.error) || 'no answer');
         if (failed.result && failed.result.code) out.code = failed.result.code;
+        if (failed.result && Array.isArray(failed.result.missing)) out.missing = failed.result.missing;
       }
       if (steps.length < ((args && args.steps) || []).length) out.note = 'only the first ' + PLAN_MAX + ' steps run in one plan';
       return out;

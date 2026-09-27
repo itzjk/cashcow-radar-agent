@@ -207,6 +207,12 @@
     box.appendChild(head);
     box.appendChild(node('div', 'gate-what', parts.what));
     if (parts.where) box.appendChild(node('div', 'gate-where', parts.where));
+    if (m.evidence) {
+      var ev = node('div', 'gate-evidence');
+      ev.appendChild(node('span', 'gate-evidence-tag', 'Evidence'));
+      ev.appendChild(node('span', 'gate-evidence-text', String(m.evidence)));
+      box.appendChild(ev);
+    }
     if (live) {
       var acts = node('div', 'gate-actions');
       var go = node('button', 'gate-go', PRESS_VERBS[m.kind] || 'Do it');
@@ -313,6 +319,41 @@
     return box;
   }
 
+  var DECIDE_STATES = { keep: 'KEEP', look: 'LOOK AT IT', drop: 'DROP' };
+
+  function missingEl(parent, list, head, foot) {
+    var wrap = node('div', 'missing');
+    wrap.appendChild(node('div', 'missing-head', head));
+    var ul = node('ul', 'missing-list');
+    list.slice(0, 5).forEach(function (t) { ul.appendChild(node('li', '', String(t))); });
+    wrap.appendChild(ul);
+    if (foot) wrap.appendChild(node('div', 'missing-foot', foot));
+    parent.appendChild(wrap);
+  }
+
+  function decisionEl(parent, d, card) {
+    var state = DECIDE_STATES[d.state] ? d.state : 'look';
+    card.classList.add('decide');
+    card.dataset.state = state;
+    var head = node('div', 'decide-head');
+    head.appendChild(node('span', 'state-pill', d.label || DECIDE_STATES[state]));
+    head.appendChild(node('span', 'decide-num', String(d.number || '')));
+    parent.appendChild(head);
+    if (Array.isArray(d.missing) && d.missing.length) missingEl(parent, d.missing, 'Still missing', d.projection ? 'That is ' + d.projection + '.' : '');
+    var foot = [];
+    var due = /^\d{4}-\d{2}-\d{2}$/.test(String(d.due || '')) ? new Date(d.due + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) : '';
+    if (d.lessonState === 'firm') foot.push('Lesson kept');
+    else if (due) foot.push('Re-measure ' + due);
+    if (d.from) foot.push('from the ' + (d.from === 'chat' ? 'conversation' : d.from));
+    var row = node('div', 'decide-foot');
+    row.appendChild(node('span', '', foot.join(' \u00b7 ')));
+    var link = node('button', 'decide-link', 'All decisions');
+    link.type = 'button';
+    link.addEventListener('click', function (e) { if (e.isTrusted) openPage('activity/activity.html#decisions'); });
+    row.appendChild(link);
+    parent.appendChild(row);
+  }
+
   function msgEl(row) {
     var box;
     if (row.role === 'press') return pressEl(row);
@@ -338,7 +379,9 @@
       box.appendChild(node('span', 'dot'));
       var inner = node('div', 'card-text');
       inner.appendChild(node('div', 'what', row.text));
-      if (meta.detail) inner.appendChild(node('div', 'detail', meta.detail));
+      if (meta.decision && typeof meta.decision === 'object') decisionEl(inner, meta.decision, box);
+      else if (meta.detail) inner.appendChild(node('div', 'detail', meta.detail));
+      if (Array.isArray(meta.missing) && meta.missing.length) missingEl(inner, meta.missing, 'Missing before ZERACK offers to spend', 'You can still do it yourself on the page.');
       box.appendChild(inner);
     } else {
       box = node('div', 'msg error');
@@ -764,6 +807,7 @@
     if (act === 'site-forget') { if (S.site && S.site.host) send({ type: 'NSP_CHAT_FORGET_SITE', host: S.site.host }).then(readSite); return; }
     if (act === 'hide-site') { send({ type: 'NSP_CHAT_OVERLAY', op: 'hide_site' }); return; }
     if (act === 'setup') { openPage('setup/setup.html'); return; }
+    if (act === 'activity') { openPage('activity/activity.html'); return; }
     if (act === 'close') closeOverlay();
   }
 

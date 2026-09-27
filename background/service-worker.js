@@ -11,6 +11,7 @@ try { importScripts('../lib/nsp-data-tools.js', '../chat/chat-tools.js', '../lib
 try { importScripts('../lib/nsp-rpm-tabla.js'); } catch (eRpmTable) { console.warn('[NSP SW] importScripts RPM table:', eRpmTable && eRpmTable.message); }
 try { importScripts('../lib/nsp-sites.js', 'nsp-page-agent.js'); } catch (ePageAgent) { console.warn('[NSP SW] importScripts page agent:', ePageAgent && ePageAgent.message); }
 try { importScripts('../knowledge/reverse-engine.js', '../lib/nsp-cadencia.js', '../lib/nsp-dinero-equilibrio.js', '../lib/nsp-business.js'); } catch (eBusiness) { console.warn('[NSP SW] importScripts business engines:', eBusiness && eBusiness.message); }
+try { importScripts('../lib/nsp-veredicto.js', '../lib/nsp-decide.js'); } catch (eDecide) { console.warn('[NSP SW] importScripts decision engine:', eDecide && eDecide.message); }
 
 var NSP_GEMINI_LIMIT_PER_MIN = 14;
 var NSP_GROQ_LIMIT_PER_MIN = 28;
@@ -572,6 +573,7 @@ chrome.alarms.onAlarm.addListener(function(alarm) {
     console.log('[NSP SW] trend-check starting,', new Date().toLocaleTimeString());
     runTrendCheck();
   }
+  if (alarm.name === NSP_DECIDE_ALARM) nspDecideTick();
 });
 
 // ── TREND ALERTS — Check watched channels for new outlier videos ─────────────
@@ -2723,6 +2725,7 @@ function nspChatToolNow(name, args, ctx, done) {
     return;
   }
   if (name === 'zerackPlaybook') { done(self.NSP_PLAYBOOKS ? self.NSP_PLAYBOOKS.lookup(String(ctx.playbook || ''), args) : { ok: false, error: 'the playbooks did not load' }); return; }
+  if (name === 'zerackDecide') { lib(nspDecide(args, ctx)); return; }
   if (name === 'zerackBreakEven') {
     var pb = self.NSP_PLAYBOOKS ? self.NSP_PLAYBOOKS.get(String(ctx.playbook || '')) : null;
     done(self.NSP_BUSINESS ? self.NSP_BUSINESS.breakEven(args, pb, self.NspDineroEquilibrio) : { ok: false, error: 'the break-even engine did not load' });
@@ -2748,7 +2751,7 @@ function nspChatToolNow(name, args, ctx, done) {
 
 var NSP_SERIES_WAIT_MS = 2000;
 
-function nspBusinessRead(result) {
+function nspBusinessRead(result, opts) {
   var B = self.NSP_BUSINESS, store = self.NSP_CHAT_STORE;
   if (!B || !result || result.ok !== true) return result;
   var out = B.analyze(result, { reverse: self.NSP_REVERSE_ENGINE, cadence: self.NSP_CADENCIA });
@@ -2757,11 +2760,434 @@ function nspBusinessRead(result) {
   var remembered = Promise.resolve(store.lastSeries(snap.key)).then(function(prev) {
     var diff = prev ? B.compare(prev, snap) : null;
     if (diff) out.sinceLast = diff;
-    return store.addSeries(snap).then(function() { return out; }, function() { return out; });
+    return store.addSeries(snap).then(function() {
+      if (!(opts && opts.quiet)) nspDecideAfterRead(snap);
+      return out;
+    }, function() { return out; });
   }, function() { return out; });
   var late = new Promise(function(resolve) { setTimeout(function() { resolve(out); }, NSP_SERIES_WAIT_MS); });
   return Promise.race([remembered, late]);
 }
+
+var NSP_DECIDE_ALARM = 'nsp-decide';
+var NSP_DECIDE_WAIT_MS = 2500;
+var NSP_DECIDE_RETRY_MS = 6 * 3600000;
+var NSP_DECIDE_MEMORY = 6;
+var _nspDecide = { busy: {}, chain: Promise.resolve() };
+
+function nspDecideReady() {
+  var st = self.NSP_CHAT_STORE;
+  return !!(self.NSP_DECIDE && self.NSP_VEREDICTO && self.NSP_BUSINESS && st && typeof st.addDecision === 'function');
+}
+
+function nspDecideLate(p, fallback, ms) {
+  return Promise.race([Promise.resolve(p).then(null, function() { return fallback; }), new Promise(function(resolve) { setTimeout(function() { resolve(fallback); }, ms || NSP_DECIDE_WAIT_MS); })]);
+}
+
+function nspDecidePage(url) {
+  var key = self.NSP_BUSINESS ? self.NSP_BUSINESS.seriesKey(url, '') : '';
+  return key ? key.slice(1) : '';
+}
+
+function nspDecideLastRead(host, url) {
+  var page = nspDecidePage(url);
+  if (!host || !page) return Promise.resolve(null);
+  return self.NSP_CHAT_STORE.seriesByHost(host, 40).then(function(rows) {
+    for (var i = 0; i < rows.length; i++) {
+      var k = String(rows[i].key || '');
+      if (k.slice(k.indexOf('|') + 1) === page) return rows[i];
+    }
+    return null;
+  }, function() { return null; });
+}
+
+function nspDecideRow(per, name) {
+  if (!per || !name) return null;
+  var want = String(name).replace(/\s+/g, ' ').trim().toLowerCase();
+  var keys = Object.keys(per);
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i].replace(/\s+/g, ' ').trim().toLowerCase() === want) return { name: keys[i], row: per[keys[i]] };
+  }
+  return null;
+}
+
+function nspDecideArms(given, snap) {
+  var list = Array.isArray(given) ? given.slice(0, 12) : [];
+  var rows = [];
+  var arms = list.map(function(a) {
+    a = a && typeof a === 'object' ? a : {};
+    var name = String(a.name || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    var hit = snap ? nspDecideRow(snap.per, name) : null;
+    if (hit && typeof hit.row.impressions === 'number' && typeof hit.row.clicks === 'number') {
+      rows.push(hit.name);
+      return { name: hit.name, impressions: hit.row.impressions, clicks: hit.row.clicks, from: 'page' };
+    }
+    var imp = a.impressions === '' || a.impressions == null ? NaN : Number(a.impressions);
+    var clicks = a.clicks === '' || a.clicks == null ? NaN : Number(a.clicks);
+    return { name: name, impressions: imp, clicks: clicks, from: 'chat' };
+  });
+  return { arms: arms, rows: rows };
+}
+
+function nspDecidePoints(key, metric) {
+  return self.NSP_CHAT_STORE.seriesFor(key, 400).then(function(rows) {
+    var points = [];
+    var names = {};
+    rows.forEach(function(r) {
+      Object.keys(r.metrics || {}).forEach(function(k) { names[k] = 1; });
+      var v = r.metrics ? r.metrics[metric] : undefined;
+      if (typeof v === 'number' && isFinite(v)) points.push({ t: r.at, value: v });
+    });
+    return { points: points, metrics: Object.keys(names), last: rows.length ? rows[rows.length - 1] : null };
+  });
+}
+
+function nspDecideInput(kind, args, host, url) {
+  var now = Date.now();
+  return nspDecideLastRead(host, url).then(function(snap) {
+    if (kind === 'ab') {
+      var got = nspDecideArms(args.arms, snap);
+      var missing = got.arms.filter(function(a) { return !(isFinite(a.impressions) && isFinite(a.clicks)); });
+      if (missing.length) return { error: 'no numbers for ' + missing.map(function(a) { return '"' + (a.name || 'an option') + '"'; }).join(' and ') + ': read the page with zerackExtract first or ask the user for its impressions and clicks. An empty box is not a zero.' };
+      var src = got.rows.length && snap ? { key: snap.key, reader: snap.reader, url: url, metric: 'clicks', rows: got.rows } : null;
+      return { input: { arms: got.arms, control: args.control, now: now }, source: src, readAt: src ? snap.at : 0 };
+    }
+    if (kind === 'share') return { input: { name: args.name, successes: args.successes, total: args.total, bar: args.bar }, source: null };
+    var metric = String(args.metric || '').trim().slice(0, 40);
+    if (Array.isArray(args.points) && args.points.length) {
+      return { input: { name: args.name || metric, points: args.points.map(function(p) { return { t: Date.parse(String(p && p.at || '')) || Number(p && p.t), value: p && p.value }; }), now: now }, source: null };
+    }
+    if (!snap) return { error: 'no reading of this page is stored yet: read it with zerackExtract first, then decide on one of its numbers' };
+    return nspDecidePoints(snap.key, metric).then(function(got) {
+      if (!metric || got.metrics.indexOf(metric) < 0) return { error: 'metric must be one of the numbers stored for this page: ' + got.metrics.join(', ') };
+      return { input: { name: args.name || metric, points: got.points, now: now }, source: { key: snap.key, reader: snap.reader, url: url, metric: metric, rows: [] }, readAt: got.last ? got.last.at : 0 };
+    });
+  });
+}
+
+function nspDecideSame(d, kind, host, arms, metric, key) {
+  if (!d || d.kind !== kind || d.host !== host || (d.status !== 'open' && d.status !== 'kept')) return false;
+  if (kind === 'ab') {
+    var a = (d.input.arms || []).map(function(x) { return x.name.toLowerCase(); }).sort().join('|');
+    var b = arms.map(function(x) { return String(x.name || '').toLowerCase(); }).sort().join('|');
+    return !!a && a === b;
+  }
+  if (kind === 'trend' || kind === 'window') return !!(d.source && key && d.source.key === key && d.source.metric === metric);
+  return false;
+}
+
+function nspDecideView(d) {
+  var r = d.result || {};
+  return {
+    ok: true,
+    id: d.id,
+    kind: d.kind,
+    state: r.state,
+    label: r.label,
+    number: r.number,
+    line: r.line,
+    missing: (r.missing || []).map(function(m) { return m.text; }),
+    projection: r.projection ? r.projection.line : '',
+    from: d.source ? (d.input.arms && d.input.arms.some(function(a) { return a.from === 'chat'; }) ? 'page and chat' : 'page') : 'chat',
+    dueAt: d.dueAt,
+    due: d.dueAt ? new Date(d.dueAt).toISOString().slice(0, 10) : '',
+    status: d.status,
+    lesson: d.lesson.text,
+    lessonState: d.lesson.state,
+    note: d.lesson.state === 'firm' ? 'This lesson is kept: the last re-measure agreed.' : (d.dueAt ? 'The lesson is kept only if the re-measure on ' + new Date(d.dueAt).toISOString().slice(0, 10) + ' agrees.' : '')
+  };
+}
+
+function nspDecideCard(v) {
+  return { id: v.id, kind: v.kind, state: v.state, label: v.label, number: v.number, missing: v.missing.slice(0, 5), projection: v.projection, due: v.due, from: v.from, lesson: v.lesson, lessonState: v.lessonState, status: v.status };
+}
+
+function nspDecide(args, ctx) {
+  args = args && typeof args === 'object' ? args : {};
+  ctx = ctx || {};
+  if (!nspDecideReady()) return Promise.resolve({ ok: false, error: 'the decision engine did not load, reload the extension' });
+  var D = self.NSP_DECIDE, store = self.NSP_CHAT_STORE;
+  var kind = String(args.kind || '').toLowerCase().trim();
+  if (D.kinds.indexOf(kind) < 0) return Promise.resolve({ ok: false, code: 'bad_kind', error: 'kind must be ab, trend, window or share' });
+  var site = ctx.site && ctx.site.host ? ctx.site : null;
+  var host = site ? String(site.host) : '';
+  var url = site ? String(site.url || '') : '';
+  var question = String(args.question || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  return nspDecideInput(kind, args, host, url).then(function(prep) {
+    if (prep.error) return { ok: false, code: 'missing', error: prep.error };
+    var fresh = D.decide(kind, prep.input);
+    if (!fresh.ok) return { ok: false, code: fresh.code, error: fresh.error };
+    var now = Date.now();
+    var armsIn = (prep.input.arms || []).map(function(a) { return { name: a.name, impressions: a.impressions, clicks: a.clicks, from: a.from }; });
+    if (fresh.arms) fresh.arms.forEach(function(a, i) { a.from = armsIn[i] ? armsIn[i].from : ''; });
+    return store.listDecisions({ host: host, limit: 300 }).then(function(list) {
+      var metric = prep.source ? prep.source.metric : '';
+      var old = host ? list.filter(function(d) { return nspDecideSame(d, kind, host, armsIn, metric, prep.source && prep.source.key); })[0] : null;
+      if (old) return nspDecideApply(old, fresh, prep, now, 'chat').then(nspDecideView);
+      var span = D.dueIn(kind, args.dueDays);
+      var row = {
+        at: now,
+        convId: String(ctx.convId || ''),
+        host: host,
+        playbook: String(ctx.playbook || ''),
+        url: url,
+        kind: kind,
+        question: question || ('Decision on ' + (host || 'the chat')),
+        input: { arms: armsIn, control: args.control, name: prep.input.name, metric: metric, points: prep.source ? [] : (prep.input.points || []), successes: prep.input.successes, total: prep.input.total, bar: prep.input.bar },
+        source: prep.source,
+        result: fresh,
+        claim: D.claimOf(fresh),
+        lesson: { text: D.lessonText(kind, fresh, question, args.lesson), state: 'tentative', at: 0, evidence: fresh.number, why: '' },
+        status: 'open',
+        dueAt: now + span,
+        span: span,
+        tries: 0,
+        measuredAt: now,
+        readAt: prep.readAt || 0,
+        measures: [{ at: now, state: fresh.state, number: fresh.number, why: 'first measure', by: 'chat' }]
+      };
+      return store.addDecision(row).then(function(saved) {
+        nspDecideSchedule();
+        nspDecideAnnounce(saved.id);
+        return nspDecideView(saved);
+      });
+    });
+  }).then(null, function(e) { return { ok: false, error: 'the decision could not be stored: ' + String((e && e.message) || e) }; });
+}
+
+function nspDecideApply(d, fresh, prep, now, by) {
+  var D = self.NSP_DECIDE;
+  var due = d.dueAt > 0 && d.dueAt <= now;
+  var decisive = fresh.ok && (fresh.state === 'keep' || fresh.state === 'drop');
+  var measure = { at: now, state: fresh.ok ? fresh.state : 'look', number: fresh.ok ? fresh.number : '', why: '', by: by };
+  var nothingNew = fresh.ok && d.result && fresh.number === d.result.number;
+  var fromArms = prep && prep.input && prep.input.arms ? prep.input.arms : [];
+  if (fresh.ok && fresh.arms) fresh.arms.forEach(function(a, i) { a.from = fromArms[i] ? fromArms[i].from : ''; });
+  if (fresh.ok) d.result = fresh;
+  if (prep && prep.input && prep.input.arms) d.input.arms = prep.input.arms.map(function(a) { return { name: a.name, impressions: a.impressions, clicks: a.clicks, from: a.from }; });
+  if (prep && prep.input && prep.input.points && !d.source) d.input.points = prep.input.points;
+  d.measuredAt = now;
+  if (prep && prep.readAt) d.readAt = prep.readAt;
+  d.waiting = '';
+  if (nothingNew) {
+    measure.why = 'the same numbers as the last measure, so there is nothing new to judge';
+  } else if (due || decisive || d.lesson.state === 'firm') {
+    var r = D.recheck(d, fresh, now);
+    d.status = r.status;
+    d.tries = r.tries;
+    d.dueAt = r.dueAt;
+    d.lesson.why = r.why;
+    measure.why = r.why;
+    if (r.lesson === 'firm') {
+      if (d.lesson.state !== 'firm') d.lesson.at = now;
+      d.lesson.state = 'firm';
+      d.lesson.evidence = fresh.number;
+    } else if (r.lesson === 'deleted') {
+      d.lesson.state = 'deleted';
+    }
+  } else {
+    measure.why = 'measured before the re-measure date, the lesson waits for it';
+  }
+  d.measures = (d.measures || []).concat([measure]).slice(-20);
+  return self.NSP_CHAT_STORE.putDecision(d).then(function(saved) {
+    nspDecideSchedule();
+    nspDecideAnnounce(saved.id);
+    return saved;
+  });
+}
+
+function nspDecideAnnounce(id) {
+  nspChatPost({ decision: Number(id) || 0 });
+}
+
+function nspDecideSchedule() {
+  if (!nspDecideReady()) return Promise.resolve(0);
+  return self.NSP_CHAT_STORE.listDecisions({ limit: 2000 }).then(function(list) {
+    var next = 0;
+    list.forEach(function(d) {
+      if ((d.status === 'open' || d.status === 'kept') && d.dueAt > 0 && (!next || d.dueAt < next)) next = d.dueAt;
+    });
+    return new Promise(function(resolve) {
+      try {
+        if (!next) chrome.alarms.clear(NSP_DECIDE_ALARM, function() { void chrome.runtime.lastError; resolve(0); });
+        else chrome.alarms.create(NSP_DECIDE_ALARM, { when: Math.max(Date.now() + 1000, next) }, function() { void chrome.runtime.lastError; resolve(next); });
+      } catch (e) { resolve(0); }
+    });
+  }, function() { return 0; });
+}
+
+function nspDecideFresh(d, snap) {
+  var D = self.NSP_DECIDE;
+  var now = Date.now();
+  if (d.kind === 'ab') {
+    var arms = d.input.arms.map(function(a) {
+      var hit = snap && a.from === 'page' ? nspDecideRow(snap.per, a.name) : null;
+      return hit ? { name: a.name, impressions: hit.row.impressions, clicks: hit.row.clicks, from: 'page' } : { name: a.name, impressions: a.impressions, clicks: a.clicks, from: a.from };
+    });
+    return Promise.resolve({ fresh: D.ab({ arms: arms, control: d.input.control || d.result.control }), prep: { input: { arms: arms } } });
+  }
+  return nspDecidePoints(d.source.key, d.source.metric).then(function(got) {
+    var input = { name: d.input.name || d.source.metric, points: got.points, now: now };
+    return { fresh: D.decide(d.kind, input), prep: { input: input } };
+  });
+}
+
+function nspDecideTab(url) {
+  var page = nspDecidePage(url);
+  return new Promise(function(resolve) {
+    try {
+      chrome.tabs.query({}, function(tabs) {
+        if (chrome.runtime.lastError || !tabs) { resolve(null); return; }
+        var hit = tabs.filter(function(t) { return nspDecidePage(String(t.url || '')) === page && t.status !== 'loading'; })[0];
+        resolve(hit || null);
+      });
+    } catch (e) { resolve(null); }
+  });
+}
+
+function nspDecideReadTab(tab, reader) {
+  if (!tab || !self.NSP_PAGE_AGENT) return Promise.resolve({ ok: false, code: 'no_tab' });
+  var ctx = {
+    convId: '',
+    tabId: tab.id,
+    stopped: function() { return false; },
+    agentOn: nspAgentOn,
+    add: function() { return Promise.resolve(null); },
+    patch: function() { return Promise.resolve(); },
+    typing: function() {},
+    lastReply: function() { return Promise.resolve(''); },
+    ledger: function() { return Promise.resolve(null); }
+  };
+  return Promise.resolve(self.NSP_PAGE_AGENT.run('zerackExtract', { reader: reader }, ctx)).then(function(r) {
+    return r && r.ok === true ? Promise.resolve(nspBusinessRead(r, { quiet: true })).then(function() { return r; }) : r;
+  });
+}
+
+function nspDecideRemeasure(d, opts) {
+  opts = opts || {};
+  var id = Number(d && d.id) || 0;
+  if (!id || _nspDecide.busy[id]) return Promise.resolve(d);
+  _nspDecide.busy[id] = true;
+  var now = Date.now();
+  var done = function(x) { delete _nspDecide.busy[id]; return x; };
+  var work;
+  if (!d.source || !d.source.key) {
+    d.tries = (Number(d.tries) || 0) + 1;
+    if (d.lesson.state !== 'firm' && d.tries >= self.NSP_DECIDE.DEFAULTS.maxTries) {
+      d.status = 'expired';
+      d.lesson.state = 'deleted';
+      d.lesson.why = 'no new numbers came in ' + d.tries + ' checks after the re-measure date, so it is not kept as a lesson';
+      d.dueAt = 0;
+      d.waiting = '';
+    } else {
+      d.waiting = 'new numbers from you: ask ZERACK about "' + String(d.question).slice(0, 120) + '" with the fresh numbers';
+      d.dueAt = now + NSP_DECIDE_RETRY_MS * 4;
+    }
+    work = self.NSP_CHAT_STORE.putDecision(d).then(function(saved) { nspDecideAnnounce(id); return saved; });
+  } else {
+    var read = opts.snap ? Promise.resolve(null) : nspDecideTab(d.source.url).then(function(tab) { return tab ? nspDecideReadTab(tab, d.source.reader) : null; });
+    work = read.then(function(readOut) {
+      return (opts.snap ? Promise.resolve(opts.snap) : self.NSP_CHAT_STORE.lastSeries(d.source.key)).then(function(snap) {
+        if (!snap || !(snap.at > (d.readAt || d.at))) {
+          var why = readOut && readOut.ok === false && readOut.code && readOut.code !== 'no_tab' ? 'the page could not be read (' + readOut.code + ')' : 'no new reading of the page';
+          d.waiting = why + ': open ' + String(d.source.url).slice(0, 200) + ' with ZERACK allowed there, or press Measure now';
+          d.dueAt = now + NSP_DECIDE_RETRY_MS;
+          return self.NSP_CHAT_STORE.putDecision(d).then(function(saved) { nspDecideAnnounce(id); return saved; });
+        }
+        return nspDecideFresh(d, snap).then(function(f) {
+          f.prep.readAt = snap.at;
+          if (!f.fresh.ok) {
+            d.waiting = 'the new reading could not be judged: ' + String(f.fresh.error || '').slice(0, 200);
+            d.dueAt = now + NSP_DECIDE_RETRY_MS;
+            return self.NSP_CHAT_STORE.putDecision(d);
+          }
+          if (opts.force && !(d.dueAt <= now)) d.dueAt = now;
+          return nspDecideApply(d, f.fresh, f.prep, now, opts.by || 'alarm');
+        });
+      });
+    });
+  }
+  return work.then(function(saved) { nspDecideSchedule(); return done(saved || d); }, function(e) { console.warn('[NSP SW] decide: re-measure failed:', e && e.message); return done(d); });
+}
+
+function nspDecideTick() {
+  if (!nspDecideReady()) return Promise.resolve(0);
+  var now = Date.now();
+  _nspDecide.chain = _nspDecide.chain.then(function() {
+    return self.NSP_CHAT_STORE.listDecisions({ limit: 2000 }).then(function(list) {
+      var due = list.filter(function(d) { return (d.status === 'open' || d.status === 'kept') && d.dueAt > 0 && d.dueAt <= now; });
+      return due.reduce(function(p, d) { return p.then(function() { return nspDecideRemeasure(d, { by: 'alarm' }); }); }, Promise.resolve()).then(function() { return due.length; });
+    });
+  }).then(function(n) { nspDecideSchedule(); return n; }, function(e) { console.warn('[NSP SW] decide: tick failed:', e && e.message); nspDecideSchedule(); return 0; });
+  return _nspDecide.chain;
+}
+
+function nspDecideAfterRead(snap) {
+  if (!nspDecideReady() || !snap || !snap.key) return;
+  var now = Date.now();
+  self.NSP_CHAT_STORE.listDecisions({ host: snap.host, limit: 300 }).then(function(list) {
+    list.filter(function(d) { return d.source && d.source.key === snap.key && (d.status === 'open' || d.status === 'kept') && d.dueAt > 0 && d.dueAt <= now; })
+      .forEach(function(d) { nspDecideRemeasure(d, { snap: snap, by: 'read' }); });
+  }, function() {});
+}
+
+function nspDecideNow(msg, sender, sendResponse) {
+  var page = chrome.runtime.getURL('activity/activity.html');
+  if (!sender || sender.id !== chrome.runtime.id || String(sender.url || '').indexOf(page) !== 0 || (sender.tab && sender.frameId !== 0)) { sendResponse({ ok: false, error: 'not_allowed' }); return; }
+  if (!nspDecideReady()) { sendResponse({ ok: false, error: 'the decision engine did not load' }); return; }
+  self.NSP_CHAT_STORE.getDecision(Number(msg.id)).then(function(d) {
+    if (!d) return { ok: false, error: 'that decision is gone' };
+    if (!d.source || !d.source.url) return { ok: false, error: 'this decision was made on numbers typed in the chat: ask ZERACK again with the fresh numbers' };
+    if (!/^https?:\/\//i.test(String(d.source.url))) return { ok: false, error: 'this decision has no web page to read again' };
+    return nspDecideTab(d.source.url).then(function(tab) {
+      if (tab) return tab;
+      return new Promise(function(resolve) {
+        chrome.tabs.create({ url: d.source.url, active: true }, function(t) {
+          if (chrome.runtime.lastError || !t) { resolve(null); return; }
+          var t0 = Date.now();
+          (function poll() {
+            chrome.tabs.get(t.id, function(now) {
+              if (chrome.runtime.lastError || !now) { resolve(null); return; }
+              if (now.status === 'complete' || Date.now() - t0 > 25000) { setTimeout(function() { resolve(now); }, 600); return; }
+              setTimeout(poll, 300);
+            });
+          })();
+        });
+      });
+    }).then(function(tab) {
+      if (!tab) return { ok: false, error: 'the page did not open' };
+      if (nspDecidePage(String(tab.url || '')) !== nspDecidePage(d.source.url)) {
+        var landed = String(tab.url || '').replace(/^https?:\/\//, '').split('?')[0].slice(0, 120);
+        return { ok: false, error: 'the page opened at ' + landed + ' instead of the page this decision reads: sign in there if it asks, then press Measure now again' };
+      }
+      return nspDecideReadTab(tab, d.source.reader).then(function(read) {
+        if (!read || read.ok !== true) return { ok: false, code: read && read.code, error: read && read.code === 'agent_off' ? 'the Agent switch is off, so ZERACK cannot read the page' : (read && (read.code === 'site_not_allowed' || read.code === 'read_only') ? 'ZERACK is not allowed on ' + d.host + ' yet: allow it from the chat on that page' : 'the page could not be read' + (read && read.code ? ' (' + read.code + ')' : '')) };
+        return self.NSP_CHAT_STORE.lastSeries(d.source.key).then(function(snap) {
+          return nspDecideRemeasure(d, { snap: snap, by: 'you', force: true }).then(function(saved) { return { ok: true, decision: saved }; });
+        });
+      });
+    });
+  }).then(sendResponse, function(e) { sendResponse({ ok: false, error: String((e && e.message) || e) }); });
+}
+
+function nspDecideMemory(host, playbook) {
+  if (!nspDecideReady() || (!host && !playbook)) return Promise.resolve([]);
+  var ask = self.NSP_CHAT_STORE.listDecisions({ limit: 500 }).then(function(list) {
+    return self.NSP_DECIDE.firmLessons(list, { host: host, playbook: playbook, max: NSP_DECIDE_MEMORY });
+  });
+  return nspDecideLate(ask, []);
+}
+
+function nspDecideEvidence(host) {
+  if (!nspDecideReady()) return Promise.resolve({ ok: false, missing: ['the decision engine did not load, so no evidence can be read'] });
+  var ask = self.NSP_CHAT_STORE.listDecisions({ host: host, limit: 300 }).then(function(list) {
+    return self.NSP_DECIDE.spendEvidence(list, host, Date.now());
+  });
+  return nspDecideLate(ask, { ok: false, missing: ['the decision store did not answer in time, so no evidence could be read'] });
+}
+
+try { chrome.runtime.onStartup.addListener(function() { nspDecideSchedule(); }); } catch (eDecideStart) {}
+try { chrome.runtime.onInstalled.addListener(function() { nspDecideSchedule(); }); } catch (eDecideInstall) {}
 
 function nspChatProviders(sendResponse) {
   chrome.storage.local.get(['nsp_openai_api_key', 'nsp_groq_api_key', 'nsp_gemini_api_key', 'nsp_ollama_enabled', 'nsp_ollama_model', 'nsp_selected_model'], function(r) {
@@ -2951,7 +3377,8 @@ function nspChatPageCtx(run, site) {
       });
     },
     lastReply: function() { return nspChatLastReply(run); },
-    ledger: function(entry) { return self.NSP_CHAT_STORE.addLedger(entry); }
+    ledger: function(entry) { return self.NSP_CHAT_STORE.addLedger(entry); },
+    evidence: nspDecideEvidence
   };
 }
 
@@ -2963,11 +3390,13 @@ function nspChatThink(run) {
     var agentOn = got[0], site = got[1];
     var pageTools = !!(site && site.web && agentOn);
     if (site && site.web) run.page = nspChatPageCtx(run, site);
+    run.site = site && site.web ? { host: site.host, url: site.url } : null;
     var brainSite = site ? { host: site.host, web: site.web, access: site.access } : null;
     run.playbook = nspChatPlaybook(site, run.text);
-    return store.getMessages(run.convId).then(function(rows) {
+    return Promise.all([store.getMessages(run.convId), nspDecideMemory(run.site ? run.site.host : '', run.playbook)]).then(function(loaded) {
+      var rows = loaded[0];
       return tools.loop({
-        systemParts: brain.parts({ surface: 'chat', query: run.text, site: brainSite, playbook: run.playbook, pageTools: pageTools, context: tools.context({ surface: 'chat', agentOn: agentOn, lang: run.lang, site: brainSite }) }),
+        systemParts: brain.parts({ surface: 'chat', query: run.text, site: brainSite, playbook: run.playbook, pageTools: pageTools, memory: loaded[1], context: tools.context({ surface: 'chat', agentOn: agentOn, lang: run.lang, site: brainSite }) }),
         tools: brain.tools('chat', { agentOn: agentOn, site: brainSite, playbook: run.playbook, query: run.text }),
         messages: tools.history(rows),
         maxRounds: tools.maxRounds,
@@ -2984,7 +3413,7 @@ function nspChatThink(run) {
           if (id) run.delegate = id;
           if (NSP_CHAT_NAV_TOOLS[name] === 1) nspChatMarkHost(run);
           nspChatTyping(run, name === 'zerackYouTubeAgent' ? 'The YouTube agent is working' : (NSP_CHAT_PAGE_TOOLS[name] === 1 ? 'Working on the page' : 'Working'));
-          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'chat', lang: run.lang, requestId: id, playbook: run.playbook, page: NSP_CHAT_PAGE_TOOLS[name] === 1 ? run.page : null }, resolve); }).then(function(res) {
+          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'chat', lang: run.lang, requestId: id, playbook: run.playbook, convId: run.convId, site: run.site, page: NSP_CHAT_PAGE_TOOLS[name] === 1 ? run.page : null }, resolve); }).then(function(res) {
             if (id) run.delegate = '';
             return res;
           });
@@ -3001,7 +3430,10 @@ function nspChatThink(run) {
           Promise.resolve(handle).then(function(row) {
             if (!row) return;
             var failed = !result || result.ok === false;
-            nspChatPatch(run, row, { tool: name, status: failed ? 'failed' : 'done', detail: tools.note(result) });
+            var meta = { tool: name, status: failed ? 'failed' : 'done', detail: tools.note(result) };
+            if (name === 'zerackDecide' && result && result.ok === true) meta.decision = nspDecideCard(result);
+            if (result && result.code === 'needs_evidence' && Array.isArray(result.missing)) { meta.missing = result.missing.slice(0, 5).map(function(m) { return String(m).slice(0, 300); }); if (result.evidence) meta.evidence = String(result.evidence).slice(0, 300); }
+            nspChatPatch(run, row, meta);
           });
         }
       });
@@ -3258,6 +3690,7 @@ var NSP_MESSAGE_CALLERS = {
   NSP_CHAT_SITE: NSP_EXT_ONLY,
   NSP_CHAT_ALLOW_SITE: NSP_EXT_ONLY,
   NSP_CHAT_FORGET_SITE: NSP_EXT_ONLY,
+  NSP_DECIDE_NOW: NSP_EXT_ONLY,
   NSP_AGENT_OPEN_TAB: { ext: 1, youtube: 'grant' },
   NSP_AGENT_SEARCH_MARKET: { ext: 1, youtube: 1, studio: 1 },
   NSP_AGENT_NAVIGATE: NSP_EXT_ONLY,
@@ -4219,6 +4652,11 @@ function nspRoute(msg, sender, sendResponse, who) {
       delete box[sender.tab.id];
       return hit;
     }).then(function(hit) { sendResponse({ open: hit === true }); });
+    return true;
+  }
+
+  if (msg.type === 'NSP_DECIDE_NOW') {
+    nspDecideNow(msg, sender, sendResponse);
     return true;
   }
 

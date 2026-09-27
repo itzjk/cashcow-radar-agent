@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="dark"/>
+  <title>ZERACK Activity</title>
+  <link rel="stylesheet" href="activity.css"/>
+</head>
+<body data-ready="0">
+<div class="grid-bg" aria-hidden="true"></div>
+
+<header class="top">
+  <div class="brand">
+    <img class="mark" src="../icons/zerack-mark-small.svg" alt="" width="24" height="24"/>
+    <span class="word">ZERACK</span>
+  </div>
+  <span class="top-sep" aria-hidden="true"></span>
+  <span class="top-title">Activity</span>
+  <span class="top-note">Stored only on this computer</span>
+</header>
+
+<main class="wrap">
+  <section class="intro">
+    <h1>What ZERACK did, decided and learned</h1>
+    <p>Every action on your sites with its evidence and how to undo it, every decision with the number behind it, and the lessons ZERACK keeps only while a re-measure agrees.</p>
+  </section>
+
+  <section class="stats" aria-label="Summary">
+    <div class="stat"><div class="stat-num" id="n-lessons">0</div><div class="stat-label">Lessons kept</div></div>
+    <div class="stat"><div class="stat-num" id="n-open">0</div><div class="stat-label">Decisions measuring</div></div>
+    <div class="stat"><div class="stat-num" id="n-actions">0</div><div class="stat-label">Actions on your sites</div></div>
+    <div class="stat"><div class="stat-num" id="n-presses">0</div><div class="stat-label">Waited for your press</div></div>
+  </section>
+
+  <nav class="bar">
+    <div class="tabs" role="tablist" aria-label="Views">
+      <button class="tab" type="button" role="tab" data-tab="lessons" aria-selected="true">Lessons <span class="count" id="c-lessons">0</span></button>
+      <button class="tab" type="button" role="tab" data-tab="decisions" aria-selected="false">Decisions <span class="count" id="c-decisions">0</span></button>
+      <button class="tab" type="button" role="tab" data-tab="actions" aria-selected="false">Actions <span class="count" id="c-actions">0</span></button>
+    </div>
+    <label class="site-pick">
+      <span>Site</span>
+      <select id="site" aria-label="Site"><option value="">All sites</option></select>
+    </label>
+  </nav>
+
+  <section id="panel-lessons" class="panel" role="tabpanel" aria-label="Lessons"></section>
+  <section id="panel-decisions" class="panel" role="tabpanel" aria-label="Decisions" hidden></section>
+  <section id="panel-actions" class="panel" role="tabpanel" aria-label="Actions" hidden></section>
+  <p id="load-error" class="load-error" hidden></p>
+</main>
+
+<script src="../lib/nsp-veredicto.js"></script>
+<script src="../lib/nsp-decide.js"></script>
+<script src="../lib/nsp-chat-store.js"></script>
+<script src="activity.js"></script>
+</body>
+</html>

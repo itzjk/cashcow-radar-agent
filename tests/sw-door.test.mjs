@@ -152,6 +152,14 @@ for (const type of ["NSP_CHAT_CONFIRM", "NSP_CHAT_ALLOW_SITE", "NSP_CHAT_FORGET_
   const none = await w.send({ type: "NSP_CHAT_CONFIRM", convId: "c_x", pressId: "a".repeat(32), yes: true }, chat);
   check("a confirm with no press waiting confirms nothing", none && none.ok === false, none);
 }
+// Measure now opens a tab and reads a page, so only the activity page, as a page of its own, may ask for it.
+for (const [who, sender] of [["site", SENDERS.site], ["youtube", SENDERS.youtube], ["popup", SENDERS.popup], ["chat", { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=overlay", tab: { id: 14 }, frameId: 3 }], ["another extension", SENDERS.otherExtension]]) {
+  const w = loadWorker({ allSites: true });
+  const res = await w.send({ type: "NSP_DECIDE_NOW", id: 1 }, sender);
+  check("NSP_DECIDE_NOW from " + who + " is refused", res === undefined || /not_allowed/.test(String(res && res.error)), res);
+  check("NSP_DECIDE_NOW from " + who + " opens no tab", !w.calls.some(c => c.api === "tabs.create"), w.calls.map(c => c.api));
+}
+
 {
   const w = loadWorker({ allSites: false });
   const chat = { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=panel" };

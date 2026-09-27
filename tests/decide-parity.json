@@ -1,0 +1,681 @@
+{
+ "recorded": "2026-09-27",
+ "from": [
+  "banditd lib/bandit.ts",
+  "ZerackRadar deteccion-temprana.mjs",
+  "ZerackRadar criterio.mjs"
+ ],
+ "answers": {
+  "evaluate": [
+   {
+    "candidateIndex": 1,
+    "probabilityBest": 0.9968,
+    "sufficientEvidence": false,
+    "totalImpressions": 2000,
+    "expectedLoss": 0.000010104760802276239,
+    "eValue": 5.244563197374468,
+    "posteriorMean": 0.08041958041958042,
+    "thresholdMet": true,
+    "minImpressionsMet": true,
+    "effectSizeOk": true,
+    "anytimeValid": false
+   },
+   {
+    "candidateIndex": 1,
+    "probabilityBest": 0.73985,
+    "sufficientEvidence": false,
+    "totalImpressions": 250,
+    "expectedLoss": 0.004789664957044981,
+    "eValue": 0.42143658309132126,
+    "posteriorMean": 0.07251908396946564,
+    "thresholdMet": false,
+    "minImpressionsMet": false,
+    "effectSizeOk": false,
+    "anytimeValid": false
+   },
+   {
+    "candidateIndex": 2,
+    "probabilityBest": 0.99835,
+    "sufficientEvidence": false,
+    "totalImpressions": 15000,
+    "expectedLoss": 0.0000019470243730156802,
+    "eValue": 18.78168936898958,
+    "posteriorMean": 0.0660867826434713,
+    "thresholdMet": true,
+    "minImpressionsMet": true,
+    "effectSizeOk": true,
+    "anytimeValid": false
+   },
+   {
+    "candidateIndex": 1,
+    "probabilityBest": 0.519,
+    "sufficientEvidence": false,
+    "totalImpressions": 8000,
+    "expectedLoss": 0.0018161531354239147,
+    "eValue": 0.07513269164759984,
+    "posteriorMean": 0.05036240939765059,
+    "thresholdMet": false,
+    "minImpressionsMet": true,
+    "effectSizeOk": false,
+    "anytimeValid": false
+   },
+   {
+    "candidateIndex": 1,
+    "probabilityBest": 0.94845,
+    "sufficientEvidence": false,
+    "totalImpressions": 5000,
+    "expectedLoss": 0.00013542892363676995,
+    "eValue": 13.19597158207207,
+    "posteriorMean": 0.04019158683881716,
+    "thresholdMet": false,
+    "minImpressionsMet": true,
+    "effectSizeOk": true,
+    "anytimeValid": false
+   },
+   {
+    "candidateIndex": 1,
+    "probabilityBest": 1,
+    "sufficientEvidence": true,
+    "totalImpressions": 6100,
+    "expectedLoss": 0,
+    "eValue": 3152.732995924716,
+    "posteriorMean": 0.04014833924540471,
+    "thresholdMet": true,
+    "minImpressionsMet": true,
+    "effectSizeOk": true,
+    "anytimeValid": true
+   },
+   {
+    "candidateIndex": 0,
+    "probabilityBest": 1,
+    "sufficientEvidence": false,
+    "totalImpressions": 150,
+    "expectedLoss": 0,
+    "eValue": "Infinity",
+    "posteriorMean": 0.06291390728476821,
+    "thresholdMet": true,
+    "minImpressionsMet": false,
+    "effectSizeOk": true,
+    "anytimeValid": true
+   },
+   {
+    "candidateIndex": -1,
+    "probabilityBest": 0,
+    "sufficientEvidence": false,
+    "totalImpressions": 0,
+    "expectedLoss": "Infinity",
+    "eValue": 0,
+    "posteriorMean": 0,
+    "thresholdMet": false,
+    "minImpressionsMet": false,
+    "effectSizeOk": false,
+    "anytimeValid": false
+   },
+   {
+    "candidateIndex": 1,
+    "probabilityBest": 0.7718,
+    "sufficientEvidence": false,
+    "totalImpressions": 1240,
+    "expectedLoss": 0.0016663640201114358,
+    "eValue": 0.23618391021311588,
+    "posteriorMean": 0.06006240249609984,
+    "thresholdMet": false,
+    "minImpressionsMet": true,
+    "effectSizeOk": false,
+    "anytimeValid": false
+   },
+   {
+    "candidateIndex": 1,
+    "probabilityBest": 0.922875,
+    "sufficientEvidence": false,
+    "totalImpressions": 1850,
+    "expectedLoss": 0.000307314387812264,
+    "eValue": 0.3897740881080866,
+    "posteriorMean": 0.04258675078864353,
+    "thresholdMet": true,
+    "minImpressionsMet": true,
+    "effectSizeOk": true,
+    "anytimeValid": false
+   }
+  ],
+  "mixture": [
+   0.3992670930628037,
+   4.3923277020476155
+  ],
+  "cohort": [
+   1.993664195187307,
+   -0.5276137315379046,
+   3.2693546621057976,
+   -2.2520272700862733,
+   2.9163838364593175,
+   8.392497210032047,
+   0,
+   0,
+   -1.106672260252708,
+   -0.6057157323351703
+  ],
+  "traffic": [
+   [
+    {
+     "impressions": 78,
+     "clicks": 3
+    },
+    {
+     "impressions": 522,
+     "clicks": 59
+    }
+   ],
+   [
+    {
+     "impressions": 160,
+     "clicks": 7
+    },
+    {
+     "impressions": 162,
+     "clicks": 5
+    },
+    {
+     "impressions": 159,
+     "clicks": 23
+    }
+   ]
+  ],
+  "gamma": [
+   [
+    0.000588973529933379,
+    0.2887100554442831,
+    0.0027861912593107516,
+    0.00036189611905783033,
+    0.00006454742099416155
+   ],
+   [
+    0.8300107586840574,
+    0.24233906851337156,
+    1.8685036433577333,
+    1.8143975608306164,
+    3.8595723290366664
+   ],
+   [
+    1.1583911465686814,
+    2.3900871526651915,
+    2.6049154105210275,
+    2.5383794200275003,
+    1.7740637483879707
+   ],
+   [
+    49.83400020750822,
+    38.274351548980626,
+    47.721547304029144,
+    52.659595421740136,
+    29.82238732291321
+   ]
+  ],
+  "analyze": [
+   {
+    "canalId": "UCprueba",
+    "nombre": "prueba",
+    "medidas": 5,
+    "arrastradas": 0,
+    "brote": true,
+    "seguro": true,
+    "subsAhora": 5200,
+    "subsAntes": 1730,
+    "crecimientoPorHora": 20.058,
+    "duplicacionHoras": 4,
+    "puntuacion": 2251.37,
+    "lineaBase": {
+     "tramos": 3,
+     "media": 2.005,
+     "desviacion": 0.008
+    },
+    "horasSinRemedir": 0,
+    "porque": "acelera 2251.4 desviaciones sobre su propia base y dobla en 4 h"
+   },
+   {
+    "canalId": "UCprueba",
+    "nombre": "prueba",
+    "medidas": 5,
+    "arrastradas": 0,
+    "brote": false,
+    "seguro": true,
+    "subsAhora": 2208,
+    "subsAntes": 1811,
+    "crecimientoPorHora": 2.192,
+    "duplicacionHoras": 32,
+    "puntuacion": 1.69,
+    "lineaBase": {
+     "tramos": 3,
+     "media": 2.189,
+     "desviacion": 0.002
+    },
+    "horasSinRemedir": 0,
+    "porque": "dentro de lo normal para este canal (1.7 desviaciones)"
+   },
+   {
+    "canalId": "UCprueba",
+    "nombre": "prueba",
+    "medidas": 4,
+    "arrastradas": 40,
+    "brote": false,
+    "seguro": false,
+    "subsAhora": 5000,
+    "subsAntes": 1440,
+    "crecimientoPorHora": 24.722,
+    "duplicacionHoras": 3,
+    "puntuacion": null,
+    "lineaBase": {
+     "tramos": 2,
+     "media": 2,
+     "desviacion": 0
+    },
+    "horasSinRemedir": 160,
+    "porque": "el dato lleva 160 h sin refrescarse: lo plano es que no lo miramos, no que no crezca"
+   },
+   {
+    "canalId": "UCprueba",
+    "nombre": "prueba",
+    "medidas": 1,
+    "arrastradas": 0,
+    "brote": false,
+    "seguro": false,
+    "porque": "solo 1 medida(s) distintas, hacen falta 4: no se puede decir si acelera"
+   },
+   {
+    "canalId": "UCprueba",
+    "nombre": "prueba",
+    "medidas": 1,
+    "arrastradas": 4,
+    "brote": false,
+    "seguro": false,
+    "porque": "solo 1 medida(s) distintas, hacen falta 4: no se puede decir si acelera"
+   },
+   {
+    "canalId": "UCprueba",
+    "nombre": "prueba",
+    "medidas": 5,
+    "arrastradas": 0,
+    "brote": false,
+    "seguro": false,
+    "subsAhora": 9000,
+    "subsAntes": 1331,
+    "crecimientoPorHora": 57.618,
+    "duplicacionHoras": 2,
+    "puntuacion": null,
+    "lineaBase": {
+     "tramos": 3,
+     "media": 1,
+     "desviacion": 0
+    },
+    "horasSinRemedir": 0,
+    "porque": "la linea base no tiene variacion, cualquier cambio daria alarma: no se juzga"
+   },
+   {
+    "canalId": "UCprueba",
+    "nombre": "prueba",
+    "medidas": 6,
+    "arrastradas": 0,
+    "brote": false,
+    "seguro": true,
+    "subsAhora": 1080,
+    "subsAntes": 1040,
+    "crecimientoPorHora": 0.16,
+    "duplicacionHoras": 433,
+    "puntuacion": 36.76,
+    "lineaBase": {
+     "tramos": 4,
+     "media": 0.041,
+     "desviacion": 0.003
+    },
+    "horasSinRemedir": 0,
+    "porque": "acelera sobre su base pero el ritmo no da para doblar en dos semanas"
+   },
+   {
+    "canalId": "UCprueba",
+    "nombre": "prueba",
+    "medidas": 5,
+    "arrastradas": 0,
+    "brote": true,
+    "seguro": true,
+    "subsAhora": 5200,
+    "subsAntes": 1730,
+    "crecimientoPorHora": 20.058,
+    "duplicacionHoras": 4,
+    "puntuacion": 2251.37,
+    "lineaBase": {
+     "tramos": 3,
+     "media": 2.005,
+     "desviacion": 0.008
+    },
+    "horasSinRemedir": 0,
+    "porque": "acelera 2251.4 desviaciones sobre su propia base y dobla en 4 h"
+   }
+  ],
+  "collapse": [
+   {
+    "medidas": [
+     {
+      "t": 0,
+      "subs": 1000,
+      "vph": 100,
+      "vistas": 1000,
+      "ultimaVez": 0
+     },
+     {
+      "t": 10,
+      "subs": 1200,
+      "vph": 110,
+      "vistas": 1200,
+      "ultimaVez": 10
+     },
+     {
+      "t": 20,
+      "subs": 1440,
+      "vph": 120,
+      "vistas": 1400,
+      "ultimaVez": 20
+     },
+     {
+      "t": 30,
+      "subs": 1730,
+      "vph": 130,
+      "vistas": 1600,
+      "ultimaVez": 30
+     },
+     {
+      "t": 40,
+      "subs": 5200,
+      "vph": 400,
+      "vistas": 5000,
+      "ultimaVez": 40
+     }
+    ],
+    "arrastradas": 0
+   },
+   {
+    "medidas": [
+     {
+      "t": 0,
+      "subs": 1000,
+      "vph": 100,
+      "vistas": 1000,
+      "ultimaVez": 0
+     },
+     {
+      "t": 10,
+      "subs": 1219,
+      "vph": 100,
+      "vistas": 1000,
+      "ultimaVez": 10
+     },
+     {
+      "t": 20,
+      "subs": 1486,
+      "vph": 100,
+      "vistas": 1000,
+      "ultimaVez": 20
+     },
+     {
+      "t": 30,
+      "subs": 1811,
+      "vph": 100,
+      "vistas": 1000,
+      "ultimaVez": 30
+     },
+     {
+      "t": 40,
+      "subs": 2208,
+      "vph": 100,
+      "vistas": 1000,
+      "ultimaVez": 40
+     }
+    ],
+    "arrastradas": 0
+   },
+   {
+    "medidas": [
+     {
+      "t": 0,
+      "subs": 1000,
+      "vph": 100,
+      "vistas": 1000,
+      "ultimaVez": 0
+     },
+     {
+      "t": 10,
+      "subs": 1200,
+      "vph": 110,
+      "vistas": 1200,
+      "ultimaVez": 10
+     },
+     {
+      "t": 20,
+      "subs": 1440,
+      "vph": 120,
+      "vistas": 1400,
+      "ultimaVez": 20
+     },
+     {
+      "t": 30,
+      "subs": 5000,
+      "vph": 400,
+      "vistas": 5000,
+      "ultimaVez": 190
+     }
+    ],
+    "arrastradas": 40
+   },
+   {
+    "medidas": [
+     {
+      "t": 0,
+      "subs": 100,
+      "vph": 1,
+      "vistas": 1,
+      "ultimaVez": 0
+     }
+    ],
+    "arrastradas": 0
+   },
+   {
+    "medidas": [
+     {
+      "t": 0,
+      "subs": 1000,
+      "vph": 100,
+      "vistas": 1000,
+      "ultimaVez": 40
+     }
+    ],
+    "arrastradas": 4
+   },
+   {
+    "medidas": [
+     {
+      "t": 0,
+      "subs": 1000,
+      "vph": 10,
+      "vistas": 10,
+      "ultimaVez": 0
+     },
+     {
+      "t": 10,
+      "subs": 1100,
+      "vph": 10,
+      "vistas": 10,
+      "ultimaVez": 10
+     },
+     {
+      "t": 20,
+      "subs": 1210,
+      "vph": 10,
+      "vistas": 10,
+      "ultimaVez": 20
+     },
+     {
+      "t": 30,
+      "subs": 1331,
+      "vph": 10,
+      "vistas": 10,
+      "ultimaVez": 30
+     },
+     {
+      "t": 40,
+      "subs": 9000,
+      "vph": 10,
+      "vistas": 10,
+      "ultimaVez": 40
+     }
+    ],
+    "arrastradas": 0
+   },
+   {
+    "medidas": [
+     {
+      "t": 0,
+      "subs": 1000,
+      "vph": 5,
+      "vistas": 100,
+      "ultimaVez": 0
+     },
+     {
+      "t": 24,
+      "subs": 1010,
+      "vph": 6,
+      "vistas": 101,
+      "ultimaVez": 24
+     },
+     {
+      "t": 48,
+      "subs": 1019,
+      "vph": 7,
+      "vistas": 102,
+      "ultimaVez": 48
+     },
+     {
+      "t": 72,
+      "subs": 1030,
+      "vph": 8,
+      "vistas": 103,
+      "ultimaVez": 72
+     },
+     {
+      "t": 96,
+      "subs": 1040,
+      "vph": 9,
+      "vistas": 104,
+      "ultimaVez": 96
+     },
+     {
+      "t": 120,
+      "subs": 1080,
+      "vph": 10,
+      "vistas": 105,
+      "ultimaVez": 120
+     }
+    ],
+    "arrastradas": 0
+   },
+   {
+    "medidas": [
+     {
+      "t": 0,
+      "subs": 1000,
+      "vph": 100,
+      "vistas": 1000,
+      "ultimaVez": 0
+     },
+     {
+      "t": 10,
+      "subs": 1200,
+      "vph": 110,
+      "vistas": 1200,
+      "ultimaVez": 10
+     },
+     {
+      "t": 20,
+      "subs": 1440,
+      "vph": 120,
+      "vistas": 1400,
+      "ultimaVez": 20
+     },
+     {
+      "t": 30,
+      "subs": 1730,
+      "vph": 130,
+      "vistas": 1600,
+      "ultimaVez": 30
+     },
+     {
+      "t": 40,
+      "subs": 5200,
+      "vph": 400,
+      "vistas": 5000,
+      "ultimaVez": 40
+     }
+    ],
+    "arrastradas": 0
+   }
+  ],
+  "window": [
+   {
+    "readings": 11,
+    "open": true
+   },
+   {
+    "readings": 9,
+    "open": true
+   },
+   {
+    "readings": 7,
+    "open": false
+   },
+   {
+    "readings": 9,
+    "open": false
+   },
+   {
+    "readings": 3,
+    "open": null
+   },
+   {
+    "readings": 6,
+    "open": false
+   },
+   {
+    "readings": 6,
+    "open": true
+   },
+   {
+    "readings": 5,
+    "open": null
+   }
+  ],
+  "wilson": [
+   0.376,
+   0.67,
+   0.711,
+   0.566,
+   0.886,
+   0.061,
+   0.596,
+   0.929,
+   0,
+   0,
+   0.438,
+   0,
+   0.301,
+   0.409,
+   0.505,
+   0.054,
+   0.231
+  ],
+  "constants": {
+   "minReadings": 6,
+   "samples": 20000,
+   "threshold": 0.95,
+   "minImpressions": 200,
+   "concentration": 50,
+   "calibration": 1.4
+  }
+ }
+}

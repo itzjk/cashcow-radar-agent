@@ -22,7 +22,8 @@
     zerackPagePlan: 'On the page',
     zerackExtract: 'Read the numbers on the page',
     zerackPlaybook: 'Read the playbook',
-    zerackBreakEven: 'Work out the break-even'
+    zerackBreakEven: 'Work out the break-even',
+    zerackDecide: 'Decide with the numbers'
   };
 
   var READER_LABELS = {
@@ -70,6 +71,7 @@
     args = args && typeof args === 'object' ? args : {};
     if (name === 'zerackPage') return pageStep(args);
     if (name === 'zerackExtract') return READER_LABELS[String(args.reader || '')] || LABELS.zerackExtract;
+    if (name === 'zerackDecide') return args.question ? 'Decide: ' + clip(args.question, 70) : LABELS.zerackDecide;
     if (name === 'zerackBreakEven') return args.price != null && args.price !== '' ? 'Work out what a ' + clip('$' + args.price, 12) + ' sale leaves' : LABELS.zerackBreakEven;
     if (name === 'zerackPagePlan') {
       var n = Array.isArray(args.steps) ? args.steps.length : 0;
@@ -112,6 +114,7 @@
     if (result.ok === false && result.code === 'not_exposed') return 'This site hides that data: hidden, not empty';
     if (result.ok === false && result.code === 'kept_read_only') return clip('ZERACK only reads ' + (result.host || 'this site') + ': this step is yours', 160);
     if (result.ok === false && result.code === 'missing' && Array.isArray(result.missing)) return clip('Needs ' + result.missing.join(' and ') + ' from you first', 160);
+    if (result.ok === false && result.code === 'needs_evidence') return 'Not offered: spending waits for a measured test on this site';
     if (result.ok === false && PAGE_ENDS[result.code]) return PAGE_ENDS[result.code];
     if (result.ok === false) return clip(result.error || result.code || 'failed', 160);
     if (typeof result.ran === 'number' && typeof result.of === 'number') return result.ran + ' of ' + result.of + ' steps done';

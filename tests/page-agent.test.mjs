@@ -20,6 +20,14 @@ function fakeHands(page) {
           held = { handle: "h" + (++page.holds), perform: () => { page.placed++; return { ok: true, clicked: 'button "Place your order"', confirmedByUser: true }; } };
           return { ok: false, code: "needs_press", kind: "Pay", line: 'Pay: click button "Place your order" on shop.test/checkout', handle: held.handle, error: "waiting for a press from the user" };
         }
+        if (/Mark as paid/.test(t)) {
+          held = { handle: "h" + (++page.holds), perform: () => { page.paid++; return { ok: true, clicked: 'button "Mark as paid"' }; } };
+          return { ok: false, code: "needs_press", kind: "Pay", spend: false, line: 'Pay: click button "Mark as paid" on shop.test/admin/orders/1', handle: held.handle, error: "waiting for a press from the user" };
+        }
+        if (/Boost listing/.test(t)) {
+          held = { handle: "h" + (++page.holds), perform: () => { page.placed++; return { ok: true, clicked: 'button "Boost listing"' }; } };
+          return { ok: false, code: "needs_press", kind: "Pay", spend: true, line: 'Pay: click button "Boost listing" on shop.test/listing/1', handle: held.handle, error: "waiting for a press from the user" };
+        }
         if (/Delete account/.test(t)) return { ok: false, code: "refused", error: "refused: click button \"Delete account\" on shop.test/settings: it deletes or closes the whole account" };
         if (/Next step/.test(t)) { page.go(page.url.replace(/\/one$/, "/two")); return { ok: true, clicked: 'link "Next step"', mayLeave: true }; }
         if (/Save and leave/.test(t)) { page.go(page.url + "?saved=1"); return undefined; }
@@ -59,12 +67,13 @@ function world(opts = {}) {
   const calls = [];
   const rows = [];
   const ledger = [];
+  const evidenceAsked = [];
   const local = { nsp_agent_sites: opts.sites || {} };
   const granted = new Set(opts.granted || []);
   const tabs = {};
   function newPage(id, url) {
     const page = {
-      id, url, status: "complete", cart: 0, placed: 0, holds: 0, released: 0, fields: {}, steps: [], stopCalls: 0, reads: [], rules: undefined,
+      id, url, status: "complete", cart: 0, placed: 0, paid: 0, holds: 0, released: 0, fields: {}, steps: [], stopCalls: 0, reads: [], rules: undefined,
       doc: { n: Math.random() },
       go(next) { page.url = next; page.status = "loading"; page.doc = { n: Math.random() }; page.ctx = null; setTimeout(() => { page.status = "complete"; }, 5); }
     };
@@ -118,9 +127,10 @@ function world(opts = {}) {
     typing() {},
     progress() {},
     lastReply: () => Promise.resolve("Last answer text"),
-    ledger(e) { ledger.push(e); return Promise.resolve(e); }
+    ledger(e) { ledger.push(e); return Promise.resolve(e); },
+    evidence: opts.evidence === undefined ? host => { evidenceAsked.push(host); return Promise.resolve({ ok: true, decision: 3, line: 'Which ad for the apron?: "Ad B" leads: over 99.9% chance it is best' }); } : opts.evidence
   });
-  return { A: ctx.NSP_PAGE_AGENT, calls, rows, ledger, local, granted, tabs, newPage, run, stop: v => { stopped = v; }, setAgent: v => { agentOn = v; } };
+  return { A: ctx.NSP_PAGE_AGENT, calls, rows, ledger, evidenceAsked, local, granted, tabs, newPage, run, stop: v => { stopped = v; }, setAgent: v => { agentOn = v; } };
 }
 
 const SHOP = "http://shop.test:8765";
@@ -203,6 +213,55 @@ check("the library cannot be replaced once loaded", Object.isFrozen(world().A));
   check("a refused field is written to the ledger as refused", card.code === "sensitive" && w.ledger[w.ledger.length - 1].decision === "refused", w.ledger[w.ledger.length - 1]);
   const pasted = await w.A.run("zerackPage", { action: "paste", target: '"Notes"', textFrom: "last_reply" }, w.run(5));
   check("paste from the last reply takes the chat's last answer", pasted.ok === true && w.tabs[5].fields['"Notes"'] === "Last answer text" && pasted.source === "your last reply", pasted);
+}
+
+{
+  const w = world({ sites: shopSite, granted: ["http://shop.test/*"], evidence: host => Promise.resolve({ ok: false, missing: ["a measured test on " + host + " from the last 14 days"], line: "No measured test on " + host + " yet." }) });
+  w.newPage(5, SHOP + "/listing/1");
+  const r = await w.A.run("zerackPage", { action: "click", target: 'the "Boost listing" button' }, w.run(5));
+  check("a press that spends is not offered without evidence", r.ok === false && r.code === "needs_evidence" && r.kind === "Pay" && w.tabs[5].placed === 0, r);
+  check("the refusal says what is missing and that the user can still do it", r.missing[0] === "a measured test on shop.test from the last 14 days" && /they can still do it themselves on the page\. Do not retry\./.test(r.error), r.error);
+  check("no press row is shown, so there is nothing to press", !w.rows.some(x => x.role === "press"), w.rows);
+  check("the hands let go of the element they held", w.tabs[5].released === 1, w.tabs[5].released);
+  const e = w.ledger[w.ledger.length - 1];
+  check("the ledger records it as not offered for lack of evidence", e && e.decision === "no_evidence" && e.result === "no_evidence" && e.kind === "Pay", e);
+  const plan = await w.A.run("zerackPagePlan", { steps: [{ action: "click", target: 'the "Boost listing" button' }, { action: "click", target: 'the "Add to cart" button' }] }, w.run(5));
+  check("a plan stops at the spend with no evidence and carries what is missing", plan.ok === false && plan.code === "needs_evidence" && plan.ran === 1 && plan.missing && plan.missing.length === 1 && w.tabs[5].cart === 0, plan);
+}
+{
+  const w = world({ sites: shopSite, granted: ["http://shop.test/*"], evidence: () => new Promise(() => {}) });
+  w.newPage(5, SHOP + "/listing/1");
+  const r = await w.A.run("zerackPage", { action: "click", target: 'the "Boost listing" button' }, w.run(5));
+  check("a decision store that never answers means no evidence, not a press", r.code === "needs_evidence" && /did not answer in time/.test(r.missing[0]) && w.tabs[5].placed === 0, r);
+}
+{
+  const w = world({ sites: shopSite, granted: ["http://shop.test/*"], evidence: null });
+  w.newPage(5, SHOP + "/listing/1");
+  const r = await w.A.run("zerackPage", { action: "click", target: 'the "Boost listing" button' }, w.run(5));
+  check("with no decision store at all, spending is refused too", r.code === "needs_evidence" && /no decision store/.test(r.missing[0]), r);
+}
+{
+  const w = world({ sites: shopSite, granted: ["http://shop.test/*"] });
+  w.newPage(5, SHOP + "/listing/1");
+  const out = w.A.run("zerackPage", { action: "click", target: 'the "Boost listing" button' }, w.run(5));
+  let row = null;
+  for (let i = 0; i < 200 && !row; i++) { await wait(2); row = w.rows.find(x => x.role === "press"); }
+  check("with evidence on that site the spending press is offered and shows the evidence", row && row.meta.status === "waiting" && row.meta.kind === "Pay" && /^Which ad for the apron\?: "Ad B" leads/.test(row.meta.evidence) && w.evidenceAsked.join() === "shop.test", row && row.meta);
+  w.A.confirm("c1", row.meta.pressId, true);
+  const r = await out;
+  const e = w.ledger[w.ledger.length - 1];
+  check("after the press the ledger keeps the evidence it was offered on", r.ok === true && w.tabs[5].placed === 1 && e.decision === "pressed" && e.evidence && e.evidence.decision === 3 && /Ad B/.test(e.evidence.line), e);
+}
+{
+  const w = world({ sites: shopSite, granted: ["http://shop.test/*"], evidence: () => Promise.resolve({ ok: false, missing: ["x"] }) });
+  w.newPage(5, SHOP + "/admin/orders/1");
+  const out = w.A.run("zerackPage", { action: "click", target: 'the "Mark as paid" button' }, w.run(5));
+  let row = null;
+  for (let i = 0; i < 200 && !row; i++) { await wait(2); row = w.rows.find(x => x.role === "press"); }
+  check("a Pay press that brings money in is still offered without evidence", row && row.meta.status === "waiting" && !row.meta.evidence, row && row.meta);
+  w.A.confirm("c1", row.meta.pressId, false);
+  const r = await out;
+  check("and cancelling it leaves the order unpaid", r.code === "declined" && w.tabs[5].paid === 0, r);
 }
 
 async function pressCase(how) {
