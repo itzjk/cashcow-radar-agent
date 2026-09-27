@@ -21,7 +21,8 @@
     youtube: 'opened YouTube', search: 'searched YouTube', site: 'opened a site', page: 'opened a ZERACK page', back: 'went back', forward: 'went forward',
     reload: 'reloaded the tab', next_tab: 'moved to the next tab', prev_tab: 'moved to the previous tab', close_tab: 'closed the tab', new_tab: 'opened a new tab',
     scan: 'started a scan', result: 'opened a result', channel: 'opened a channel', save: 'saved', agent: 'switched the agent', wake: 'switched hands-free',
-    hush: 'stopped talking', stop: 'stopped', hello: 'answered', assistant: 'asked the assistant', intel: 'read the channel and put its card in the chat'
+    hush: 'stopped talking', stop: 'stopped', hello: 'answered', assistant: 'asked the assistant', intel: 'read the channel and put its card in the chat',
+    next: 'opened the next one', create: 'made it and put its card in the chat'
   };
   var DROP_WORDS = {
     not_command: 'Ignored: not a command, and it did not start with oye, hey or Zerack.',
@@ -38,6 +39,7 @@
     stopped: 'Stopped.'
   };
   var WATCH_OPS = { brief_now: 1, brief_on: 1, brief_off: 1, brief_state: 1, watch_remove: 1, predict_seal: 1, predict_export: 1, predict_daily: 1, arb_measure: 1 };
+  var CREATE_OPS = { script: 1, studio_pack: 1, studio_approve: 1, studio_edit: 1, studio_fill: 1 };
   var GUARDED = { 'agent-pill': 'The Agent switch', hf: 'Hands-free', 'delete': 'Deleting', 'delete-all': 'Deleting', 'clear-voice': 'Clearing', draw: 'Drawing' };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -423,7 +425,7 @@
         if (!row) { gone(conv.id); return false; }
         loadList();
         if (S.conv && S.conv.id === conv.id) showTyping(true, 'Working');
-        return send({ type: WATCH_OPS[job.op] === 1 ? 'NSP_WATCH_RUN' : 'NSP_MINE_RUN', convId: conv.id, text: label, job: job, lang: jobLang }).then(function (res) {
+        return send({ type: WATCH_OPS[job.op] === 1 ? 'NSP_WATCH_RUN' : (CREATE_OPS[job.op] === 1 ? 'NSP_CREATE_RUN' : 'NSP_MINE_RUN'), convId: conv.id, text: label, job: job, lang: jobLang }).then(function (res) {
           if (res && res.ok === true) { watchRuns(); return true; }
           delete S.running[conv.id];
           syncBusy();
@@ -945,12 +947,29 @@
     $('watch-group').hidden = false;
   }
 
+  function createChips(res) {
+    var box = $('create-chips');
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    var kind = res && res.ok ? res.kind : '';
+    var h = res && typeof res.handle === 'string' && /^@\S{1,60}$/.test(res.handle) ? res.handle : '';
+    var pkg = res && res.studioPackage && typeof res.studioPackage === 'object' ? res.studioPackage : null;
+    box.appendChild(intelChip('Sourced script', 'Write a sourced script about ', true, 'create-chip'));
+    if (kind === 'video') box.appendChild(intelChip('Shorts in this video', 'Find the Shorts in this video', false, 'create-chip'));
+    if (kind === 'channel' || kind === 'video') box.appendChild(intelChip('What it earns', 'How much does ' + (h || 'this channel') + ' earn?', false, 'create-chip'));
+    box.appendChild(intelChip('Studio package', 'Studio package', false, 'create-chip'));
+    if (pkg && res.studio) box.appendChild(intelChip('Fill Studio', 'Fill Studio', false, 'create-chip'));
+    $('create-who').textContent = pkg ? 'package approved' : '';
+    $('create-group').hidden = false;
+  }
+
   function intelChips() {
     var box = $('intel-chips');
     if (!box) return;
     send({ type: 'NSP_INTEL_CONTEXT' }).then(function (res) {
       mineChips(res);
       watchChips(res);
+      createChips(res);
       while (box.firstChild) box.removeChild(box.firstChild);
       var kind = res && res.ok ? res.kind : '';
       var h = res && typeof res.handle === 'string' && /^@\S{1,60}$/.test(res.handle) ? res.handle : '';

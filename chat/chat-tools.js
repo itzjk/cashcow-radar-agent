@@ -32,7 +32,11 @@
     zerackBrief: 'Read the morning brief',
     zerackPredictions: 'Read the prediction ledger',
     zerackLanguageGaps: 'Measure the language gaps',
-    zerackCommentIdeas: 'Read the comments'
+    zerackCommentIdeas: 'Read the comments',
+    zerackSourcedScript: 'Write a sourced script about',
+    zerackShortsMiner: 'Find the Shorts in',
+    zerackChannelEarnings: 'Estimate the earnings of',
+    zerackStudioPackage: 'Open the Studio package'
   };
 
   var BROWSER_LABELS = {
@@ -53,7 +57,7 @@
       return what ? head + ' ' + clip(what, 60) : head;
     }
     var base = LABELS[name] || name;
-    var d = args.lesson || args.query || args.url || args.channelUrl || args.channel || args.channelB || args.page || args.area || args.instruction || args.channelName || args.title || args.format || args.niche || args.video || '';
+    var d = args.lesson || args.query || args.url || args.channelUrl || args.channel || args.channelB || args.page || args.area || args.instruction || args.channelName || args.title || args.format || args.niche || args.video || args.topic || '';
     return d ? base + ' ' + clip(d, 60) : base;
   }
 

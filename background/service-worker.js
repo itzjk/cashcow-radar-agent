@@ -10,6 +10,7 @@ try { importScripts('../lib/nsp-data-tools.js', '../chat/chat-tools.js', '../lib
 try { importScripts('../lib/nsp-rpm-tabla.js'); } catch (eRpmTable) { console.warn('[NSP SW] importScripts RPM table:', eRpmTable && eRpmTable.message); }
 try { importScripts('../lib/nsp-titulos-senales.js', '../lib/nsp-titulos-tabla.js', '../lib/nsp-titulos-juicio.js', '../lib/nsp-areas.js', '../lib/nsp-dinero-rpm.js', '../lib/nsp-dinero-equilibrio.js', '../lib/nsp-dinero-riesgo.js'); } catch (eMineEngines) { console.warn('[NSP SW] importScripts title and money engines:', eMineEngines && eMineEngines.message); }
 try { importScripts('../lib/nsp-veredicto.js', '../lib/nsp-cadencia.js', '../lib/nsp-packaging.js', '../lib/nsp-rival-formula.js', '../lib/nsp-rival-quiebre.js', '../lib/nsp-rival-replicable.js', '../lib/nsp-rival-expediente.js', '../lib/nsp-rival-saturacion.js', '../lib/nsp-rival-ventana.js', '../lib/nsp-rival-duelo.js', '../knowledge/reverse-engine.js', '../lib/nsp-miniatura-motor.js', '../lib/nsp-miniatura-cohorte.js', '../lib/nsp-miniatura-mercado.js', '../lib/nsp-intel.js', '../lib/nsp-mine.js', '../lib/nsp-markets.js', '../lib/nsp-watch.js'); } catch (eIntel) { console.warn('[NSP SW] importScripts channel intelligence:', eIntel && eIntel.message); }
+try { importScripts('../lib/nsp-shorts.js', '../lib/nsp-sourced.js', '../lib/nsp-create.js'); } catch (eCreate) { console.warn('[NSP SW] importScripts create engines:', eCreate && eCreate.message); }
 
 var NSP_GEMINI_LIMIT_PER_MIN = 14;
 var NSP_GROQ_LIMIT_PER_MIN = 28;
@@ -133,6 +134,11 @@ function nspFetchTimeout(url, opts, ms) {
 }
 
 // The Groq free tier has a low tokens-per-minute cap, so the system prompt is cut to about 9000 characters to keep one turn under it.
+function nspModelTimeout(payload) {
+  var ms = Number(payload && payload.timeoutMs);
+  return isFinite(ms) && ms > 45000 ? Math.min(ms, 180000) : 45000;
+}
+
 async function nspCallOpenAI(apiKey, model, payload, messages) {
   var openAIMessages = nspMessagesToOpenAI(messages);
   if (payload.system) openAIMessages.unshift({ role: 'system', content: String(payload.system).slice(0, 24000) });
@@ -151,7 +157,7 @@ async function nspCallOpenAI(apiKey, model, payload, messages) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
       body: JSON.stringify(body)
-    }, 45000);
+    }, nspModelTimeout(payload));
     data = await resp.json();
   } catch (eNet) {
     return { ok: false, error: 'OpenAI network: ' + String((eNet && eNet.message) || eNet), rateLimited: false };
@@ -195,7 +201,7 @@ async function nspCallGroq(apiKey, model, payload, messages) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
       body: JSON.stringify(body)
-    }, 45000);
+    }, nspModelTimeout(payload));
     data = await resp.json();
   } catch (eNet) {
     // A network failure returns {ok:false} instead of throwing, or the provider cascade breaks instead of falling through.
@@ -333,7 +339,7 @@ async function nspCallOllama(url, model, payload, messages) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
-    }, 45000);
+    }, nspModelTimeout(payload));
     data = await resp.json();
   } catch (eNet) {
     // Same as Groq: return {ok:false} instead of throwing so the cascade falls through to the next provider.
@@ -409,7 +415,7 @@ async function nspCallGemini(geminiKey, cachedModel, payload, messages) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
-        }, 45000);
+        }, nspModelTimeout(payload));
         var data = await resp.json();
         if (data && data.error) {
           var errCode = data.error.code || 0;
@@ -1441,6 +1447,7 @@ var NSP_VR_SCAN_OK = /^(?:esta|este|esto|la|el|los|las|pagina|page|this|the|aqui
 var NSP_VR_SAVE = /\b(?:guarda(?:lo|la|me|melo|mela)?|guardar(?:lo|la)?|salva(?:lo|la)?|save|bookmark)\b(?! silencio)/;
 var NSP_VR_SEARCH_LEAD = /^(?:busca(?:me)?|buscar|search(?: youtube)?(?: for)?|look up)\s+(.+)$/;
 var NSP_VR_SEARCH = /^(?:(?:quiero|puedes|podrias|necesito|vamos a|me puedes|can you|could you)\s+)?(?:que\s+)?(?:busca(?:me|lo|la)?|buscar|busques|busque|encuentra(?:me)?|search(?: youtube)?(?: for)?|look up|look for|find(?: me)?|pon(?:me)? videos? (?:de|sobre))\s+(.+)$/;
+var NSP_VR_NEXT = /^(?:(?:(?:pon|ponme|abre|abreme|dale|dale al|play|open|go to|ve al|ve a|pasa al|pasa a|salta al|salta a|skip to|quiero|muestrame|show me)\s+)?(?:(?:el|la|al|a|the|un|una)\s+)?(?:siguiente|next|proximo|proxima)(?:\s+(?:uno|una|one|resultado|result|video|nicho|niche))?|(?:skip|salta|saltalo|siguiente por favor|next please|another one|otro video|el de despues)(?:\s+(?:video|este|this one))?)$/;
 var NSP_VR_OTHER_SITE = /\b(?:google|amazon|wikipedia|bing|spotify|netflix|tiktok|instagram|facebook|twitter|reddit|chatgpt|gmail)\b/;
 var NSP_VR_PAGES = [
   { page: 'dashboard/dashboard.html', re: '(?:command center|comand center|commander center|centro de comandos?|centro de mando|dashboard|panel de control|panel principal)' },
@@ -1572,6 +1579,8 @@ function nspVrDecide(s, raw) {
     if (/^(?:recarga(?:la|lo)?|recargar|refresca(?:la|lo)?|refrescar|actualiza(?:la|lo)?|reload|refresh)(?:\s+(?:(?:la|esta|the|this)\s+)?(?:pagina|page|pestana|tab))?(?:\s+(?:ya|ahora|now|again|otra vez|de nuevo))?$/.test(s)) return { kind: 'reload' };
   }
 
+  if (NSP_VR_NEXT.test(s)) return { kind: 'next' };
+
   for (var p = 0; p < NSP_VR_PAGE_RES.length; p++) {
     if (NSP_VR_PAGE_RES[p].re.test(s)) return { kind: 'page', page: NSP_VR_PAGE_RES[p].page };
   }
@@ -1618,8 +1627,9 @@ function nspVoiceRoute(text, heardLang) {
   var watch = nspWatchIntent(text) || nspWatchIntent(s);
   var mine = watch ? null : (nspMineIntent(text) || nspMineIntent(s));
   var intel = watch || mine ? null : (nspIntelIntent(text) || nspIntelIntent(s));
+  var create = watch || mine || intel ? null : (nspCreateIntent(text) || nspCreateIntent(s));
   var heard = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
-  var r = watch ? { kind: 'watch', watch: watch, heard: heard } : (mine ? { kind: 'mine', mine: mine, heard: heard } : (intel ? { kind: 'intel', intel: intel, heard: heard } : nspVrDecide(s, String(text || ''))));
+  var r = watch ? { kind: 'watch', watch: watch, heard: heard } : (mine ? { kind: 'mine', mine: mine, heard: heard } : (intel ? { kind: 'intel', intel: intel, heard: heard } : (create ? { kind: 'create', create: create, heard: heard } : nspVrDecide(s, String(text || '')))));
   if (r) { r.lang = nspVrLang(s, heardLang); r.said = s; }
   return r;
 }
@@ -1725,7 +1735,14 @@ var NSP_VOICE_LINES = {
   intel_reading_two: { en: 'Reading both channels.', es: 'Leo los dos canales.' },
   mine_reading: { en: 'Reading your channel.', es: 'Leo tu canal.' },
   mine_working: { en: 'One moment.', es: 'Un momento.' },
-  watch_comments: { en: 'Reading the comments.', es: 'Leo los comentarios.' }
+  watch_comments: { en: 'Reading the comments.', es: 'Leo los comentarios.' },
+  next_result: { en: 'Opening the next one.', es: 'Abro el siguiente.' },
+  next_video: { en: 'Next video.', es: 'Siguiente video.' },
+  no_more_results: { en: 'That was the last result.', es: 'Ese era el último resultado.' },
+  nothing_next: { en: 'There is no next video here.', es: 'Aquí no hay siguiente video.' },
+  create_script: { en: 'Gathering sources. This takes a minute.', es: 'Busco fuentes. Esto tarda un minuto.' },
+  create_shorts: { en: 'Reading the video.', es: 'Leo el video.' },
+  create_studio: { en: 'Filling Studio.', es: 'Relleno Studio.' }
 };
 var NSP_VOICE_ASK_ERRORS = { no_provider_configured: 'no_provider', all_busy: 'busy' };
 var NSP_VOICE_EAR_LINES = { mic_permission: 'mic', mic_missing: 'mic_help', mic_busy: 'mic_help', model_missing: 'model_missing', not_heard: 'not_heard', transcribe_failed: 'failed', slow_engine: 'slow_engine' };
@@ -2182,6 +2199,7 @@ function nspVoiceRun(r, gen, fin, say) {
   if (r.kind === 'intel') { nspIntelVoice(r, gen); fin(null); return; }
   if (r.kind === 'mine') { nspMineVoice(r, gen); fin(null); return; }
   if (r.kind === 'watch') { nspWatchVoice(r, gen); fin(null); return; }
+  if (r.kind === 'create') { nspCreateVoice(r, gen); fin(null); return; }
   if (r.kind === 'hush') { nspVoiceHush(); fin(null); return; }
   if (r.kind === 'stop') { nspVoiceHush(); nspVoiceStopPage(); fin(null); return; }
   if (r.kind === 'wake') { nspVoiceSetWake(r.on, lang); fin(null); return; }
@@ -2216,7 +2234,7 @@ function nspVoiceRun(r, gen, fin, say) {
   }
   if (r.kind === 'site') { nspVoiceOpenUrl(r.url, seen); return; }
   if (r.kind === 'page') { nspVoiceOpenPage(chrome.runtime.getURL(r.page), seen); return; }
-  if (r.kind === 'scan' || r.kind === 'result' || r.kind === 'channel' || r.kind === 'save') { nspVoiceInPage(r, gen, say); fin(null); return; }
+  if (r.kind === 'scan' || r.kind === 'result' || r.kind === 'channel' || r.kind === 'save' || r.kind === 'next') { nspVoiceInPage(r, gen, say); fin(null); return; }
   nspVoiceTabs(r.kind, lang, fin, say);
 }
 
@@ -2407,9 +2425,9 @@ function nspVoiceToggle() {
 var NSP_CHAT_PAGE = 'chat/chat.html';
 var NSP_CHAT_TOKEN_TTL_MS = 60000;
 var NSP_CHAT_ROUTE_WORDS = 8;
-var NSP_CHAT_ROUTE_SKIP = { hush: 1, stop: 1, wake: 1, hello: 1, intel: 1, mine: 1, watch: 1 };
-var NSP_CHAT_IN_PAGE = { scan: 1, result: 1, channel: 1, save: 1 };
-var NSP_CHAT_OK_LINES = { done: 1, youtube: 1, scanning: 1, saved: 1, open: 1, opening_channel: 1, agent_on: 1, agent_off: 1 };
+var NSP_CHAT_ROUTE_SKIP = { hush: 1, stop: 1, wake: 1, hello: 1, intel: 1, mine: 1, watch: 1, create: 1 };
+var NSP_CHAT_IN_PAGE = { scan: 1, result: 1, channel: 1, save: 1, next: 1 };
+var NSP_CHAT_OK_LINES = { done: 1, youtube: 1, scanning: 1, saved: 1, open: 1, opening_channel: 1, agent_on: 1, agent_off: 1, next_result: 1, next_video: 1 };
 var NSP_CHAT_DONE = { youtube: 'Opened YouTube.', search: 'Searched YouTube.', site: 'Opened the page.', page: 'Opened the ZERACK page.', back: 'Went back.', forward: 'Went forward.', reload: 'Reloaded the tab.', next_tab: 'Moved to the next tab.', prev_tab: 'Moved to the previous tab.', close_tab: 'Closed the tab.', new_tab: 'Opened a new tab.' };
 var NSP_CHAT_PAGES = { dashboard: 'dashboard/dashboard.html', 'niche-index': 'niche-index/niche-index.html', setup: 'setup/setup.html', options: 'options/options.html' };
 var NSP_CHAT_BROWSER = { youtube: 1, back: 1, forward: 1, reload: 1, new_tab: 1, close_tab: 1, next_tab: 1, prev_tab: 1 };
@@ -2417,15 +2435,15 @@ var NSP_CHAT_ACT_TOOLS = { nspSaveNiche: 1, nspAddToTracking: 1, nspExportNiches
 var NSP_CHAT_NO_SCRIPT = /^https:\/\/(?:chromewebstore\.google\.com|chrome\.google\.com\/webstore)(?:[\/?#]|$)/;
 var NSP_AGENT_OFF_REFUSAL = 'not run: acting is switched off. Tell the user to turn on Agent from the ZERACK icon in the Chrome toolbar, then ask again. Do not retry.';
 var NSP_CHAT_TYPED_YT = /\byou ?tube\b/;
-var NSP_CHAT_TYPED_ASK = { save: 1, result: 1, channel: 1 };
+var NSP_CHAT_TYPED_ASK = { save: 1, result: 1, channel: 1, next: 1 };
 var NSP_CHAT_TYPED_DATA = /\b(?:mi|mis|my|mine|me|guardad\w*|saved?|escaneos?|scans?|nichos?|niches?|titulos?|titles?|ideas?|rpm|cpm|ctr)\b/;
-var NSP_CHAT_TYPED_ONLY = { search: 1, save: 1, result: 1, channel: 1, scan: 1 };
+var NSP_CHAT_TYPED_ONLY = { search: 1, save: 1, result: 1, channel: 1, scan: 1, next: 1 };
 var NSP_CHAT_NAV_TOOLS = { zerackBrowser: 1, zerackYouTubeAgent: 1 };
 var NSP_CHAT_REOPEN_MS = 180000;
 var NSP_CHAT_ROUTE_LABELS = {
   youtube: 'Open YouTube', search: 'Search YouTube', site: 'Open a site', page: 'Open a ZERACK page', back: 'Go back', forward: 'Go forward', reload: 'Reload',
   next_tab: 'Next tab', prev_tab: 'Previous tab', close_tab: 'Close the tab', new_tab: 'New tab', scan: 'Scan', result: 'Open a result', channel: 'Open a channel',
-  save: 'Save', agent: 'Agent switch'
+  save: 'Save', agent: 'Agent switch', next: 'Next'
 };
 var NSP_CHAT_ERRORS = {
   no_provider_configured: 'No AI provider is set up yet. Add a key in Setup, or turn on a local model.',
@@ -2662,6 +2680,7 @@ function nspChatToolNow(name, args, ctx, done) {
   if (NSP_INTEL_TOOLS[name]) { nspIntelTool(name, args, ctx, done); return; }
   if (NSP_MINE_TOOLS[name]) { nspMineTool(name, args, ctx, done); return; }
   if (NSP_WATCH_TOOLS[name]) { nspWatchTool(name, args, ctx, done); return; }
+  if (NSP_CREATE_TOOLS[name]) { nspCreateTool(name, args, ctx, done); return; }
   if (name === 'zerackOpenPage') {
     var page = NSP_CHAT_PAGES[String(args.page || '')];
     if (!page) { done({ ok: false, error: 'unknown page, use dashboard, niche-index, setup or options' }); return; }
@@ -3008,7 +3027,7 @@ function nspIntelChat(run, req) {
 function nspIntelShow(card, said, tabId) {
   var store = self.NSP_CHAT_STORE;
   if (!store) return Promise.resolve(null);
-  var head = NSP_INTEL_TITLES[card.kind] || NSP_MINE_TITLES[card.kind] || NSP_WATCH_TITLES[card.kind] || 'Channel';
+  var head = NSP_INTEL_TITLES[card.kind] || NSP_MINE_TITLES[card.kind] || NSP_WATCH_TITLES[card.kind] || NSP_CREATE_TITLES[card.kind] || 'Channel';
   var tail = String(card.channel.name || '').slice(0, 60);
   return store.createConversation({ title: tail && tail !== head ? head + ': ' + tail : head }).then(function(conv) {
     var run = { convId: conv.id, gone: false, stopped: false, chain: Promise.resolve() };
@@ -3084,10 +3103,10 @@ function nspIntelTool(name, args, ctx, done) {
 
 function nspIntelContext(sender, sendResponse) {
   var answer = function(url) {
-    Promise.all([nspMineContext(), nspWatchContext().catch(function() { return null; })]).then(function(got) {
+    Promise.all([nspMineContext(), nspWatchContext().catch(function() { return null; }), nspCreateContext().catch(function() { return null; })]).then(function(got) {
       var mine = got[0];
       var t = nspIntelFromUrl(url);
-      var out = { ok: true, kind: '', studio: /^https:\/\/studio\.youtube\.com\//.test(String(url || '')), mine: mine ? { handle: String(mine.handle || '').slice(0, 60), name: String(mine.name || '').slice(0, 60) } : null, watch: got[1] };
+      var out = { ok: true, kind: '', studio: /^https:\/\/studio\.youtube\.com\//.test(String(url || '')), mine: mine ? { handle: String(mine.handle || '').slice(0, 60), name: String(mine.name || '').slice(0, 60) } : null, watch: got[1], studioPackage: got[2] };
       if (t) {
         var handle = t.channel ? (/\/(@[^\/]{1,100})$/.exec(t.channel) || [])[1] || '' : '';
         try { handle = decodeURIComponent(handle); } catch (e) {}
@@ -4814,6 +4833,602 @@ try {
 } catch (eWatchWire) {}
 nspWatchAlarms();
 
+var NSP_IOS_CLIENT = { clientName: 'IOS', clientVersion: '20.10.4', deviceMake: 'Apple', deviceModel: 'iPhone16,2', osName: 'iPhone', osVersion: '18.3.2.22D82' };
+var NSP_TRANSCRIPT_CACHE_MS = 600000;
+var NSP_TRANSCRIPT_CACHE_MAX = 6;
+var NSP_CREATE_TOOLS = { zerackSourcedScript: 'script', zerackShortsMiner: 'shorts', zerackChannelEarnings: 'earn', zerackStudioPackage: 'studio_pack' };
+var NSP_CREATE_TITLES = { script: 'Sourced script', shorts: 'Shorts', earn: 'Earnings', studio: 'Studio package', studio_filled: 'Studio' };
+var NSP_CREATE_READING = { script: 'Searching for sources', shorts: 'Reading the captions', earn: 'Reading the channel', studio_pack: 'Building the package', studio_approve: 'Checking the package', studio_edit: 'Opening the package', studio_fill: 'Filling YouTube Studio' };
+var NSP_CREATE_OPS = { script: 1, studio_pack: 1, studio_approve: 1, studio_edit: 1, studio_fill: 1 };
+var NSP_CREATE_VIDEOS = 4;
+var NSP_CREATE_CANDIDATES = 8;
+var NSP_CREATE_GAP_MS = 800;
+var NSP_CREATE_PAGES = 6;
+var NSP_CREATE_PAGE_CHARS = 40000;
+var NSP_CREATE_MAX_VIDEO_S = 5400;
+var NSP_STUDIO_KEY = 'nsp_studio_package';
+var NSP_STUDIO_DRAFT = 'nsp_studio_draft';
+var NSP_CREATE_PRIVATE_HOST = /(?:^|\.)(?:youtube\.com|youtu\.be|google\.[a-z.]+|gmail\.com|outlook\.(?:live|office|office365)\.com|live\.com|office\.com|paypal\.com|stripe\.com|chatgpt\.com|openai\.com|claude\.ai|anthropic\.com|whatsapp\.com|telegram\.org|messenger\.com|facebook\.com|instagram\.com|x\.com|twitter\.com|linkedin\.com|tiktok\.com|reddit\.com|discord\.com|slack\.com|notion\.so|dropbox\.com|icloud\.com|apple\.com|amazon\.[a-z.]+|ebay\.[a-z.]+|localhost)$|bank|banco|login|signin|account|auth|wallet|billing|checkout/i;
+var _nspCreate = { transcripts: {}, filling: {} };
+
+function nspCreateReady() {
+  if (!self.NSP_CREATE || !self.NSP_SHORTS || !self.NSP_SOURCED) return false;
+  return nspIntelReady();
+}
+
+function nspCreateIntent(text) {
+  if (!self.NSP_CREATE) return null;
+  try { return self.NSP_CREATE.intent(String(text || '').slice(0, 600)) || null; } catch (e) { return null; }
+}
+
+function nspCreateWait(ms) {
+  return new Promise(function(resolve) { setTimeout(resolve, ms); });
+}
+
+function nspPlayerIos(videoId, hl) {
+  return _nspInnertubeReady.then(function() {
+    var body = { videoId: videoId, context: { client: Object.assign({ hl: hl || 'en', gl: 'US' }, NSP_IOS_CLIENT) } };
+    return nspFetchTimeout('https://www.youtube.com/youtubei/v1/player?prettyPrint=false', { method: 'POST', credentials: 'omit', cache: 'no-store', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, 20000);
+  }).then(function(r) {
+    if (!r.ok) throw new Error('player HTTP ' + r.status);
+    return r.json();
+  });
+}
+
+function nspCaptionTrack(tracks, hl, renderer) {
+  var all = tracks || [];
+  var list = all.filter(function(t) { return t && typeof t.baseUrl === 'string' && /^https:\/\/www\.youtube\.com\/api\/timedtext\?/.test(t.baseUrl); });
+  if (!list.length) return null;
+  var lc = function(t) { return String(t.languageCode || '').toLowerCase().slice(0, 2); };
+  var asr = list.filter(function(t) { return t.kind === 'asr'; });
+  var manual = list.filter(function(t) { return t.kind !== 'asr'; });
+  var pick = function(pool, lang) { return pool.filter(function(t) { return lc(t) === lang; })[0] || null; };
+  if (asr.length === 1) return pick(manual, lc(asr[0])) || asr[0];
+  var audio = renderer && Array.isArray(renderer.audioTracks) ? renderer.audioTracks[Number(renderer.defaultAudioTrackIndex) || 0] : null;
+  var byDefault = audio && all[Number(audio.defaultCaptionTrackIndex)];
+  if (byDefault && list.indexOf(byDefault) >= 0) return byDefault;
+  var h = String(hl || '').slice(0, 2);
+  return pick(manual, h) || pick(manual, 'en') || pick(asr, h) || pick(asr, 'en') || manual[0] || asr[0] || list[0];
+}
+
+function nspCaptionEvents(track) {
+  var url = String(track.baseUrl).replace(/&fmt=[^&]*/g, '') + '&fmt=json3';
+  return nspFetchTimeout(url, { method: 'GET', credentials: 'omit', cache: 'no-store' }, 25000).then(function(r) {
+    if (!r.ok) throw new Error('captions HTTP ' + r.status);
+    return r.text();
+  }).then(function(body) {
+    if (!body) return [];
+    var j = null;
+    try { j = JSON.parse(body); } catch (e) { return []; }
+    return (j && Array.isArray(j.events)) ? j.events : [];
+  });
+}
+
+function nspTranscriptRead(videoId, opts) {
+  opts = opts || {};
+  if (!/^[A-Za-z0-9_-]{11}$/.test(String(videoId || ''))) return Promise.resolve({ ok: false, error: 'bad_video_id' });
+  var hit = _nspCreate.transcripts[videoId];
+  if (hit && Date.now() - hit.at < NSP_TRANSCRIPT_CACHE_MS) return Promise.resolve(hit.res);
+  var hl = String(opts.hl || 'en').toLowerCase().slice(0, 2);
+  var meta = { title: '', author: '', channelId: '', seconds: 0, description: '' };
+  var take = function(player) {
+    var d = (player && player.videoDetails) || {};
+    if (!meta.title) meta.title = String(d.title || '').slice(0, 200);
+    if (!meta.author) meta.author = String(d.author || '').slice(0, 120);
+    if (!meta.channelId && /^UC[A-Za-z0-9_-]{22}$/.test(String(d.channelId || ''))) meta.channelId = d.channelId;
+    if (!meta.seconds) meta.seconds = Number(d.lengthSeconds) || 0;
+    if (!meta.description) meta.description = String(d.shortDescription || '').slice(0, 5000);
+    var renderer = null;
+    try { renderer = player.captions.playerCaptionsTracklistRenderer || null; } catch (e) { renderer = null; }
+    return renderer;
+  };
+  var viaTrack = function(renderer, how) {
+    var track = nspCaptionTrack(renderer && renderer.captionTracks, hl, renderer);
+    if (!track) return null;
+    return nspCaptionEvents(track).then(function(events) {
+      var n = events.filter(function(ev) { return ev && Array.isArray(ev.segs); }).length;
+      return n ? { ok: true, events: events, lang: String(track.languageCode || ''), kind: track.kind === 'asr' ? 'asr' : 'manual', via: how } : null;
+    });
+  };
+  var done = function(res) {
+    var out = Object.assign({ ok: false, error: 'no_captions' }, meta, res || {});
+    if (out.ok) {
+      delete out.error;
+      _nspCreate.transcripts[videoId] = { at: Date.now(), res: out };
+      var keys = Object.keys(_nspCreate.transcripts).sort(function(a, b) { return _nspCreate.transcripts[b].at - _nspCreate.transcripts[a].at; });
+      keys.slice(NSP_TRANSCRIPT_CACHE_MAX).forEach(function(k) { delete _nspCreate.transcripts[k]; });
+    }
+    return out;
+  };
+  return nspPlayerIos(videoId, hl).then(function(player) {
+    return viaTrack(take(player), 'ios');
+  }).catch(function(e) {
+    console.warn('[NSP SW] transcript: iOS player failed:', e && e.message);
+    return null;
+  }).then(function(got) {
+    if (got) return done(got);
+    return innertubeFetch('player', { videoId: videoId }, { gl: 'US', hl: hl }).then(function(player) {
+      return viaTrack(take(player), 'web');
+    }).catch(function() { return null; }).then(function(web) { return done(web); });
+  });
+}
+
+function nspTranscriptSegments(events) {
+  var out = [];
+  (events || []).forEach(function(ev) {
+    if (!ev || !Array.isArray(ev.segs)) return;
+    var t = ev.segs.map(function(s) { return s && s.utf8 ? s.utf8 : ''; }).join('').replace(/\s+/g, ' ').trim();
+    if (t) out.push({ text: t, start: Math.round((ev.tStartMs || 0) / 10) / 100, dur: Math.round((ev.dDurationMs || 0) / 10) / 100 });
+  });
+  return out;
+}
+
+function nspWatchHeat(videoId) {
+  return nspFetchTimeout('https://www.youtube.com/watch?v=' + videoId + '&hl=en&gl=US', { method: 'GET', credentials: 'omit', headers: { 'Accept-Language': 'en-US,en' } }, 20000).then(function(r) {
+    return r.ok ? r.text() : '';
+  }).then(function(html) {
+    var initial = html ? nspExtractYtInitialData(html) : null;
+    var muts = [];
+    try { muts = initial.frameworkUpdates.entityBatchUpdate.mutations || []; } catch (e) { muts = []; }
+    for (var i = 0; i < muts.length; i++) {
+      var ml = muts[i] && muts[i].payload && muts[i].payload.macroMarkersListEntity && muts[i].payload.macroMarkersListEntity.markersList;
+      if (ml && ml.markerType === 'MARKER_TYPE_HEATMAP' && Array.isArray(ml.markers)) return ml.markers.slice(0, 400);
+    }
+    return [];
+  }).catch(function() { return []; });
+}
+
+function nspCreateVideoOf(req) {
+  var t = req.target || { tab: true };
+  if (t.video) return Promise.resolve(t.video);
+  return nspIntelTabUrl(req.tabId).then(function(url) {
+    var hit = nspIntelFromUrl(url);
+    return hit && hit.video ? hit.video : '';
+  });
+}
+
+function nspCreateShorts(req, ctl) {
+  var S = self.NSP_SHORTS;
+  return nspCreateVideoOf(req).then(function(vid) {
+    if (!vid) return { ok: false, text: req.lang === 'es' ? 'Abre un video de YouTube, o pega su enlace, y te marco los Shorts que tiene dentro.' : 'Open a YouTube video, or paste its link, and I will mark the Shorts inside it.' };
+    ctl.typing('Reading the captions');
+    return nspTranscriptRead(vid, { hl: req.lang }).then(function(tr) {
+      if (ctl.stopped()) return { ok: false, stopped: true };
+      var video = { id: vid, title: tr.title, channel: tr.author };
+      if (!tr.ok) return { ok: true, card: S.card({ result: { ok: false, reason: 'no_captions' }, video: video }, req.lang) };
+      ctl.typing('Reading the most replayed graph');
+      return nspWatchHeat(vid).then(function(markers) {
+        var words = S.wordsFromJson3(tr.events);
+        var names = (String(tr.title || '').match(/(?:^|\s)(\p{Lu}[\p{L}'-]{2,})/gu) || []).slice(1).map(function(w) { return w.trim().toLowerCase(); });
+        var result = S.mine({ words: words, heat: S.heatSeries(markers, tr.seconds), lang: tr.lang, titleNames: names, seconds: tr.seconds || (words.length ? words[words.length - 1].t1 : 0) });
+        var captions = (tr.lang || 'unknown') + (tr.kind === 'asr' ? ', auto-generated' : ', written by the channel');
+        return { ok: true, card: S.card({ result: result, video: video, captions: captions }, req.lang) };
+      });
+    });
+  });
+}
+
+function nspCreateEarn(req, ctl) {
+  var I = self.NSP_INTEL;
+  var who = req.who || { tab: true };
+  return nspIntelTarget(who, req.tabId).then(function(t) {
+    if (t.error) return { ok: false, text: I.line(t.error, req.lang, { q: t.q || '' }) };
+    return nspIntelRead(t.channel).then(function(res) {
+      if (!res || !res.ok) return { ok: false, text: I.line('e_read', req.lang, { q: t.channel.replace(/^https:\/\/www\.youtube\.com\//, '') }) };
+      if (ctl.stopped()) return { ok: false, stopped: true };
+      ctl.typing('Reading its About page');
+      return nspCreateWait(NSP_CREATE_GAP_MS).then(function() { return nspReadChannelStats(res.channelUrl || t.channel); }).then(function(stats) {
+        var vote = nspMineReady() ? self.NSP_MINE.nicheVote(res.videos) : null;
+        var card = self.NSP_CREATE.earnings({
+          channel: { name: res.name || res.handle, handle: res.handle, url: res.channelUrl, subs: res.subscribers },
+          videos: res.videos, stats: stats && stats.ok ? stats : {}, language: (res.titleCheck && res.titleCheck.language) || '', niche: vote
+        }, req.lang);
+        return { ok: true, card: card };
+      });
+    });
+  });
+}
+
+function nspPageTextExtract() {
+  var root = document.querySelector('article') || document.querySelector('main') || document.querySelector('[role=main]') || document.body;
+  return {
+    title: String(document.title || '').slice(0, 300),
+    url: location.href,
+    lang: String((document.documentElement && document.documentElement.lang) || '').slice(0, 10),
+    text: String((root && root.innerText) || '').slice(0, 40000),
+    password: !!document.querySelector('input[type=password]')
+  };
+}
+
+function nspCreateOrigin(url) {
+  try {
+    var u = new URL(String(url || ''));
+    return u.protocol === 'https:' ? { origin: u.origin, host: u.hostname.toLowerCase(), pattern: u.origin + '/*' } : null;
+  } catch (e) { return null; }
+}
+
+function nspCreateHas(pattern) {
+  return new Promise(function(resolve) {
+    try { chrome.permissions.contains({ origins: [pattern] }, function(ok) { resolve(!chrome.runtime.lastError && ok === true); }); } catch (e) { resolve(false); }
+  });
+}
+
+function nspCreatePages(topic) {
+  var Z = self.NSP_SOURCED;
+  var keys = Z.topicKeys(topic);
+  return new Promise(function(resolve) {
+    chrome.tabs.query({}, function(tabs) { resolve((!chrome.runtime.lastError && tabs) || []); });
+  }).then(function(tabs) {
+    var seen = {};
+    var list = tabs.map(function(tab) {
+      var o = nspCreateOrigin(tab.url);
+      if (!o || NSP_CREATE_PRIVATE_HOST.test(o.host) || seen[tab.url]) return null;
+      seen[tab.url] = 1;
+      return { tab: tab, o: o, about: Z.relevance(String(tab.title || '') + ' ' + String(tab.url || '').replace(/[\/_.-]+/g, ' '), keys) };
+    }).filter(function(x) { return x && x.about > 0; }).sort(function(a, b) { return b.about - a.about; }).slice(0, NSP_CREATE_PAGES * 2);
+    var pages = [], ask = [], tried = [];
+    return list.reduce(function(p, x) {
+      return p.then(function() {
+        if (pages.length >= NSP_CREATE_PAGES) return null;
+        return nspCreateHas(x.o.pattern).then(function(has) {
+          if (!has) {
+            ask.push({ origin: x.o.pattern, host: x.o.host, title: String(x.tab.title || '').slice(0, 120) });
+            tried.push({ kind: 'page', title: x.tab.title || x.o.host, url: x.tab.url, why: 'needs your permission to be read', ok: false });
+            return null;
+          }
+          return chrome.scripting.executeScript({ target: { tabId: x.tab.id }, func: nspPageTextExtract }).then(function(res) {
+            var got = res && res[0] && res[0].result;
+            if (!got || got.password) { tried.push({ kind: 'page', title: x.tab.title || x.o.host, url: x.tab.url, why: got && got.password ? 'has a password box, so it is never read' : 'could not be read', ok: false }); return; }
+            var rel = Z.relevance(got.title + ' ' + String(got.text).slice(0, 4000), keys);
+            if (!rel) return;
+            pages.push({ kind: 'page', title: String(got.title || x.o.host).slice(0, 200), url: String(got.url || x.tab.url).slice(0, 500), text: String(got.text || '').slice(0, NSP_CREATE_PAGE_CHARS) });
+            tried.push({ kind: 'page', title: got.title || x.o.host, url: got.url, why: 'read', ok: true });
+          }, function() {
+            tried.push({ kind: 'page', title: x.tab.title || x.o.host, url: x.tab.url, why: 'could not be read', ok: false });
+          });
+        });
+      });
+    }, Promise.resolve()).then(function() {
+      var origins = [];
+      ask.forEach(function(a) { if (origins.indexOf(a.origin) < 0) origins.push(a.origin); });
+      return { pages: pages, ask: ask, origins: origins.slice(0, 8), tried: tried };
+    });
+  });
+}
+
+function nspCreateMinutes(len) {
+  var m = /^(?:(\d+):)?(\d{1,2}):(\d{2})$/.exec(String(len || '').trim());
+  if (!m) return 0;
+  return (Number(m[1] || 0) * 3600 + Number(m[2]) * 60 + Number(m[3]));
+}
+
+function nspCreateVideos(topic, lang, ctl) {
+  var hl = lang === 'es' ? 'es' : 'en';
+  return innertubeFetch('search', { query: String(topic).slice(0, 120) }, { gl: hl === 'es' ? 'ES' : 'US', hl: hl }).then(function(data) {
+    var seen = {};
+    return (extractVideosFromInnertube(data) || []).filter(function(v) {
+      var s = nspCreateMinutes(v.lengthText);
+      if (!/^[A-Za-z0-9_-]{11}$/.test(String(v.videoId || '')) || seen[v.videoId] || s < 180 || s > NSP_CREATE_MAX_VIDEO_S) return false;
+      seen[v.videoId] = 1;
+      return true;
+    }).slice(0, NSP_CREATE_CANDIDATES);
+  }).catch(function(e) {
+    console.warn('[NSP SW] script: search failed:', e && e.message);
+    return [];
+  }).then(function(cands) {
+    var out = [], tried = [];
+    return cands.reduce(function(p, v, i) {
+      return p.then(function() {
+        if (out.length >= NSP_CREATE_VIDEOS || ctl.stopped()) return null;
+        ctl.typing('Reading source ' + (out.length + 1) + ' of ' + NSP_CREATE_VIDEOS + ' on YouTube');
+        return nspCreateWait(i ? NSP_CREATE_GAP_MS : 0).then(function() { return nspTranscriptRead(v.videoId, { hl: hl }); }).then(function(tr) {
+          if (!tr.ok && !tr.description) { tried.push({ kind: 'video', title: v.title, videoId: v.videoId, why: 'no captions and no description', ok: false }); return; }
+          out.push({ kind: 'video', videoId: v.videoId, title: String(tr.title || v.title || '').slice(0, 200), channel: String(tr.author || v.channelName || '').slice(0, 100), url: 'https://www.youtube.com/watch?v=' + v.videoId, description: tr.description || '', segments: tr.ok ? nspTranscriptSegments(tr.events).map(function(s) { return { t: s.start, text: s.text }; }) : [] });
+          tried.push({ kind: 'video', title: v.title, videoId: v.videoId, why: tr.ok ? 'read the captions and the description' : 'read the description, no captions', ok: true });
+        });
+      });
+    }, Promise.resolve()).then(function() { return { videos: out, tried: tried }; });
+  });
+}
+
+function nspCreateScript(req, ctl) {
+  var Z = self.NSP_SOURCED;
+  var topic = String(req.topic || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!topic) return Promise.resolve({ ok: false, text: req.lang === 'es' ? 'Dime el tema: por ejemplo, escríbeme un guion con fuentes sobre la caída de Constantinopla.' : 'Tell me the topic: for example, write a sourced script about the fall of Constantinople.' });
+  ctl.typing('Reading the pages you have open');
+  return nspCreatePages(topic).then(function(web) {
+    if (ctl.stopped()) return { ok: false, stopped: true };
+    ctl.typing('Searching YouTube for sources');
+    return nspCreateVideos(topic, req.lang, ctl).then(function(yt) {
+      if (ctl.stopped()) return { ok: false, stopped: true };
+      var sources = web.pages.concat(yt.videos);
+      var pack = Z.passages(sources, topic);
+      var permission = web.origins.length ? { origins: web.origins, hosts: web.ask.map(function(a) { return a.host; }).filter(function(h, i, a) { return a.indexOf(h) === i; }).slice(0, 6), job: { op: 'script', topic: topic, minutes: req.minutes || 0 } } : null;
+      var offTopic = {};
+      pack.left.forEach(function(l) { offTopic[l.url] = 1; });
+      var tried = web.tried.concat(yt.tried).map(function(x) {
+        var url = x.url || (x.videoId ? 'https://www.youtube.com/watch?v=' + x.videoId : '');
+        return x.ok && offTopic[url] ? Object.assign({}, x, { ok: false, why: 'read, but nothing in it is about the topic' }) : x;
+      });
+      if (pack.sources.length < Z.MIN_SOURCES) return { ok: true, card: Z.refusal({ topic: topic, readable: pack.sources.length, tried: tried, permission: permission }, req.lang) };
+      var p = Z.prompt({ topic: topic, lang: req.lang, minutes: req.minutes, passages: pack.passages, sources: pack.sources });
+      ctl.typing('Writing from ' + pack.passages.length + ' passages');
+      return new Promise(function(resolve) {
+        nspChatCascade({ messages: [{ role: 'user', content: p.user }], system: p.system, maxTokens: p.maxTokens, timeoutMs: 180000 }, resolve);
+      }).then(function(res) {
+        if (ctl.stopped()) return { ok: false, stopped: true };
+        if (!res || res.ok !== true || !String(res.text || '').trim()) {
+          var none = res && res.error === 'no_provider_configured';
+          return { ok: false, text: none ? (req.lang === 'es' ? 'Tengo ' + pack.sources.length + ' fuentes, pero no hay proveedor de IA para escribir. Añade una clave en Setup o activa un modelo local, y pídelo otra vez.' : 'I have ' + pack.sources.length + ' sources, but no AI provider is set up to write. Add a key in Setup, or turn on a local model, and ask again.') : (req.lang === 'es' ? 'El proveedor de IA no contestó: ' : 'The AI provider did not answer: ') + String((res && (res.error || res.detail)) || 'no answer').slice(0, 160) };
+        }
+        ctl.typing('Checking every line against its source');
+        var draft = Z.parse(res.text);
+        var verified = Z.verify(draft, pack, req.lang);
+        var card = Z.card({ pack: pack, verified: verified, topic: topic, by: nspMineBy(res), left: pack.left }, req.lang);
+        if (card.script) card.script.topic = topic;
+        if (permission) card.permission = permission;
+        return { ok: true, card: card };
+      });
+    });
+  });
+}
+
+function nspStudioStore(key) {
+  return new Promise(function(resolve) {
+    chrome.storage.local.get(key, function(r) { resolve((!chrome.runtime.lastError && r && r[key] && typeof r[key] === 'object') ? r[key] : null); });
+  });
+}
+
+function nspStudioSave(key, value) {
+  return new Promise(function(resolve) {
+    var o = {};
+    o[key] = value;
+    chrome.storage.local.set(o, function() { resolve(!chrome.runtime.lastError); });
+  });
+}
+
+function nspStudioScriptRow(convId, rowId) {
+  var store = self.NSP_CHAT_STORE;
+  if (!store || !convId) return Promise.resolve(null);
+  return store.getMessages(convId).then(function(rows) {
+    var hit = null;
+    (rows || []).forEach(function(r) {
+      var c = r && r.role === 'intel' && r.meta && r.meta.card;
+      if (!c || c.kind !== 'script' || !c.script) return;
+      if (rowId ? String(r.id) === String(rowId) : true) hit = c.script;
+    });
+    return hit;
+  });
+}
+
+function nspStudioPack(req) {
+  var C = self.NSP_CREATE;
+  var lang = req.lang;
+  return nspStudioScriptRow(req.convId, req.rowId).then(function(script) {
+    if (script) {
+      var pkg = C.packFromScript(script, script.lang || lang);
+      pkg.chaptersEstimated = true;
+      return nspStudioSave(NSP_STUDIO_DRAFT, { chapters: C.chapterLines(pkg.chapters), firsts: pkg.chapters.map(function(c) { return String(c.first || '').slice(0, 300); }), at: Date.now() }).then(function() {
+        return { ok: true, card: C.formCard(pkg, lang, { from: 'the sourced script "' + String(script.title || '').slice(0, 60) + '"' }) };
+      });
+    }
+    return nspStudioStore(NSP_STUDIO_KEY).then(function(saved) {
+      var pkg = saved ? { title: saved.title, description: saved.description, chapters: saved.chapters || [], tags: saved.tags || [], chaptersEstimated: saved.chaptersEstimated === true } : { title: '', description: '', chapters: [], tags: [] };
+      return { ok: true, card: C.formCard(pkg, lang, { from: saved ? 'your last approved package' : '' }) };
+    });
+  });
+}
+
+function nspStudioApprove(req) {
+  var C = self.NSP_CREATE;
+  var chapters = C.parseChapters(req.chapters || '');
+  var tags = C.tagsOf(req.tags || '');
+  return nspStudioStore(NSP_STUDIO_DRAFT).then(function(draft) {
+    var estimated = !!(draft && chapters.length && C.chapterLines(chapters) === String(draft.chapters || ''));
+    if (estimated) chapters.forEach(function(c, i) { c.first = (draft.firsts || [])[i] || ''; });
+    var description = C.composeDescription(req.description || '', chapters, req.lang);
+    var checked = C.check({ title: req.title, description: description, tags: tags, chapters: chapters });
+    if (!checked.ok) {
+      return { ok: true, card: C.formCard({ title: req.title, description: req.description, chapters: chapters, tags: tags, chaptersEstimated: estimated }, req.lang, { problems: checked.problems }) };
+    }
+    var pkg = { v: 1, title: checked.title, description: description, body: C.stripChapters(req.description || ''), tags: tags, chapters: chapters, chaptersEstimated: estimated, lang: req.lang === 'es' ? 'es' : 'en', approvedAt: Date.now() };
+    return nspStudioSave(NSP_STUDIO_KEY, pkg).then(function(ok) {
+      if (!ok) return { ok: false, text: 'The package could not be stored. Try again.' };
+      return { ok: true, card: C.approvedCard(pkg, req.lang) };
+    });
+  });
+}
+
+function nspStudioTab(tabId) {
+  var isStudio = function(t) { return t && /^https:\/\/studio\.youtube\.com\//.test(String(t.url || '')); };
+  var videoOf = function(t) { var m = /\/video\/([A-Za-z0-9_-]{11})\/edit/.exec(String(t.url || '')); return m ? m[1] : ''; };
+  return new Promise(function(resolve) {
+    var fromList = function() {
+      chrome.tabs.query({ url: 'https://studio.youtube.com/*' }, function(tabs) {
+        tabs = (!chrome.runtime.lastError && tabs) || [];
+        var edit = tabs.filter(function(t) { return videoOf(t); }).sort(function(a, b) { return (b.lastAccessed || 0) - (a.lastAccessed || 0); })[0];
+        var any = edit || tabs.sort(function(a, b) { return (b.lastAccessed || 0) - (a.lastAccessed || 0); })[0];
+        resolve(any ? { tab: any, video: videoOf(any) } : null);
+      });
+    };
+    if (tabId >= 0) {
+      chrome.tabs.get(tabId, function(t) { if (!chrome.runtime.lastError && isStudio(t)) resolve({ tab: t, video: videoOf(t) }); else fromList(); });
+      return;
+    }
+    nspTargetTab(function(t) { if (isStudio(t)) resolve({ tab: t, video: videoOf(t) }); else fromList(); });
+  });
+}
+
+function nspStudioTimed(pkg, videoId) {
+  var C = self.NSP_CREATE, S = self.NSP_SHORTS;
+  var out = { title: pkg.title, description: pkg.description, tags: (pkg.tags || []).slice(0, 30), timing: pkg.chapters && pkg.chapters.length ? 'script' : 'none', matched: 0 };
+  if (!pkg.chaptersEstimated || !videoId || !(pkg.chapters || []).length) return Promise.resolve(out);
+  return nspTranscriptRead(videoId, { hl: pkg.lang }).then(function(tr) {
+    if (!tr.ok) return out;
+    var al = C.alignChapters(pkg.chapters, S.wordsFromJson3(tr.events));
+    if (!al.ok) return out;
+    var checked = C.check({ title: pkg.title, description: '', tags: [], chapters: al.chapters });
+    if (!checked.ok) return out;
+    out.description = C.composeDescription(pkg.body || C.stripChapters(pkg.description), al.chapters, pkg.lang);
+    out.timing = 'captions';
+    out.matched = al.matched;
+    return out;
+  }, function() { return out; });
+}
+
+function nspStudioFill(req, ctl) {
+  var C = self.NSP_CREATE;
+  return nspStudioStore(NSP_STUDIO_KEY).then(function(pkg) {
+    if (!pkg || !pkg.approvedAt) return { ok: false, text: req.lang === 'es' ? 'No hay paquete aprobado. Pide "prepara el paquete para Studio", revísalo y pulsa Aprobar.' : 'There is no approved package. Ask for the Studio package, review it and press Approve.' };
+    return nspStudioTab(req.tabId).then(function(found) {
+      if (!found) return { ok: true, card: C.filledCard(pkg, { ok: false, error: req.lang === 'es' ? 'abre el video en YouTube Studio (Detalles) primero.' : 'open the video in YouTube Studio (Details) first.' }, req.lang) };
+      if (!found.video && !/\/upload|videos\/upload|d=ud/.test(String(found.tab.url || ''))) return { ok: true, card: C.filledCard(pkg, { ok: false, error: req.lang === 'es' ? 'en Studio, abre la página de Detalles del video.' : 'in Studio, open the video\'s Details page.' }, req.lang) };
+      var key = String(found.tab.id);
+      if (_nspCreate.filling[key]) return { ok: false, text: 'Studio is being filled already.' };
+      _nspCreate.filling[key] = 1;
+      ctl.typing('Timing the chapters');
+      return nspStudioTimed(pkg, found.video).then(function(fill) {
+        ctl.typing('Filling YouTube Studio');
+        return new Promise(function(resolve) {
+          var timer = setTimeout(function() { resolve({ ok: false, error: 'Studio did not answer in time' }); }, 30000);
+          try {
+            chrome.tabs.sendMessage(found.tab.id, { type: 'NSP_STUDIO_FILL', pkg: { title: fill.title, description: fill.description, tags: fill.tags } }, { frameId: 0 }, function(res) {
+              clearTimeout(timer);
+              resolve(chrome.runtime.lastError || !res ? { ok: false, error: 'the ZERACK Studio script did not answer. Reload the Studio tab.' } : res);
+            });
+          } catch (e) { clearTimeout(timer); resolve({ ok: false, error: String((e && e.message) || e) }); }
+        }).then(function(report) {
+          report.timing = fill.timing;
+          report.matched = fill.matched;
+          report.video = found.video;
+          return { ok: true, card: C.filledCard(pkg, report, req.lang) };
+        });
+      }).then(function(out) { delete _nspCreate.filling[key]; return out; }, function(e) { delete _nspCreate.filling[key]; throw e; });
+    });
+  });
+}
+
+function nspStudioPackageMsg(msg, sender, sendResponse) {
+  nspStudioStore(NSP_STUDIO_KEY).then(function(pkg) {
+    if (!pkg || !pkg.approvedAt) { sendResponse({ ok: true, has: false }); return; }
+    if (msg.op !== 'prepare') { sendResponse({ ok: true, has: true, title: String(pkg.title || '').slice(0, 100), tags: (pkg.tags || []).length, chapters: (pkg.chapters || []).length }); return; }
+    var vid = /^[A-Za-z0-9_-]{11}$/.test(String(msg.videoId || '')) ? msg.videoId : '';
+    nspStudioTimed(pkg, vid).then(function(fill) {
+      sendResponse({ ok: true, has: true, pkg: { title: fill.title, description: fill.description, tags: fill.tags }, timing: fill.timing, matched: fill.matched });
+    });
+  });
+}
+
+function nspCreateCompute(req, ctl) {
+  if (!nspCreateReady()) return Promise.resolve({ ok: false, text: 'The create engines did not load. Reload the extension.' });
+  req.lang = req.lang === 'es' ? 'es' : 'en';
+  var k = req.kind, p;
+  if (k === 'script') p = nspCreateScript(req, ctl);
+  else if (k === 'shorts') p = nspCreateShorts(req, ctl);
+  else if (k === 'earn') p = nspCreateEarn(req, ctl);
+  else if (k === 'studio_pack' || k === 'studio_edit') p = nspStudioPack(req);
+  else if (k === 'studio_approve') p = nspStudioApprove(req);
+  else if (k === 'studio_fill') p = nspStudioFill(req, ctl);
+  else p = Promise.resolve({ ok: false, text: 'Unknown request.' });
+  return p.catch(function(e) {
+    console.warn('[NSP SW] create failed:', e && e.message);
+    return { ok: false, text: 'That did not work: ' + String((e && e.message) || e).slice(0, 160) };
+  });
+}
+
+function nspCreateChat(run, req) {
+  req.lang = req.lang || run.lang;
+  req.tabId = run.tabId;
+  req.convId = run.convId;
+  var ctl = { stopped: function() { return run.stopped; }, typing: function(label) { nspChatTyping(run, label); } };
+  ctl.typing(NSP_CREATE_READING[req.kind] || 'Working');
+  return nspCreateCompute(req, ctl).then(function(out) {
+    if (run.stopped || out.stopped) return null;
+    if (!out.ok) return nspChatAdd(run, 'assistant', out.text, { create: req.kind });
+    return nspChatAdd(run, 'intel', out.card.lead, { card: out.card });
+  });
+}
+
+function nspCreateVoiceLine(kind) {
+  return kind === 'script' ? 'create_script' : (kind === 'shorts' ? 'create_shorts' : (kind === 'earn' ? 'intel_reading' : (kind === 'studio_fill' ? 'create_studio' : 'mine_working')));
+}
+
+function nspCreateVoice(r, gen) {
+  var lang = (r.create.lang || r.lang) === 'es' ? 'es' : 'en';
+  var req = Object.assign({}, r.create, { lang: lang });
+  var ctl = { stopped: function() { return _nspVoice.gen !== gen; }, typing: function() {} };
+  nspVoiceLine(nspCreateVoiceLine(req.kind), lang);
+  _nspVoice.busy = gen;
+  nspVoiceRelay();
+  var idle = function() { if (_nspVoice.busy === gen) { _nspVoice.busy = 0; nspVoiceRelay(); } };
+  nspTargetTab(function(tab) {
+    req.tabId = tab && tab.id >= 0 ? tab.id : -1;
+    nspCreateCompute(req, ctl).then(function(out) {
+      if (_nspVoice.gen !== gen || out.stopped) { idle(); return null; }
+      idle();
+      if (!out.ok) { nspVoiceSay(out.text); return null; }
+      nspVoiceSay(out.card.say || out.card.lead);
+      return nspIntelShow(out.card, String(r.heard || r.said || ''), req.tabId);
+    }).catch(function(e) { idle(); console.warn('[NSP SW] create voice failed:', e && e.message); });
+  });
+}
+
+function nspCreateTool(name, args, ctx, done) {
+  var kind = NSP_CREATE_TOOLS[name];
+  if (!nspCreateReady()) { done({ ok: false, error: 'the create engines did not load' }); return; }
+  var run = ctx.chatRun || null;
+  var lang = ctx.lang === 'es' ? 'es' : 'en';
+  var req = { kind: kind, lang: lang, tabId: run ? run.tabId : -1, convId: run ? run.convId : '', tool: true };
+  if (kind === 'script') { req.topic = String(args.topic || '').slice(0, 200); req.minutes = Math.max(0, Math.min(20, Number(args.minutes) || 0)); }
+  if (kind === 'shorts') { var v = String(args.video || '').trim(); var t = v ? nspIntelFromUrl(/^https?:\/\//i.test(v) ? v : 'https://www.youtube.com/watch?v=' + v) : null; req.target = t && t.video ? { video: t.video } : { tab: true }; }
+  if (kind === 'earn') req.who = nspIntelToolWho(args.channel);
+  var ctl = run ? { stopped: function() { return run.stopped; }, typing: function(label) { nspChatTyping(run, label); } } : { stopped: function() { return false; }, typing: function() {} };
+  nspCreateCompute(req, ctl).then(function(out) {
+    if (!out.ok) { done({ ok: false, error: out.text || 'stopped' }); return; }
+    var card = out.card;
+    var shown = run ? nspChatAdd(run, 'intel', card.lead, { card: card }).then(function(row) { return { row: row }; }) : nspIntelShow(card, '', req.tabId);
+    shown.then(function(pos) {
+      done({ ok: true, shownInChat: !!(pos && pos.row), card: card.kind, summary: card.lead, data: card.model, note: kind === 'script' ? 'The script is on the card with every source. Do not rewrite it or add facts; answer in two sentences.' : undefined });
+    });
+  }, function(e) { done({ ok: false, error: String((e && e.message) || e) }); });
+}
+
+function nspCreateJobOf(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  var op = String(raw.op || '');
+  if (NSP_CREATE_OPS[op] !== 1) return null;
+  var s = function(v, n) { return typeof v === 'string' ? v.slice(0, n) : ''; };
+  if (op === 'script') { var topic = s(raw.topic, 200).replace(/\s+/g, ' ').trim(); return topic ? { kind: 'script', topic: topic, minutes: Math.max(0, Math.min(20, Number(raw.minutes) || 0)) } : null; }
+  if (op === 'studio_pack') return { kind: 'studio_pack', rowId: /^\d{1,12}$/.test(String(raw.rowId || '')) ? String(raw.rowId) : '' };
+  if (op === 'studio_edit') return { kind: 'studio_edit' };
+  if (op === 'studio_fill') return { kind: 'studio_fill' };
+  if (op === 'studio_approve') return { kind: 'studio_approve', title: s(raw.title, 200), description: s(raw.description, 6000), chapters: s(raw.chapters, 3000), tags: s(raw.tags, 800) };
+  return null;
+}
+
+function nspCreateRunMsg(msg, sender, sendResponse) {
+  var convId = String(msg.convId || '').slice(0, 80);
+  var job = nspCreateJobOf(msg.job);
+  var label = String(msg.text || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  if (!convId || !job || !label || !self.NSP_CHAT_STORE) { sendResponse({ ok: false, error: 'bad_request' }); return; }
+  if (_nspChat.runs[convId]) { sendResponse({ ok: false, error: 'busy' }); return; }
+  var overlay = !!(sender.tab && sender.tab.id >= 0 && sender.frameId !== 0);
+  var run = { convId: convId, text: label, lang: msg.lang === 'es' ? 'es' : 'en', tabId: overlay ? sender.tab.id : -1, stopped: false, gone: false, delegate: '', typing: '', marked: false, chain: Promise.resolve() };
+  _nspChat.runs[convId] = run;
+  nspChatBeat();
+  sendResponse({ ok: true });
+  job.lang = run.lang;
+  nspCreateChat(run, job).catch(function(e) {
+    return nspChatAdd(run, 'error', 'Something went wrong: ' + String((e && e.message) || e));
+  }).then(function() { nspChatEnd(run); });
+}
+
+function nspCreateContext() {
+  return nspStudioStore(NSP_STUDIO_KEY).then(function(pkg) {
+    return pkg && pkg.approvedAt ? { title: String(pkg.title || '').slice(0, 60) } : null;
+  });
+}
+
 function nspChatStop(msg) {
   var turn = _nspVoiceTurns[String(msg.requestId || '')];
   if (!turn || turn.origin !== 'chat') return;
@@ -5006,9 +5621,10 @@ function nspChatRun(msg, sender, sendResponse) {
   var watch = nspWatchIntent(text);
   var mine = watch ? null : nspMineIntent(full);
   var intel = watch || mine ? null : nspIntelIntent(text);
-  var routes = watch || mine || intel ? null : nspChatTyped(text.slice(0, 400), String(msg.tabLang || ''));
+  var create = watch || mine || intel ? null : nspCreateIntent(text);
+  var routes = watch || mine || intel || create ? null : nspChatTyped(text.slice(0, 400), String(msg.tabLang || ''));
   nspChatTyping(run, routes ? 'Working' : 'Thinking');
-  (watch ? nspWatchChat(run, watch) : (mine ? nspMineChat(run, mine) : (intel ? nspIntelChat(run, intel) : (routes ? nspChatRouted(run, routes) : nspChatThink(run))))).catch(function(e) {
+  (watch ? nspWatchChat(run, watch) : (mine ? nspMineChat(run, mine) : (intel ? nspIntelChat(run, intel) : (create ? nspCreateChat(run, create) : (routes ? nspChatRouted(run, routes) : nspChatThink(run)))))).catch(function(e) {
     return nspChatAdd(run, 'error', 'Something went wrong: ' + String((e && e.message) || e));
   }).then(function() { nspChatEnd(run); });
 }
@@ -5206,6 +5822,8 @@ var NSP_MESSAGE_CALLERS = {
   NSP_INTEL_CONTEXT: NSP_EXT_ONLY,
   NSP_MINE_RUN: NSP_EXT_ONLY,
   NSP_WATCH_RUN: NSP_EXT_ONLY,
+  NSP_CREATE_RUN: NSP_EXT_ONLY,
+  NSP_STUDIO_PACKAGE: { studio: 1 },
   NSP_AGENT_OPEN_TAB: { ext: 1, youtube: 'grant' },
   NSP_AGENT_SEARCH_MARKET: { ext: 1, youtube: 1, studio: 1 },
   NSP_AGENT_NAVIGATE: NSP_EXT_ONLY,
@@ -6186,6 +6804,19 @@ function nspRoute(msg, sender, sendResponse, who) {
     return true;
   }
 
+  if (msg.type === 'NSP_CREATE_RUN') {
+    nspChatTrusted(sender).then(function(ok) {
+      if (!ok) { sendResponse({ ok: false, error: 'not_allowed' }); return; }
+      nspCreateRunMsg(msg, sender, sendResponse);
+    });
+    return true;
+  }
+
+  if (msg.type === 'NSP_STUDIO_PACKAGE') {
+    nspStudioPackageMsg(msg, sender, sendResponse);
+    return true;
+  }
+
   if (msg.type === 'NSP_INTEL_CONTEXT') {
     nspChatTrusted(sender).then(function(ok) {
       if (!ok) { sendResponse({ ok: false, error: 'not_allowed' }); return; }
@@ -6338,43 +6969,16 @@ function nspRoute(msg, sender, sendResponse, who) {
     return true;
   }
 
-  // Captions for a video, read through the InnerTube player without cookies.
+  // Captions for a video, read without cookies: the iOS player first, the web player after it.
   if (msg.type === 'NSP_FETCH_TRANSCRIPT') {
     var vid = String(msg.videoId || '').trim();
     if (!/^[A-Za-z0-9_-]{11}$/.test(vid)) { sendResponse({ ok: false, error: 'bad_video_id' }); return false; }
-    (async function () {
-      try {
-        var player = await innertubeFetch('player', { videoId: vid }, { gl: msg.gl || 'US', hl: msg.hl || 'en' });
-        var tracks = [], title = '', author = '';
-        try { tracks = player.captions.playerCaptionsTracklistRenderer.captionTracks || []; } catch (e) {}
-        try { title = (player.videoDetails && player.videoDetails.title) || ''; } catch (e) {}
-        try { author = (player.videoDetails && player.videoDetails.author) || ''; } catch (e) {}
-        if (!tracks.length) { sendResponse({ ok: false, error: 'no_captions', title: title, author: author }); return; }
-        // Preference order: requested language non-asr, any non-asr, requested language asr, then the first track.
-        var hl = String(msg.hl || 'en').toLowerCase().slice(0, 2);
-        function score(t) { var lc = String(t.languageCode || '').toLowerCase().slice(0, 2); return (lc === hl ? 0 : 2) + (t.kind === 'asr' ? 1 : 0); }
-        tracks.sort(function (a, b) { return score(a) - score(b); });
-        var track = tracks[0], url = String(track.baseUrl || '');
-        if (!url) { sendResponse({ ok: false, error: 'no_track_url', title: title, author: author }); return; }
-        if (url.indexOf('fmt=') < 0) url += (url.indexOf('?') >= 0 ? '&' : '?') + 'fmt=json3';
-        var r = await nspFetchTimeout(url, { method: 'GET', credentials: 'omit', cache: 'no-store' }, 20000);
-        var segments = [], full = '';
-        if (r.ok) {
-          var j = null; try { j = await r.json(); } catch (e) {}
-          ((j && j.events) || []).forEach(function (ev) {
-            if (!ev.segs) return;
-            var txt = ev.segs.map(function (s) { return s.utf8 || ''; }).join('').replace(/\s+/g, ' ').trim();
-            if (!txt) return;
-            segments.push({ text: txt, start: Math.round((ev.tStartMs || 0) / 10) / 100, dur: Math.round((ev.dDurationMs || 0) / 10) / 100 });
-            full += (full ? ' ' : '') + txt;
-          });
-        }
-        if (!segments.length) { sendResponse({ ok: false, error: 'empty_transcript', title: title, author: author }); return; }
-        sendResponse({ ok: true, title: title, author: author, lang: track.languageCode || '', kind: track.kind || '', segments: segments.slice(0, 4000), text: full.slice(0, 60000) });
-      } catch (e) {
-        sendResponse({ ok: false, error: String(e && e.message || e) });
-      }
-    })();
+    nspTranscriptRead(vid, { hl: msg.hl || 'en' }).then(function(tr) {
+      if (!tr.ok) { sendResponse({ ok: false, error: tr.error || 'no_captions', title: tr.title, author: tr.author }); return; }
+      var segments = nspTranscriptSegments(tr.events);
+      if (!segments.length) { sendResponse({ ok: false, error: 'empty_transcript', title: tr.title, author: tr.author }); return; }
+      sendResponse({ ok: true, title: tr.title, author: tr.author, lang: tr.lang, kind: tr.kind === 'asr' ? 'asr' : '', segments: segments.slice(0, 4000), text: segments.map(function(x) { return x.text; }).join(' ').slice(0, 60000) });
+    }, function(e) { sendResponse({ ok: false, error: String((e && e.message) || e) }); });
     return true;
   }
 

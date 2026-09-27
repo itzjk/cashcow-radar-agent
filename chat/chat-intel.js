@@ -17,6 +17,12 @@
     return u.protocol === 'https:' && /^(?:www\.)?youtube\.com$/.test(u.hostname) ? u.href : '';
   }
 
+  function safeWeb(href) {
+    var u = null;
+    try { u = new URL(String(href || '')); } catch (e) { return ''; }
+    return u.protocol === 'https:' && u.hostname && !/^(?:localhost|127\.|\[)/.test(u.hostname) ? u.href : '';
+  }
+
   function anchor(text, href) {
     var a = el('a', '', text);
     a.href = href;
@@ -185,7 +191,7 @@
     var box = el('div', 'ic-row' + (r.wide ? ' wide' : '') + (r.num ? ' num' : ''));
     box.dataset.tone = tone(r.tone);
     if (r.busy) box.dataset.busy = '1';
-    var href = safeLink(r.link);
+    var href = safeLink(r.link) || safeWeb(r.web);
     var onLabel = href && r.linkOn === 'label';
     var lab = el('div', 'ic-label');
     if (onLabel) lab.appendChild(anchor(r.label, href)); else lab.textContent = String(r.label == null ? '' : r.label);
@@ -374,6 +380,7 @@
     if (op === 'thumb') return 'Judge this thumbnail' + (v.title ? ': ' + clipT(v.title, 80) : '');
     if (op === 'money') return 'Money calculator: ' + clipT(v.niche, 60) + (v.views ? ', ' + v.views + ' views a video' : '') + (v.cost ? ', $' + v.cost + ' a video' : '');
     if (op === 'setmine') return 'My channel is ' + clipT(v.ref, 80);
+    if (op === 'studio_approve') return 'Approve the Studio package: ' + clipT(v.title, 70);
     return 'Run it';
   }
 
@@ -428,6 +435,7 @@
     box.addEventListener('submit', function (e) {
       e.preventDefault();
       if (!opts.job) return;
+      if (spec.op === 'studio_approve' && !e.isTrusted) return;
       var v = {};
       Object.keys(inputs).forEach(function (k) { v[k] = inputs[k].value.trim(); });
       var job = { op: spec.op };
@@ -448,6 +456,9 @@
         if (!v.ref) { status(note, 'Paste your @handle or channel link.', 'err'); return; }
         job.ref = v.ref;
         if (card.then) job.then = card.then;
+      } else if (spec.op === 'studio_approve') {
+        if (!v.title) { status(note, 'Type a title first.', 'err'); return; }
+        job.title = v.title; job.description = v.description || ''; job.chapters = v.chapters || ''; job.tags = v.tags || '';
       }
       go.disabled = true;
       status(note, 'Sent.', 'ok');
@@ -479,9 +490,9 @@
     return box.childNodes.length > 1 ? box : null;
   }
 
-  var JOB_OPS = /^(?:brief_now|brief_on|brief_off|brief_state|watch_remove|predict_seal|predict_export|predict_daily|arb_measure)$/;
+  var JOB_OPS = /^(?:brief_now|brief_on|brief_off|brief_state|watch_remove|predict_seal|predict_export|predict_daily|arb_measure|studio_pack|studio_edit|studio_fill)$/;
 
-  function cardJobs(card, opts) {
+  function cardJobs(card, opts, rowId) {
     var list = (Array.isArray(card.actions) ? card.actions : []).filter(function (a) { return a && a.label && a.job && JOB_OPS.test(String(a.job.op || '')); }).slice(0, 7);
     if (!list.length || !opts.job) return null;
     var box = el('div', 'ic-jobs');
@@ -498,6 +509,7 @@
         var job = {};
         Object.keys(a.job).forEach(function (k) { job[k] = a.job[k]; });
         if (card.lang === 'es' || card.lang === 'en') job.lang = card.lang;
+        if (job.op === 'studio_pack' && rowId != null) job.rowId = String(rowId);
         Promise.resolve(opts.job(job, String(a.label))).then(function (ok) {
           b.disabled = false;
           if (!ok) status(note, 'The chat is busy. Wait for the answer and press it again.', 'err');
@@ -505,6 +517,51 @@
       });
       row.appendChild(b);
     });
+    box.appendChild(row);
+    box.appendChild(note);
+    return box;
+  }
+
+  var PERM_ORIGIN = /^https:\/\/[a-z0-9.-]+\/\*$/i;
+
+  function permission(card, opts) {
+    var p = card.permission;
+    if (!p || !Array.isArray(p.origins) || !p.job || !opts.job) return null;
+    var origins = p.origins.filter(function (o) { return PERM_ORIGIN.test(String(o)); }).slice(0, 8);
+    if (!origins.length) return null;
+    var hosts = origins.map(function (o) { return o.replace(/^https:\/\//, '').replace(/\/\*$/, ''); });
+    var box = el('div', 'ic-perm');
+    box.appendChild(el('div', 'ic-perm-title', hosts.length === 1 ? 'A page you have open is about this topic' : hosts.length + ' pages you have open are about this topic'));
+    box.appendChild(el('div', 'ic-perm-text', hosts.join(', ') + '. ZERACK reads a site only after you allow it, and sends its text only to the AI provider you chose.'));
+    var row = el('div', 'ic-perm-row');
+    var b = button(hosts.length === 1 ? 'Allow it and write again' : 'Allow them and write again', ICON_UP);
+    b.classList.add('primary');
+    var note = el('div', 'ic-status');
+    note.setAttribute('aria-live', 'polite');
+    b.addEventListener('click', function (e) {
+      if (!e.isTrusted) return;
+      b.disabled = true;
+      var rerun = function () {
+        var job = {};
+        Object.keys(p.job).forEach(function (k) { job[k] = p.job[k]; });
+        job.op = 'script';
+        if (card.lang === 'es' || card.lang === 'en') job.lang = card.lang;
+        Promise.resolve(opts.job(job, 'Write it again with the pages I allowed: ' + String(p.job.topic || '').slice(0, 80))).then(function (ok) {
+          b.disabled = false;
+          if (!ok) status(note, 'The chat is busy. Wait for the answer and press it again.', 'err');
+        });
+      };
+      try {
+        chrome.permissions.request({ origins: origins }, function (granted) {
+          if (chrome.runtime.lastError || !granted) { b.disabled = false; status(note, 'Not allowed, so those pages stay unread.', 'err'); return; }
+          rerun();
+        });
+      } catch (x) {
+        b.disabled = false;
+        status(note, 'Chrome did not show the prompt here. Open the chat from the toolbar button and press it again.', 'err');
+      }
+    });
+    row.appendChild(b);
     box.appendChild(row);
     box.appendChild(note);
     return box;
@@ -613,7 +670,9 @@
     (card.sections || []).forEach(function (s) { box.appendChild(section(s)); });
     var draw = drawBar(card, row, opts);
     if (draw) box.appendChild(draw);
-    var jobs = cardJobs(card, opts);
+    var perm = permission(card, opts);
+    if (perm) box.appendChild(perm);
+    var jobs = cardJobs(card, opts, row && row.id);
     if (jobs) box.appendChild(jobs);
     var act = actions(card);
     if (card.source || card.share) {

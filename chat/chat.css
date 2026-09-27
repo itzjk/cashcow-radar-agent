@@ -507,3 +507,10 @@ body[data-mode="overlay"] .only-overlay { display: inline-flex; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+.chips.create-row { margin-bottom: 0; }
+.chip.create-chip { border-color: rgba(255,255,255,.26); background: rgba(255,255,255,.04); color: #fff; }
+.chip.create-chip:hover { border-color: var(--red); background: rgba(255,45,45,.06); }
+.ic-perm { margin-top: 14px; padding: 12px 14px; border: 1px solid rgba(255,45,45,.45); border-radius: 12px; background: linear-gradient(180deg, rgba(255,45,45,.07), rgba(255,45,45,.02)); }
+.ic-perm-title { font-size: 13px; font-weight: 700; color: #fff; }
+.ic-perm-text { font-size: 12px; line-height: 1.5; color: var(--muted); margin-top: 4px; overflow-wrap: anywhere; }
+.ic-perm-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }

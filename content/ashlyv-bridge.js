@@ -593,6 +593,7 @@ window.addEventListener('message', function(event) {
 });
 
 var NSP_VOICE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+var nspVoiceLast = 0;
 var NSP_VOICE_CARD = 'ytd-rich-item-renderer, ytd-video-renderer, ytd-compact-video-renderer, ytd-grid-video-renderer, ytd-playlist-video-renderer, ytd-reel-item-renderer, yt-lockup-view-model';
 
 function nspVoiceRows() {
@@ -647,6 +648,7 @@ function nspVoiceAct(msg, reply) {
         if (!btn) { reply({ ok: false, code: 'no_scan_button' }); return; }
         // A synthetic click is not a trusted press, and the voice asked for this scan, so the grant is asked here.
         nspGrantAsk('vision');
+        nspVoiceLast = 0;
         btn.click();
         reply({ ok: true, code: 'scanning' });
       });
@@ -654,6 +656,28 @@ function nspVoiceAct(msg, reply) {
     }
     var n = Math.floor(Number(msg.n) || 0);
     var rows = nspVoiceRows();
+    if (action === 'next') {
+      if (rows.length && nspVoiceLast > 0) {
+        if (nspVoiceLast >= rows.length) { reply({ ok: false, code: 'no_more_results' }); return; }
+        n = nspVoiceLast + 1;
+        action = 'result';
+      } else if (location.pathname === '/watch') {
+        var ahead = document.querySelector('.ytp-next-button');
+        var usable = !!ahead && ahead.getAttribute('aria-disabled') !== 'true';
+        if (usable && ahead.getBoundingClientRect().width) { ahead.click(); reply({ ok: true, code: 'next_video' }); return; }
+        var upNext = usable ? (/[?&]v=([A-Za-z0-9_-]{11})/.exec(String(ahead.getAttribute('href') || '')) || [])[1] || '' : '';
+        if (!upNext) { reply({ ok: false, code: 'nothing_next' }); return; }
+        reply({ ok: true, code: 'next_video' });
+        nspVoiceFollow(nspVoiceVideoLink(upNext), 'https://www.youtube.com/watch?v=' + upNext);
+        return;
+      } else if (rows.length) {
+        n = 1;
+        action = 'result';
+      } else {
+        reply({ ok: false, code: 'nothing_next' });
+        return;
+      }
+    }
     if (action === 'save' && !n) {
       var own = document.getElementById('nsp-save-btn');
       if (own) { own.click(); reply({ ok: true, code: 'saved' }); return; }
@@ -673,7 +697,8 @@ function nspVoiceAct(msg, reply) {
     var vid = String(row.getAttribute('data-video-id') || '');
     if (!NSP_VOICE_VIDEO_ID.test(vid)) { reply({ ok: false, code: 'failed' }); return; }
     if (action === 'result') {
-      reply({ ok: true, code: 'open' });
+      nspVoiceLast = n;
+      reply({ ok: true, code: String(msg.action) === 'next' ? 'next_result' : 'open' });
       nspVoiceFollow(nspVoiceVideoLink(vid), 'https://www.youtube.com/watch?v=' + vid);
       return;
     }
