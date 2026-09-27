@@ -2,7 +2,7 @@
 import vm from "node:vm";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ROOT, check, done } from "./sw-harness.mjs";
+import { ROOT, check, done, htmlPage } from "./sw-harness.mjs";
 import { load } from "./engines.mjs";
 import { windowFor } from "./dom-lite.mjs";
 
@@ -12,7 +12,7 @@ const ENGINES = { reverse: C.NSP_REVERSE_ENGINE, cadence: C.NSP_CADENCIA };
 const SRC = readFileSync(join(ROOT, "lib/nsp-extract.js"), "utf8");
 
 function read(name, url, id, opts, fetchImpl) {
-  const w = windowFor(readFileSync(join(ROOT, "tests/html", name), "utf8"), url);
+  const w = windowFor(htmlPage(name), url);
   const ctx = { document: w.document, location: w.location, URL, console, fetch: fetchImpl };
   ctx.self = ctx;
   vm.createContext(ctx);
@@ -45,7 +45,7 @@ check("the video cadence still reads the same", C.NSP_CADENCIA.medir([{ views: 1
   check("no review count was shown on the shop cards, and that is said, not zero", r.analysis.reviews === null && r.analysis.reviewsNotShown === 10);
 }
 {
-  const catalog = readFileSync(join(ROOT, "tests/html/shopify-products.json"), "utf8");
+  const catalog = htmlPage("shopify-products.json");
   const raw = await read("shopify-dawn-collection.html", "https://store.example/collections/all", "shopify.products", { limit: 250 }, async () => ({ ok: true, status: 200, headers: { get: () => "application/json" }, text: async () => catalog }));
   const now = Date.now;
   Date.now = () => Date.parse("2026-09-26T12:00:00Z");
@@ -124,7 +124,7 @@ check("the video cadence still reads the same", C.NSP_CADENCIA.medir([{ views: 1
   const s1 = B.snapshot(first, a1, Date.parse("2026-09-20T10:00:00Z"));
   check("a read leaves a snapshot of its numbers and listing ids", s1.metrics.count === 36 && s1.metrics.priceMedian === 102.54 && s1.metrics.ads === 12 && s1.ids.length === 36 && s1.host === "www.etsy.com", s1.metrics);
   const later = await (async () => {
-    const w = windowFor(readFileSync(join(ROOT, "tests/html/etsy-grid.html"), "utf8").replace(/<li class="wt-list-unstyled[^>]*>\s*<div\s+class="js-merch-stash-check-listing v2-listing-card[\s\S]*?<\/li>/, "").replace(/<li class="wt-list-unstyled[^>]*>\s*<div\s+class="js-merch-stash-check-listing v2-listing-card[\s\S]*?<\/li>/, ""), url);
+    const w = windowFor(htmlPage("etsy-grid.html").replace(/<li class="wt-list-unstyled[^>]*>\s*<div\s+class="js-merch-stash-check-listing v2-listing-card[\s\S]*?<\/li>/, "").replace(/<li class="wt-list-unstyled[^>]*>\s*<div\s+class="js-merch-stash-check-listing v2-listing-card[\s\S]*?<\/li>/, ""), url);
     const ctx = { document: w.document, location: w.location, URL, console };
     ctx.self = ctx; vm.createContext(ctx); vm.runInContext(SRC, ctx);
     return JSON.parse(JSON.stringify(await ctx.NSP_EXTRACT.read("etsy.grid", {})));

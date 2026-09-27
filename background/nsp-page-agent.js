@@ -210,6 +210,12 @@
     return p.hands.act(a);
   }
 
+  function handsCheck(a) {
+    var p = self.__zerackPage;
+    if (!p || p.doc !== document) return { ok: false, code: 'no_hands' };
+    return p.hands.check(a);
+  }
+
   function handsPress(handle) {
     var p = self.__zerackPage;
     if (!p || p.doc !== document) return { ok: false, code: 'expired', error: 'the page changed before the press, so nothing was done' };
@@ -557,7 +563,13 @@
           var kept = need === 'act' ? keptReadOnly(url) : null;
           if (kept && NAVIGATES[act] === 1) need = 'read';
           else if (kept) return { ok: false, code: 'kept_read_only', host: acc.host, error: 'ZERACK only reads ' + acc.host + ': ' + kept.why + '. Tell the user this step is theirs to do. Do not retry.' };
-          if (!sites().allows(acc.access, need)) return notAllowed(ctx, info, need, url);
+          if (!sites().allows(acc.access, need)) {
+            if (acc.access !== 'read' || act !== 'click') return notAllowed(ctx, info, need, url);
+            return inPage(tab.id, handsCheck, [cleanStep(a)], rulesFor(url)).then(function (x) {
+              if (x && x.ok && x.value && x.value.code === 'refused') return x.value;
+              return notAllowed(ctx, info, need, url);
+            });
+          }
           if (NAVIGATES[act] === 1) return navigate(ctx, tab, info, a);
           var clean = cleanStep(a);
           var fromReply = String(a.textFrom || '').toLowerCase() === 'last_reply';

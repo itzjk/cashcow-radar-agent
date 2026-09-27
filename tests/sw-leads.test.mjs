@@ -2,11 +2,11 @@
 import vm from "node:vm";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadWorker, ROOT, check, done } from "./sw-harness.mjs";
+import { loadWorker, ROOT, check, done, htmlPage } from "./sw-harness.mjs";
 import { makeIndexedDB, IDBKeyRange } from "./idb-lite.mjs";
 import { windowFor } from "./dom-lite.mjs";
 
-const page = n => readFileSync(join(ROOT, "tests/html", n), "utf8");
+const page = n => htmlPage(n);
 const plain = o => JSON.parse(JSON.stringify(o));
 const call = (w, name, args, ctx) => new Promise(r => w.context.nspChatToolNow(name, args, ctx || {}, r));
 const EX = readFileSync(join(ROOT, "lib/nsp-extract.js"), "utf8");

@@ -205,6 +205,7 @@ function img(w, h, fn) {
   const es2 = M.money({ niche: "historia", views: 2e6, cost: 9000, now: NOW }, "es");
   const es3 = M.money({ niche: "historia", views: 20000, now: NOW }, "es");
   check("in Spanish a million views reads un millón de vistas", /a un millón de vistas por video/.test(es1.lead) && /a 2 millones de vistas por video/.test(es2.lead) && /a 20 mil vistas por video/.test(es3.lead), [es1.lead, es2.lead, es3.lead]);
+  check("a Spanish answer names the niche in Spanish, not with the English table name", /^Historia a un millón/.test(es1.lead) && !/History/.test(es1.lead), es1.lead);
   check("and the pay back views keep the same grammar", /se paga a las .*vistas/.test(es2.lead) && !/(millones|millón) vistas/.test(es1.lead + es2.lead), es2.lead);
 }
 

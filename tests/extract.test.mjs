@@ -2,11 +2,11 @@
 import vm from "node:vm";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ROOT, check, done } from "./sw-harness.mjs";
+import { ROOT, check, done, htmlPage } from "./sw-harness.mjs";
 import { windowFor } from "./dom-lite.mjs";
 
 const SRC = readFileSync(join(ROOT, "lib/nsp-extract.js"), "utf8");
-const page = name => readFileSync(join(ROOT, "tests/html", name), "utf8");
+const page = name => htmlPage(name);
 
 function reader(html, url, fetchImpl) {
   const w = windowFor(html, url);
@@ -90,7 +90,7 @@ const ETSY_GRID = "https://www.etsy.com/c/home-and-living";
   check("a store whose card markup changed answers drift", drift.ok === false && drift.code === "drift" && drift.seen === 16, drift);
 }
 {
-  const catalog = readFileSync(join(ROOT, "tests/html/shopify-products.json"), "utf8");
+  const catalog = htmlPage("shopify-products.json");
   const asked = [];
   const ok = async (u, init) => { asked.push({ u, init }); return { ok: true, status: 200, headers: { get: () => "application/json; charset=utf-8" }, text: async () => catalog }; };
   const r = await read("shopify-dawn-collection.html", "https://store.example/collections/all", "shopify.products", { limit: 250 }, ok);

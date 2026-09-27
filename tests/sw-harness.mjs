@@ -1,7 +1,7 @@
 // Loads background/service-worker.js in a Node vm with a fake chrome API, so the tests call the real message
 // router with the senders Chrome would pass. Nothing here talks to the network: fetch answers from a table.
 import vm from "node:vm";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { webcrypto } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +9,13 @@ import { fileURLToPath } from "node:url";
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const EXT_ID = "abcdefghijklmnopabcdefghijklmnop";
 export const EXT = "chrome-extension://" + EXT_ID + "/";
+
+export function htmlPage(name) {
+  const path = join(ROOT, "tests/html", name);
+  if (existsSync(path)) return readFileSync(path, "utf8");
+  console.log("  ..    skipped: tests/html/" + name + " is a capture of a third-party page, kept on the maintainer's machine and not published");
+  process.exit(0);
+}
 
 // Any property read on it is another stub and any call returns one, so the worker's startup wiring runs untouched.
 function stub() {

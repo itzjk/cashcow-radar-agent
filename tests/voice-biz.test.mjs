@@ -2,7 +2,7 @@
 import vm from "node:vm";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadWorker, ROOT, check, done } from "./sw-harness.mjs";
+import { loadWorker, ROOT, check, done, htmlPage } from "./sw-harness.mjs";
 import { makeIndexedDB, IDBKeyRange } from "./idb-lite.mjs";
 import { windowFor } from "./dom-lite.mjs";
 
@@ -53,7 +53,7 @@ const settle = () => new Promise(r => setTimeout(r, 30));
 
 {
   const MAPS = "https://www.google.com/maps/search/dentist+austin/@30.26,-97.74,13z";
-  const win = windowFor(readFileSync(join(ROOT, "tests/html/maps-results.html"), "utf8"), MAPS);
+  const win = windowFor(htmlPage("maps-results.html"), MAPS);
   const ctx = { document: win.document, location: win.location, URL, console };
   ctx.self = ctx;
   vm.createContext(ctx);

@@ -2,12 +2,12 @@
 import vm from "node:vm";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ROOT, check, done } from "./sw-harness.mjs";
+import { ROOT, check, done, htmlPage } from "./sw-harness.mjs";
 import { load } from "./engines.mjs";
 import { windowFor } from "./dom-lite.mjs";
 
 const SRC = readFileSync(join(ROOT, "lib/nsp-extract.js"), "utf8");
-const page = n => readFileSync(join(ROOT, "tests/html", n), "utf8");
+const page = n => htmlPage(n);
 const plain = o => JSON.parse(JSON.stringify(o));
 const C = load(["lib/nsp-cadencia.js", "knowledge/reverse-engine.js", "lib/nsp-business.js", "knowledge/playbooks/etsy.js", "knowledge/playbooks/shopify.js", "knowledge/playbooks/seo.js", "knowledge/playbooks/builders.js", "knowledge/playbooks/index.js"], { URL });
 const B = C.NSP_BUSINESS, P = C.NSP_PLAYBOOKS;

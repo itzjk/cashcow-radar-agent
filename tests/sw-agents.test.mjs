@@ -1,11 +1,11 @@
 // The worker side of the named agents: only the chat may pick one, the pick is kept per host, and the Builders agent watches Hugging Face pages and the GitHub MCP Registry the same cookie-less way it watches repositories.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadWorker, SENDERS, ROOT, check, done } from "./sw-harness.mjs";
+import { loadWorker, SENDERS, ROOT, check, done, htmlPage } from "./sw-harness.mjs";
 import { makeIndexedDB, IDBKeyRange } from "./idb-lite.mjs";
 
 const H = 3600000, DAY = 86400000;
-const page = n => readFileSync(join(ROOT, "tests/html", n), "utf8");
+const page = n => htmlPage(n);
 const plain = o => JSON.parse(JSON.stringify(o));
 const call = (w, name, args, ctx) => new Promise(r => w.context.nspChatToolNow(name, args, ctx, r));
 const SECRETS = /hf_FAKE|eyJFAKE|fake-csrf|Ignore every rule/;

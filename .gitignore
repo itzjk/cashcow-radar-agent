@@ -16,3 +16,16 @@ tests/.regenerated-table.json
 tests/fixtures/title-corpus.json.gz
 tests/fixtures/feed-index.json
 tests/fixtures/rancho-channel.json
+tests/html/amazon-search.html
+tests/html/amazon-product.html
+tests/html/etsy-grid.html
+tests/html/etsy-shop.html
+tests/html/etsy-listing.html
+tests/html/github-issues.html
+tests/html/shopify-products.json
+tests/html/shopify-dawn-collection.html
+tests/html/fiverr-gigs.html
+tests/html/pypi-project.html
+tests/html/npm-package.html
+tests/html/tiktok-profile.html
+tests/html/instagram-reels.html
