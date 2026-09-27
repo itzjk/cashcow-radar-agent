@@ -5,12 +5,16 @@ try { importScripts('../knowledge/youtube-playbook.js'); } catch (ePlaybook) { c
 // The ASHLYV niche engine has no DOM: with it the worker rewrites, from ids and numbers, the opportunities and alerts
 // a YouTube tab sends, instead of storing the text the tab brought.
 try { importScripts('../ashlyv/ashlyv-engine.js'); } catch (eAshlyvEngine) { console.warn('[NSP SW] importScripts ASHLYV engine:', eAshlyvEngine && eAshlyvEngine.message); }
+try { importScripts('../knowledge/playbooks/etsy.js', '../knowledge/playbooks/shopify.js', '../knowledge/playbooks/seo.js', '../knowledge/playbooks/builders.js', '../knowledge/playbooks/creators.js', '../knowledge/playbooks/freelance.js', '../knowledge/playbooks/local.js', '../knowledge/playbooks/amazon.js', '../knowledge/playbooks/newsletter.js', '../knowledge/playbooks/digital.js', '../knowledge/playbooks/index.js'); } catch (ePlaybooks) { console.warn('[NSP SW] importScripts business playbooks:', ePlaybooks && ePlaybooks.message); }
 try { importScripts('../lib/nsp-brain.js'); } catch (eBrain) { console.warn('[NSP SW] importScripts brain:', eBrain && eBrain.message); }
 try { importScripts('../lib/nsp-data-tools.js', '../chat/chat-tools.js', '../lib/nsp-chat-store.js'); } catch (eChatLib) { console.warn('[NSP SW] importScripts chat tools:', eChatLib && eChatLib.message); }
 try { importScripts('../lib/nsp-rpm-tabla.js'); } catch (eRpmTable) { console.warn('[NSP SW] importScripts RPM table:', eRpmTable && eRpmTable.message); }
 try { importScripts('../lib/nsp-titulos-senales.js', '../lib/nsp-titulos-tabla.js', '../lib/nsp-titulos-juicio.js', '../lib/nsp-areas.js', '../lib/nsp-dinero-rpm.js', '../lib/nsp-dinero-equilibrio.js', '../lib/nsp-dinero-riesgo.js'); } catch (eMineEngines) { console.warn('[NSP SW] importScripts title and money engines:', eMineEngines && eMineEngines.message); }
 try { importScripts('../lib/nsp-veredicto.js', '../lib/nsp-cadencia.js', '../lib/nsp-packaging.js', '../lib/nsp-rival-formula.js', '../lib/nsp-rival-quiebre.js', '../lib/nsp-rival-replicable.js', '../lib/nsp-rival-expediente.js', '../lib/nsp-rival-saturacion.js', '../lib/nsp-rival-ventana.js', '../lib/nsp-rival-duelo.js', '../knowledge/reverse-engine.js', '../lib/nsp-miniatura-motor.js', '../lib/nsp-miniatura-cohorte.js', '../lib/nsp-miniatura-mercado.js', '../lib/nsp-intel.js', '../lib/nsp-mine.js', '../lib/nsp-markets.js', '../lib/nsp-watch.js'); } catch (eIntel) { console.warn('[NSP SW] importScripts channel intelligence:', eIntel && eIntel.message); }
 try { importScripts('../lib/nsp-shorts.js', '../lib/nsp-sourced.js', '../lib/nsp-create.js'); } catch (eCreate) { console.warn('[NSP SW] importScripts create engines:', eCreate && eCreate.message); }
+try { importScripts('../lib/nsp-sites.js', 'nsp-page-agent.js'); } catch (ePageAgent) { console.warn('[NSP SW] importScripts page agent:', ePageAgent && ePageAgent.message); }
+try { importScripts('../lib/nsp-business.js'); } catch (eBusiness) { console.warn('[NSP SW] importScripts business engines:', eBusiness && eBusiness.message); }
+try { importScripts('../lib/nsp-decide.js'); } catch (eDecide) { console.warn('[NSP SW] importScripts decision engine:', eDecide && eDecide.message); }
 
 var NSP_GEMINI_LIMIT_PER_MIN = 14;
 var NSP_GROQ_LIMIT_PER_MIN = 28;
@@ -574,6 +578,8 @@ async function nspCallGeminiVision(geminiKey, cachedModel, images, prompt, syste
 
 chrome.alarms.onAlarm.addListener(function(alarm) {
   if (alarm && NSP_WATCH_ALARMS[alarm.name] === 1) nspWatchAlarm(alarm.name);
+  if (alarm && alarm.name === NSP_DECIDE_ALARM) nspDecideTick();
+  if (alarm && alarm.name === NSP_SITE_WATCH_ALARM) nspSiteWatchTick();
 });
 chrome.runtime.onInstalled.addListener(function() { nspWatchAlarms(); });
 chrome.runtime.onStartup.addListener(function() { nspWatchAlarms(); });
@@ -1445,10 +1451,14 @@ var NSP_VR_PICK_VERB = /\b(?:abre|abrir|abremelo|abrelo|abrela|pon|ponme|dale|en
 var NSP_VR_SCAN = /\b(?:escane\w*|scan\w*)\b/;
 var NSP_VR_SCAN_OK = /^(?:esta|este|esto|la|el|los|las|pagina|page|this|the|aqui|here|otra|otro|vez|again|de|nuevo|ahora|now|ya|youtube|feed|inicio|home|un|una|a|haz|hazme|hazlo|hacer|dale|al|quiero|puedes|podrias|vamos|vuelve|volver|to|me|it|lo|rapido|resultados|results|nichos|niches|do|run|start|empieza|inicia|lanza|abre|open)$/;
 var NSP_VR_SAVE = /\b(?:guarda(?:lo|la|me|melo|mela)?|guardar(?:lo|la)?|salva(?:lo|la)?|save|bookmark)\b(?! silencio)/;
+var NSP_VR_SAVE_NOT = /\b(?:cambios?|changes?|productos?|products?|pedidos?|orders?|borrador|draft|titulos? del|titles? of|product titles?|precios?|prices?|formulario|form|tienda|store|shop|ajustes|settings)\b/;
 var NSP_VR_SEARCH_LEAD = /^(?:busca(?:me)?|buscar|search(?: youtube)?(?: for)?|look up)\s+(.+)$/;
 var NSP_VR_SEARCH = /^(?:(?:quiero|puedes|podrias|necesito|vamos a|me puedes|can you|could you)\s+)?(?:que\s+)?(?:busca(?:me|lo|la)?|buscar|busques|busque|encuentra(?:me)?|search(?: youtube)?(?: for)?|look up|look for|find(?: me)?|pon(?:me)? videos? (?:de|sobre))\s+(.+)$/;
 var NSP_VR_NEXT = /^(?:(?:(?:pon|ponme|abre|abreme|dale|dale al|play|open|go to|ve al|ve a|pasa al|pasa a|salta al|salta a|skip to|quiero|muestrame|show me)\s+)?(?:(?:el|la|al|a|the|un|una)\s+)?(?:siguiente|next|proximo|proxima)(?:\s+(?:uno|una|one|resultado|result|video|nicho|niche))?|(?:skip|salta|saltalo|siguiente por favor|next please|another one|otro video|el de despues)(?:\s+(?:video|este|this one))?)$/;
-var NSP_VR_OTHER_SITE = /\b(?:google|amazon|wikipedia|bing|spotify|netflix|tiktok|instagram|facebook|twitter|reddit|chatgpt|gmail)\b/;
+var NSP_VR_OTHER_SITE = /\b(?:google|amazon|wikipedia|bing|spotify|netflix|tiktok|instagram|facebook|twitter|reddit|chatgpt|gmail|github|gitlab|npm|pypi|product ?hunt|hacker ?news|stripe|web store|vercel)\b/;
+var NSP_VR_BIZ_READ = /^(?:(?:puedes|podrias|quiero que|can you|could you)\s+)?(?:lee(?:me)?|leer|leas|analiza(?:me)?|analizar|analices|read|analyze|analyse)\s+(?:(?:esta|la|lo que hay en (?:la|esta)|this|the|what is on (?:this|the)|toda la|toda esta)\s+)?(?:pagina|page|pantalla|screen|web|tabla|table)(?:\s+(?:actual|abierta|que tengo abierta|de negocio|ya|ahora|now|for me|por mi))?$/;
+var NSP_VR_BIZ_LEADS = /^(?:(?:puedes|podrias|quiero que|can you|could you)\s+)?(?:busca(?:me)?|buscar|busques|encuentra(?:me)?|encontrar|encuentres|dame|find(?: me)?|get me|show me|muestrame)\s+(?:(?:los|las|unos|unas|mis|some|the|my)\s+)?(?:clientes|prospectos|leads?|clients|customers|prospects|trabajos para mi|jobs for me|negocios para contactar|businesses to (?:contact|pitch))(?:\s+(?:aqui|en esta pagina|en esta lista|de esta pagina|de esta lista|here|on this page|on this list|from this page))?$/;
+var NSP_VR_BIZ_STATUS = /^(?:cuantos|cuantas|how many)\s+(?:mensajes|correos|envios|propuestas|messages|emails|sends|proposals)\s+(?:me\s+)?(?:quedan|puedo mandar|puedo enviar|do i have left|have i left|are left|left|can i send)(?:\s+(?:hoy|today))?$|^(?:estado de (?:los )?(?:envios|leads|clientes)|leads status|sending status|cupo de (?:hoy|envios)|todays? (?:cap|sending cap))$/;
 var NSP_VR_PAGES = [
   { page: 'dashboard/dashboard.html', re: '(?:command center|comand center|commander center|centro de comandos?|centro de mando|dashboard|panel de control|panel principal)' },
   { page: 'niche-index/niche-index.html', re: '(?:indice de nichos?|niche index|nicho index|index of niches|indice)' },
@@ -1555,6 +1565,11 @@ function nspVrDecide(s, raw) {
   if (/^(?:para|parate|paralo|detente|detenlo|deten todo|para todo|para ya|ya para|stop|stop it|stop everything|basta|ya basta|alto|cancela|cancelalo|cancel|cancel it|cancel that|olvidalo|forget it|never mind|nevermind|dejalo|ya esta)$/.test(s)) return { kind: 'stop' };
 
   if (words.length > NSP_VR_MAX_WORDS) return null;
+  if (!NSP_VR_NEGATION.test(s)) {
+    if (NSP_VR_BIZ_READ.test(s)) return { kind: 'biz', biz: 'read' };
+    if (NSP_VR_BIZ_LEADS.test(s)) return { kind: 'biz', biz: 'leads' };
+    if (NSP_VR_BIZ_STATUS.test(s)) return { kind: 'biz', biz: 'status' };
+  }
   m = s.match(NSP_VR_SEARCH_LEAD);
   if (m && !NSP_VR_NEGATION.test(s)) {
     var lead = nspVrQuery(m[1], raw);
@@ -1587,7 +1602,7 @@ function nspVrDecide(s, raw) {
 
   var n = nspVrNumber(s);
 
-  if (NSP_VR_SAVE.test(s)) return words.length <= 8 ? { kind: 'save', n: n } : null;
+  if (NSP_VR_SAVE.test(s)) return words.length <= 8 && !NSP_VR_SAVE_NOT.test(s) ? { kind: 'save', n: n } : null;
   if (/\b(?:canal|channel)\b/.test(s) && n) return words.length <= 9 ? { kind: 'channel', n: n } : null;
   if (NSP_VR_SCAN.test(s)) {
     var extra = words.filter(function(w) { return !NSP_VR_SCAN.test(w) && !NSP_VR_SCAN_OK.test(w); });
@@ -1730,6 +1745,10 @@ var NSP_VOICE_LINES = {
   no_provider: { en: 'No AI provider is set up. Add a key in Setup.', es: 'No hay proveedor de IA. Añade una clave en Setup.' },
   busy: { en: 'Every AI provider is busy. Try again in a moment.', es: 'Todos los proveedores están ocupados. Prueba en un momento.' },
   no_answer: { en: 'I did not get an answer.', es: 'No obtuve respuesta.' },
+  biz_no_page: { en: 'Open the page you want me to read first.', es: 'Abre primero la p\u00e1gina que quieres que lea.' },
+  biz_allow: { en: 'Allow ZERACK on this site from the chat first.', es: 'Primero permite a ZERACK en este sitio desde el chat.' },
+  biz_drift: { en: 'This page changed, so I report nothing rather than a wrong number.', es: 'Esta p\u00e1gina cambi\u00f3, as\u00ed que no doy ning\u00fan n\u00famero antes que uno falso.' },
+  biz_nothing: { en: 'There is nothing to judge here yet. Open a Maps search or an Upwork job search.', es: 'Aqu\u00ed a\u00fan no hay nada que juzgar. Abre una b\u00fasqueda de Maps o de trabajos en Upwork.' },
   slow_engine: { en: 'Speech recognition is not answering, so I switched to the slow local one.', es: 'El reconocimiento de voz no responde, así que uso el local, que es lento.' },
   intel_reading: { en: 'Reading the channel.', es: 'Leo el canal.' },
   intel_reading_two: { en: 'Reading both channels.', es: 'Leo los dos canales.' },
@@ -2235,7 +2254,91 @@ function nspVoiceRun(r, gen, fin, say) {
   if (r.kind === 'site') { nspVoiceOpenUrl(r.url, seen); return; }
   if (r.kind === 'page') { nspVoiceOpenPage(chrome.runtime.getURL(r.page), seen); return; }
   if (r.kind === 'scan' || r.kind === 'result' || r.kind === 'channel' || r.kind === 'save' || r.kind === 'next') { nspVoiceInPage(r, gen, say); fin(null); return; }
+  if (r.kind === 'biz') { nspVoiceBiz(r, gen, say); fin(null); return; }
   nspVoiceTabs(r.kind, lang, fin, say);
+}
+
+function nspVoiceBizSite(cb) {
+  nspTargetTab(function(tab) {
+    var url = tab ? String(tab.url || '') : '';
+    if (!tab || !self.NSP_PAGE_AGENT || !/^https?:/i.test(url) || NSP_VOICE_YOUTUBE.test(url)) { cb(null); return; }
+    self.NSP_PAGE_AGENT.site({ tabId: tab.id, windowId: tab.windowId }).then(function(site) {
+      if (!site || !site.host || site.youtube || !site.scriptable) { cb(null); return; }
+      var P = self.NSP_PLAYBOOKS;
+      var pb = P ? P.forUrl(site.url) : '';
+      cb({ tabId: site.tabId, windowId: tab.windowId, host: site.host, url: site.url, playbook: pb, access: site.access, web: true });
+    }, function() { cb(null); });
+  });
+}
+
+function nspVoicePageCtx(site) {
+  var store = self.NSP_CHAT_STORE;
+  return {
+    convId: 'voice',
+    tabId: site.tabId,
+    stopped: function() { return false; },
+    agentOn: nspAgentOn,
+    add: function() { return Promise.resolve(null); },
+    patch: function() { return Promise.resolve(); },
+    typing: function() {},
+    progress: function() {},
+    lastReply: function() { return Promise.resolve(''); },
+    ledger: function(entry) { return store ? store.addLedger(entry) : Promise.resolve(null); },
+    evidence: nspDecideEvidence,
+    leads: nspLeadsGate,
+    leadSent: nspLeadsSent,
+    pace: nspPaceWait
+  };
+}
+
+function nspVoiceBizSay(line, lang, gen) {
+  var text = String(line || '').trim();
+  if (!text) { nspVoiceLine('failed', lang); return; }
+  if (lang !== 'es') { nspVoiceSay(nspVoiceSpoken(text)); return; }
+  nspChatCascade({ messages: [{ role: 'user', content: 'Say this to the user in Spanish, in at most two short sentences, keeping every number and name exactly: ' + text }], maxTokens: 220 }, function(res) {
+    if (_nspVoice.gen !== gen) return;
+    var said = res && res.ok ? String(res.text || '').trim() : '';
+    nspVoiceSay(nspVoiceSpoken(said || text));
+  });
+}
+
+function nspVoiceBiz(r, gen, say) {
+  var lang = r.lang === 'es' ? 'es' : 'en';
+  nspVoiceBizSite(function(site) {
+    if (_nspVoice.gen !== gen) return;
+    if (r.biz === 'status') {
+      nspLeads({ action: 'status' }, {}).then(function(res) { if (_nspVoice.gen === gen) nspVoiceBizSay(res && res.line, lang, gen); });
+      return;
+    }
+    if (!site) { say('biz_no_page', lang); return; }
+    nspAgentOn().then(function(on) {
+      if (_nspVoice.gen !== gen) return;
+      if (!on) { say('agent_needed', lang); return; }
+      var page = nspVoicePageCtx(site);
+      var ctx = { origin: 'voice', lang: lang, playbook: site.playbook, site: { host: site.host, url: site.url }, page: page };
+      var job = r.biz === 'leads'
+        ? nspLeads({ action: 'find' }, ctx)
+        : nspPaceWait(site.host).then(function() { return self.NSP_PAGE_AGENT.run('zerackExtract', {}, page); }).then(nspBusinessRead);
+      Promise.resolve(job).then(function(res) {
+        if (_nspVoice.gen !== gen) return;
+        if (!res || res.ok !== true) {
+          var code = res && res.code;
+          if (code === 'site_not_allowed' || code === 'read_only') say('biz_allow', lang);
+          else if (code === 'drift') say('biz_drift', lang);
+          else if (code === 'missing' && r.biz === 'leads') say('biz_nothing', lang);
+          else if (code === 'agent_off') say('agent_needed', lang);
+          else say('failed', lang);
+          return;
+        }
+        var line = String(res.line || '');
+        if (r.biz === 'leads' && Array.isArray(res.leads)) {
+          var best = res.leads.filter(function(l) { return (l.verdict === 'pitch' || l.verdict === 'bid') && !l.contacted; })[0];
+          if (best) line += ' Best: ' + best.name + (best.reasons && best.reasons[0] ? ', because ' + best.reasons[0].charAt(0).toLowerCase() + best.reasons[0].slice(1) : '') + '.';
+        }
+        nspVoiceBizSay(line, lang, gen);
+      }, function() { if (_nspVoice.gen === gen) say('failed', lang); });
+    });
+  });
 }
 
 function nspVoiceRunAll(list, gen, cb) {
@@ -2263,6 +2366,42 @@ function nspVoiceSpoken(body) {
 
 function nspAssistVoice(text, lang, cb) {
   if (!self.NSP_BRAIN || !self.NSP_CHAT_TOOLS) { nspVoiceByCascade(text, 'the brain did not load', cb); return; }
+  nspVoiceBizSite(function(site) {
+    if (site && (site.playbook || site.access !== 'none')) nspAssistBusiness(text, lang, site, cb);
+    else nspAssistVoiceAll(text, lang, cb);
+  });
+}
+
+function nspAssistBusiness(text, lang, site, cb) {
+  var talk = nspVrLang(nspVrNorm(text), lang);
+  var P = self.NSP_PLAYBOOKS;
+  var pb = site.playbook || (P ? P.forQuery(text) : '');
+  var brainSite = { host: site.host, web: true, access: site.access };
+  var page = nspVoicePageCtx(site);
+  nspAgentOn().then(function(agentOn) {
+    return nspDecideMemory(site.host, pb).then(function(memory) {
+      return self.NSP_CHAT_TOOLS.loop({
+        systemParts: self.NSP_BRAIN.parts({ surface: 'chat', spoken: true, readOnly: true, query: text, site: brainSite, playbook: pb, pageTools: agentOn, memory: memory, context: self.NSP_CHAT_TOOLS.context({ surface: 'voice', agentOn: agentOn, lang: talk, site: brainSite }) }),
+        tools: self.NSP_BRAIN.tools('chat', { agentOn: agentOn, site: brainSite, playbook: pb, query: text, readOnly: true }),
+        messages: [{ role: 'user', content: text }],
+        maxRounds: NSP_VOICE_ASSIST_ROUNDS,
+        maxSteps: NSP_VOICE_ASSIST_STEPS,
+        maxTokens: 600,
+        ask: function(payload) { return new Promise(function(resolve) { nspChatCascade(payload, resolve); }); },
+        run: function(name, args) {
+          var usesPage = name === 'zerackExtract' || name === 'zerackLeads';
+          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'voice', lang: talk, playbook: pb, site: { host: site.host, url: site.url }, page: usesPage ? page : null }, resolve); });
+        }
+      });
+    });
+  }).then(function(out) {
+    console.log('[NSP SW] voice: the business agent answered in ' + out.rounds + ' model calls and ' + out.steps + ' tool steps, ' + (out.provider || 'no provider'));
+    if (out.ok && out.text) cb({ ok: true, answer: out.text, error: '', provider: out.provider, model: out.model });
+    else cb({ ok: false, answer: '', error: out.error || 'empty_answer' });
+  }, function(e) { cb({ ok: false, answer: '', error: String((e && e.message) || e) }); });
+}
+
+function nspAssistVoiceAll(text, lang, cb) {
   var talk = nspVrLang(nspVrNorm(text), lang);
   chrome.storage.local.get('nsp_agent_enabled', function(st) {
     var agentOn = !chrome.runtime.lastError && !!st && st.nsp_agent_enabled === true;
@@ -2425,20 +2564,21 @@ function nspVoiceToggle() {
 var NSP_CHAT_PAGE = 'chat/chat.html';
 var NSP_CHAT_TOKEN_TTL_MS = 60000;
 var NSP_CHAT_ROUTE_WORDS = 8;
-var NSP_CHAT_ROUTE_SKIP = { hush: 1, stop: 1, wake: 1, hello: 1, intel: 1, mine: 1, watch: 1, create: 1 };
+var NSP_CHAT_ROUTE_SKIP = { hush: 1, stop: 1, wake: 1, hello: 1, intel: 1, mine: 1, watch: 1, create: 1, biz: 1 };
 var NSP_CHAT_IN_PAGE = { scan: 1, result: 1, channel: 1, save: 1, next: 1 };
 var NSP_CHAT_OK_LINES = { done: 1, youtube: 1, scanning: 1, saved: 1, open: 1, opening_channel: 1, agent_on: 1, agent_off: 1, next_result: 1, next_video: 1 };
 var NSP_CHAT_DONE = { youtube: 'Opened YouTube.', search: 'Searched YouTube.', site: 'Opened the page.', page: 'Opened the ZERACK page.', back: 'Went back.', forward: 'Went forward.', reload: 'Reloaded the tab.', next_tab: 'Moved to the next tab.', prev_tab: 'Moved to the previous tab.', close_tab: 'Closed the tab.', new_tab: 'Opened a new tab.' };
 var NSP_CHAT_PAGES = { dashboard: 'dashboard/dashboard.html', 'niche-index': 'niche-index/niche-index.html', setup: 'setup/setup.html', options: 'options/options.html' };
 var NSP_CHAT_BROWSER = { youtube: 1, back: 1, forward: 1, reload: 1, new_tab: 1, close_tab: 1, next_tab: 1, prev_tab: 1 };
-var NSP_CHAT_ACT_TOOLS = { nspSaveNiche: 1, nspAddToTracking: 1, nspExportNiches: 1, zerackBrowser: 1, zerackOpenPage: 1, zerackYouTubeAgent: 1 };
+var NSP_CHAT_ACT_TOOLS = { nspSaveNiche: 1, nspAddToTracking: 1, nspExportNiches: 1, zerackBrowser: 1, zerackOpenPage: 1, zerackYouTubeAgent: 1, zerackPage: 1, zerackPagePlan: 1, zerackExtract: 1 };
+var NSP_CHAT_PAGE_TOOLS = { zerackPage: 1, zerackPagePlan: 1, zerackExtract: 1 };
 var NSP_CHAT_NO_SCRIPT = /^https:\/\/(?:chromewebstore\.google\.com|chrome\.google\.com\/webstore)(?:[\/?#]|$)/;
 var NSP_AGENT_OFF_REFUSAL = 'not run: acting is switched off. Tell the user to turn on Agent from the ZERACK icon in the Chrome toolbar, then ask again. Do not retry.';
 var NSP_CHAT_TYPED_YT = /\byou ?tube\b/;
 var NSP_CHAT_TYPED_ASK = { save: 1, result: 1, channel: 1, next: 1 };
 var NSP_CHAT_TYPED_DATA = /\b(?:mi|mis|my|mine|me|guardad\w*|saved?|escaneos?|scans?|nichos?|niches?|titulos?|titles?|ideas?|rpm|cpm|ctr)\b/;
 var NSP_CHAT_TYPED_ONLY = { search: 1, save: 1, result: 1, channel: 1, scan: 1, next: 1 };
-var NSP_CHAT_NAV_TOOLS = { zerackBrowser: 1, zerackYouTubeAgent: 1 };
+var NSP_CHAT_NAV_TOOLS = { zerackBrowser: 1, zerackYouTubeAgent: 1, zerackPage: 1, zerackPagePlan: 1 };
 var NSP_CHAT_REOPEN_MS = 180000;
 var NSP_CHAT_ROUTE_LABELS = {
   youtube: 'Open YouTube', search: 'Search YouTube', site: 'Open a site', page: 'Open a ZERACK page', back: 'Go back', forward: 'Go forward', reload: 'Reload',
@@ -2687,6 +2827,24 @@ function nspChatToolNow(name, args, ctx, done) {
     nspChatRunRoute({ kind: 'page', page: page, lang: ctx.lang === 'es' ? 'es' : 'en' }, done);
     return;
   }
+  if (name === 'zerackPlaybook') { done(self.NSP_PLAYBOOKS ? self.NSP_PLAYBOOKS.lookup(String(ctx.playbook || ''), args) : { ok: false, error: 'the playbooks did not load' }); return; }
+  if (name === 'zerackDecide') { lib(nspDecide(args, ctx)); return; }
+  if (name === 'zerackBuilder') { lib(nspBuilder(args, ctx)); return; }
+  if (name === 'zerackLeads') { lib(nspLeads(args, ctx)); return; }
+  if (name === 'zerackBreakEven') {
+    var pb = self.NSP_PLAYBOOKS ? self.NSP_PLAYBOOKS.get(String(ctx.playbook || '')) : null;
+    done(self.NSP_BUSINESS ? self.NSP_BUSINESS.breakEven(args, pb, self.NspDineroEquilibrio) : { ok: false, error: 'the break-even engine did not load' });
+    return;
+  }
+  if (NSP_CHAT_PAGE_TOOLS[name] === 1) {
+    if (!self.NSP_PAGE_AGENT || !ctx.page) { done({ ok: false, error: name + ' runs only inside a chat turn' }); return; }
+    if (name === 'zerackExtract') {
+      lib(nspPaceWait(ctx.site && ctx.site.host).then(function() { return self.NSP_PAGE_AGENT.run(name, args, ctx.page); }).then(nspBusinessRead));
+      return;
+    }
+    lib(self.NSP_PAGE_AGENT.run(name, args, ctx.page));
+    return;
+  }
   if (name === 'zerackYouTubeAgent') {
     var instruction = String(args.instruction || '').replace(/\s+/g, ' ').trim().slice(0, 2000);
     if (!instruction) { done({ ok: false, error: 'zerackYouTubeAgent needs an instruction' }); return; }
@@ -2697,6 +2855,1082 @@ function nspChatToolNow(name, args, ctx, done) {
     return;
   }
   done({ ok: false, error: 'unknown tool ' + String(name).slice(0, 60) });
+}
+
+var NSP_SERIES_WAIT_MS = 2000;
+
+function nspBusinessRead(result, opts) {
+  var B = self.NSP_BUSINESS, store = self.NSP_CHAT_STORE;
+  if (!B || !result || result.ok !== true) return result;
+  var leadKind = self.NSP_LEADS && NSP_LEADS_READERS[result.reader] ? NSP_LEADS_READERS[result.reader] : '';
+  return (leadKind ? nspLeadsPolicyNow() : Promise.resolve(null)).then(function(policy) {
+    var out = B.analyze(result, { reverse: self.NSP_REVERSE_ENGINE, cadence: self.NSP_CADENCIA, leads: leadKind ? self.NSP_LEADS : null, policy: policy });
+    var found = leadKind ? nspLeadsFromRead(result) : Promise.resolve(null);
+    var snap = B.snapshot(result, out, Date.now());
+    if (!snap || !store || typeof store.lastSeries !== 'function') return found.then(function() { return out; });
+    var remembered = Promise.resolve(store.lastSeries(snap.key)).then(function(prev) {
+      var diff = prev ? B.compare(prev, snap) : null;
+      if (diff) out.sinceLast = diff;
+      return store.addSeries(snap).then(function() {
+        if (!(opts && opts.quiet)) nspDecideAfterRead(snap);
+        return out;
+      }, function() { return out; });
+    }, function() { return out; });
+    var late = new Promise(function(resolve) { setTimeout(function() { resolve(out); }, NSP_SERIES_WAIT_MS); });
+    return Promise.all([Promise.race([remembered, late]), found]).then(function() { return out; });
+  });
+}
+
+var NSP_DECIDE_ALARM = 'nsp-decide';
+var NSP_DECIDE_WAIT_MS = 2500;
+var NSP_DECIDE_RETRY_MS = 6 * 3600000;
+var NSP_DECIDE_MEMORY = 6;
+var _nspDecide = { busy: {}, chain: Promise.resolve() };
+
+function nspDecideReady() {
+  var st = self.NSP_CHAT_STORE;
+  return !!(self.NSP_DECIDE && self.NSP_VEREDICTO && self.NSP_BUSINESS && st && typeof st.addDecision === 'function');
+}
+
+function nspDecideLate(p, fallback, ms) {
+  return Promise.race([Promise.resolve(p).then(null, function() { return fallback; }), new Promise(function(resolve) { setTimeout(function() { resolve(fallback); }, ms || NSP_DECIDE_WAIT_MS); })]);
+}
+
+function nspDecidePage(url) {
+  var key = self.NSP_BUSINESS ? self.NSP_BUSINESS.seriesKey(url, '') : '';
+  return key ? key.slice(1) : '';
+}
+
+function nspDecideLastRead(host, url) {
+  var page = nspDecidePage(url);
+  if (!host || !page) return Promise.resolve(null);
+  return self.NSP_CHAT_STORE.seriesByHost(host, 40).then(function(rows) {
+    for (var i = 0; i < rows.length; i++) {
+      var k = String(rows[i].key || '');
+      if (k.slice(k.indexOf('|') + 1) === page) return rows[i];
+    }
+    return null;
+  }, function() { return null; });
+}
+
+function nspDecideRow(per, name) {
+  if (!per || !name) return null;
+  var want = String(name).replace(/\s+/g, ' ').trim().toLowerCase();
+  var keys = Object.keys(per);
+  for (var i = 0; i < keys.length; i++) {
+    if (keys[i].replace(/\s+/g, ' ').trim().toLowerCase() === want) return { name: keys[i], row: per[keys[i]] };
+  }
+  return null;
+}
+
+function nspDecideArms(given, snap) {
+  var list = Array.isArray(given) ? given.slice(0, 12) : [];
+  var rows = [];
+  var arms = list.map(function(a) {
+    a = a && typeof a === 'object' ? a : {};
+    var name = String(a.name || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+    var hit = snap ? nspDecideRow(snap.per, name) : null;
+    if (hit && typeof hit.row.impressions === 'number' && typeof hit.row.clicks === 'number') {
+      rows.push(hit.name);
+      return { name: hit.name, impressions: hit.row.impressions, clicks: hit.row.clicks, from: 'page' };
+    }
+    var imp = a.impressions === '' || a.impressions == null ? NaN : Number(a.impressions);
+    var clicks = a.clicks === '' || a.clicks == null ? NaN : Number(a.clicks);
+    return { name: name, impressions: imp, clicks: clicks, from: 'chat' };
+  });
+  return { arms: arms, rows: rows };
+}
+
+function nspDecidePoints(key, metric) {
+  return self.NSP_CHAT_STORE.seriesFor(key, 400).then(function(rows) {
+    var points = [];
+    var names = {};
+    rows.forEach(function(r) {
+      Object.keys(r.metrics || {}).forEach(function(k) { names[k] = 1; });
+      var v = r.metrics ? r.metrics[metric] : undefined;
+      if (typeof v === 'number' && isFinite(v)) points.push({ t: r.at, value: v });
+    });
+    return { points: points, metrics: Object.keys(names), last: rows.length ? rows[rows.length - 1] : null };
+  });
+}
+
+function nspDecideInput(kind, args, host, url) {
+  var now = Date.now();
+  return nspDecideLastRead(host, url).then(function(snap) {
+    if (kind === 'ab') {
+      var got = nspDecideArms(args.arms, snap);
+      var missing = got.arms.filter(function(a) { return !(isFinite(a.impressions) && isFinite(a.clicks)); });
+      if (missing.length) return { error: 'no numbers for ' + missing.map(function(a) { return '"' + (a.name || 'an option') + '"'; }).join(' and ') + ': read the page with zerackExtract first or ask the user for its impressions and clicks. An empty box is not a zero.' };
+      var src = got.rows.length && snap ? { key: snap.key, reader: snap.reader, url: url, metric: 'clicks', rows: got.rows } : null;
+      return { input: { arms: got.arms, control: args.control, now: now }, source: src, readAt: src ? snap.at : 0 };
+    }
+    if (kind === 'share') return { input: { name: args.name, successes: args.successes, total: args.total, bar: args.bar }, source: null };
+    var metric = String(args.metric || '').trim().slice(0, 40);
+    if (Array.isArray(args.points) && args.points.length) {
+      return { input: { name: args.name || metric, points: args.points.map(function(p) { return { t: Date.parse(String(p && p.at || '')) || Number(p && p.t), value: p && p.value }; }), now: now }, source: null };
+    }
+    if (!snap) return { error: 'no reading of this page is stored yet: read it with zerackExtract first, then decide on one of its numbers' };
+    return nspDecidePoints(snap.key, metric).then(function(got) {
+      if (!metric || got.metrics.indexOf(metric) < 0) return { error: 'metric must be one of the numbers stored for this page: ' + got.metrics.join(', ') };
+      return { input: { name: args.name || metric, points: got.points, now: now }, source: { key: snap.key, reader: snap.reader, url: url, metric: metric, rows: [] }, readAt: got.last ? got.last.at : 0 };
+    });
+  });
+}
+
+function nspDecideSame(d, kind, host, arms, metric, key) {
+  if (!d || d.kind !== kind || d.host !== host || (d.status !== 'open' && d.status !== 'kept')) return false;
+  if (kind === 'ab') {
+    var a = (d.input.arms || []).map(function(x) { return x.name.toLowerCase(); }).sort().join('|');
+    var b = arms.map(function(x) { return String(x.name || '').toLowerCase(); }).sort().join('|');
+    return !!a && a === b;
+  }
+  if (kind === 'trend' || kind === 'window') return !!(d.source && key && d.source.key === key && d.source.metric === metric);
+  return false;
+}
+
+function nspDecideView(d) {
+  var r = d.result || {};
+  return {
+    ok: true,
+    id: d.id,
+    kind: d.kind,
+    state: r.state,
+    label: r.label,
+    number: r.number,
+    line: r.line,
+    missing: (r.missing || []).map(function(m) { return m.text; }),
+    projection: r.projection ? r.projection.line : '',
+    from: d.source ? (d.input.arms && d.input.arms.some(function(a) { return a.from === 'chat'; }) ? 'page and chat' : 'page') : 'chat',
+    dueAt: d.dueAt,
+    due: d.dueAt ? new Date(d.dueAt).toISOString().slice(0, 10) : '',
+    status: d.status,
+    lesson: d.lesson.text,
+    lessonState: d.lesson.state,
+    note: d.lesson.state === 'firm' ? 'This lesson is kept: the last re-measure agreed.' : (d.dueAt ? 'The lesson is kept only if the re-measure on ' + new Date(d.dueAt).toISOString().slice(0, 10) + ' agrees.' : '')
+  };
+}
+
+function nspDecideCard(v) {
+  return { id: v.id, kind: v.kind, state: v.state, label: v.label, number: v.number, missing: v.missing.slice(0, 5), projection: v.projection, due: v.due, from: v.from, lesson: v.lesson, lessonState: v.lessonState, status: v.status };
+}
+
+function nspDecide(args, ctx) {
+  args = args && typeof args === 'object' ? args : {};
+  ctx = ctx || {};
+  if (!nspDecideReady()) return Promise.resolve({ ok: false, error: 'the decision engine did not load, reload the extension' });
+  var D = self.NSP_DECIDE, store = self.NSP_CHAT_STORE;
+  var kind = String(args.kind || '').toLowerCase().trim();
+  if (D.kinds.indexOf(kind) < 0) return Promise.resolve({ ok: false, code: 'bad_kind', error: 'kind must be ab, trend, window or share' });
+  var site = ctx.site && ctx.site.host ? ctx.site : null;
+  var host = site ? String(site.host) : '';
+  var url = site ? String(site.url || '') : '';
+  var question = String(args.question || '').replace(/\s+/g, ' ').trim().slice(0, 300);
+  return nspDecideInput(kind, args, host, url).then(function(prep) {
+    if (prep.error) return { ok: false, code: 'missing', error: prep.error };
+    var fresh = D.decide(kind, prep.input);
+    if (!fresh.ok) return { ok: false, code: fresh.code, error: fresh.error };
+    var now = Date.now();
+    var armsIn = (prep.input.arms || []).map(function(a) { return { name: a.name, impressions: a.impressions, clicks: a.clicks, from: a.from }; });
+    if (fresh.arms) fresh.arms.forEach(function(a, i) { a.from = armsIn[i] ? armsIn[i].from : ''; });
+    return store.listDecisions({ host: host, limit: 300 }).then(function(list) {
+      var metric = prep.source ? prep.source.metric : '';
+      var old = host ? list.filter(function(d) { return nspDecideSame(d, kind, host, armsIn, metric, prep.source && prep.source.key); })[0] : null;
+      if (old) return nspDecideApply(old, fresh, prep, now, 'chat').then(nspDecideView);
+      var span = D.dueIn(kind, args.dueDays);
+      var row = {
+        at: now,
+        convId: String(ctx.convId || ''),
+        host: host,
+        playbook: String(ctx.playbook || ''),
+        url: url,
+        kind: kind,
+        question: question || ('Decision on ' + (host || 'the chat')),
+        input: { arms: armsIn, control: args.control, name: prep.input.name, metric: metric, points: prep.source ? [] : (prep.input.points || []), successes: prep.input.successes, total: prep.input.total, bar: prep.input.bar },
+        source: prep.source,
+        result: fresh,
+        claim: D.claimOf(fresh),
+        lesson: { text: D.lessonText(kind, fresh, question, args.lesson), state: 'tentative', at: 0, evidence: fresh.number, why: '' },
+        status: 'open',
+        dueAt: now + span,
+        span: span,
+        tries: 0,
+        measuredAt: now,
+        readAt: prep.readAt || 0,
+        measures: [{ at: now, state: fresh.state, number: fresh.number, why: 'first measure', by: 'chat' }]
+      };
+      return store.addDecision(row).then(function(saved) {
+        nspDecideSchedule();
+        nspDecideAnnounce(saved.id);
+        return nspDecideView(saved);
+      });
+    });
+  }).then(null, function(e) { return { ok: false, error: 'the decision could not be stored: ' + String((e && e.message) || e) }; });
+}
+
+function nspDecideApply(d, fresh, prep, now, by) {
+  var D = self.NSP_DECIDE;
+  var due = d.dueAt > 0 && d.dueAt <= now;
+  var decisive = fresh.ok && (fresh.state === 'keep' || fresh.state === 'drop');
+  var measure = { at: now, state: fresh.ok ? fresh.state : 'look', number: fresh.ok ? fresh.number : '', why: '', by: by };
+  var nothingNew = fresh.ok && d.result && fresh.number === d.result.number;
+  var fromArms = prep && prep.input && prep.input.arms ? prep.input.arms : [];
+  if (fresh.ok && fresh.arms) fresh.arms.forEach(function(a, i) { a.from = fromArms[i] ? fromArms[i].from : ''; });
+  if (fresh.ok) d.result = fresh;
+  if (prep && prep.input && prep.input.arms) d.input.arms = prep.input.arms.map(function(a) { return { name: a.name, impressions: a.impressions, clicks: a.clicks, from: a.from }; });
+  if (prep && prep.input && prep.input.points && !d.source) d.input.points = prep.input.points;
+  d.measuredAt = now;
+  if (prep && prep.readAt) d.readAt = prep.readAt;
+  d.waiting = '';
+  if (nothingNew) {
+    measure.why = 'the same numbers as the last measure, so there is nothing new to judge';
+  } else if (due || decisive || d.lesson.state === 'firm') {
+    var r = D.recheck(d, fresh, now);
+    d.status = r.status;
+    d.tries = r.tries;
+    d.dueAt = r.dueAt;
+    d.lesson.why = r.why;
+    measure.why = r.why;
+    if (r.lesson === 'firm') {
+      if (d.lesson.state !== 'firm') d.lesson.at = now;
+      d.lesson.state = 'firm';
+      d.lesson.evidence = fresh.number;
+    } else if (r.lesson === 'deleted') {
+      d.lesson.state = 'deleted';
+    }
+  } else {
+    measure.why = 'measured before the re-measure date, the lesson waits for it';
+  }
+  d.measures = (d.measures || []).concat([measure]).slice(-20);
+  return self.NSP_CHAT_STORE.putDecision(d).then(function(saved) {
+    nspDecideSchedule();
+    nspDecideAnnounce(saved.id);
+    return saved;
+  });
+}
+
+function nspDecideAnnounce(id) {
+  nspChatPost({ decision: Number(id) || 0 });
+}
+
+function nspDecideSchedule() {
+  if (!nspDecideReady()) return Promise.resolve(0);
+  return self.NSP_CHAT_STORE.listDecisions({ limit: 2000 }).then(function(list) {
+    var next = 0;
+    list.forEach(function(d) {
+      if ((d.status === 'open' || d.status === 'kept') && d.dueAt > 0 && (!next || d.dueAt < next)) next = d.dueAt;
+    });
+    return new Promise(function(resolve) {
+      try {
+        if (!next) chrome.alarms.clear(NSP_DECIDE_ALARM, function() { void chrome.runtime.lastError; resolve(0); });
+        else chrome.alarms.create(NSP_DECIDE_ALARM, { when: Math.max(Date.now() + 1000, next) }, function() { void chrome.runtime.lastError; resolve(next); });
+      } catch (e) { resolve(0); }
+    });
+  }, function() { return 0; });
+}
+
+function nspDecideFresh(d, snap) {
+  var D = self.NSP_DECIDE;
+  var now = Date.now();
+  if (d.kind === 'ab') {
+    var arms = d.input.arms.map(function(a) {
+      var hit = snap && a.from === 'page' ? nspDecideRow(snap.per, a.name) : null;
+      return hit ? { name: a.name, impressions: hit.row.impressions, clicks: hit.row.clicks, from: 'page' } : { name: a.name, impressions: a.impressions, clicks: a.clicks, from: a.from };
+    });
+    return Promise.resolve({ fresh: D.ab({ arms: arms, control: d.input.control || d.result.control }), prep: { input: { arms: arms } } });
+  }
+  return nspDecidePoints(d.source.key, d.source.metric).then(function(got) {
+    var input = { name: d.input.name || d.source.metric, points: got.points, now: now };
+    return { fresh: D.decide(d.kind, input), prep: { input: input } };
+  });
+}
+
+function nspDecideTab(url) {
+  var page = nspDecidePage(url);
+  return new Promise(function(resolve) {
+    try {
+      chrome.tabs.query({}, function(tabs) {
+        if (chrome.runtime.lastError || !tabs) { resolve(null); return; }
+        var hit = tabs.filter(function(t) { return nspDecidePage(String(t.url || '')) === page && t.status !== 'loading'; })[0];
+        resolve(hit || null);
+      });
+    } catch (e) { resolve(null); }
+  });
+}
+
+function nspDecideReadTab(tab, reader) {
+  if (!tab || !self.NSP_PAGE_AGENT) return Promise.resolve({ ok: false, code: 'no_tab' });
+  var ctx = {
+    convId: '',
+    tabId: tab.id,
+    stopped: function() { return false; },
+    agentOn: nspAgentOn,
+    add: function() { return Promise.resolve(null); },
+    patch: function() { return Promise.resolve(); },
+    typing: function() {},
+    lastReply: function() { return Promise.resolve(''); },
+    ledger: function() { return Promise.resolve(null); }
+  };
+  return Promise.resolve(self.NSP_PAGE_AGENT.run('zerackExtract', { reader: reader }, ctx)).then(function(r) {
+    return r && r.ok === true ? Promise.resolve(nspBusinessRead(r, { quiet: true })).then(function() { return r; }) : r;
+  });
+}
+
+function nspDecideRemeasure(d, opts) {
+  opts = opts || {};
+  var id = Number(d && d.id) || 0;
+  if (!id || _nspDecide.busy[id]) return Promise.resolve(d);
+  _nspDecide.busy[id] = true;
+  var now = Date.now();
+  var done = function(x) { delete _nspDecide.busy[id]; return x; };
+  var work;
+  if (!d.source || !d.source.key) {
+    d.tries = (Number(d.tries) || 0) + 1;
+    if (d.lesson.state !== 'firm' && d.tries >= self.NSP_DECIDE.DEFAULTS.maxTries) {
+      d.status = 'expired';
+      d.lesson.state = 'deleted';
+      d.lesson.why = 'no new numbers came in ' + d.tries + ' checks after the re-measure date, so it is not kept as a lesson';
+      d.dueAt = 0;
+      d.waiting = '';
+    } else {
+      d.waiting = 'new numbers from you: ask ZERACK about "' + String(d.question).slice(0, 120) + '" with the fresh numbers';
+      d.dueAt = now + NSP_DECIDE_RETRY_MS * 4;
+    }
+    work = self.NSP_CHAT_STORE.putDecision(d).then(function(saved) { nspDecideAnnounce(id); return saved; });
+  } else {
+    var read = opts.snap ? Promise.resolve(null) : nspDecideTab(d.source.url).then(function(tab) { return tab ? nspDecideReadTab(tab, d.source.reader) : null; });
+    work = read.then(function(readOut) {
+      return (opts.snap ? Promise.resolve(opts.snap) : self.NSP_CHAT_STORE.lastSeries(d.source.key)).then(function(snap) {
+        if (!snap || !(snap.at > (d.readAt || d.at))) {
+          var why = readOut && readOut.ok === false && readOut.code && readOut.code !== 'no_tab' ? 'the page could not be read (' + readOut.code + ')' : 'no new reading of the page';
+          d.waiting = why + ': open ' + String(d.source.url).slice(0, 200) + ' with ZERACK allowed there, or press Measure now';
+          d.dueAt = now + NSP_DECIDE_RETRY_MS;
+          return self.NSP_CHAT_STORE.putDecision(d).then(function(saved) { nspDecideAnnounce(id); return saved; });
+        }
+        return nspDecideFresh(d, snap).then(function(f) {
+          f.prep.readAt = snap.at;
+          if (!f.fresh.ok) {
+            d.waiting = 'the new reading could not be judged: ' + String(f.fresh.error || '').slice(0, 200);
+            d.dueAt = now + NSP_DECIDE_RETRY_MS;
+            return self.NSP_CHAT_STORE.putDecision(d);
+          }
+          if (opts.force && !(d.dueAt <= now)) d.dueAt = now;
+          return nspDecideApply(d, f.fresh, f.prep, now, opts.by || 'alarm');
+        });
+      });
+    });
+  }
+  return work.then(function(saved) { nspDecideSchedule(); return done(saved || d); }, function(e) { console.warn('[NSP SW] decide: re-measure failed:', e && e.message); return done(d); });
+}
+
+function nspDecideTick() {
+  if (!nspDecideReady()) return Promise.resolve(0);
+  var now = Date.now();
+  _nspDecide.chain = _nspDecide.chain.then(function() {
+    return self.NSP_CHAT_STORE.listDecisions({ limit: 2000 }).then(function(list) {
+      var due = list.filter(function(d) { return (d.status === 'open' || d.status === 'kept') && d.dueAt > 0 && d.dueAt <= now; });
+      return due.reduce(function(p, d) { return p.then(function() { return nspDecideRemeasure(d, { by: 'alarm' }); }); }, Promise.resolve()).then(function() { return due.length; });
+    });
+  }).then(function(n) { nspDecideSchedule(); return n; }, function(e) { console.warn('[NSP SW] decide: tick failed:', e && e.message); nspDecideSchedule(); return 0; });
+  return _nspDecide.chain;
+}
+
+function nspDecideAfterRead(snap) {
+  if (!nspDecideReady() || !snap || !snap.key) return;
+  var now = Date.now();
+  self.NSP_CHAT_STORE.listDecisions({ host: snap.host, limit: 300 }).then(function(list) {
+    list.filter(function(d) { return d.source && d.source.key === snap.key && (d.status === 'open' || d.status === 'kept') && d.dueAt > 0 && d.dueAt <= now; })
+      .forEach(function(d) { nspDecideRemeasure(d, { snap: snap, by: 'read' }); });
+  }, function() {});
+}
+
+function nspDecideNow(msg, sender, sendResponse) {
+  var page = chrome.runtime.getURL('activity/activity.html');
+  if (!sender || sender.id !== chrome.runtime.id || String(sender.url || '').indexOf(page) !== 0 || (sender.tab && sender.frameId !== 0)) { sendResponse({ ok: false, error: 'not_allowed' }); return; }
+  if (!nspDecideReady()) { sendResponse({ ok: false, error: 'the decision engine did not load' }); return; }
+  self.NSP_CHAT_STORE.getDecision(Number(msg.id)).then(function(d) {
+    if (!d) return { ok: false, error: 'that decision is gone' };
+    if (!d.source || !d.source.url) return { ok: false, error: 'this decision was made on numbers typed in the chat: ask ZERACK again with the fresh numbers' };
+    if (!/^https?:\/\//i.test(String(d.source.url))) return { ok: false, error: 'this decision has no web page to read again' };
+    return nspDecideTab(d.source.url).then(function(tab) {
+      if (tab) return tab;
+      return new Promise(function(resolve) {
+        chrome.tabs.create({ url: d.source.url, active: true }, function(t) {
+          if (chrome.runtime.lastError || !t) { resolve(null); return; }
+          var t0 = Date.now();
+          (function poll() {
+            chrome.tabs.get(t.id, function(now) {
+              if (chrome.runtime.lastError || !now) { resolve(null); return; }
+              if (now.status === 'complete' || Date.now() - t0 > 25000) { setTimeout(function() { resolve(now); }, 600); return; }
+              setTimeout(poll, 300);
+            });
+          })();
+        });
+      });
+    }).then(function(tab) {
+      if (!tab) return { ok: false, error: 'the page did not open' };
+      if (nspDecidePage(String(tab.url || '')) !== nspDecidePage(d.source.url)) {
+        var landed = String(tab.url || '').replace(/^https?:\/\//, '').split('?')[0].slice(0, 120);
+        return { ok: false, error: 'the page opened at ' + landed + ' instead of the page this decision reads: sign in there if it asks, then press Measure now again' };
+      }
+      return nspDecideReadTab(tab, d.source.reader).then(function(read) {
+        if (!read || read.ok !== true) return { ok: false, code: read && read.code, error: read && read.code === 'agent_off' ? 'the Agent switch is off, so ZERACK cannot read the page' : (read && (read.code === 'site_not_allowed' || read.code === 'read_only') ? 'ZERACK is not allowed on ' + d.host + ' yet: allow it from the chat on that page' : 'the page could not be read' + (read && read.code ? ' (' + read.code + ')' : '')) };
+        return self.NSP_CHAT_STORE.lastSeries(d.source.key).then(function(snap) {
+          return nspDecideRemeasure(d, { snap: snap, by: 'you', force: true }).then(function(saved) { return { ok: true, decision: saved }; });
+        });
+      });
+    });
+  }).then(sendResponse, function(e) { sendResponse({ ok: false, error: String((e && e.message) || e) }); });
+}
+
+function nspDecideMemory(host, playbook) {
+  if (!nspDecideReady() || (!host && !playbook)) return Promise.resolve([]);
+  var ask = self.NSP_CHAT_STORE.listDecisions({ limit: 500 }).then(function(list) {
+    return self.NSP_DECIDE.firmLessons(list, { host: host, playbook: playbook, max: NSP_DECIDE_MEMORY });
+  });
+  return nspDecideLate(ask, []);
+}
+
+function nspDecideEvidence(host) {
+  if (!nspDecideReady()) return Promise.resolve({ ok: false, missing: ['the decision engine did not load, so no evidence can be read'] });
+  var ask = self.NSP_CHAT_STORE.listDecisions({ host: host, limit: 300 }).then(function(list) {
+    return self.NSP_DECIDE.spendEvidence(list, host, Date.now());
+  });
+  return nspDecideLate(ask, { ok: false, missing: ['the decision store did not answer in time, so no evidence could be read'] });
+}
+
+try { importScripts('../lib/nsp-extract.js', '../lib/nsp-builders.js'); } catch (eBuilders) { console.warn('[NSP SW] importScripts builder engine:', eBuilders && eBuilders.message); }
+
+var NSP_BUILDER_READERS = ['github.issues', 'github.repo', 'github.commits', 'github.releases', 'hn.item', 'reddit.thread', 'ph.product', 'npm.package', 'pypi.package', 'cws.listing'];
+var NSP_BUILDER_RIVAL_READERS = { 'github.repo': 1, 'npm.package': 1, 'pypi.package': 1, 'cws.listing': 1, 'ph.product': 1 };
+var NSP_BUILDER_DAYS = 45;
+var NSP_BUILDER_FRESH_MS = 30 * 60000;
+var NSP_BUILDER_MINE = 'nsp_builder_repo';
+var NSP_SITE_WATCH_KEY = 'nsp_watch';
+var NSP_SITE_WATCH_ALARM = 'nsp-watch';
+var NSP_SITE_WATCH_MAX = 30;
+var NSP_SITE_WATCH_EVERY_MS = 20 * 3600000;
+var NSP_SITE_WATCH_FETCH_MS = 25000;
+var _nspSiteWatch = { chain: Promise.resolve(), gap: [4000, 9000] };
+
+function nspBuilderReady() {
+  var st = self.NSP_CHAT_STORE;
+  return !!(self.NSP_BUILDERS && self.NSP_EXTRACT && self.NSP_BUSINESS && st && typeof st.listSeries === 'function');
+}
+
+function nspBuilderRules() {
+  var pb = self.NSP_PLAYBOOKS ? self.NSP_PLAYBOOKS.get('builders') : null;
+  return pb && pb.rules ? pb.rules : {};
+}
+
+function nspBuilderClip(s, n) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  return s.length > n ? s.slice(0, n - 3) + '...' : s;
+}
+
+function nspBuilderUrl(u) {
+  u = String(u || '');
+  return /^https?:\/\/[^\s]+$/i.test(u) ? u.slice(0, 600) : '';
+}
+
+function nspBuilderLatest(rows) {
+  var byKey = {};
+  rows.forEach(function(r) { if (!byKey[r.key] || byKey[r.key].id < r.id) byKey[r.key] = r; });
+  return Object.keys(byKey).map(function(k) { return byKey[k]; });
+}
+
+function nspBuilderItems(rows, kinds) {
+  var out = [];
+  nspBuilderLatest(rows).forEach(function(r) {
+    (r.items || []).forEach(function(it) {
+      if (kinds && kinds.indexOf(it.kind) < 0) return;
+      var x = {};
+      Object.keys(it).forEach(function(k) { x[k] = it[k]; });
+      x.host = r.host;
+      x.reader = r.reader;
+      out.push(x);
+    });
+  });
+  return out;
+}
+
+function nspBuilderRepoKey(text) {
+  var t = String(text || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\/+$/, '');
+  var m = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/.exec(t);
+  return m ? ('https://github.com/' + m[1] + '/' + m[2].replace(/\.git$/, '')).toLowerCase() : '';
+}
+
+function nspBuilderRepo(rows, want) {
+  var repoRows = rows.filter(function(r) { return (r.reader === 'github.repo' || r.reader === 'github.commits' || r.reader === 'github.releases') && r.facts && r.facts.url; });
+  repoRows.sort(function(a, b) { return b.id - a.id; });
+  var target = want ? repoRows.filter(function(r) { return String(r.facts.url).toLowerCase() === want; })[0] : (repoRows.filter(function(r) { return r.reader === 'github.repo'; })[0] || repoRows[0]);
+  if (!target) return null;
+  var url = String(target.facts.url);
+  var mine = repoRows.filter(function(r) { return String(r.facts.url).toLowerCase() === url.toLowerCase(); });
+  var home = mine.filter(function(r) { return r.reader === 'github.repo'; })[0] || null;
+  var withCommits = mine.filter(function(r) { return (r.items || []).some(function(i) { return i.kind === 'commit'; }); })[0] || null;
+  var withReleases = mine.filter(function(r) { return r.reader === 'github.releases' || (r.items || []).some(function(i) { return i.kind === 'release'; }); })[0] || null;
+  var starRows = mine.filter(function(r) { return r.reader === 'github.repo' && typeof (r.metrics || {}).stars === 'number'; });
+  var facts = home ? home.facts : target.facts;
+  return {
+    url: url,
+    facts: facts,
+    metrics: home ? home.metrics : {},
+    readAt: (home || target).at,
+    commits: withCommits ? (withCommits.items || []).filter(function(i) { return i.kind === 'commit'; }) : [],
+    releases: withReleases ? (withReleases.items || []).filter(function(i) { return i.kind === 'release' || i.kind === 'tag'; }) : [],
+    stars: starRows.map(function(r) { return { t: r.at, value: r.metrics.stars }; }).sort(function(a, b) { return a.t - b.t; })
+  };
+}
+
+function nspBuilderSeries(since) {
+  return self.NSP_CHAT_STORE.listSeries({ since: since, readers: NSP_BUILDER_READERS, limit: 3000 });
+}
+
+function nspBuilderTabRepo(ctx) {
+  var site = ctx && ctx.site;
+  var m = site ? /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)(?:\/tree\/[^?#]*)?\/?(?:[?#].*)?$/.exec(String(site.url || '')) : null;
+  if (!m || /^(settings|orgs|topics|marketplace|explore|notifications|login|sponsors|features|pricing|search|new)$/i.test(m[1])) return '';
+  return nspBuilderRepoKey(m[1] + '/' + m[2]);
+}
+
+function nspBuilderEnsureRead(ctx) {
+  var page = ctx && ctx.page;
+  var where = nspBuilderTabRepo(ctx);
+  if (!page || !self.NSP_PAGE_AGENT || !where) return Promise.resolve(null);
+  return self.NSP_CHAT_STORE.listSeries({ since: Date.now() - NSP_BUILDER_FRESH_MS, readers: ['github.repo'], limit: 50 }).then(function(rows) {
+    if (rows.some(function(r) { return r.facts && String(r.facts.url || '').toLowerCase() === where; })) return null;
+    return Promise.resolve(self.NSP_PAGE_AGENT.run('zerackExtract', { reader: 'github.repo' }, page)).then(function(r) {
+      return r && r.ok === true ? nspBusinessRead(r, { quiet: true }) : null;
+    });
+  }).then(null, function() { return null; });
+}
+
+function nspBuilderMine(url) {
+  return new Promise(function(resolve) {
+    try {
+      if (url) chrome.storage.local.set({ nsp_builder_repo: String(url).slice(0, 300) }, function() { void chrome.runtime.lastError; resolve(String(url)); });
+      else chrome.storage.local.get(NSP_BUILDER_MINE, function(r) { resolve(!chrome.runtime.lastError && r && typeof r[NSP_BUILDER_MINE] === 'string' ? r[NSP_BUILDER_MINE] : ''); });
+    } catch (e) { resolve(''); }
+  });
+}
+
+function nspBuilderCard(result, card) {
+  if (result && typeof result === 'object' && card) Object.defineProperty(result, 'card', { value: card, enumerable: false, configurable: true });
+  return result;
+}
+
+function nspBuilderSourceLine(s) {
+  return s && s.url ? { text: nspBuilderClip(s.author + ', ' + s.title, 120), url: nspBuilderUrl(s.url) } : null;
+}
+
+function nspBuilder(args, ctx) {
+  args = args && typeof args === 'object' ? args : {};
+  ctx = ctx || {};
+  if (!nspBuilderReady()) return Promise.resolve({ ok: false, error: 'the builder engine did not load, reload the extension' });
+  var K = self.NSP_BUILDERS;
+  var rules = nspBuilderRules();
+  var action = String(args.action || '').toLowerCase().trim();
+  var now = Date.now();
+  if (action === 'watch' || action === 'unwatch') return nspSiteWatch(action, args, ctx);
+  if (action === 'check') {
+    var checked = K.check({ tagline: args.tagline, name: args.name, description: args.description, firstComment: args.firstComment, title: args.title, post: args.post }, rules);
+    return Promise.resolve(nspBuilderCard(checked, { kind: 'check', line: nspBuilderClip(checked.line, 300), checks: checked.checks.slice(0, 8).map(function(c) { return { field: c.field, ok: c.ok, what: nspBuilderClip(c.what, 120), rule: nspBuilderClip(c.rule, 200), source: nspBuilderSourceLine(c.source) }; }) }));
+  }
+  if (['requests', 'askers', 'rivals', 'post', 'changelog', 'launch'].indexOf(action) < 0) return Promise.resolve({ ok: false, code: 'bad_action', error: 'action must be requests, askers, rivals, watch, unwatch, post, changelog, launch or check' });
+  var needsRepo = action === 'post' || action === 'changelog' || action === 'launch';
+  var want = nspBuilderRepoKey(args.repo);
+  return (needsRepo || action === 'askers' ? nspBuilderEnsureRead(ctx) : Promise.resolve(null)).then(function() {
+    return Promise.all([nspBuilderSeries(now - NSP_BUILDER_DAYS * 86400000), nspBuilderMine(''), nspSiteWatchLoad()]);
+  }).then(function(got) {
+    var rows = got[0], mineUrl = got[1], watched = got[2];
+    var mineKey = String(mineUrl || '').toLowerCase();
+    var repo = nspBuilderRepo(rows, want || (needsRepo ? nspBuilderTabRepo(ctx) || mineKey : mineKey));
+    if (!repo && needsRepo && !want) repo = nspBuilderRepo(rows, '');
+    if (needsRepo && !repo) return { ok: false, code: 'missing', missing: ['a read of the repository'], error: 'no repository read yet: open the repository on GitHub and read it with zerackExtract reader github.repo, then ask again' };
+    if (action === 'requests') {
+      var own = repo ? [repo.facts.repo || '', repo.facts.owner || ''] : [];
+      var r = K.requests(nspBuilderItems(rows, ['issue', 'comment']), { own: own });
+      return nspBuilderCard({ ok: true, action: action, line: r.line, considered: r.considered, requests: r.requests, bugsSkipped: r.bugsSkipped, askedOnce: r.askedOnce, clusters: r.clusters }, {
+        kind: 'requests', line: nspBuilderClip(r.line, 400), askedOnce: r.askedOnce, bugs: r.bugsSkipped,
+        clusters: r.clusters.slice(0, 5).map(function(c) { return { label: nspBuilderClip(c.label, 60), count: c.count, people: c.people, sources: Object.keys(c.sources).map(function(k) { return { name: nspBuilderClip(k, 40), n: c.sources[k] }; }), examples: c.examples.slice(0, 3).map(function(e) { return { text: nspBuilderClip(e.text, 160), url: nspBuilderUrl(e.url), source: nspBuilderClip(e.source, 40) }; }) }; })
+      });
+    }
+    if (action === 'askers') {
+      var words = String(args.keywords || '').split(/[,;]+/).map(function(w) { return w.trim(); }).filter(Boolean);
+      if (!words.length && repo) words = [repo.facts.description || ''].concat(String(repo.facts.topics || '').split(/,\s*/));
+      var a = K.askers(nspBuilderItems(rows, ['comment', 'story']), { keywords: words, name: repo ? repo.facts.repo : '', url: repo ? repo.url : '', what: repo ? repo.facts.description : '', rules: rules, now: now });
+      if (!a.ok) return a;
+      return nspBuilderCard({ ok: true, action: action, line: a.line, keywords: a.keywords, matches: a.matches, more: a.more, rule: a.rule }, {
+        kind: 'askers', line: nspBuilderClip(a.line, 400), rule: a.rule ? { text: nspBuilderClip(a.rule.rule, 200), source: nspBuilderSourceLine(a.rule.source) } : null,
+        matches: a.matches.slice(0, 6).map(function(m) { return { source: nspBuilderClip(m.source, 40), by: nspBuilderClip(m.by, 40), url: nspBuilderUrl(m.url), at: m.at, excerpt: nspBuilderClip(m.excerpt, 280), matched: m.matched.slice(0, 4), handwrite: m.handwrite === true, closed: m.closed === true, draft: m.reply && m.reply.draft ? nspBuilderClip(m.reply.draft, 280) : '', outline: (m.reply && m.reply.outline || []).slice(0, 4).map(function(o) { return nspBuilderClip(o, 160); }) }; })
+      });
+    }
+    if (action === 'rivals') {
+      var groups = {};
+      rows.forEach(function(r) {
+        if (NSP_BUILDER_RIVAL_READERS[r.reader] !== 1) return;
+        var metric = K.metricFor(r.reader);
+        var v = (r.metrics || {})[metric];
+        if (typeof v !== 'number') return;
+        var g = groups[r.key] || (groups[r.key] = { key: r.key, reader: r.reader, metric: metric, url: String(r.key).slice(String(r.key).indexOf('|') + 1), name: '', points: [] });
+        g.points.push({ t: r.at, value: v });
+        var f = r.facts || {};
+        if (!g.name) g.name = f.owner && f.repo ? f.owner + '/' + f.repo : (f.name || '');
+      });
+      var watchedUrls = watched.map(function(w) { return w.url; });
+      var list = Object.keys(groups).map(function(k) { var g = groups[k]; g.watched = watchedUrls.indexOf(g.url) >= 0; return g; });
+      var rv = K.rivals(list, { decide: self.NSP_DECIDE, now: now, mine: mineUrl });
+      return nspBuilderCard({ ok: true, action: action, line: rv.line, accelerating: rv.accelerating, rows: rv.rows, watching: watched.length }, {
+        kind: 'rivals', line: nspBuilderClip(rv.line, 400), watching: watched.length,
+        rows: rv.rows.slice(0, 8).map(function(x) { return { name: nspBuilderClip(x.name, 80), url: nspBuilderUrl(x.url), metric: x.metric, now: x.now, perDay: x.perDay, readings: x.readings, state: x.state, label: x.label, missing: x.missing.slice(0, 1).map(function(m) { return nspBuilderClip(m, 160); }), watched: x.watched, mine: x.mine }; })
+      });
+    }
+    return nspBuilderMine(repo.url).then(function() {
+      var facts = repo.facts || {};
+      if (action === 'post') {
+        var p = K.post({ repo: { name: facts.repo || '', url: repo.url, created: facts.created }, commits: repo.commits, releases: repo.releases, stars: repo.stars, now: now, rules: rules.x || {} });
+        return nspBuilderCard({ ok: true, action: action, line: p.line, decision: p.decision, why: p.why, facts: p.facts, drafts: p.drafts.map(function(d) { return { kind: d.kind, text: d.text, chars: d.chars, max: d.max, uses: d.uses }; }), readAt: new Date(repo.readAt).toISOString() }, {
+          kind: 'post', decision: p.decision, why: nspBuilderClip(p.why, 300), line: nspBuilderClip(p.line, 300), repo: nspBuilderUrl(repo.url),
+          facts: p.facts.slice(0, 5).map(function(f) { return nspBuilderClip(f.text, 160); }),
+          drafts: p.drafts.slice(0, 3).map(function(d) { return { kind: d.kind, text: String(d.text).slice(0, 1200), chars: d.chars, max: d.max, intent: /^https:\/\/x\.com\/intent\/tweet\?text=/.test(d.intent) ? d.intent.slice(0, 4000) : '' }; }),
+          source: nspBuilderSourceLine(rules.x && rules.x.source)
+        });
+      }
+      if (action === 'changelog') {
+        var c = K.changelog({ repo: { url: repo.url, branch: facts.branch }, commits: repo.commits, releases: repo.releases, totalCommits: repo.metrics && typeof repo.metrics.commits === 'number' ? repo.metrics.commits : null, now: now, rules: rules });
+        return nspBuilderCard({ ok: true, action: action, line: c.line, version: c.version, commits: c.commits, since: c.since, markdown: c.markdown, releaseNotes: c.releaseNotes, feedNote: c.feedNote, noise: c.noise }, {
+          kind: 'changelog', line: nspBuilderClip(c.line, 400), version: { from: nspBuilderClip(c.version.from, 40), to: nspBuilderClip(c.version.to, 40), why: nspBuilderClip(c.version.why, 240) }, markdown: String(c.markdown).slice(0, 6000), notes: String(c.releaseNotes).slice(0, 6000), feedNote: nspBuilderClip(c.feedNote, 200),
+          groups: Object.keys(c.groups).map(function(g) { return { name: g, n: c.groups[g].length }; }), noise: Object.keys(c.noise).reduce(function(n, k) { return n + c.noise[k]; }, 0), commits: c.commits, repo: nspBuilderUrl(repo.url),
+          sources: c.rules.map(function(x) { return nspBuilderSourceLine(x.source); }).filter(Boolean)
+        });
+      }
+      var threads = nspBuilderLatest(rows).filter(function(r) { return r.reader === 'hn.item' && r.facts && r.facts.showHn === 'yes'; }).map(function(r) { return { title: r.facts.title, url: r.facts.url, item: String(r.key).slice(String(r.key).indexOf('|') + 1) }; });
+      var kit = K.launch({ repo: { repo: facts.repo, owner: facts.owner, url: repo.url, description: facts.description, homepage: facts.homepage, license: facts.license, created: facts.created, stars: repo.metrics ? repo.metrics.stars : null, commits: repo.metrics ? repo.metrics.commits : null, headings: String(facts.headings || '').split(' | ').filter(Boolean).map(function(t, i) { return { level: i === 0 ? 1 : 2, text: t }; }) }, threads: threads, now: now, rules: rules });
+      if (!kit.ok) return kit;
+      var drafts = { tagline: args.tagline, name: args.name, description: args.description, firstComment: args.firstComment, title: args.title };
+      var anyDraft = Object.keys(drafts).some(function(k) { return drafts[k] != null && drafts[k] !== ''; });
+      var chk = anyDraft ? K.check(drafts, rules) : null;
+      var ph = kit.producthunt, hn = kit.showhn;
+      return nspBuilderCard({ ok: true, action: action, line: kit.line + (chk ? ' ' + chk.line : ''), producthunt: { name: ph.name.text, taglines: ph.taglines, description: ph.description, gallery: ph.gallery.captions, firstComment: ph.firstComment.outline, timing: ph.timing }, showhn: { title: hn.title, handwrite: true, handwriteRule: hn.handwriteRule.rule, cover: hn.cover, facts: hn.facts, tryable: hn.tryable.ask, repeat: hn.repeat }, check: chk ? chk.checks : null }, {
+        kind: 'launch', line: nspBuilderClip(kit.line, 400), name: nspBuilderClip(ph.name.text, 60),
+        taglines: ph.taglines.slice(0, 3).map(function(t) { return { text: nspBuilderClip(t.text, 80), chars: t.chars, fits: t.fits, why: nspBuilderClip(t.why, 120) }; }),
+        description: { text: nspBuilderClip(ph.description.text, 520), chars: ph.description.chars },
+        gallery: ph.gallery.captions.slice(0, 5).map(function(g) { return nspBuilderClip(g.caption, 70); }), galleryRule: nspBuilderClip(ph.gallery.rule, 160),
+        comment: ph.firstComment.outline.slice(0, 5).map(function(o) { return nspBuilderClip(o, 180); }), commentRule: nspBuilderClip(ph.firstComment.rule, 160),
+        timing: nspBuilderClip(ph.timing.next, 60), timingAt: ph.timing.at, timingRule: nspBuilderClip(ph.timing.rule, 200), votesRule: nspBuilderClip(ph.votes.rule, 120),
+        title: { text: nspBuilderClip(hn.title.text, 120), chars: hn.title.chars, problems: hn.title.problems.slice(0, 4).map(function(x) { return nspBuilderClip(x.what, 100); }) },
+        cover: hn.cover.slice(0, 5), facts: hn.facts.slice(0, 4).map(function(f) { return { what: f.what, value: nspBuilderClip(f.value, 240) }; }),
+        handwrite: nspBuilderClip(hn.handwriteRule.rule, 200), tryable: nspBuilderClip(hn.tryable.ask, 160),
+        submit: /^https:\/\/news\.ycombinator\.com\/submitlink\?u=/.test(hn.submit) ? hn.submit.slice(0, 2000) : '',
+        checks: chk ? chk.checks.slice(0, 6).map(function(x) { return { field: x.field, ok: x.ok, what: nspBuilderClip(x.what, 120) }; }) : [],
+        sources: [ph.taglineRule.source, ph.firstComment.source, ph.votes.source, hn.handwriteRule.source, hn.title.source].map(nspBuilderSourceLine).filter(Boolean).filter(function(x, i, arr) { return arr.map(function(y) { return y.url; }).indexOf(x.url) === i; })
+      });
+    });
+  }).then(null, function(e) { return { ok: false, error: 'the builder work failed: ' + String((e && e.message) || e) }; });
+}
+
+function nspSiteWatchKind(url) {
+  var u;
+  try { u = new URL(String(url || '')); } catch (e) { return null; }
+  var host = u.hostname.toLowerCase();
+  var p = u.pathname.split('/').filter(Boolean);
+  if (host === 'github.com' && p.length >= 2 && self.NSP_EXTRACT && /^[A-Za-z0-9_.-]+$/.test(p[0]) && !/^(settings|orgs|topics|marketplace|explore|notifications|login|sponsors|features|pricing|search|new)$/i.test(p[0])) return { reader: 'github.repo', url: 'https://github.com/' + p[0] + '/' + p[1].replace(/\.git$/, '') };
+  if (host === 'chromewebstore.google.com' && p[0] === 'detail' && p.length >= 2) return { reader: 'cws.listing', url: 'https://chromewebstore.google.com/' + p.slice(0, 3).join('/') };
+  if ((host === 'www.npmjs.com' || host === 'npmjs.com') && p[0] === 'package' && p.length >= 2) return { reader: 'npm.package', url: 'https://www.npmjs.com/package/' + (p[1].charAt(0) === '@' && p[2] ? p[1] + '/' + p[2] : p[1]) };
+  if (host === 'pypi.org' && p[0] === 'project' && p.length >= 2) return { reader: 'pypi.package', url: 'https://pypi.org/project/' + p[1] + '/' };
+  return null;
+}
+
+function nspSiteWatchLoad() {
+  return new Promise(function(resolve) {
+    try {
+      chrome.storage.local.get(NSP_SITE_WATCH_KEY, function(r) {
+        var list = !chrome.runtime.lastError && r && Array.isArray(r[NSP_SITE_WATCH_KEY]) ? r[NSP_SITE_WATCH_KEY] : [];
+        resolve(list.filter(function(w) { return w && typeof w.url === 'string' && nspSiteWatchKind(w.url); }).slice(0, NSP_SITE_WATCH_MAX));
+      });
+    } catch (e) { resolve([]); }
+  });
+}
+
+function nspSiteWatchSave(list) {
+  return nspStorageUpdate(NSP_SITE_WATCH_KEY, function() { return list.slice(0, NSP_SITE_WATCH_MAX); });
+}
+
+function nspSiteWatchSchedule(list) {
+  try {
+    if (!list.length) { chrome.alarms.clear(NSP_SITE_WATCH_ALARM, function() { void chrome.runtime.lastError; }); return; }
+    chrome.alarms.get(NSP_SITE_WATCH_ALARM, function(a) {
+      void chrome.runtime.lastError;
+      if (!a) chrome.alarms.create(NSP_SITE_WATCH_ALARM, { delayInMinutes: 60, periodInMinutes: 360 });
+    });
+  } catch (e) {}
+}
+
+function nspSiteWatchAllowed(url) {
+  var S = self.NSP_SITES;
+  if (!S) return Promise.resolve({ ok: false, host: '', pattern: '' });
+  var host = S.hostOf(url), pattern = S.patternOf(url);
+  return Promise.all([S.load(), new Promise(function(resolve) {
+    try { chrome.permissions.contains({ origins: [pattern] }, function(has) { resolve(!chrome.runtime.lastError && has === true); }); } catch (e) { resolve(false); }
+  })]).then(function(got) {
+    return { ok: got[1] && S.allows(S.accessIn(got[0], host), 'read'), host: host, pattern: pattern };
+  });
+}
+
+function nspSiteWatchParse(kind, html, url) {
+  var T = self.NSP_EXTRACT.text;
+  if (kind === 'github.repo') { var g = T.githubRepo(html, url); return g.ok ? { ok: true, reader: kind, label: 'GitHub repository', rows: [], repo: g.repo, releaseList: [] } : g; }
+  if (kind === 'cws.listing') { var c = T.cws(html, url); return c.ok ? { ok: true, reader: kind, label: 'Chrome Web Store listing', rows: [], listing: c.listing } : c; }
+  if (kind === 'npm.package') { var n = T.npm(html, url); return n.ok ? { ok: true, reader: kind, label: 'npm package', rows: [], pkg: n.pkg } : n; }
+  if (kind === 'pypi.package') { var y = T.pypi(html, url); return y.ok ? { ok: true, reader: kind, label: 'PyPI project', rows: y.pkg.history.slice(0, 40), pkg: { name: y.pkg.name, version: y.pkg.version, summary: y.pkg.summary, released: y.pkg.released, releases: y.pkg.releases } } : y; }
+  return { ok: false, code: 'not_watchable', error: 'not a page ZERACK can watch' };
+}
+
+function nspSiteWatchSample(entry) {
+  var ctrl = typeof AbortController === 'function' ? new AbortController() : null;
+  var timer = setTimeout(function() { if (ctrl) ctrl.abort(); }, NSP_SITE_WATCH_FETCH_MS);
+  return nspSiteWatchAllowed(entry.url).then(function(acc) {
+    if (!acc.ok) return { ok: false, code: 'site_not_allowed', error: 'ZERACK is not allowed to read ' + acc.host + ' any more' };
+    return fetch(entry.url, { credentials: 'omit', cache: 'no-store', redirect: 'follow', signal: ctrl ? ctrl.signal : undefined, headers: { Accept: 'text/html' } }).then(function(res) {
+      if (!res.ok) return { ok: false, code: 'http', error: 'the page answered HTTP ' + res.status };
+      var landed = String(res.url || entry.url);
+      return res.text().then(function(html) {
+        var got = nspSiteWatchParse(entry.reader, String(html || '').slice(0, 6000000), landed);
+        if (!got.ok) return got.code === 'drift' ? got : { ok: false, code: got.code || 'not_read', error: got.error || 'the page did not read' };
+        got.url = entry.url;
+        got.host = acc.host;
+        got.playbook = 'builders';
+        got.count = (got.rows || []).length;
+        return nspBusinessRead(got, { quiet: true }).then(function(out) { return out && out.ok ? out : got; });
+      });
+    });
+  }).then(function(r) { clearTimeout(timer); return r; }, function(e) { clearTimeout(timer); return { ok: false, code: 'network', error: 'the page did not load: ' + String((e && e.message) || e).slice(0, 120) }; });
+}
+
+function nspSiteWatchTick(force) {
+  _nspSiteWatch.chain = _nspSiteWatch.chain.then(function() {
+    return nspSiteWatchLoad().then(function(list) {
+      var now = Date.now();
+      var due = list.filter(function(w) { return force || !(w.lastAt > now - NSP_SITE_WATCH_EVERY_MS); });
+      return due.reduce(function(p, w, i) {
+        return p.then(function() {
+          var wait = i ? _nspSiteWatch.gap[0] + Math.floor(Math.random() * (_nspSiteWatch.gap[1] - _nspSiteWatch.gap[0])) : 0;
+          return new Promise(function(r) { setTimeout(r, wait); }).then(function() { return nspSiteWatchSample(w); }).then(function(r) {
+            w.lastAt = Date.now();
+            w.lastOk = !!(r && r.ok);
+            w.error = r && r.ok ? '' : String((r && (r.error || r.code)) || 'not read').slice(0, 200);
+            if (r && r.ok && r.line) w.lastLine = String(r.line).slice(0, 300);
+            if (r && r.ok && r.analysis) { var a = r.analysis; w.name = String((a.repo && a.repo.owner ? a.repo.owner + '/' + a.repo.repo : '') || (a.listing && a.listing.name) || (a.pkg && a.pkg.name) || w.name || '').slice(0, 120); }
+          });
+        });
+      }, Promise.resolve()).then(function() {
+        return nspSiteWatchLoad().then(function(fresh) {
+          var byUrl = {};
+          list.forEach(function(w) { byUrl[w.url] = w; });
+          var merged = fresh.map(function(w) { return byUrl[w.url] || w; });
+          return nspSiteWatchSave(merged).then(function() { nspSiteWatchSchedule(merged); return due.length; });
+        });
+      });
+    });
+  }).then(null, function(e) { console.warn('[NSP SW] watch: tick failed:', e && e.message); return 0; });
+  return _nspSiteWatch.chain;
+}
+
+function nspSiteWatch(action, args, ctx) {
+  var site = ctx.site && ctx.site.url ? ctx.site : null;
+  var want = nspSiteWatchKind(args.url || (site ? site.url : ''));
+  if (!want) return Promise.resolve({ ok: false, code: 'not_watchable', error: 'ZERACK can watch a public GitHub repository, an npm or PyPI package, or a Chrome Web Store listing: give its address' });
+  return nspSiteWatchLoad().then(function(list) {
+    if (action === 'unwatch') {
+      var left = list.filter(function(w) { return w.url !== want.url; });
+      return nspSiteWatchSave(left).then(function() {
+        nspSiteWatchSchedule(left);
+        return nspBuilderCard({ ok: true, action: action, line: left.length < list.length ? 'Stopped watching ' + want.url + '.' : 'It was not watched: ' + want.url + '.', watching: left.length }, { kind: 'watch', line: left.length < list.length ? 'Stopped watching ' + want.url + '.' : 'It was not watched.', list: nspSiteWatchView(left) });
+      });
+    }
+    return nspAgentOn().then(function(on) {
+      if (!on) return { ok: false, code: 'agent_off', error: NSP_AGENT_OFF_REFUSAL };
+      return nspSiteWatchAllowed(want.url).then(function(acc) {
+        if (!acc.ok) {
+          if (typeof ctx.allow === 'function') ctx.allow(acc.host, acc.pattern, want.url);
+          return { ok: false, code: 'site_not_allowed', host: acc.host, error: 'ZERACK is not allowed to read ' + acc.host + ' yet. The chat now shows the user an Allow button for this site. Tell them to press it, then ask again. Do not retry now.' };
+        }
+        var had = list.filter(function(w) { return w.url === want.url; })[0];
+        if (!had && list.length >= NSP_SITE_WATCH_MAX) return { ok: false, code: 'full', error: 'ZERACK already watches ' + NSP_SITE_WATCH_MAX + ' pages: stop one first' };
+        var entry = had || { url: want.url, reader: want.reader, host: acc.host, since: Date.now(), lastAt: 0, lastOk: false, error: '', name: '' };
+        var next = had ? list : list.concat([entry]);
+        return nspSiteWatchSave(next).then(function() {
+          nspSiteWatchSchedule(next);
+          return nspSiteWatchSample(entry);
+        }).then(function(r) {
+          entry.lastAt = Date.now();
+          entry.lastOk = !!(r && r.ok);
+          entry.error = r && r.ok ? '' : String((r && (r.error || r.code)) || '').slice(0, 200);
+          if (r && r.ok && r.analysis) { var a = r.analysis; entry.name = String((a.repo && a.repo.owner ? a.repo.owner + '/' + a.repo.repo : '') || (a.listing && a.listing.name) || (a.pkg && a.pkg.name) || '').slice(0, 120); entry.lastLine = String(r.line || '').slice(0, 300); }
+          return nspSiteWatchLoad().then(function(fresh) {
+            var merged = fresh.map(function(w) { return w.url === entry.url ? entry : w; });
+            return nspSiteWatchSave(merged).then(function() {
+              var reading = String((r && r.line) || '').replace(/\.$/, '');
+              if (entry.name && reading.indexOf(entry.name + ': ') === 0) reading = reading.slice(entry.name.length + 2);
+              var line = (had ? 'Already watched' : 'Watching') + ' ' + (entry.name || want.url) + ': ' + (r && r.ok ? 'first reading today, ' + reading : 'the first reading failed (' + entry.error + ')') + '. ZERACK reads it once a day at human pace; it can say whether it accelerates after four readings.';
+              return nspBuilderCard({ ok: true, action: action, line: line, reading: r && r.ok ? r.line : '', watching: merged.length }, { kind: 'watch', line: nspBuilderClip(line, 400), list: nspSiteWatchView(merged) });
+            });
+          });
+        });
+      });
+    });
+  });
+}
+
+function nspSiteWatchView(list) {
+  return list.slice(0, 12).map(function(w) { return { url: nspBuilderUrl(w.url), name: nspBuilderClip(w.name || w.url, 80), reader: String(w.reader || ''), lastAt: Number(w.lastAt) || 0, ok: w.lastOk === true, error: nspBuilderClip(w.error, 120) }; });
+}
+
+try { chrome.runtime.onStartup.addListener(function() { nspSiteWatchLoad().then(nspSiteWatchSchedule); }); } catch (eWatchStart) {}
+
+try { chrome.runtime.onStartup.addListener(function() { nspDecideSchedule(); }); } catch (eDecideStart) {}
+try { chrome.runtime.onInstalled.addListener(function() { nspDecideSchedule(); }); } catch (eDecideInstall) {}
+
+try { importScripts('../lib/nsp-leads.js'); } catch (eLeads) { console.warn('[NSP SW] importScripts leads engine:', eLeads && eLeads.message); }
+
+var NSP_LEADS_FOUND_MS = 6 * 3600000;
+var NSP_LEADS_FRESH_READ_MS = 30 * 60000;
+var NSP_LEADS_READERS = { 'maps.results': 'place', 'maps.place': 'place', 'upwork.jobs': 'job', 'upwork.job': 'job' };
+var NSP_LEADS_OUTCOMES = { sent: 1, replied: 1, bounced: 1, complained: 1, opted_out: 1, skipped: 1 };
+var NSP_PACE_MS = 12000;
+var _nspLeads = { chain: Promise.resolve() };
+var _nspPace = {};
+
+function nspLeadsLoad() {
+  var L = self.NSP_LEADS;
+  return new Promise(function(resolve) {
+    try {
+      chrome.storage.local.get(L.key, function(r) { resolve(L.load(!chrome.runtime.lastError && r ? r[L.key] : null)); });
+    } catch (e) { resolve(L.load(null)); }
+  });
+}
+
+function nspLeadsUpdate(mutate) {
+  var L = self.NSP_LEADS;
+  var out;
+  _nspLeads.chain = _nspLeads.chain.then(function() {
+    return nspStorageUpdate(L.key, function(raw) {
+      var st = L.load(raw);
+      out = mutate(st);
+      return st;
+    }).then(function() { return out; });
+  }).then(null, function(e) { console.warn('[NSP SW] leads: update failed:', e && e.message); return out; });
+  return _nspLeads.chain;
+}
+
+function nspLeadRow(kind, result) {
+  if (result.reader === 'maps.place') {
+    var p = result.place || {};
+    return [{ name: p.name, rating: p.rating, reviews: p.reviews, category: p.category, address: p.address, phone: p.phone, website: p.website, hasWebsite: p.hasWebsite, url: p.url }];
+  }
+  if (result.reader === 'upwork.job') {
+    var j = result.job || {};
+    return [{ title: j.title, url: j.url, type: j.type, rateMin: j.rateMin, rateMax: j.rateMax, budget: j.budget, proposals: j.proposals, verified: j.verified, spent: j.spent, postedMin: j.postedMin, connects: j.connects, skills: j.skills, text: j.text }];
+  }
+  return result.rows || [];
+}
+
+function nspLeadsFromRead(result) {
+  var L = self.NSP_LEADS;
+  var kind = result && result.ok === true ? NSP_LEADS_READERS[result.reader] : '';
+  if (!L || !kind) return Promise.resolve(null);
+  var now = Date.now();
+  return nspLeadsUpdate(function(st) {
+    var found = L.find(st, nspLeadRow(kind, result), kind, st.policy, result.reader, now);
+    st.found = { at: now, url: String(result.url || '').slice(0, 600), reader: result.reader, kind: kind, ids: found.map(function(l) { return l.id; }).slice(0, 60) };
+    return found;
+  });
+}
+
+function nspLeadsPolicyNow() {
+  if (!self.NSP_LEADS) return Promise.resolve(null);
+  return nspLeadsLoad().then(function(st) { return st.policy; }, function() { return null; });
+}
+
+function nspPaceWait(host) {
+  var P = self.NSP_PLAYBOOKS;
+  var t = P && host ? P.terms(host, '/') : null;
+  if (!t || !t.pace) return Promise.resolve(0);
+  var now = Date.now();
+  var last = _nspPace[host] || 0;
+  var wait = Math.max(0, last + NSP_PACE_MS - now);
+  _nspPace[host] = now + wait;
+  if (!wait) return Promise.resolve(0);
+  return new Promise(function(resolve) { setTimeout(function() { resolve(wait); }, wait); });
+}
+
+function nspLeadsClip(s, n) {
+  s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  return s.length > n ? s.slice(0, n - 3) + '...' : s;
+}
+
+function nspLeadView(l, contacted) {
+  return {
+    id: l.id,
+    kind: l.kind,
+    name: nspLeadsClip(l.name, 100),
+    verdict: l.verdict,
+    reasons: (l.reasons || []).slice(0, 3).map(function(r) { return nspLeadsClip(r.text, 140); }),
+    facts: (l.facts || []).filter(function(f) { return f.value !== l.name && f.what !== 'website'; }).slice(0, 4).map(function(f) { return nspLeadsClip(f.value, 120); }),
+    route: l.route ? l.route.kind : '',
+    url: nspBuilderUrl(l.url),
+    website: nspBuilderUrl(l.website),
+    phone: nspLeadsClip(l.phone, 40),
+    price: l.price ? { per: l.price.per, bid: l.price.bid, keepLow: l.price.keepLow } : null,
+    connects: l.connects != null ? l.connects : null,
+    status: l.status || 'found',
+    contacted: contacted || ''
+  };
+}
+
+function nspLeadsStatusView(s) {
+  return { cap: s.cap, sent: s.sent, left: s.left, bounces: s.bounces, stopAt: s.stopAt, on: s.on, inHours: s.inHours, hours: s.hours, ramp: s.ramp };
+}
+
+function nspLeadsCard(result, card) {
+  if (result && typeof result === 'object' && card) Object.defineProperty(result, 'card', { value: card, enumerable: false, configurable: true });
+  return result;
+}
+
+function nspLeadsEnsureRead(ctx) {
+  var page = ctx && ctx.page;
+  var site = ctx && ctx.site;
+  var P = self.NSP_PLAYBOOKS;
+  if (!page || !site || !self.NSP_PAGE_AGENT || !P) return Promise.resolve(null);
+  var url = String(site.url || '');
+  var pb = P.forUrl(url);
+  if (!P.leadsKind(pb)) return Promise.resolve(null);
+  return nspLeadsLoad().then(function(st) {
+    if (st.found && st.found.url === url && Date.now() - st.found.at < NSP_LEADS_FRESH_READ_MS) return null;
+    return nspPaceWait(site.host).then(function() {
+      return Promise.resolve(self.NSP_PAGE_AGENT.run('zerackExtract', {}, page)).then(function(r) {
+        return r && r.ok === true ? nspBusinessRead(r, { quiet: true }) : r;
+      });
+    });
+  }).then(null, function() { return null; });
+}
+
+function nspLeads(args, ctx) {
+  args = args && typeof args === 'object' ? args : {};
+  ctx = ctx || {};
+  var L = self.NSP_LEADS;
+  if (!L) return Promise.resolve({ ok: false, error: 'the leads engine did not load, reload the extension' });
+  var action = String(args.action || '').toLowerCase().trim();
+  var now = Date.now();
+  if (action === 'status') {
+    return nspLeadsLoad().then(function(st) {
+      var s = L.status(st, now);
+      var recent = Object.keys(st.leads).map(function(id) { return st.leads[id]; }).filter(function(l) { return l.sentAt; }).sort(function(a, b) { return b.sentAt - a.sentAt; }).slice(0, 6);
+      var line = s.sent + ' of ' + s.cap + ' sent today, ' + s.left + ' left' + (s.bounces ? ', ' + s.bounces + ' bounces or complaints' : '') + (s.stopped ? '; sending is stopped until tomorrow' : '') + (!s.on ? '; sending is switched off' : '') + (!s.inHours ? '; outside sending hours (' + s.hours[0] + ':00 to ' + s.hours[1] + ':00)' : '') + '. The cap grows by ' + s.ramp.step + ' a day up to ' + s.ramp.max + '.';
+      return nspLeadsCard({ ok: true, action: action, line: line, status: s, recent: recent.map(function(l) { return { id: l.id, name: l.name, status: l.status, sentAt: new Date(l.sentAt).toISOString() }; }) }, { kind: 'status', line: nspLeadsClip(line, 300), status: nspLeadsStatusView(s), recent: recent.map(function(l) { return { name: nspLeadsClip(l.name, 80), status: l.status, at: l.sentAt }; }) });
+    });
+  }
+  if (action === 'policy') {
+    var patch = {};
+    ['name', 'business', 'address', 'email', 'offer', 'skills', 'rate', 'budget', 'proof', 'max', 'start', 'step', 'on'].forEach(function(k) { if (args[k] != null && args[k] !== '') patch[k] = args[k]; });
+    if (args.hoursFrom != null || args.hoursTo != null) patch.hours = [args.hoursFrom != null ? args.hoursFrom : 8, args.hoursTo != null ? args.hoursTo : 21];
+    return nspLeadsUpdate(function(st) {
+      var r = L.setPolicy(st.policy, patch);
+      st.policy = r.policy;
+      return r;
+    }).then(function(r) {
+      var p = r.policy;
+      var missing = ['name', 'offer', 'address'].filter(function(k) { return !p[k]; });
+      var line = (r.changed.length ? 'Saved ' + r.changed.join(', ') + '.' : 'Nothing changed.') + (r.refused.length ? ' ' + r.refused.map(function(x) { return x.why; }).join('; ') + '.' : '') + (missing.length ? ' Still missing: ' + missing.join(', ') + '.' : '');
+      return nspLeadsCard({ ok: true, action: action, line: line, policy: p, changed: r.changed, refused: r.refused, missing: missing }, { kind: 'policy', line: nspLeadsClip(line, 300), policy: { name: p.name, business: p.business, address: p.address ? 'saved' : '', offer: nspLeadsClip(p.offer, 160), skills: nspLeadsClip(p.skills, 160), rate: p.rate, budget: p.budget, cap: { start: p.start, step: p.step, max: p.max }, hours: p.hours, on: p.on } });
+    });
+  }
+  if (action === 'mark') {
+    var outcome = String(args.outcome || '').toLowerCase().replace(/[\s-]+/g, '_');
+    if (NSP_LEADS_OUTCOMES[outcome] !== 1) return Promise.resolve({ ok: false, code: 'bad_outcome', error: 'outcome must be sent, replied, bounced, complained, opted_out or skipped' });
+    return nspLeadsUpdate(function(st) {
+      var lead = L.lookup(st, args.lead);
+      if (!lead) return { ok: false, code: 'no_lead', error: 'no lead matches ' + JSON.stringify(String(args.lead || '').slice(0, 60)) + '; use an id from zerackLeads find' };
+      var before = L.status(st, now);
+      L.record(st, lead.id, outcome, now, { by: 'user' });
+      var s = L.status(st, now);
+      var line = lead.name + ' marked ' + outcome.replace('_', ' ') + '.' + (outcome === 'sent' ? ' ' + s.sent + ' of ' + s.cap + ' sent today' + (before.sent >= before.cap ? ', which is past the cap' : '') + '.' : '') + (outcome === 'opted_out' || outcome === 'complained' ? ' ZERACK never writes to them again.' : '') + (s.stopped ? ' Sending stops until tomorrow after ' + s.bounces + ' bounces or complaints.' : '');
+      return { ok: true, action: action, lead: lead.id, outcome: outcome, line: line, status: s };
+    });
+  }
+  if (action === 'find') {
+    return nspLeadsEnsureRead(ctx).then(function() { return nspLeadsLoad(); }).then(function(st) {
+      var f = st.found;
+      if (!f || !(now - f.at < NSP_LEADS_FOUND_MS)) return { ok: false, code: 'missing', missing: ['a read of a Google Maps search or place, or of an Upwork job search or job'], error: 'nothing to judge yet: open a Google Maps search or an Upwork job search, read it with zerackExtract, then ask again' };
+      var list = f.ids.map(function(id) { return st.leads[id]; }).filter(Boolean);
+      var rank = { pitch: 0, bid: 0, look: 1, skip: 2 };
+      var views = list.map(function(l) { return nspLeadView(l, L.contacted(st, l) || ''); });
+      views.sort(function(a, b) { return (a.contacted ? 1 : 0) - (b.contacted ? 1 : 0) || rank[a.verdict] - rank[b.verdict]; });
+      var go = views.filter(function(v) { return (v.verdict === 'pitch' || v.verdict === 'bid') && !v.contacted; });
+      var s = L.status(st, now);
+      var p = st.policy;
+      var word = f.kind === 'job' ? 'Bid' : 'Pitch';
+      var line = list.length + (f.kind === 'job' ? ' jobs' : ' places') + ' judged: ' + go.length + ' ' + word + ', ' + views.filter(function(v) { return v.verdict === 'look'; }).length + ' Look at it, ' + views.filter(function(v) { return v.verdict === 'skip'; }).length + ' Skip' + (views.filter(function(v) { return v.contacted; }).length ? ', ' + views.filter(function(v) { return v.contacted; }).length + ' already contacted' : '') + '. ' + s.left + ' of ' + s.cap + ' sends left today.' + (f.kind === 'place' && !p.offer ? ' No offer saved yet: every angle counts until the user says what they sell.' : '') + (f.kind === 'job' && !p.skills ? ' No skills saved yet: the fit is not checked.' : '');
+      return nspLeadsCard({ ok: true, action: action, kind: f.kind, line: line, source: f.reader, leads: views.slice(0, 20), status: s }, { kind: 'leads', leadKind: f.kind, line: nspLeadsClip(line, 400), status: nspLeadsStatusView(s), leads: views.slice(0, 12) });
+    });
+  }
+  if (action === 'draft') {
+    return nspLeadsUpdate(function(st) {
+      var lead = L.lookup(st, args.lead);
+      if (!lead && !args.lead && st.found) lead = st.found.ids.map(function(id) { return st.leads[id]; }).filter(function(l) { return l && (l.verdict === 'pitch' || l.verdict === 'bid') && !L.contacted(st, l); })[0] || null;
+      if (!lead) return { ok: false, code: 'no_lead', error: 'no lead matches ' + JSON.stringify(String(args.lead || '').slice(0, 60)) + '; run zerackLeads find first and use one of its ids' };
+      var d = L.compose(lead, st.policy, { channel: args.route || args.channel });
+      if (!d.ok) return d;
+      d.at = now;
+      lead.draft = d;
+      lead.channel = d.channel;
+      L.record(st, lead.id, 'drafted', now, {});
+      var blocked = d.script ? null : L.why(lead, st, now);
+      var s = L.status(st, now);
+      return { d: d, lead: lead, blocked: blocked, s: s };
+    }).then(function(got) {
+      if (!got || got.ok === false) return got;
+      var d = got.d, lead = got.lead, s = got.s, blocked = got.blocked;
+      var route = lead.kind === 'job' ? lead.url : (d.channel === 'form' ? lead.website : '');
+      var line = (d.script ? 'Call script for ' : 'Draft for ') + lead.name + ', ' + d.checks.filter(function(c) { return c.ok; }).length + ' of ' + d.checks.length + ' checks pass. ' + (d.script ? 'Calls are yours to make.' : (blocked ? 'Held: ' + blocked.why + '.' : 'It can go out now, send ' + (s.sent + 1) + ' of ' + s.cap + ' today, after your press.'));
+      var result = { ok: true, action: 'draft', lead: lead.id, name: lead.name, channel: d.channel, subject: d.subject, body: d.body, checks: d.checks, sendable: !d.script && !blocked, blocked: blocked, route: route, status: s, line: line };
+      if (result.sendable) result.howToSend = 'Open ' + (route || 'their page') + ', type the subject and the body exactly as drafted with zerackPage passing lead ' + lead.id + ' on every step, then click the send button: the user presses Send in the chat.';
+      if (lead.kind === 'job' && lead.connects != null) result.connects = { needed: lead.connects, cost: lead.connectsCost };
+      return nspLeadsCard(result, {
+        kind: 'draft', line: nspLeadsClip(line, 400), lead: lead.id, name: nspLeadsClip(lead.name, 100), channel: d.channel, script: d.script === true, subject: nspLeadsClip(d.subject, 160), body: String(d.body).slice(0, 4000), chars: d.chars,
+        checks: d.checks.slice(0, 8).map(function(c) { return { ok: c.ok, what: nspLeadsClip(c.what, 120), source: nspLeadsClip(c.source, 120) }; }),
+        route: nspBuilderUrl(route), phone: nspLeadsClip(lead.phone, 40), blocked: blocked ? nspLeadsClip(blocked.why.charAt(0).toUpperCase() + blocked.why.slice(1), 240) : '', status: nspLeadsStatusView(s),
+        connects: lead.kind === 'job' && lead.connects != null ? lead.connects : null, price: lead.price ? { per: lead.price.per, bid: lead.price.bid } : null
+      });
+    });
+  }
+  return Promise.resolve({ ok: false, code: 'bad_action', error: 'action must be find, draft, status, mark or policy' });
+}
+
+function nspLeadsGate(q) {
+  var L = self.NSP_LEADS;
+  if (!L) return Promise.resolve({ ok: true });
+  q = q || {};
+  var now = Date.now();
+  return nspLeadsLoad().then(function(st) {
+    var lead = q.lead ? L.lookup(st, q.lead) : null;
+    if (q.lead && !lead) return { ok: false, code: 'no_lead', why: 'this message is not one ZERACK drafted and checked', hint: 'lead ' + String(q.lead).slice(0, 40) + ' was never drafted: run zerackLeads draft first' };
+    if (!lead) lead = L.fromTyped(st, q.typed, now);
+    var place = L.outreach(q.host, q.path);
+    if (!lead) return place ? { ok: false, code: 'lead_needed', why: 'this is ' + place + ', and only a message ZERACK drafted and checked goes out here, so the daily cap, the never-repeat list and the opt-out apply', hint: 'draft it with zerackLeads and type it with its lead id' } : { ok: true };
+    var w = L.why(lead, st, now);
+    if (w) return { ok: false, code: w.code, why: w.why, lead: lead.id };
+    var c = L.carries(lead, q.typed);
+    if (!c.ok) return { ok: false, code: 'draft_changed', why: 'the message typed on the page is missing ' + c.missing.join(' and ') + ', so it is not the checked draft', hint: 'type the draft from zerackLeads as it is', lead: lead.id };
+    var s = L.status(st, now);
+    return { ok: true, lead: { id: lead.id, name: lead.name }, line: lead.name + ': send ' + (s.sent + 1) + ' of ' + s.cap + ' today, never repeated' };
+  }, function() { return { ok: false, code: 'lead_store', why: 'the lead store could not be read, so no send is offered' }; });
+}
+
+function nspLeadsSent(id, info) {
+  var L = self.NSP_LEADS;
+  if (!L || !id) return Promise.resolve(null);
+  return nspLeadsUpdate(function(st) { return L.record(st, id, 'sent', Date.now(), { host: info && info.host, by: 'user' }); });
 }
 
 function nspChatProviders(sendResponse) {
@@ -5554,17 +6788,77 @@ function nspChatRouted(run, routes) {
   }, Promise.resolve());
 }
 
+function nspAgentOn() {
+  return new Promise(function(resolve) {
+    chrome.storage.local.get('nsp_agent_enabled', function(st) { resolve(!chrome.runtime.lastError && !!st && st.nsp_agent_enabled === true); });
+  });
+}
+
+function nspChatSite(run) {
+  if (!self.NSP_PAGE_AGENT) return Promise.resolve(null);
+  return self.NSP_PAGE_AGENT.site({ tabId: run.tabId, windowId: run.windowId }).then(function(site) {
+    if (!site) return null;
+    site.web = !!site.host && site.scriptable && !site.youtube;
+    return site;
+  }, function() { return null; });
+}
+
+function nspChatPlaybook(site, text) {
+  var P = self.NSP_PLAYBOOKS;
+  if (!P) return '';
+  if (site && site.web && site.playbook && P.get(site.playbook)) return site.playbook;
+  return P.forQuery(text);
+}
+
+function nspChatLastReply(run) {
+  return self.NSP_CHAT_STORE.getMessages(run.convId).then(function(rows) {
+    for (var i = rows.length - 1; i >= 0; i--) {
+      if (rows[i].role === 'assistant' && String(rows[i].text || '').trim()) return String(rows[i].text);
+    }
+    return '';
+  }, function() { return ''; });
+}
+
+function nspChatPageCtx(run, site) {
+  return {
+    convId: run.convId,
+    tabId: site.tabId,
+    stopped: function() { return run.stopped; },
+    agentOn: nspAgentOn,
+    add: function(role, text, meta) { return nspChatAdd(run, role, text, meta); },
+    patch: function(row, meta) { return row ? nspChatPatch(run, row, meta) : Promise.resolve(); },
+    typing: function(label) { nspChatTyping(run, label); },
+    progress: function(i, n, label) {
+      nspChatTyping(run, 'Working on the page');
+      Promise.resolve(run.toolRow).then(function(row) {
+        if (row && row.meta && row.meta.status === 'running') nspChatPatch(run, row, { tool: row.meta.tool, status: 'running', detail: 'Step ' + i + ' of ' + n + ': ' + String(label || '').slice(0, 120) });
+      });
+    },
+    lastReply: function() { return nspChatLastReply(run); },
+    ledger: function(entry) { return self.NSP_CHAT_STORE.addLedger(entry); },
+    evidence: nspDecideEvidence,
+    leads: nspLeadsGate,
+    leadSent: nspLeadsSent,
+    pace: nspPaceWait
+  };
+}
+
 function nspChatThink(run) {
   var tools = self.NSP_CHAT_TOOLS, brain = self.NSP_BRAIN, store = self.NSP_CHAT_STORE;
   if (!tools || !brain) return nspChatAdd(run, 'error', 'The assistant did not load. Reload the extension.');
   var askedAt = Date.now();
-  return new Promise(function(resolve) {
-    chrome.storage.local.get('nsp_agent_enabled', function(st) { resolve(!chrome.runtime.lastError && !!st && st.nsp_agent_enabled === true); });
-  }).then(function(agentOn) {
-    return store.getMessages(run.convId).then(function(rows) {
+  return Promise.all([nspAgentOn(), nspChatSite(run)]).then(function(got) {
+    var agentOn = got[0], site = got[1];
+    var pageTools = !!(site && site.web && agentOn);
+    if (site && site.web) run.page = nspChatPageCtx(run, site);
+    run.site = site && site.web ? { host: site.host, url: site.url } : null;
+    var brainSite = site ? { host: site.host, web: site.web, access: site.access } : null;
+    run.playbook = nspChatPlaybook(site, run.text);
+    return Promise.all([store.getMessages(run.convId), nspDecideMemory(run.site ? run.site.host : '', run.playbook)]).then(function(loaded) {
+      var rows = loaded[0];
       return tools.loop({
-        systemParts: brain.parts({ surface: 'chat', query: run.text, context: tools.context({ surface: 'chat', agentOn: agentOn, lang: run.lang }) }),
-        tools: brain.tools('chat', { agentOn: agentOn }),
+        systemParts: brain.parts({ surface: 'chat', query: run.text, site: brainSite, playbook: run.playbook, pageTools: pageTools, memory: loaded[1], context: tools.context({ surface: 'chat', agentOn: agentOn, lang: run.lang, site: brainSite }) }),
+        tools: brain.tools('chat', { agentOn: agentOn, site: brainSite, playbook: run.playbook, query: run.text }),
         messages: tools.history(rows),
         maxRounds: tools.maxRounds,
         maxSteps: tools.maxSteps,
@@ -5579,8 +6873,9 @@ function nspChatThink(run) {
           var id = name === 'zerackYouTubeAgent' ? 'chat-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 6) : '';
           if (id) run.delegate = id;
           if (NSP_CHAT_NAV_TOOLS[name] === 1) nspChatMarkHost(run);
-          nspChatTyping(run, name === 'zerackYouTubeAgent' ? 'The YouTube agent is working' : 'Working');
-          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'chat', lang: run.lang, requestId: id, chatRun: run }, resolve); }).then(function(res) {
+          nspChatTyping(run, name === 'zerackYouTubeAgent' ? 'The YouTube agent is working' : (NSP_CHAT_PAGE_TOOLS[name] === 1 ? 'Working on the page' : 'Working'));
+          var builder = name === 'zerackBuilder' || name === 'zerackLeads';
+          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'chat', lang: run.lang, requestId: id, chatRun: run, playbook: run.playbook, convId: run.convId, site: run.site, page: NSP_CHAT_PAGE_TOOLS[name] === 1 || builder ? run.page : null, allow: builder ? function(host, pattern, url) { return nspChatAdd(run, 'allow', host, { status: 'waiting', host: host, pattern: pattern, need: 'read', url: String(url || '').slice(0, 300) }); } : null }, resolve); }).then(function(res) {
             if (id) run.delegate = '';
             return res;
           });
@@ -5590,13 +6885,19 @@ function nspChatThink(run) {
           nspChatAdd(run, 'assistant', reply, { provider: String(res.provider || ''), model: String(res.modelUsed || ''), ms: Date.now() - askedAt });
         },
         onToolStart: function(name, args) {
-          return nspChatAdd(run, 'action', tools.label(name, args), { tool: name, status: 'running', detail: '' });
+          run.toolRow = nspChatAdd(run, 'action', tools.label(name, args), { tool: name, status: 'running', detail: '' });
+          return run.toolRow;
         },
         onToolEnd: function(handle, name, args, result) {
           Promise.resolve(handle).then(function(row) {
             if (!row) return;
             var failed = !result || result.ok === false;
-            nspChatPatch(run, row, { tool: name, status: failed ? 'failed' : 'done', detail: tools.note(result) });
+            var meta = { tool: name, status: failed ? 'failed' : 'done', detail: tools.note(result) };
+            if (name === 'zerackDecide' && result && result.ok === true) meta.decision = nspDecideCard(result);
+            if (name === 'zerackBuilder' && result && result.ok === true && result.card) meta.builder = result.card;
+            if (name === 'zerackLeads' && result && result.ok === true && result.card) meta.leads = result.card;
+            if (result && result.code === 'needs_evidence' && Array.isArray(result.missing)) { meta.missing = result.missing.slice(0, 5).map(function(m) { return String(m).slice(0, 300); }); if (result.evidence) meta.evidence = String(result.evidence).slice(0, 300); }
+            nspChatPatch(run, row, meta);
           });
         }
       });
@@ -5614,7 +6915,8 @@ function nspChatRun(msg, sender, sendResponse) {
   if (!convId || !text || !self.NSP_CHAT_STORE) { sendResponse({ ok: false, error: 'bad_request' }); return; }
   if (_nspChat.runs[convId]) { sendResponse({ ok: false, error: 'busy' }); return; }
   var overlay = !!(sender.tab && sender.tab.id >= 0 && sender.frameId !== 0);
-  var run = { convId: convId, text: text, lang: msg.lang === 'es' ? 'es' : 'en', tabId: overlay ? sender.tab.id : -1, stopped: false, gone: false, delegate: '', typing: '', marked: false, chain: Promise.resolve() };
+  var windowId = Number(msg.windowId);
+  var run = { convId: convId, text: text, lang: msg.lang === 'es' ? 'es' : 'en', tabId: overlay ? sender.tab.id : -1, windowId: windowId >= 0 ? windowId : -1, stopped: false, gone: false, delegate: '', typing: '', marked: false, page: null, toolRow: null, chain: Promise.resolve() };
   _nspChat.runs[convId] = run;
   nspChatBeat();
   sendResponse({ ok: true });
@@ -5636,6 +6938,7 @@ function nspChatHalt(msg) {
     if (!run || run.stopped) return;
     run.stopped = true;
     if (run.delegate) nspChatStop({ requestId: run.delegate });
+    if (self.NSP_PAGE_AGENT) self.NSP_PAGE_AGENT.halt(run.convId, run.page ? run.page.tabId : -1);
     if (msg.silent === true) run.gone = true;
     else nspChatAdd(run, 'action', 'Stopped', { status: 'failed', detail: 'You stopped this answer.' });
     nspChatEnd(run);
@@ -5646,6 +6949,39 @@ function nspChatRuns() {
   var out = {};
   Object.keys(_nspChat.runs).forEach(function(id) { out[id] = _nspChat.runs[id].typing || 'Thinking'; });
   return out;
+}
+
+function nspChatSiteInfo(msg, sender, sendResponse) {
+  var overlay = !!(sender.tab && sender.tab.id >= 0 && sender.frameId !== 0);
+  var windowId = Number(msg.windowId);
+  if (!self.NSP_PAGE_AGENT) { sendResponse({ ok: false }); return; }
+  self.NSP_PAGE_AGENT.site({ tabId: overlay ? sender.tab.id : -1, windowId: windowId >= 0 ? windowId : -1 }).then(function(site) {
+    if (!site || !site.host) { sendResponse({ ok: true, host: '' }); return; }
+    var P = self.NSP_PLAYBOOKS;
+    var pb = P && site.scriptable && !site.youtube ? P.get(site.playbook) : null;
+    sendResponse({ ok: true, host: site.host, pattern: site.pattern, access: site.access, consent: site.consent, youtube: site.youtube, web: site.scriptable && !site.youtube, playbook: pb ? { id: pb.id, name: pb.name, chips: pb.chips.slice(0, 4) } : null });
+  }, function() { sendResponse({ ok: false }); });
+}
+
+function nspChatAllowSite(msg, sendResponse) {
+  var S = self.NSP_SITES;
+  var host = String(msg.host || '').toLowerCase().slice(0, 255);
+  var mode = msg.mode === 'read' ? 'read' : 'act';
+  var pattern = String(msg.pattern || '');
+  if (!S || !host || S.hostOf(pattern.replace(/\/\*$/, '/')) !== host || S.patternOf(pattern.replace(/\/\*$/, '/')) !== pattern || S.isYouTube(host)) { sendResponse({ ok: false, error: 'bad_site' }); return; }
+  chrome.permissions.contains({ origins: [pattern] }, function(has) {
+    if (chrome.runtime.lastError || has !== true) { sendResponse({ ok: false, error: 'no_permission' }); return; }
+    nspStorageUpdate(S.key, function(map) { return S.withSite(map, host, mode, Date.now()); }).then(function() {
+      sendResponse({ ok: true, host: host, mode: mode });
+    });
+  });
+}
+
+function nspChatForgetSite(msg, sendResponse) {
+  var S = self.NSP_SITES;
+  var host = String(msg.host || '').toLowerCase().slice(0, 255);
+  if (!S || !host) { sendResponse({ ok: false }); return; }
+  nspStorageUpdate(S.key, function(map) { return S.withoutSite(map, host); }).then(function() { sendResponse({ ok: true, host: host }); });
 }
 
 function nspChatWindow() {
@@ -5824,6 +7160,11 @@ var NSP_MESSAGE_CALLERS = {
   NSP_WATCH_RUN: NSP_EXT_ONLY,
   NSP_CREATE_RUN: NSP_EXT_ONLY,
   NSP_STUDIO_PACKAGE: { studio: 1 },
+  NSP_CHAT_CONFIRM: NSP_EXT_ONLY,
+  NSP_CHAT_SITE: NSP_EXT_ONLY,
+  NSP_CHAT_ALLOW_SITE: NSP_EXT_ONLY,
+  NSP_CHAT_FORGET_SITE: NSP_EXT_ONLY,
+  NSP_DECIDE_NOW: NSP_EXT_ONLY,
   NSP_AGENT_OPEN_TAB: { ext: 1, youtube: 'grant' },
   NSP_AGENT_SEARCH_MARKET: { ext: 1, youtube: 1, studio: 1 },
   NSP_AGENT_NAVIGATE: NSP_EXT_ONLY,
@@ -6825,10 +8166,19 @@ function nspRoute(msg, sender, sendResponse, who) {
     return true;
   }
 
-  if (msg.type === 'NSP_CHAT_RUN' || msg.type === 'NSP_CHAT_HALT' || msg.type === 'NSP_CHAT_RUNS' || msg.type === 'NSP_CHAT_ROUTE' || msg.type === 'NSP_CHAT_TOOL' || msg.type === 'NSP_CHAT_OVERLAY' || msg.type === 'NSP_CHAT_STOP' || msg.type === 'NSP_CHAT_PROVIDERS') {
+  if (msg.type === 'NSP_DECIDE_NOW') {
+    nspDecideNow(msg, sender, sendResponse);
+    return true;
+  }
+
+  if (msg.type === 'NSP_CHAT_RUN' || msg.type === 'NSP_CHAT_HALT' || msg.type === 'NSP_CHAT_RUNS' || msg.type === 'NSP_CHAT_ROUTE' || msg.type === 'NSP_CHAT_TOOL' || msg.type === 'NSP_CHAT_OVERLAY' || msg.type === 'NSP_CHAT_STOP' || msg.type === 'NSP_CHAT_PROVIDERS' || msg.type === 'NSP_CHAT_CONFIRM' || msg.type === 'NSP_CHAT_SITE' || msg.type === 'NSP_CHAT_ALLOW_SITE' || msg.type === 'NSP_CHAT_FORGET_SITE') {
     nspChatTrusted(sender).then(function(ok) {
       if (!ok) { sendResponse({ ok: false, error: 'not_allowed' }); return; }
-      if (msg.type === 'NSP_CHAT_RUN') nspChatRun(msg, sender, sendResponse);
+      if (msg.type === 'NSP_CHAT_CONFIRM') sendResponse({ ok: !!self.NSP_PAGE_AGENT && self.NSP_PAGE_AGENT.confirm(String(msg.convId || ''), String(msg.pressId || ''), msg.yes === true) });
+      else if (msg.type === 'NSP_CHAT_SITE') nspChatSiteInfo(msg, sender, sendResponse);
+      else if (msg.type === 'NSP_CHAT_ALLOW_SITE') nspChatAllowSite(msg, sendResponse);
+      else if (msg.type === 'NSP_CHAT_FORGET_SITE') nspChatForgetSite(msg, sendResponse);
+      else if (msg.type === 'NSP_CHAT_RUN') nspChatRun(msg, sender, sendResponse);
       else if (msg.type === 'NSP_CHAT_HALT') { nspChatHalt(msg); sendResponse({ ok: true }); }
       else if (msg.type === 'NSP_CHAT_RUNS') sendResponse({ ok: true, runs: nspChatRuns() });
       else if (msg.type === 'NSP_CHAT_ROUTE') nspChatRoute(msg, sendResponse);

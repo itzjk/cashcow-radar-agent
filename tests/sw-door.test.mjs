@@ -127,4 +127,44 @@ for (const type of ["NSP_AGENT_LIST_TABS", "NSP_AGENT_SWITCH_TAB", "NSP_AGENT_CL
   check("policy routes refuse youtube.com", res && res.error === "sender_not_allowed", res);
 }
 
+// The press and the site consent answer only the extension's own chat page.
+for (const type of ["NSP_CHAT_CONFIRM", "NSP_CHAT_ALLOW_SITE", "NSP_CHAT_FORGET_SITE", "NSP_CHAT_SITE"]) {
+  for (const who of ["site", "youtube"]) {
+    const w = loadWorker({ allSites: true });
+    const res = await w.send({ type, convId: "c_x", pressId: "a".repeat(32), yes: true, host: "example.com", pattern: "https://example.com/*", mode: "act" }, SENDERS[who]);
+    check(type + " from " + who + " is refused", res && /not_allowed/.test(String(res.error)), res);
+    check(type + " from " + who + " stores no site", !w.local.nsp_agent_sites, w.local.nsp_agent_sites);
+  }
+}
+{
+  const w = loadWorker({ allSites: true });
+  const res = await w.send({ type: "NSP_CHAT_ALLOW_SITE", host: "example.com", pattern: "https://example.com/*", mode: "act" }, SENDERS.popup);
+  check("the popup is not the chat, so it cannot allow a site either", res && res.error === "not_allowed" && !w.local.nsp_agent_sites, res);
+  const chat = { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=panel" };
+  const ok = await w.send({ type: "NSP_CHAT_ALLOW_SITE", host: "example.com", pattern: "https://example.com/*", mode: "act" }, chat);
+  check("the chat page allows a site Chrome already granted", ok && ok.ok === true && w.local.nsp_agent_sites && w.local.nsp_agent_sites["example.com"].mode === "act", ok);
+  const bad = await w.send({ type: "NSP_CHAT_ALLOW_SITE", host: "example.com", pattern: "https://*/*", mode: "act" }, chat);
+  check("a pattern wider than the host is refused", bad && bad.error === "bad_site", bad);
+  const yt = await w.send({ type: "NSP_CHAT_ALLOW_SITE", host: "www.youtube.com", pattern: "https://www.youtube.com/*", mode: "act" }, chat);
+  check("YouTube is not a site to allow here", yt && yt.error === "bad_site", yt);
+  const gone = await w.send({ type: "NSP_CHAT_FORGET_SITE", host: "example.com" }, chat);
+  check("the chat page can take a site back", gone && gone.ok === true && !w.local.nsp_agent_sites["example.com"], w.local.nsp_agent_sites);
+  const none = await w.send({ type: "NSP_CHAT_CONFIRM", convId: "c_x", pressId: "a".repeat(32), yes: true }, chat);
+  check("a confirm with no press waiting confirms nothing", none && none.ok === false, none);
+}
+// Measure now opens a tab and reads a page, so only the activity page, as a page of its own, may ask for it.
+for (const [who, sender] of [["site", SENDERS.site], ["youtube", SENDERS.youtube], ["popup", SENDERS.popup], ["chat", { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=overlay", tab: { id: 14 }, frameId: 3 }], ["another extension", SENDERS.otherExtension]]) {
+  const w = loadWorker({ allSites: true });
+  const res = await w.send({ type: "NSP_DECIDE_NOW", id: 1 }, sender);
+  check("NSP_DECIDE_NOW from " + who + " is refused", res === undefined || /not_allowed/.test(String(res && res.error)), res);
+  check("NSP_DECIDE_NOW from " + who + " opens no tab", !w.calls.some(c => c.api === "tabs.create"), w.calls.map(c => c.api));
+}
+
+{
+  const w = loadWorker({ allSites: false });
+  const chat = { id: SENDERS.popup.id, url: EXT + "chat/chat.html?mode=panel" };
+  const res = await w.send({ type: "NSP_CHAT_ALLOW_SITE", host: "example.com", pattern: "https://example.com/*", mode: "act" }, chat);
+  check("a site Chrome has not granted is not stored", res && res.error === "no_permission" && !w.local.nsp_agent_sites, res);
+}
+
 done("sw-door");

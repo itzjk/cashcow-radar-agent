@@ -57,6 +57,14 @@ for (const label of NEVER) {
 }
 check("a refusal names what and where", /Withdraw funds.*shop\.example\.com\/products\/1: it moves money/.test(click("Withdraw funds").reason), click("Withdraw funds").reason);
 check("the never list does not stop a link that only navigates", free(click("Transfer window news", "www.youtube.com/results", { link: true })), click("Transfer window news", "www.youtube.com/results", { link: true }));
+for (const label of ["Withdraw funds", "Withdraw", "Release payment", "Request payout", "Payouts", "Cash out", "Transfer to bank", "Send money", "Add bank account", "Transfer ownership", "Delete account", "Close my account"]) {
+  const d = click(label, "seller.example.com/balance", { link: true });
+  check('a link labelled "' + label + '" is refused outside YouTube', refused(d), d);
+}
+check("a money-out link on a checkout path is refused, not waved through as navigation", refused(click("Withdraw funds", "seller.example.com/billing", { link: true })));
+check("a link only counts when its own label starts with the words", free(click("How to withdraw funds safely", "blog.example.com/", { link: true })) && free(click("Our payouts policy explained in detail", "blog.example.com/", { link: true })));
+check("a link to the password settings page still navigates", free(click("Change password", "shop.example.com/account", { link: true })));
+check("an ancestor label of a link counts only when it starts with the words", refused(G.check({ names: ["", "Withdraw funds"], host: "seller.example.com", path: "/", link: true, what: "click" })) && free(G.check({ names: ["Open", "Learn how to withdraw"], host: "seller.example.com", path: "/", link: true, what: "click" })));
 
 const card = { cardFields: true };
 check("with card fields on the page any button counts as Pay", needsPress(click("Continue", "shop.example.com/step", card)) && click("Continue", "shop.example.com/step", card).kind === "Pay");
@@ -112,6 +120,34 @@ check("an autocomplete cc- field is sensitive", G.sensitiveField({ autocomplete:
 check("ids with separators are read as words", G.sensitiveField({ hint: "api_key" }) === true && G.sensitiveField({ hint: "tax-id" }) === true);
 
 check("payment frames are recognised by host", G.paymentFrame("https://js.stripe.com/v3/elements-inner-card.html") && G.paymentFrame("https://www.paypal.com/smart/buttons") && G.paymentFrame("https://shop.app/pay") && !G.paymentFrame("https://www.youtube.com/embed/x") && !G.paymentFrame("https://evilstripe.com/x"));
+
+const SHOP_ADMIN = "https://example-shop.com/admin/orders/1";
+for (const [label, want] of [["Fulfill items", "Fulfill"], ["Fulfill", "Fulfill"], ["Mark as fulfilled", "Fulfill"], ["Mark as shipped", "Fulfill"], ["Confirm shipment", "Fulfill"], ["DM", "Send"], ["Direct message", "Send"], ["Send DM", "Send"]]) {
+  const d = click(label, SHOP_ADMIN);
+  check('"' + label + '" waits for a press as ' + want + " on any site, the words the last check flagged", needsPress(d) && d.kind === want, d);
+}
+check("Fulfill is one of the kinds the gate names", G.kinds.includes("Fulfill") && G.version === 4);
+for (const label of ["Place your order", "Boost listing", "Promote", "Launch campaign", "Set daily budget", "Renew", "Upgrade", "Refund", "Buy shipping label", "Confirm and pay"]) {
+  const d = click(label);
+  check('"' + label + '" asks as Pay and counts as spending, so it needs evidence first', needsPress(d) && d.kind === "Pay" && d.spend === true, d);
+}
+for (const label of ["Capture payment", "Mark as paid", "Collect payment", "Charge customer", "Mark order as paid"]) {
+  const d = click(label, SHOP_ADMIN, { kind: "Pay" });
+  check('"' + label + '" asks as Pay but brings money in, so it is not spending', needsPress(d) && d.kind === "Pay" && d.spend === false, d);
+}
+check("a payment page press counts as spending", click("Continue", "shop.example.com/checkout").spend === true && click("Continue", "shop.example.com/products/1", { cardFields: true }).spend === true);
+check("a press that is not Pay carries no spending flag", !("spend" in click("Publish")) && !("spend" in click("Delete")));
+check("the hands pass the spending flag on with the press", /out\.spend = d\.spend !== false/.test(source("lib/nsp-hands.js")));
+check("hands that confirm in the page themselves ask an evidence hook before a spending press, and without one say what is missing", /var spends = d\.kind === 'Pay' && d\.spend !== false;/.test(source("lib/nsp-hands.js")) && /typeof hooks\.evidence === 'function'/.test(source("lib/nsp-hands.js")) && /code: 'needs_evidence'/.test(source("lib/nsp-hands.js")));
+check("a Fulfill link that only opens a page stays free", free(click("Fulfillment settings", SHOP_ADMIN, { link: true })) && free(click("Unfulfilled", SHOP_ADMIN, { link: true })));
+{
+  const rules = G.compileRules({ press: [{ kind: "Fulfill", source: "^(complete (the )?order)\\b" }, { kind: "Nope", source: "^x" }, { kind: "Pay", source: "(" }], never: [{ why: "it is the playbook's own no", source: "^(disavow)" }, { source: "^y" }] });
+  check("playbook words compile, and a bad kind, a broken pattern or a missing reason are dropped", rules.press.length === 1 && rules.never.length === 1 && typeof rules.press[0].re.test === "function");
+  check("a playbook word outranks the general word list", click("Complete order", "https://www.etsy.com/your/orders", { rules }).kind === "Fulfill" && click("Complete order", "https://shop.example.com/checkout").kind === "Pay");
+  check("a playbook never refuses even with a press forced", refused(click("Disavow links", "https://search.google.com/search-console", { rules, kind: "Pay" })));
+  check("playbook words never reach a field's typing check", free(G.check({ names: ["Complete order"], host: "www.etsy.com", path: "/", field: true, what: "type", rules })));
+  check("the hands compile the words they are given once and pass them to every check", /G\.compileRules\(hooks\.rules\)/.test(source("lib/nsp-hands.js")) && /rules: RULES/.test(source("lib/nsp-hands.js")));
+}
 
 const manifest = JSON.parse(source("manifest.json"));
 const main = (manifest.content_scripts || []).find(c => c.world === "MAIN" && (c.js || []).includes("content/nsp-bundle.js"));

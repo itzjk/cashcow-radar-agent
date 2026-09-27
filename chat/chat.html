@@ -55,10 +55,13 @@
       <div id="more-menu" class="menu down" role="menu" hidden>
         <button class="menu-item" type="button" data-act="rename" role="menuitem">Rename this chat</button>
         <button class="menu-item" type="button" data-act="delete" role="menuitem">Delete this chat</button>
+        <button class="menu-item" type="button" data-act="site-allow" role="menuitem" hidden>Let ZERACK work on this site</button>
+        <button class="menu-item" type="button" data-act="site-forget" role="menuitem" hidden>Stop ZERACK on this site</button>
         <button class="menu-item" type="button" data-act="hide-site" role="menuitem">Hide the bubble on this site</button>
         <button class="menu-item" type="button" data-act="clear-voice" role="menuitem">Clear the voice history</button>
         <button class="menu-item danger" type="button" data-act="delete-all" role="menuitem">Delete all conversations</button>
         <div class="menu-sep"></div>
+        <button class="menu-item" type="button" data-act="activity" role="menuitem">Activity, decisions and lessons</button>
         <button class="menu-item" type="button" data-act="setup" role="menuitem">Keys and voice setup</button>
         <button class="menu-item" type="button" data-act="close" role="menuitem">Close the chat</button>
       </div>
@@ -68,6 +71,7 @@
       <div id="empty" class="empty">
         <img class="empty-mark" src="../icons/zerack-mark.svg" alt="" width="132" height="132"/>
         <div class="empty-word">ZERACK</div>
+        <div id="empty-tag" class="empty-tag" hidden><span class="empty-tag-dot"></span><span id="empty-tag-text"></span></div>
         <p class="empty-line">Private assistant. Your keys, your machine.</p>
         <div id="intel-group" class="chip-group" hidden>
           <div id="intel-head" class="chip-head">This channel</div>
@@ -86,7 +90,7 @@
           <div id="create-chips" class="chips create-row"></div>
         </div>
         <div class="chip-head">Ask anything</div>
-        <div class="chips">
+        <div id="ask-chips" class="chips">
           <button class="chip" type="button">Open YouTube</button>
           <button class="chip" type="button">What niche should I start this week?</button>
           <button class="chip" type="button">Read my saved niches and pick the best one</button>
