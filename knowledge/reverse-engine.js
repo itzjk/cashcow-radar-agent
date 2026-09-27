@@ -25,7 +25,7 @@
 
   function getMetric(v) {
     if (!v) return 0;
-    var fields = ['vph', 'viewsPerHour', 'viewsNum', 'viewCountNum', 'views', 'viewCount'];
+    var fields = ['vph', 'viewsPerHour', 'viewsNum', 'viewCountNum', 'views', 'viewCount', 'metric'];
     for (var i = 0; i < fields.length; i++) {
       if (v[fields[i]] != null) {
         var n = parseNum(v[fields[i]]);

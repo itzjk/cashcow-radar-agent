@@ -40,8 +40,8 @@
   var GUARDED = { 'agent-pill': 'The Agent switch', hf: 'Hands-free', 'delete': 'Deleting', 'delete-all': 'Deleting', 'clear-voice': 'Clearing', 'site-allow': 'Allowing a site', 'site-forget': 'Changing a site' };
   var PRESS_MIN_MS = 500;
   var ROLE_SUFFIX = { button: '', link: ' link', textbox: ' field', searchbox: ' search box', combobox: ' menu', listbox: ' list', tab: ' tab', checkbox: ' checkbox', 'switch': ' switch', radio: ' option', option: '', menuitem: '', menuitemradio: '', menuitemcheckbox: '' };
-  var PRESS_VERBS = { Pay: 'Pay', Publish: 'Publish', Send: 'Send', Delete: 'Delete' };
-  var PRESS_WHY = { Pay: 'It spends money.', Publish: 'It changes what the public sees.', Send: 'It sends something in your name.', Delete: 'It removes something for good.' };
+  var PRESS_VERBS = { Pay: 'Pay', Publish: 'Publish', Send: 'Send', Delete: 'Delete', Fulfill: 'Fulfill' };
+  var PRESS_WHY = { Pay: 'It moves money.', Publish: 'It changes what the public sees.', Send: 'It sends something in your name.', Delete: 'It removes something for good.', Fulfill: 'It tells the buyer the order is on its way.' };
   var PRESS_DONE = {
     done: 'You pressed it and it ran.',
     failed: 'You pressed it, but it did not run.',
@@ -800,10 +800,16 @@
   }
 
   function paintChips() {
-    var list = S.site && S.site.web ? WEB_CHIPS : YT_CHIPS;
+    var pb = S.site && S.site.web && S.site.playbook && Array.isArray(S.site.playbook.chips) ? S.site.playbook : null;
+    var list = pb && pb.chips.length ? pb.chips : (S.site && S.site.web ? WEB_CHIPS : YT_CHIPS);
     Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (chip, i) {
-      if (list[i]) chip.textContent = list[i];
+      if (list[i]) chip.textContent = String(list[i]).slice(0, 80);
     });
+    var tag = $('empty-tag');
+    if (tag) {
+      tag.hidden = !pb;
+      $('empty-tag-text').textContent = pb ? String(pb.name).slice(0, 30) + ' playbook' : '';
+    }
   }
 
   function tickPresses() {

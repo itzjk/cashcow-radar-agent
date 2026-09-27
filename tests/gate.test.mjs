@@ -121,6 +121,22 @@ check("ids with separators are read as words", G.sensitiveField({ hint: "api_key
 
 check("payment frames are recognised by host", G.paymentFrame("https://js.stripe.com/v3/elements-inner-card.html") && G.paymentFrame("https://www.paypal.com/smart/buttons") && G.paymentFrame("https://shop.app/pay") && !G.paymentFrame("https://www.youtube.com/embed/x") && !G.paymentFrame("https://evilstripe.com/x"));
 
+const SHOP_ADMIN = "https://example-shop.com/admin/orders/1";
+for (const [label, want] of [["Fulfill items", "Fulfill"], ["Fulfill", "Fulfill"], ["Mark as fulfilled", "Fulfill"], ["Mark as shipped", "Fulfill"], ["Confirm shipment", "Fulfill"], ["DM", "Send"], ["Direct message", "Send"], ["Send DM", "Send"]]) {
+  const d = click(label, SHOP_ADMIN);
+  check('"' + label + '" waits for a press as ' + want + " on any site, the words the last check flagged", needsPress(d) && d.kind === want, d);
+}
+check("Fulfill is one of the kinds the gate names", G.kinds.includes("Fulfill") && G.version === 3);
+check("a Fulfill link that only opens a page stays free", free(click("Fulfillment settings", SHOP_ADMIN, { link: true })) && free(click("Unfulfilled", SHOP_ADMIN, { link: true })));
+{
+  const rules = G.compileRules({ press: [{ kind: "Fulfill", source: "^(complete (the )?order)\\b" }, { kind: "Nope", source: "^x" }, { kind: "Pay", source: "(" }], never: [{ why: "it is the playbook's own no", source: "^(disavow)" }, { source: "^y" }] });
+  check("playbook words compile, and a bad kind, a broken pattern or a missing reason are dropped", rules.press.length === 1 && rules.never.length === 1 && typeof rules.press[0].re.test === "function");
+  check("a playbook word outranks the general word list", click("Complete order", "https://www.etsy.com/your/orders", { rules }).kind === "Fulfill" && click("Complete order", "https://shop.example.com/checkout").kind === "Pay");
+  check("a playbook never refuses even with a press forced", refused(click("Disavow links", "https://search.google.com/search-console", { rules, kind: "Pay" })));
+  check("playbook words never reach a field's typing check", free(G.check({ names: ["Complete order"], host: "www.etsy.com", path: "/", field: true, what: "type", rules })));
+  check("the hands compile the words they are given once and pass them to every check", /G\.compileRules\(hooks\.rules\)/.test(source("lib/nsp-hands.js")) && /rules: RULES/.test(source("lib/nsp-hands.js")));
+}
+
 const manifest = JSON.parse(source("manifest.json"));
 const main = (manifest.content_scripts || []).find(c => c.world === "MAIN" && (c.js || []).includes("content/nsp-bundle.js"));
 const order = main ? main.js : [];

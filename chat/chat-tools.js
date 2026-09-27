@@ -19,7 +19,25 @@
     zerackOpenPage: 'Open a ZERACK page',
     zerackYouTubeAgent: 'Ask the YouTube agent',
     zerackPage: 'On the page',
-    zerackPagePlan: 'On the page'
+    zerackPagePlan: 'On the page',
+    zerackExtract: 'Read the numbers on the page',
+    zerackPlaybook: 'Read the playbook',
+    zerackBreakEven: 'Work out the break-even'
+  };
+
+  var READER_LABELS = {
+    'etsy.grid': 'Read the Etsy listings on the page',
+    'etsy.shop': 'Read the Etsy shop on the page',
+    'etsy.listing': 'Read the Etsy listing on the page',
+    'shopify.products': 'Read the store catalog',
+    'shopify.grid': 'Read the products on the page',
+    'shopify.orders': 'Read the orders on the page',
+    'shopify.admin-products': 'Read the products on the page',
+    'gsc.queries': 'Read the Search Console table',
+    'wp.posts': 'Read the posts on the page',
+    'github.issues': 'Read the issues on the page',
+    'stripe.subscriptions': 'Read the Stripe list on the page',
+    'stripe.payments': 'Read the Stripe payments on the page'
   };
 
   var BROWSER_LABELS = {
@@ -51,6 +69,8 @@
   function label(name, args) {
     args = args && typeof args === 'object' ? args : {};
     if (name === 'zerackPage') return pageStep(args);
+    if (name === 'zerackExtract') return READER_LABELS[String(args.reader || '')] || LABELS.zerackExtract;
+    if (name === 'zerackBreakEven') return args.price != null && args.price !== '' ? 'Work out what a ' + clip('$' + args.price, 12) + ' sale leaves' : LABELS.zerackBreakEven;
     if (name === 'zerackPagePlan') {
       var n = Array.isArray(args.steps) ? args.steps.length : 0;
       return n === 1 ? pageStep(args.steps[0]) : 'Run ' + n + ' steps on the page';
@@ -88,6 +108,10 @@
     if (result.ok === false && result.code === 'read_only') return 'Only reading is allowed on ' + (result.host || 'this site');
     if (result.ok === false && result.code === 'refused' && result.why) return clip('Refused: ' + result.why + '. Only you can do this', 160);
     if (result.ok === false && result.code === 'sensitive') return 'Refused: this field is yours to fill in';
+    if (result.ok === false && result.code === 'drift') return 'The site changed this page, so nothing was reported instead of a wrong number';
+    if (result.ok === false && result.code === 'not_exposed') return 'This site hides that data: hidden, not empty';
+    if (result.ok === false && result.code === 'kept_read_only') return clip('ZERACK only reads ' + (result.host || 'this site') + ': this step is yours', 160);
+    if (result.ok === false && result.code === 'missing' && Array.isArray(result.missing)) return clip('Needs ' + result.missing.join(' and ') + ' from you first', 160);
     if (result.ok === false && PAGE_ENDS[result.code]) return PAGE_ENDS[result.code];
     if (result.ok === false) return clip(result.error || result.code || 'failed', 160);
     if (typeof result.ran === 'number' && typeof result.of === 'number') return result.ran + ' of ' + result.of + ' steps done';
@@ -103,7 +127,7 @@
     if (page) return clip(page + (result.nowAt ? ', now at ' + address(result.nowAt) : ''), 160);
     if (result.pageData) return clip(result.read ? 'Read ' + roleless(result.read) : (result.title ? 'Read "' + result.title + '"' : 'Read ' + address(result.url || 'the page')), 160);
     if (result.nowAt) return clip('Now at ' + address(result.nowAt), 160);
-    if (typeof result.line === 'string' && result.line) return clip(result.line, 160);
+    if (typeof result.line === 'string' && result.line) return clip((result.sinceLast && result.sinceLast.line ? result.sinceLast.line + ' ' : '') + result.line, 360);
     if (typeof result.answer === 'string' && result.answer) return clip(result.answer, 160);
     if (typeof result.count === 'number') return result.count + ' items';
     if (typeof result.exported === 'number') return result.exported + ' exported';

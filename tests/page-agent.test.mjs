@@ -11,6 +11,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 function fakeHands(page) {
   return function create(hooks) {
     let held = null;
+    page.rules = hooks.rules;
     const acts = {
       click(a) {
         const t = String(a.target || "");
@@ -63,7 +64,7 @@ function world(opts = {}) {
   const tabs = {};
   function newPage(id, url) {
     const page = {
-      id, url, status: "complete", cart: 0, placed: 0, holds: 0, released: 0, fields: {}, steps: [], stopCalls: 0,
+      id, url, status: "complete", cart: 0, placed: 0, holds: 0, released: 0, fields: {}, steps: [], stopCalls: 0, reads: [], rules: undefined,
       doc: { n: Math.random() },
       go(next) { page.url = next; page.status = "loading"; page.doc = { n: Math.random() }; page.ctx = null; setTimeout(() => { page.status = "complete"; }, 5); }
     };
@@ -92,6 +93,7 @@ function world(opts = {}) {
         }
         if (inj.files) {
           if (inj.files.indexOf("lib/nsp-hands.js") >= 0) page.ctx.NSP_HANDS = Object.freeze({ create: fakeHands(page) });
+          if (inj.files.indexOf("lib/nsp-extract.js") >= 0) page.ctx.NSP_EXTRACT = Object.freeze({ read(id, o) { page.reads.push({ id, o: JSON.parse(JSON.stringify(o || {})) }); return Promise.resolve({ ok: true, reader: id || "etsy.grid", count: 1, rows: [{ title: "Oak board", price: 41 }] }); } });
           return Promise.resolve([{ result: undefined }]);
         }
         const fn = vm.runInContext("(" + inj.func.toString() + ")", page.ctx);
@@ -102,7 +104,8 @@ function world(opts = {}) {
   const ctx = { chrome, console, crypto: webcrypto, URL, Promise, Uint8Array, setTimeout: (fn, ms) => setTimeout(fn, (Number(ms) || 0) / SCALE), clearTimeout };
   ctx.self = ctx;
   vm.createContext(ctx);
-  for (const f of ["lib/nsp-sites.js", "background/nsp-page-agent.js"]) vm.runInContext(readFileSync(join(ROOT, f), "utf8"), ctx, { filename: f });
+  const files = (opts.playbooks ? ["knowledge/playbooks/etsy.js", "knowledge/playbooks/shopify.js", "knowledge/playbooks/seo.js", "knowledge/playbooks/builders.js", "knowledge/playbooks/index.js"] : []).concat(["lib/nsp-sites.js", "background/nsp-page-agent.js"]);
+  for (const f of files) vm.runInContext(readFileSync(join(ROOT, f), "utf8"), ctx, { filename: f });
   let stopped = false;
   let agentOn = opts.agentOn !== false;
   let nextRow = 1;
@@ -317,6 +320,65 @@ async function pressCase(how) {
   const unknown = await w.A.run("zerackPage", { action: "delete" }, w.run(5));
   check("an unknown action is named in the error", unknown.ok === false && /unknown action "delete"/.test(unknown.error), unknown);
   check("step labels read as plain words", w.A.stepLabel({ action: "type", text: "Linen apron", target: '"Title"' }) === 'Type "Linen apron" into "Title"' && w.A.stepLabel({ action: "navigate", url: "http://shop.test/cart" }) === "Go to http://shop.test/cart");
+}
+
+{
+  const w = world({ playbooks: true, sites: { "admin.shopify.com": { mode: "act", since: 1 } }, granted: ["https://admin.shopify.com/*"] });
+  w.newPage(5, "https://admin.shopify.com/store/northwind/orders/1001");
+  const r = await w.A.run("zerackPage", { action: "read" }, w.run(5));
+  const rules = w.tabs[5].rules;
+  check("on a Shopify admin page the hands start with the Shopify gate words", r.ok && rules && rules.press.some(p => p.kind === "Fulfill" && /fulfill/.test(p.source)) && rules.never.length === 2, rules);
+  check("the words travel as plain strings", rules.press.every(p => typeof p.source === "string") && !JSON.stringify(rules).includes("RegExp"));
+  check("the site record names its playbook", w.A.playbookOf("https://admin.shopify.com/store/x") === "shopify" && w.A.playbookOf("https://shop.test/") === "");
+  const plain = world({ playbooks: true, sites: shopSite, granted: ["http://shop.test/*"] });
+  plain.newPage(6, SHOP + "/product");
+  await plain.A.run("zerackPage", { action: "read" }, plain.run(6));
+  check("a site with no playbook starts the hands with no extra words", plain.tabs[6].rules === null, plain.tabs[6].rules);
+}
+
+{
+  const w = world({ playbooks: true, sites: { "www.etsy.com": { mode: "read", since: 1 } }, granted: ["https://www.etsy.com/*"] });
+  w.newPage(5, "https://www.etsy.com/search?q=oak+board");
+  const r = await w.A.run("zerackExtract", {}, w.run(5));
+  const inj = w.calls.filter(c => c.api === "executeScript");
+  check("reading the page injects the readers as a file into the isolated top frame", inj.some(c => c.files && c.files.join() === "lib/nsp-extract.js") && inj.every(c => c.world === "ISOLATED" && JSON.stringify(c.frameIds) === "[0]"), inj);
+  check("the Etsy search picks the Etsy grid reader and the answer names the host and playbook", r.ok && w.tabs[5].reads[0].id === "etsy.grid" && r.host === "www.etsy.com" && r.playbook === "etsy", r);
+  check("read consent is enough to read the page as numbers", r.ok === true);
+  await w.A.run("zerackExtract", { reader: "shopify.products", limit: 900 }, w.run(5));
+  check("a reader asked for by name is used, and the row limit is capped at 250", w.tabs[5].reads[1].id === "shopify.products" && w.tabs[5].reads[1].o.limit === 250, w.tabs[5].reads[1]);
+  check("the readers stay on the page between reads", w.calls.filter(c => c.files && c.files.join() === "lib/nsp-extract.js").length === 1);
+}
+
+{
+  const w = world({ playbooks: true, sites: { "search.google.com": { mode: "read", since: 1 } }, granted: ["https://search.google.com/*"] });
+  w.newPage(5, "https://search.google.com/search-console/performance/search-analytics?resource_id=x");
+  const r = await w.A.run("zerackExtract", {}, w.run(5));
+  const o = w.tabs[5].reads[0];
+  check("Search Console reads its table with the columns the SEO playbook names", r.ok && o.id === "table" && o.o.as === "gsc.queries" && o.o.columns.impressions[0] === "impressions" && r.asked === "gsc.queries", o);
+}
+
+{
+  const w = world({ playbooks: true, granted: ["https://www.etsy.com/*"] });
+  w.newPage(5, "https://www.etsy.com/search?q=oak");
+  const r = await w.A.run("zerackExtract", {}, w.run(5));
+  check("with no consent, reading the page asks for Allow and reads nothing", r.code === "site_not_allowed" && w.rows.some(x => x.role === "allow" && x.meta.need === "read") && !w.calls.some(c => c.api === "executeScript"), r);
+  const off = world({ playbooks: true, agentOn: false, sites: { "www.etsy.com": { mode: "act", since: 1 } }, granted: ["https://www.etsy.com/*"] });
+  off.newPage(5, "https://www.etsy.com/search?q=oak");
+  const r2 = await off.A.run("zerackExtract", {}, off.run(5));
+  check("with the Agent switch off the page is not read", r2.code === "agent_off" && !off.calls.some(c => c.api === "executeScript"), r2);
+}
+
+{
+  const w = world({ playbooks: true, sites: { "dashboard.stripe.com": { mode: "act", since: 1 } }, granted: ["https://dashboard.stripe.com/*"] });
+  w.newPage(5, "https://dashboard.stripe.com/subscriptions");
+  const click = await w.A.run("zerackPage", { action: "click", target: 'the "Cancel subscription" button' }, w.run(5));
+  check("Stripe stays read only even with full consent: a click is refused before the page is touched", click.code === "kept_read_only" && /only reads dashboard\.stripe\.com/.test(click.error) && !w.calls.some(c => c.api === "executeScript"), click);
+  const type = await w.A.run("zerackPage", { action: "type", target: '"Search"', text: "past due" }, w.run(5));
+  check("and so is typing", type.code === "kept_read_only");
+  const read = await w.A.run("zerackPage", { action: "read" }, w.run(5));
+  check("reading Stripe works", read.ok === true, read);
+  const nav = await w.A.run("zerackPage", { action: "navigate", url: "https://dashboard.stripe.com/payments" }, w.run(5));
+  check("moving to another Stripe page is a read, so it runs", nav.ok === true && w.tabs[5].url === "https://dashboard.stripe.com/payments", nav);
 }
 
 done("page-agent");

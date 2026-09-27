@@ -6,6 +6,8 @@
   var LOAD_MS = 25000;
   var PLAN_MAX = 30;
   var HANDS_FILES = ['lib/nsp-gate.js', 'lib/nsp-hands.js'];
+  var EXTRACT_FILES = ['lib/nsp-extract.js'];
+  var EXTRACT_MAX = 250;
   var ACTIONS = {
     read: 'read', wait: 'read', scroll: 'read',
     click: 'act', press: 'act', tap: 'act',
@@ -21,6 +23,40 @@
 
   function sites() {
     return root.NSP_SITES;
+  }
+
+  function playbooks() {
+    var P = root.NSP_PLAYBOOKS;
+    return P && typeof P.forHost === 'function' ? P : null;
+  }
+
+  function where(url) {
+    try {
+      var u = new URL(String(url || ''));
+      return { host: u.hostname.toLowerCase(), path: u.pathname || '/' };
+    } catch (e) { return { host: '', path: '/' }; }
+  }
+
+  function playbookOf(url) {
+    var P = playbooks();
+    if (!P) return '';
+    var w = where(url);
+    return w.host ? P.forHost(w.host, w.path) : '';
+  }
+
+  function rulesFor(url) {
+    var P = playbooks();
+    if (!P) return null;
+    var w = where(url);
+    var r = P.gateRules(w.host, w.path);
+    return r && (r.press.length || r.never.length) ? { press: r.press, never: r.never } : null;
+  }
+
+  function keptReadOnly(url) {
+    var P = playbooks();
+    if (!P || typeof P.readOnly !== 'function') return null;
+    var w = where(url);
+    return P.readOnly(w.host, w.path);
   }
 
   function clip(s, n) {
@@ -113,18 +149,18 @@
           chrome: acc.chrome,
           youtube: S.isYouTube(acc.host),
           scriptable: S.scriptable(url),
-          playbook: S.playbookFor(acc.host)
+          playbook: playbookOf(url) || S.playbookFor(acc.host)
         };
       });
     });
   }
 
-  function bootHands() {
+  function bootHands(rules) {
     var p = self.__zerackPage;
     if (p && p.doc === document) return 'ready';
     if (!self.NSP_HANDS || typeof self.NSP_HANDS.create !== 'function') return 'missing';
     var state = { stop: false };
-    var hands = self.NSP_HANDS.create({ hold: true, ledger: true, stopped: function () { return state.stop; } });
+    var hands = self.NSP_HANDS.create({ hold: true, ledger: true, rules: rules || null, stopped: function () { return state.stop; } });
     self.__zerackPage = { doc: document, state: state, hands: hands };
     return 'ready';
   }
@@ -167,11 +203,11 @@
     return Promise.race([run, late]).then(function (r) { clearTimeout(timer); return r; });
   }
 
-  function inject(tabId) {
+  function inject(tabId, rules) {
     return new Promise(function (resolve) {
       try {
         chrome.scripting.executeScript({ target: { tabId: tabId, frameIds: [0] }, world: 'ISOLATED', files: HANDS_FILES }).then(function () {
-          exec(tabId, bootHands, []).then(function (r) { resolve(r.ok && r.value === 'ready' ? { ok: true } : { ok: false, error: r.error || 'the hands did not start on the page' }); });
+          exec(tabId, bootHands, [rules || null]).then(function (r) { resolve(r.ok && r.value === 'ready' ? { ok: true } : { ok: false, error: r.error || 'the hands did not start on the page' }); });
         }, function (e) { resolve({ ok: false, error: String((e && e.message) || e) }); });
       } catch (e) { resolve({ ok: false, error: String((e && e.message) || e) }); }
     });
@@ -181,10 +217,10 @@
     return /cannot access|permission|must request|not allowed/i.test(String(error || ''));
   }
 
-  function inPage(tabId, func, args) {
+  function inPage(tabId, func, args, rules) {
     return exec(tabId, func, args).then(function (r) {
       if (!r.ok || !r.value || r.value.code !== 'no_hands') return r;
-      return inject(tabId).then(function (boot) {
+      return inject(tabId, rules).then(function (boot) {
         if (!boot.ok) return { ok: false, error: boot.error };
         return exec(tabId, func, args);
       });
@@ -388,8 +424,11 @@
         var url = String(tab.url || '');
         if (!sites().scriptable(url)) return { ok: false, code: 'not_scriptable', error: 'ZERACK cannot work on this page (' + clip(url, 80) + '). Only web pages can be read and acted on.' };
         return accessFor(url).then(function (acc) {
-          var info = { host: acc.host, pattern: acc.pattern, access: acc.access, playbook: sites().playbookFor(acc.host) };
+          var info = { host: acc.host, pattern: acc.pattern, access: acc.access, playbook: playbookOf(url) || sites().playbookFor(acc.host) };
           if (sites().isYouTube(acc.host)) return { ok: false, code: 'youtube', error: 'this tab is on YouTube: hand YouTube work to zerackYouTubeAgent instead' };
+          var kept = need === 'act' ? keptReadOnly(url) : null;
+          if (kept && NAVIGATES[act] === 1) need = 'read';
+          else if (kept) return { ok: false, code: 'kept_read_only', host: acc.host, error: 'ZERACK only reads ' + acc.host + ': ' + kept.why + '. Tell the user this step is theirs to do. Do not retry.' };
           if (!sites().allows(acc.access, need)) return notAllowed(ctx, info, need, url);
           if (NAVIGATES[act] === 1) return navigate(ctx, tab, info, a);
           var clean = cleanStep(a);
@@ -400,7 +439,7 @@
               clean.text = String(reply).slice(0, 20000);
             }
             var before = url;
-            return inPage(tab.id, handsStep, [clean]).then(function (x) {
+            return inPage(tab.id, handsStep, [clean], rulesFor(url)).then(function (x) {
               if (!answered(x)) {
                 return lost(a, tab, x, before).then(function (r) {
                   if (r.code === 'site_not_allowed') return notAllowed(ctx, { host: info.host, pattern: info.pattern, access: 'none' }, need, url);
@@ -453,9 +492,87 @@
     });
   }
 
+  function extractStep(id, opts) {
+    if (!self.NSP_EXTRACT || typeof self.NSP_EXTRACT.read !== 'function') return { ok: false, code: 'no_extract' };
+    return self.NSP_EXTRACT.read(id, opts);
+  }
+
+  function injectExtract(tabId) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.scripting.executeScript({ target: { tabId: tabId, frameIds: [0] }, world: 'ISOLATED', files: EXTRACT_FILES }).then(function () { resolve({ ok: true }); }, function (e) { resolve({ ok: false, error: String((e && e.message) || e) }); });
+      } catch (e) { resolve({ ok: false, error: String((e && e.message) || e) }); }
+    });
+  }
+
+  function plainOpts(o) {
+    var out = {};
+    if (!o || typeof o !== 'object') return out;
+    try { out = JSON.parse(JSON.stringify(o)); } catch (e) { out = {}; }
+    return out;
+  }
+
+  function pickReader(pbId, url, args) {
+    var P = playbooks();
+    var w = where(url);
+    var asked = String((args && args.reader) || '').trim().slice(0, 60);
+    var limit = Number(args && args.limit);
+    var withLimit = function (opts) {
+      var o = plainOpts(opts);
+      if (limit > 0) o.limit = Math.min(EXTRACT_MAX, Math.floor(limit));
+      return o;
+    };
+    var found = null;
+    if (asked && P) {
+      found = pbId ? P.reader(pbId, asked) : null;
+      if (!found) P.list().some(function (pb) { found = P.reader(pb.id, asked); return !!found; });
+    }
+    if (!found && !asked && P && pbId) found = P.readerFor(pbId, w.host, w.path);
+    if (found) return { id: found.id, as: found.as, opts: withLimit(found.opts) };
+    return { id: asked, as: asked || 'auto', opts: withLimit(null) };
+  }
+
+  function extract(ctx, args) {
+    args = args && typeof args === 'object' ? args : {};
+    if (ctx.stopped()) return Promise.resolve({ ok: false, code: 'stopped', error: 'not run, the user pressed Stop' });
+    return Promise.resolve(ctx.agentOn()).then(function (on) {
+      if (!on) return { ok: false, code: 'agent_off', error: 'not run: reading the page is switched off. Tell the user to turn on the Agent switch in the chat, then ask again. Do not retry.' };
+      return getTab(ctx.tabId).then(function (tab) {
+        if (!tab) return { ok: false, code: 'no_tab', error: 'the tab ZERACK was working on is closed' };
+        var url = String(tab.url || '');
+        if (!sites().scriptable(url)) return { ok: false, code: 'not_scriptable', error: 'ZERACK cannot read this page (' + clip(url, 80) + ').' };
+        return accessFor(url).then(function (acc) {
+          var pbId = playbookOf(url);
+          var info = { host: acc.host, pattern: acc.pattern, access: acc.access, playbook: pbId || sites().playbookFor(acc.host) };
+          if (sites().isYouTube(acc.host)) return { ok: false, code: 'youtube', error: 'this tab is on YouTube: hand YouTube work to zerackYouTubeAgent instead' };
+          if (!sites().allows(acc.access, 'read')) return notAllowed(ctx, info, 'read', url);
+          var pick = pickReader(pbId, url, args);
+          var once = function () { return exec(tab.id, extractStep, [pick.id, pick.opts]); };
+          return once().then(function (x) {
+            if (x.ok && x.value && x.value.code === 'no_extract') {
+              return injectExtract(tab.id).then(function (boot) { return boot.ok ? once() : { ok: false, error: boot.error }; });
+            }
+            return x;
+          }).then(function (x) {
+            if (!answered(x)) {
+              if (denied(x.error)) return notAllowed(ctx, { host: info.host, pattern: info.pattern, access: 'none' }, 'read', url);
+              return { ok: false, code: x.late ? 'timeout' : 'no_answer', error: 'the page did not answer the reader: ' + clip(x.error, 200) };
+            }
+            var r = x.value;
+            r.host = info.host;
+            r.playbook = pbId;
+            if (pick.as && pick.as !== 'auto') r.asked = pick.as;
+            return r;
+          });
+        });
+      });
+    });
+  }
+
   function run(name, args, ctx) {
     args = args && typeof args === 'object' ? args : {};
     if (name === 'zerackPagePlan') return plan(ctx, args);
+    if (name === 'zerackExtract') return extract(ctx, args);
     return step(ctx, args);
   }
 
@@ -481,6 +598,8 @@
     planMax: PLAN_MAX,
     site: site,
     accessFor: accessFor,
+    playbookOf: playbookOf,
+    rulesFor: rulesFor,
     run: run,
     confirm: confirm,
     halt: halt,
