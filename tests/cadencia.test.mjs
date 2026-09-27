@@ -43,4 +43,19 @@ check("measures the real reference channel", real.ok === true, real);
 check("only the last 12 count, not the 30", real.ventana === 12, real.ventana);
 check("and it reads the upload cadence", real.cadenciaDias !== null, real.cadenciaDias);
 
+{
+  const now = Date.UTC(2026, 8, 26, 12), D = 86400000;
+  const ex = d => ({ viewsNum: 1e6, publishedAt: now - d * D }), tx = a => ({ viewsNum: 1e6, published: a });
+  const months = ["5 days ago", "1 month ago", "1 month ago", "2 months ago", "2 months ago", "3 months ago", "3 months ago", "3 months ago", "3 months ago", "4 months ago", "4 months ago", "5 months ago"].map(tx);
+  const m = C.medir(months);
+  check("uploads dated only in months give an average gap over the span, never 0", m.cadenciaDias > 10 && m.cadenciaDias < 20 && m.cadenciaMetodo === "tramo", m);
+  const mixed = C.medir([ex(5.2), ex(40), ex(55), tx("2 months ago"), ex(63)].concat(months.slice(5)), { now });
+  check("exact publish times give the median gap between neighbours, with a coarse date placed at its middle", mixed.cadenciaDias === 15 && mixed.cadenciaMetodo === "exacto", mixed);
+  const years = C.medir(Array(9).fill("1 year ago").concat(["2 years ago", "2 years ago", "3 years ago"]).map(tx));
+  check("uploads dated only in years leave the rhythm unmeasured, and say why", years.cadenciaDias === null && /too coarse/.test(years.cadenciaRazon), years);
+  const daily = C.medir(Array.from({ length: 12 }, (_, i) => tx((i + 1) + " days ago")));
+  check("uploads a day apart read as one a day", daily.cadenciaDias === 1, daily.cadenciaDias);
+  check("the verdict needs four uploads older than a week", C.medir(months.slice(0, 3)).suficiente === false && m.suficiente === true);
+}
+
 done("cadencia");

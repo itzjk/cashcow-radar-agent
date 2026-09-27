@@ -174,7 +174,7 @@ if (existsSync(join(ROOT, "tests/fixtures/rancho-channel.json"))) {
   const tiny = n => Array.from({ length: n }, (_, i) => ({ videoId: ("t" + String(i).padStart(10, "0")).slice(0, 11), title: "Tiny upload " + i, viewsNum: [480, 9000, 400][i] || 500, published: (10 + i * 5) + " days ago" }));
   for (const n of [1, 2, 3]) {
     const v = I.verdict({ channel: head({ name: "Tiny channel" }), videos: tiny(n), now: NOW }, "en");
-    check("a channel with " + n + " upload" + (n === 1 ? "" : "s") + " gets no verdict, and says how many are needed", v.hero.value === "NO VERDICT" && /only \d+ upload/.test(v.hero.label) && /6 needed/.test(v.hero.label) && !/real growth|lucky hit/i.test(v.lead) && !/real growth|lucky hit/i.test(v.share.post), { hero: v.hero, lead: v.lead });
+    check("a channel with " + n + " upload" + (n === 1 ? "" : "s") + " gets no verdict, and says how many are needed", v.hero.value === "NO VERDICT" && /only \d+ upload/.test(v.hero.label) && /4 needed/.test(v.hero.label) && !/real growth|lucky hit/i.test(v.lead) && !/real growth|lucky hit/i.test(v.share.post), { hero: v.hero, lead: v.lead });
   }
   const es = I.verdict({ channel: head({ name: "Tiny channel" }), videos: tiny(1), now: NOW }, "es");
   check("in Spanish too, in the singular", /solo 1 video tiene edad para juzgar/.test(es.lead), es.lead);
@@ -182,7 +182,7 @@ if (existsSync(join(ROOT, "tests/fixtures/rancho-channel.json"))) {
   const coarse = ages.map((a, i) => ({ videoId: ("c" + String(i).padStart(10, "0")).slice(0, 11), title: "The physics of something " + i, viewsNum: 3000000 + i * 500000, published: a, length: "33:00" }));
   const f = I.formula({ channel: head(), videos: coarse, now: NOW }, "en");
   const fRow = f.sections.find(x => x.id === "structure").rows.find(r => r.label === "Upload rhythm");
-  check("uploads dated only in months never read as several videos a day", fRow && fRow.value === "A video every 13 days" && !/several a day/i.test(f.lead) && !f.share.rows.some(r => /Several/.test(r.value)), { row: fRow, lead: f.lead });
+  check("uploads dated only in months never read as several videos a day", fRow && fRow.value === "A video every 15 days" && !/several a day/i.test(f.lead) && !f.share.rows.some(r => /Several/.test(r.value)), { row: fRow, lead: f.lead });
   const yearly = coarse.map((v, i) => Object.assign({}, v, { published: i < 9 ? "1 year ago" : "2 years ago" }));
   const fy = I.formula({ channel: head(), videos: yearly, now: NOW }, "en");
   const yRow = fy.sections.find(x => x.id === "structure").rows.find(r => r.label === "Upload rhythm");

@@ -140,7 +140,7 @@ Run `node smoke.mjs` for the machine-checkable list. These are the ones a checke
 - **Many page readers were never run on a live page.** The Shopify admin, Search Console, Stripe, WordPress, KDP, Seller Central, Upwork, Google Maps, Reddit, npm, PyPI, Product Hunt and the TikTok and Instagram grids were read from archived or synthetic pages, because they need a sign-in or block automated reads. If the real layout differs, they answer *drift*, not a number.
 - **Nobody has clicked through Chrome's real site-permission dialog yet.** The Allow button opens it inside the click; the tests ran on a copy that already had access.
 - **Fees are US only**, and Fiverr's commission is not stated because it could not be checked on Fiverr's own pages.
-- **Only an A/B result read from the page counts as evidence for ad spend**, and only for what it measured. Purchases, Join and Super Thanks wait for a press with no test.
+- **Only an A/B result read from the page counts as evidence for ad spend**, and only for what it measured. Today only the Search Console reader keeps per-row impressions and clicks, so a Boost on a store's own ad table is not offered from the chat and stays the user's to press. Purchases, Join and Super Thanks wait for a press with no test.
 - **One daily cap for all leads**, and bounces and replies are marked by hand. Rival trends need 4 daily readings.
 - **Voice drives the business agent only to read.** Clicking, typing and sending on other sites happen from the chat.
 - **The YouTube panel's own agent still runs in the page's world**, so a page could tamper with it; the business agent on other sites cannot be reached that way.
