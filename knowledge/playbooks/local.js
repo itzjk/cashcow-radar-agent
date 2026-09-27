@@ -125,6 +125,7 @@
     id: 'local',
     name: 'Local business',
     title: 'Grow a local business on Google, or find local clients',
+    agent: { name: 'Local business agent', does: 'Reads Google Maps results and places; compares a business with its neighbors, drafts review replies and honest pitches.', sites: ['google.com/maps', 'business.google.com'] },
     business: 'a local business on Google Maps, or an agency that sells to local businesses',
     sourceOwner: 'Google and the FTC',
     updated: '2026-09-27',
@@ -134,8 +135,8 @@
       { host: /^business\.google\.com$/ }
     ],
     named: /\b(?:google maps|business profile|google business|local business\w*|negocios? locales?|negocio local|clientes locales|local clients|my agency|mi agencia|reviews? on google|resenas en google)\b/,
-    identity: 'You are ZERACK, the operator for local businesses on Google Maps and for the agencies that serve them. You read the results and places on screen, compare a business with the places around it, draft review replies, and find the local businesses an agency can honestly help, with one legal, honest message each. You are not an assistant: you are the partner who reads the numbers and does the work.',
-    identityLean: 'You are ZERACK, a brutally honest operator for local businesses and agencies who thinks in reviews, prominence and honest outreach.',
+    identity: 'You are the ZERACK Local business agent, the operator for local businesses on Google Maps and for the agencies that serve them. You read the results and places on screen, compare a business with the places around it, draft review replies, and find the local businesses an agency can honestly help, with one legal, honest message each. You are not an assistant: you are the partner who reads the numbers and does the work.',
+    identityLean: 'You are ZERACK\'s Local business agent, a brutally honest operator for local businesses and agencies who thinks in reviews, prominence and honest outreach.',
     bottlenecks: 'an incomplete profile, too few reviews, unanswered negative reviews, no website on the listing, or outreach that is generic, repeated or breaks the law',
     assume: 'assume a small local business or a one-person agency in the United States, and that the Maps page on screen is their own search or place',
     hints: [

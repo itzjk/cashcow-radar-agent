@@ -52,6 +52,19 @@
     expired: 'Nobody pressed within 2 minutes. Nothing was done.',
     stopped: 'The chat was stopped. Nothing was done.'
   };
+  var GLYPHS = {
+    youtube: ['M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z', 'M10.5 9.5l4 2.5-4 2.5z'],
+    shopify: ['M6 8.5h12l-1 11a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 7 19.5z', 'M9 8.5V7a3 3 0 0 1 6 0v1.5'],
+    etsy: ['M3.5 12.5V5A1.5 1.5 0 0 1 5 3.5h7.5l8 8-9 9z', 'M9.5 8a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z'],
+    amazon: ['M4 7.5l8-4 8 4v9l-8 4-8-4z', 'M4 7.5l8 4 8-4', 'M12 11.5v9'],
+    creators: ['M8 3.5h8A1.5 1.5 0 0 1 17.5 5v14a1.5 1.5 0 0 1-1.5 1.5H8A1.5 1.5 0 0 1 6.5 19V5A1.5 1.5 0 0 1 8 3.5z', 'M10.5 9.5l4 2.5-4 2.5z'],
+    freelance: ['M4 8.5h16v10a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z', 'M9 8.5V6a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 6v2.5', 'M4 13.5h16'],
+    local: ['M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z', 'M14.5 10a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z'],
+    seo: ['M16.5 10.5a6 6 0 1 1-12 0 6 6 0 0 1 12 0z', 'M15 15l5 5', 'M7.5 12l2-2 1.5 1.5 2.5-2.5'],
+    newsletter: ['M4 6.5h16v11a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z', 'M4 7l8 6 8-6'],
+    digital: ['M7 3.5h7l4 4v12a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19.5V5A1.5 1.5 0 0 1 7 3.5z', 'M12 10v6', 'M9.5 13.5l2.5 2.5 2.5-2.5'],
+    builders: ['M8.5 7.5L4 12l4.5 4.5', 'M15.5 7.5L20 12l-4.5 4.5', 'M13.5 5l-3 14']
+  };
   var WEB_CHIPS = ['What can you do on this page?', 'Read this page and tell me what to fix first', 'Improve the text on this page', 'Open YouTube'];
   var YT_CHIPS = ['Open YouTube', 'What niche should I start this week?', 'Read my saved niches and pick the best one', 'How do I raise my click-through rate?'];
 
@@ -59,7 +72,8 @@
   var S = {
     conv: null, convs: [], msgs: [], view: 'chat', busy: false, running: {}, agentOn: false, wake: false, voice: 'idle',
     configured: {}, localModel: '', selected: 'auto', host: '', els: {}, typing: null, mic: { down: 0, open: 0, seen: false, id: null },
-    seen: {}, watch: 0, voiceSeen: 0, moves: 0, windowId: -1, site: null, drawn: {}, clock: 0, gates: 0
+    seen: {}, watch: 0, voiceSeen: 0, moves: 0, windowId: -1, site: null, drawn: {}, clock: 0, gates: 0,
+    agent: null, agents: [], siteHost: '', siteTimer: 0
   };
   var channel = null;
   try { channel = new BroadcastChannel('zerack_chat'); } catch (e) {}
@@ -797,6 +811,7 @@
       var m = row.meta || {};
       if (m.provider || m.model) {
         var bits = [modelLabel(m.provider, m.model)];
+        if (m.agent && typeof m.agent.name === 'string' && m.agent.name) bits.unshift(m.agent.name.slice(0, 40));
         if (m.ms) bits.push((m.ms / 1000).toFixed(1) + ' s');
         box.appendChild(node('div', 'meta', bits.join(' · ')));
       }
@@ -1311,10 +1326,143 @@
 
   function readSite() {
     return send({ type: 'NSP_CHAT_SITE', windowId: S.windowId }).then(function (res) {
-      S.site = res && res.ok === true && res.host ? res : null;
+      var ok = !!res && res.ok === true;
+      S.site = ok && res.host ? res : null;
+      if (ok) {
+        S.siteHost = String(res.host || '');
+        S.agent = res.agent && typeof res.agent === 'object' ? res.agent : null;
+        S.agents = Array.isArray(res.agents) ? res.agents : [];
+      }
       paintChips();
+      paintAgents();
       return S.site;
     });
+  }
+
+  function soonSite() {
+    clearTimeout(S.siteTimer);
+    S.siteTimer = setTimeout(readSite, 350);
+  }
+
+  function agentById(id) {
+    for (var i = 0; i < S.agents.length; i++) if (S.agents[i] && S.agents[i].id === id) return S.agents[i];
+    return null;
+  }
+
+  function glyph(id) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    (GLYPHS[id] || GLYPHS.builders).forEach(function (d) {
+      var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', 'currentColor');
+      path.setAttribute('stroke-width', '1.7');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      svg.appendChild(path);
+    });
+    return svg;
+  }
+
+  function paintAgents() {
+    var cur = S.agent && S.agent.id ? agentById(S.agent.id) : null;
+    var picked = !!(S.agent && S.agent.how === 'picked');
+    $('agent-name').textContent = cur ? cur.name : (S.agents.length ? 'Pick an agent' : 'AI agents');
+    $('agent-btn').title = cur ? cur.name + (picked ? ', picked by you' : ', picked for this site') + '. See every AI agent' : 'See every AI agent';
+    var tag = $('empty-tag');
+    tag.hidden = !S.agents.length;
+    $('empty-tag-text').textContent = cur ? cur.name : 'Pick an agent';
+    var line = $('empty-line');
+    line.textContent = cur ? cur.does : 'Private assistant. Your keys, your machine.';
+    line.classList.toggle('does', !!cur);
+    $('roster-link').hidden = !S.agents.length;
+    $('roster-link-text').textContent = 'See all ' + S.agents.length + ' AI agents';
+    if (!$('roster').hidden) drawRoster();
+  }
+
+  function agentRow(a, on, site, auto) {
+    var b = node('button', 'agent-row' + (on ? ' on' : ''));
+    b.type = 'button';
+    b.setAttribute('role', 'option');
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+    b.dataset.agent = a.id;
+    var g = node('span', 'agent-glyph');
+    if (auto) {
+      var img = document.createElement('img');
+      img.src = '../icons/zerack-mark-small.svg';
+      img.alt = '';
+      g.appendChild(img);
+    } else {
+      g.appendChild(glyph(a.id));
+    }
+    b.appendChild(g);
+    var body = node('span', 'agent-body');
+    var top = node('span', 'agent-top');
+    top.appendChild(node('span', 'agent-title', a.name));
+    if (on) top.appendChild(node('span', 'agent-badge use', auto ? 'On' : 'In use'));
+    if (site && !auto) top.appendChild(node('span', 'agent-badge site', 'This site'));
+    body.appendChild(top);
+    var does = node('span', 'agent-does', a.does);
+    does.title = a.does;
+    body.appendChild(does);
+    if (a.sites && a.sites.length) body.appendChild(node('span', 'agent-sites', a.sites.join('  \u00b7  ') + (a.more ? '  +' + a.more + ' more' : '')));
+    b.appendChild(body);
+    return b;
+  }
+
+  function drawRoster() {
+    var list = $('roster-list');
+    while (list.firstChild) list.removeChild(list.firstChild);
+    var cur = S.agent || {};
+    var where = S.siteHost || 'this page';
+    var byHost = agentById(cur.auto);
+    var title = $('roster-title');
+    while (title.firstChild) title.removeChild(title.firstChild);
+    title.appendChild(document.createTextNode('AI agents'));
+    title.appendChild(node('span', 'roster-count', String(S.agents.length)));
+    list.appendChild(agentRow({ id: 'auto', name: 'Pick by site', does: byHost ? 'On ' + where + ' that is the ' + byHost.name + '. Each site gets its own agent.' : 'No agent works on ' + where + ' yet, so ZERACK answers as a general operator until you pick one.', sites: [] }, cur.how !== 'picked', false, true));
+    list.appendChild(node('div', 'roster-sep'));
+    S.agents.forEach(function (a) { if (a && a.id) list.appendChild(agentRow(a, cur.id === a.id, cur.auto === a.id, false)); });
+  }
+
+  function toggleRoster(on) {
+    var sheet = $('roster');
+    var show = typeof on === 'boolean' ? on : sheet.hidden;
+    if (show) {
+      toggleModelMenu(false);
+      toggleMore(false);
+      drawRoster();
+      readSite();
+    }
+    sheet.hidden = !show;
+    ['agent-btn', 'empty-tag', 'roster-link'].forEach(function (id) { $(id).setAttribute('aria-expanded', show ? 'true' : 'false'); });
+    if (show) {
+      var first = sheet.querySelector('.agent-row.on') || sheet.querySelector('.agent-row');
+      if (first) first.focus();
+    }
+  }
+
+  function pickAgent(id) {
+    var cur = S.agent || {};
+    var want = id === 'auto' || id === cur.auto ? 'auto' : id;
+    if (want !== 'auto' && !agentById(want)) return;
+    send({ type: 'NSP_CHAT_AGENT', host: S.siteHost || '*', agent: want }).then(function (res) {
+      if (!res || res.ok !== true) return null;
+      return readSite();
+    }).then(function () {
+      toggleRoster(false);
+      $('input').focus();
+    });
+  }
+
+  function rosterKeys(e) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    var rows = Array.prototype.slice.call($('roster-list').querySelectorAll('.agent-row'));
+    var i = rows.indexOf(document.activeElement);
+    var next = rows[Math.max(0, Math.min(rows.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))];
+    if (next) { e.preventDefault(); next.focus(); }
   }
 
   function paintSiteItems() {
@@ -1342,17 +1490,14 @@
   }
 
   function paintChips() {
-    var pb = S.site && S.site.web && S.site.playbook && Array.isArray(S.site.playbook.chips) ? S.site.playbook : null;
-    var list = pb && pb.chips.length ? pb.chips : (S.site && S.site.web ? WEB_CHIPS : YT_CHIPS);
+    var agentId = S.agent && S.agent.id ? S.agent.id : '';
+    var picked = !!(S.agent && S.agent.how === 'picked');
+    var pb = S.site && (S.site.web || picked) && agentId !== 'youtube' && S.site.playbook && Array.isArray(S.site.playbook.chips) ? S.site.playbook : null;
+    var list = pb && pb.chips.length ? pb.chips : (S.site && S.site.web && agentId !== 'youtube' ? WEB_CHIPS : YT_CHIPS);
     Array.prototype.forEach.call(document.querySelectorAll('#ask-chips .chip'), function (chip, i) {
       if (list[i]) chip.textContent = String(list[i]).slice(0, 80);
     });
     $('empty').classList.toggle('on-site', !!(S.site && S.site.web));
-    var tag = $('empty-tag');
-    if (tag) {
-      tag.hidden = !pb;
-      $('empty-tag-text').textContent = pb ? String(pb.name).slice(0, 30) + ' playbook' : '';
-    }
   }
 
   function tickPresses() {
@@ -1519,6 +1664,7 @@
 
   function onEsc(e) {
     if (!$('title-edit').hidden) { endRename(false); return; }
+    if (!$('roster').hidden) { toggleRoster(false); $('agent-btn').focus(); return; }
     if (!$('model-menu').hidden || !$('more-menu').hidden) { toggleModelMenu(false); toggleMore(false); return; }
     if ($('app').classList.contains('list-open')) { closeList(); return; }
     if (micCancel()) return;
@@ -1565,6 +1711,24 @@
       send({ type: 'NSP_VOICE_WAKE_TOGGLE' });
     });
     $('btn-close').addEventListener('click', closeOverlay);
+    ['agent-btn', 'empty-tag', 'roster-link'].forEach(function (id) {
+      $(id).addEventListener('click', function (e) { e.stopPropagation(); toggleRoster(); });
+    });
+    $('roster-close').addEventListener('click', function () { toggleRoster(false); $('agent-btn').focus(); });
+    $('roster').addEventListener('click', function (e) {
+      e.stopPropagation();
+      var row = e.target.closest('.agent-row');
+      if (row && e.isTrusted) pickAgent(row.dataset.agent);
+    });
+    $('roster-list').addEventListener('keydown', rosterKeys);
+    window.addEventListener('focus', soonSite);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) soonSite(); });
+    try {
+      if (MODE !== 'overlay' && chrome.tabs && chrome.tabs.onActivated) {
+        chrome.tabs.onActivated.addListener(soonSite);
+        chrome.tabs.onUpdated.addListener(function (id, info) { if (info && (info.url || info.status === 'complete')) soonSite(); });
+      }
+    } catch (e) {}
     $('act-draw').addEventListener('click', function (e) {
       if (!e.isTrusted) return;
       var row = drawable();

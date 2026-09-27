@@ -1,7 +1,7 @@
 // Off YouTube the chat is a business operator: no YouTube words in its prompt or tools, and the page tools only with the switch on.
 import { load, check, done } from "./engines.mjs";
 
-const C = load(["knowledge/youtube-playbook.js", "knowledge/reverse-engine.js", "knowledge/course.js", "lib/nsp-brain.js", "chat/chat-tools.js"], { URL });
+const C = load(["knowledge/youtube-playbook.js", "knowledge/reverse-engine.js", "knowledge/course.js", "lib/nsp-agents.js", "lib/nsp-brain.js", "chat/chat-tools.js"], { URL });
 const B = C.NSP_BRAIN, T = C.NSP_CHAT_TOOLS;
 const YT = /you ?tube|faceless|niches?\b|subscri|vph|thumbnail|channel|shorts|video|views per hour/i;
 

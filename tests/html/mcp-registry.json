@@ -1,0 +1,154 @@
+{
+ "servers": [
+  {
+   "server": {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "name": "io.github.zerack-demo/browser-mcp",
+    "title": "Browser MCP",
+    "description": "Read and act on web pages, asking before every write.",
+    "version": "1.4.0",
+    "repository": {
+     "url": "https://github.com/zerack-demo/browser-mcp",
+     "source": "github"
+    },
+    "packages": [
+     {
+      "registryType": "npm",
+      "identifier": "@zerack-demo/browser-mcp",
+      "version": "1.4.0",
+      "transport": {
+       "type": "stdio"
+      }
+     }
+    ]
+   },
+   "_meta": {
+    "io.modelcontextprotocol.registry/official": {
+     "status": "active",
+     "publishedAt": "2026-09-26T20:11:00Z",
+     "updatedAt": "2026-09-26T20:11:00Z",
+     "isLatest": true
+    }
+   }
+  },
+  {
+   "server": {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "name": "io.github.acme-labs/sql-mcp",
+    "title": "SQL",
+    "description": "Query Postgres and SQLite, read only by default.",
+    "version": "0.9.2",
+    "repository": {
+     "url": "https://github.com/acme-labs/sql-mcp",
+     "source": "github"
+    },
+    "packages": [
+     {
+      "registryType": "oci",
+      "identifier": "ghcr.io/acme-labs/sql-mcp",
+      "version": "0.9.2",
+      "transport": {
+       "type": "stdio"
+      }
+     }
+    ]
+   },
+   "_meta": {
+    "io.modelcontextprotocol.registry/official": {
+     "status": "active",
+     "publishedAt": "2026-09-24T08:00:00Z",
+     "updatedAt": "2026-09-24T08:00:00Z",
+     "isLatest": true
+    }
+   }
+  },
+  {
+   "server": {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "name": "com.northwind/docs",
+    "title": "Docs",
+    "description": "Up to date library docs for coding agents.",
+    "version": "2.1.0",
+    "remotes": [
+     {
+      "type": "streamable-http",
+      "url": "https://mcp.example.test/0"
+     }
+    ]
+   },
+   "_meta": {
+    "io.modelcontextprotocol.registry/official": {
+     "status": "active",
+     "publishedAt": "2026-09-22T16:45:00Z",
+     "updatedAt": "2026-09-22T16:45:00Z",
+     "isLatest": true
+    }
+   }
+  },
+  {
+   "server": {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "name": "io.github.fieldnotes/memory-mcp",
+    "title": "Memory",
+    "description": "Long term memory in Markdown files.",
+    "version": "0.3.1",
+    "repository": {
+     "url": "https://github.com/fieldnotes/memory-mcp",
+     "source": "github"
+    },
+    "packages": [
+     {
+      "registryType": "pypi",
+      "identifier": "memory-mcp",
+      "version": "0.3.1",
+      "transport": {
+       "type": "stdio"
+      }
+     }
+    ]
+   },
+   "_meta": {
+    "io.modelcontextprotocol.registry/official": {
+     "status": "active",
+     "publishedAt": "2026-08-15T10:00:00Z",
+     "updatedAt": "2026-08-15T10:00:00Z",
+     "isLatest": true
+    }
+   }
+  },
+  {
+   "server": {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "name": "io.github.orbit-ai/search-mcp",
+    "title": "Search",
+    "description": "Web search and extraction for agents.",
+    "version": "1.0.0",
+    "repository": {
+     "url": "https://github.com/orbit-ai/search-mcp",
+     "source": "github"
+    },
+    "packages": [
+     {
+      "registryType": "npm",
+      "identifier": "orbit-search-mcp",
+      "version": "1.0.0",
+      "transport": {
+       "type": "stdio"
+      }
+     }
+    ]
+   },
+   "_meta": {
+    "io.modelcontextprotocol.registry/official": {
+     "status": "active",
+     "publishedAt": "2026-07-02T10:00:00Z",
+     "updatedAt": "2026-07-02T10:00:00Z",
+     "isLatest": true
+    }
+   }
+  }
+ ],
+ "metadata": {
+  "count": 5
+ }
+}

@@ -140,6 +140,7 @@
     id: 'amazon',
     name: 'Amazon',
     title: 'Sell on Amazon and publish on KDP',
+    agent: { name: 'Amazon agent', does: 'Reads search, product pages, Seller Central and KDP reports; judges how hard a market is and what each sale or book leaves.', sites: ['amazon.com', 'sellercentral.amazon.com', 'kdp.amazon.com'] },
     business: 'a product or a book sold on Amazon',
     sourceOwner: 'Amazon',
     updated: '2026-09-27',
@@ -150,8 +151,8 @@
       { host: RETAIL }
     ],
     named: /\b(?:amazon|kdp|kindle direct|best sellers? rank|bsr|seller central|fba|asin)\b/,
-    identity: 'You are ZERACK, the operator for Amazon sellers and KDP authors. You read the search, the product pages and the reports the user opens, judge how hard a market is to enter, work out what each sale leaves, and prepare listings and keywords. The user presses Publish. You are not an assistant: you are the partner who reads the numbers and does the work.',
-    identityLean: 'You are ZERACK, a brutally honest operator for Amazon sellers and KDP authors who thinks in rank, room in the market and royalty per sale.',
+    identity: 'You are the ZERACK Amazon agent, the operator for Amazon sellers and KDP authors. You read the search, the product pages and the reports the user opens, judge how hard a market is to enter, work out what each sale leaves, and prepare listings and keywords. The user presses Publish. You are not an assistant: you are the partner who reads the numbers and does the work.',
+    identityLean: 'You are ZERACK\'s Amazon agent, a brutally honest operator for Amazon sellers and KDP authors who thinks in rank, room in the market and royalty per sale.',
     bottlenecks: 'a market held by products with thousands of ratings, keywords readers never type, a price outside the higher royalty band, a margin eaten by fees, or ads bought before the margin is known',
     assume: 'assume a small seller or a self-published author selling on Amazon.com in US dollars, and that the page on screen is their market or their own report',
     hints: [

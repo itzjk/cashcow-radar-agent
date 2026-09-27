@@ -2,7 +2,7 @@
 import { load, check, done } from "./engines.mjs";
 
 const PB = ["etsy", "shopify", "seo", "builders", "creators", "freelance", "local", "amazon", "newsletter", "digital", "index"].map(f => "knowledge/playbooks/" + f + ".js");
-const C = load(["knowledge/youtube-playbook.js", "knowledge/reverse-engine.js", "knowledge/course.js"].concat(PB, ["lib/nsp-brain.js", "chat/chat-tools.js"]), { URL });
+const C = load(["knowledge/youtube-playbook.js", "knowledge/reverse-engine.js", "knowledge/course.js"].concat(PB, ["lib/nsp-agents.js", "lib/nsp-brain.js", "chat/chat-tools.js"]), { URL });
 const B = C.NSP_BRAIN, T = C.NSP_CHAT_TOOLS, P = C.NSP_PLAYBOOKS;
 const YT = /you ?tube|faceless|\bniches?\b|\bvph\b|thumbnail|\bchannels?\b|shorts|views per hour/i;
 const YT_VIDEO = /you ?tube|\bvph\b|thumbnail|views per hour/i;

@@ -1,7 +1,7 @@
 // Firm lessons come back to the chat as fill parts, the decide tool is in every business chat, and spending waits for evidence.
 import { load, check, done } from "./engines.mjs";
 
-const C = load(["knowledge/youtube-playbook.js", "knowledge/reverse-engine.js", "knowledge/course.js", "knowledge/playbooks/etsy.js", "knowledge/playbooks/shopify.js", "knowledge/playbooks/seo.js", "knowledge/playbooks/builders.js", "knowledge/playbooks/index.js", "lib/nsp-brain.js", "chat/chat-tools.js"], { URL });
+const C = load(["knowledge/youtube-playbook.js", "knowledge/reverse-engine.js", "knowledge/course.js", "knowledge/playbooks/etsy.js", "knowledge/playbooks/shopify.js", "knowledge/playbooks/seo.js", "knowledge/playbooks/builders.js", "knowledge/playbooks/index.js", "lib/nsp-agents.js", "lib/nsp-brain.js", "chat/chat-tools.js"], { URL });
 const B = C.NSP_BRAIN, T = C.NSP_CHAT_TOOLS;
 const YT = /you ?tube|faceless|\bniches?\b|subscri|\bvph\b|thumbnail|channel|shorts|video|views per hour/i;
 const gsc = { host: "search.google.com", web: true, access: "act" };

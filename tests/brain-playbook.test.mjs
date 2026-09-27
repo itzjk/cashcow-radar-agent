@@ -1,7 +1,7 @@
 // The brain loads the playbook of the business in front of the user: its identity, its method, its sourced lessons and its tools, with no YouTube text.
 import { load, check, done } from "./engines.mjs";
 
-const C = load(["knowledge/youtube-playbook.js", "knowledge/reverse-engine.js", "knowledge/course.js", "knowledge/playbooks/etsy.js", "knowledge/playbooks/shopify.js", "knowledge/playbooks/seo.js", "knowledge/playbooks/builders.js", "knowledge/playbooks/index.js", "lib/nsp-brain.js", "chat/chat-tools.js"], { URL });
+const C = load(["knowledge/youtube-playbook.js", "knowledge/reverse-engine.js", "knowledge/course.js", "knowledge/playbooks/etsy.js", "knowledge/playbooks/shopify.js", "knowledge/playbooks/seo.js", "knowledge/playbooks/builders.js", "knowledge/playbooks/index.js", "lib/nsp-agents.js", "lib/nsp-brain.js", "chat/chat-tools.js"], { URL });
 const B = C.NSP_BRAIN, T = C.NSP_CHAT_TOOLS, P = C.NSP_PLAYBOOKS;
 const YT = /you ?tube|faceless|\bniches?\b|subscri|\bvph\b|thumbnail|channel|shorts|video|views per hour/i;
 const YT_BUILDERS = /you ?tube|faceless|\bniches?\b|\bvph\b|thumbnail|channel|shorts|video|views per hour/i;

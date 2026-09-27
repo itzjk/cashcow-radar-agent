@@ -6,6 +6,7 @@ try { importScripts('../knowledge/youtube-playbook.js'); } catch (ePlaybook) { c
 // a YouTube tab sends, instead of storing the text the tab brought.
 try { importScripts('../ashlyv/ashlyv-engine.js'); } catch (eAshlyvEngine) { console.warn('[NSP SW] importScripts ASHLYV engine:', eAshlyvEngine && eAshlyvEngine.message); }
 try { importScripts('../knowledge/playbooks/etsy.js', '../knowledge/playbooks/shopify.js', '../knowledge/playbooks/seo.js', '../knowledge/playbooks/builders.js', '../knowledge/playbooks/creators.js', '../knowledge/playbooks/freelance.js', '../knowledge/playbooks/local.js', '../knowledge/playbooks/amazon.js', '../knowledge/playbooks/newsletter.js', '../knowledge/playbooks/digital.js', '../knowledge/playbooks/index.js'); } catch (ePlaybooks) { console.warn('[NSP SW] importScripts business playbooks:', ePlaybooks && ePlaybooks.message); }
+try { importScripts('../lib/nsp-agents.js'); } catch (eAgents) { console.warn('[NSP SW] importScripts agents:', eAgents && eAgents.message); }
 try { importScripts('../lib/nsp-brain.js'); } catch (eBrain) { console.warn('[NSP SW] importScripts brain:', eBrain && eBrain.message); }
 try { importScripts('../lib/nsp-data-tools.js', '../chat/chat-tools.js', '../lib/nsp-chat-store.js'); } catch (eChatLib) { console.warn('[NSP SW] importScripts chat tools:', eChatLib && eChatLib.message); }
 try { importScripts('../lib/nsp-rpm-tabla.js'); } catch (eRpmTable) { console.warn('[NSP SW] importScripts RPM table:', eRpmTable && eRpmTable.message); }
@@ -2379,22 +2380,29 @@ function nspVoiceSpoken(body) {
 function nspAssistVoice(text, lang, cb) {
   if (!self.NSP_BRAIN || !self.NSP_CHAT_TOOLS) { nspVoiceByCascade(text, 'the brain did not load', cb); return; }
   nspVoiceBizSite(function(site) {
-    if (site && (site.playbook || site.access !== 'none')) nspAssistBusiness(text, lang, site, cb);
-    else nspAssistVoiceAll(text, lang, cb);
+    (site ? nspAgentPicks() : Promise.resolve({})).then(function(picks) {
+      var pick = site ? nspAgentFor(site, picks) : null;
+      var picked = pick && pick.how === 'picked' && self.NSP_AGENTS ? self.NSP_AGENTS.get(pick.id) : null;
+      if (picked && picked.id === 'youtube') nspAssistVoiceAll(text, lang, cb);
+      else if (picked) nspAssistBusiness(text, lang, site, cb, picked.playbook);
+      else if (site && (site.playbook || site.access !== 'none')) nspAssistBusiness(text, lang, site, cb);
+      else nspAssistVoiceAll(text, lang, cb);
+    });
   });
 }
 
-function nspAssistBusiness(text, lang, site, cb) {
+function nspAssistBusiness(text, lang, site, cb, pickedPlaybook) {
   var talk = nspVrLang(nspVrNorm(text), lang);
   var P = self.NSP_PLAYBOOKS;
-  var pb = site.playbook || (P ? P.forQuery(text) : '');
+  var picked = !!pickedPlaybook;
+  var pb = picked ? pickedPlaybook : (site.playbook || (P ? P.forQuery(text) : ''));
   var brainSite = { host: site.host, web: true, access: site.access };
   var page = nspVoicePageCtx(site);
   nspAgentOn().then(function(agentOn) {
     return nspDecideMemory(site.host, pb).then(function(memory) {
       return self.NSP_CHAT_TOOLS.loop({
-        systemParts: self.NSP_BRAIN.parts({ surface: 'chat', spoken: true, readOnly: true, query: text, site: brainSite, playbook: pb, pageTools: agentOn, memory: memory, context: self.NSP_CHAT_TOOLS.context({ surface: 'voice', agentOn: agentOn, lang: talk, site: brainSite }) }),
-        tools: self.NSP_BRAIN.tools('chat', { agentOn: agentOn, site: brainSite, playbook: pb, query: text, readOnly: true }),
+        systemParts: self.NSP_BRAIN.parts({ surface: 'chat', spoken: true, readOnly: true, query: text, site: brainSite, playbook: pb, agent: picked ? pb : '', picked: picked, pageTools: agentOn, memory: memory, context: self.NSP_CHAT_TOOLS.context({ surface: 'voice', agentOn: agentOn, lang: talk, site: brainSite }) }),
+        tools: self.NSP_BRAIN.tools('chat', { agentOn: agentOn, site: brainSite, playbook: pb, agent: picked ? pb : '', picked: picked, query: text, readOnly: true }),
         messages: [{ role: 'user', content: text }],
         maxRounds: NSP_VOICE_ASSIST_ROUNDS,
         maxSteps: NSP_VOICE_ASSIST_STEPS,
@@ -3353,8 +3361,8 @@ function nspDecideEvidence(host, target) {
 
 try { importScripts('../lib/nsp-extract.js', '../lib/nsp-builders.js'); } catch (eBuilders) { console.warn('[NSP SW] importScripts builder engine:', eBuilders && eBuilders.message); }
 
-var NSP_BUILDER_READERS = ['github.issues', 'github.repo', 'github.commits', 'github.releases', 'hn.item', 'reddit.thread', 'ph.product', 'npm.package', 'pypi.package', 'cws.listing'];
-var NSP_BUILDER_RIVAL_READERS = { 'github.repo': 1, 'npm.package': 1, 'pypi.package': 1, 'cws.listing': 1, 'ph.product': 1 };
+var NSP_BUILDER_READERS = ['github.issues', 'github.repo', 'github.commits', 'github.releases', 'hn.item', 'reddit.thread', 'ph.product', 'npm.package', 'pypi.package', 'cws.listing', 'hf.model', 'hf.space', 'hf.dataset', 'hf.discussions', 'mcp.github', 'mcp.registry'];
+var NSP_BUILDER_RIVAL_READERS = { 'github.repo': 1, 'npm.package': 1, 'pypi.package': 1, 'cws.listing': 1, 'ph.product': 1, 'hf.model': 1, 'hf.space': 1, 'hf.dataset': 1 };
 var NSP_BUILDER_DAYS = 45;
 var NSP_BUILDER_FRESH_MS = 30 * 60000;
 var NSP_BUILDER_MINE = 'nsp_builder_repo';
@@ -3439,11 +3447,17 @@ function nspBuilderSeries(since) {
   return self.NSP_CHAT_STORE.listSeries({ since: since, readers: NSP_BUILDER_READERS, limit: 3000 });
 }
 
+function nspGithubRepoOf(url) {
+  var T = self.NSP_EXTRACT && self.NSP_EXTRACT.text;
+  var w = T && /^https:\/\//i.test(String(url || '')) ? T.repoPath(url) : null;
+  return w && /^[A-Za-z0-9_.-]+$/.test(w.owner) && /^[A-Za-z0-9_.-]+$/.test(w.repo) ? w : null;
+}
+
 function nspBuilderTabRepo(ctx) {
   var site = ctx && ctx.site;
-  var m = site ? /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)(?:\/tree\/[^?#]*)?\/?(?:[?#].*)?$/.exec(String(site.url || '')) : null;
-  if (!m || /^(settings|orgs|topics|marketplace|explore|notifications|login|sponsors|features|pricing|search|new)$/i.test(m[1])) return '';
-  return nspBuilderRepoKey(m[1] + '/' + m[2]);
+  var w = site ? nspGithubRepoOf(site.url) : null;
+  if (!w || (w.rest.length && w.rest[0] !== 'tree')) return '';
+  return nspBuilderRepoKey(w.owner + '/' + w.repo);
 }
 
 function nspBuilderEnsureRead(ctx) {
@@ -3521,6 +3535,16 @@ function nspBuilder(args, ctx) {
     if (action === 'rivals') {
       var groups = {};
       rows.forEach(function(r) {
+        if (r.reader === 'mcp.github') {
+          Object.keys(r.per || {}).forEach(function(server) {
+            var x = r.per[server];
+            if (!x || typeof x.stars !== 'number') return;
+            var key = 'mcp.github|' + server;
+            var sg = groups[key] || (groups[key] = { key: key, reader: 'mcp.github', metric: 'stars', url: nspBuilderUrl(x.url) || 'https://github.com/mcp', name: server, points: [] });
+            if (!sg.points.some(function(pt) { return pt.t === r.at; })) sg.points.push({ t: r.at, value: x.stars });
+          });
+          return;
+        }
         if (NSP_BUILDER_RIVAL_READERS[r.reader] !== 1) return;
         var metric = K.metricFor(r.reader);
         var v = (r.metrics || {})[metric];
@@ -3529,9 +3553,11 @@ function nspBuilder(args, ctx) {
         g.points.push({ t: r.at, value: v });
         var f = r.facts || {};
         if (!g.name) g.name = f.owner && f.repo ? f.owner + '/' + f.repo : (f.name || '');
+        if (!g.name && r.reader.indexOf('hf.') === 0) g.name = String(g.url).replace(/^https:\/\/huggingface\.co\//, '');
       });
       var watchedUrls = watched.map(function(w) { return w.url; });
-      var list = Object.keys(groups).map(function(k) { var g = groups[k]; g.watched = watchedUrls.indexOf(g.url) >= 0; return g; });
+      var listingWatched = watchedUrls.indexOf('https://github.com/mcp') >= 0;
+      var list = Object.keys(groups).map(function(k) { var g = groups[k]; g.watched = watchedUrls.indexOf(g.url) >= 0 || (g.reader === 'mcp.github' && listingWatched); return g; });
       var rv = K.rivals(list, { decide: self.NSP_DECIDE, now: now, mine: mineUrl });
       return nspBuilderCard({ ok: true, action: action, line: rv.line, accelerating: rv.accelerating, rows: rv.rows, watching: watched.length }, {
         kind: 'rivals', line: nspBuilderClip(rv.line, 400), watching: watched.length,
@@ -3587,11 +3613,20 @@ function nspSiteWatchKind(url) {
   try { u = new URL(String(url || '')); } catch (e) { return null; }
   var host = u.hostname.toLowerCase();
   var p = u.pathname.split('/').filter(Boolean);
-  if (host === 'github.com' && p.length >= 2 && self.NSP_EXTRACT && /^[A-Za-z0-9_.-]+$/.test(p[0]) && !/^(settings|orgs|topics|marketplace|explore|notifications|login|sponsors|features|pricing|search|new)$/i.test(p[0])) return { reader: 'github.repo', url: 'https://github.com/' + p[0] + '/' + p[1].replace(/\.git$/, '') };
+  if (host === 'github.com' && p.length === 1 && p[0] === 'mcp' && self.NSP_EXTRACT) return { reader: 'mcp.github', url: 'https://github.com/mcp' };
+  var gh = host === 'github.com' ? nspGithubRepoOf(u.href) : null;
+  if (gh) return { reader: 'github.repo', url: 'https://github.com/' + gh.owner + '/' + gh.repo };
+  var hf = host === 'huggingface.co' && self.NSP_EXTRACT ? self.NSP_EXTRACT.text.hfWhere(u.href) : null;
+  if (hf && (!hf.rest.length || hf.rest[0] === 'tree' || hf.rest[0] === 'discussions')) return { reader: 'hf.' + hf.kind, url: hf.base };
   if (host === 'chromewebstore.google.com' && p[0] === 'detail' && p.length >= 2) return { reader: 'cws.listing', url: 'https://chromewebstore.google.com/' + p.slice(0, 3).join('/') };
   if ((host === 'www.npmjs.com' || host === 'npmjs.com') && p[0] === 'package' && p.length >= 2) return { reader: 'npm.package', url: 'https://www.npmjs.com/package/' + (p[1].charAt(0) === '@' && p[2] ? p[1] + '/' + p[2] : p[1]) };
   if (host === 'pypi.org' && p[0] === 'project' && p.length >= 2) return { reader: 'pypi.package', url: 'https://pypi.org/project/' + p[1] + '/' };
   return null;
+}
+
+function nspSiteWatchName(a) {
+  if (!a) return '';
+  return (a.repo && a.repo.owner ? a.repo.owner + '/' + a.repo.repo : '') || (a.listing && a.listing.name) || (a.pkg && a.pkg.name) || (a.hub && a.hub.id) || (typeof a.servers === 'number' && !a.detail ? 'GitHub MCP Registry' : '');
 }
 
 function nspSiteWatchLoad() {
@@ -3636,6 +3671,8 @@ function nspSiteWatchParse(kind, html, url) {
   if (kind === 'cws.listing') { var c = T.cws(html, url); return c.ok ? { ok: true, reader: kind, label: 'Chrome Web Store listing', rows: [], listing: c.listing } : c; }
   if (kind === 'npm.package') { var n = T.npm(html, url); return n.ok ? { ok: true, reader: kind, label: 'npm package', rows: [], pkg: n.pkg } : n; }
   if (kind === 'pypi.package') { var y = T.pypi(html, url); return y.ok ? { ok: true, reader: kind, label: 'PyPI project', rows: y.pkg.history.slice(0, 40), pkg: { name: y.pkg.name, version: y.pkg.version, summary: y.pkg.summary, released: y.pkg.released, releases: y.pkg.releases } } : y; }
+  if (kind === 'hf.model' || kind === 'hf.space' || kind === 'hf.dataset') { var h = T.hf(html, url); return h.ok && 'hf.' + h.hub.kind === kind ? { ok: true, reader: kind, label: 'Hugging Face ' + h.hub.kind, rows: [], hub: h.hub } : (h.ok ? { ok: false, code: 'not_read', error: 'the page is not the Hugging Face ' + kind.slice(3) + ' that was watched' } : h); }
+  if (kind === 'mcp.github') { var mg = T.mcpGithub(html); return mg.ok ? { ok: true, reader: kind, label: 'GitHub MCP Registry', rows: mg.servers, detail: mg.detail, total: mg.total, pages: mg.pages } : mg; }
   return { ok: false, code: 'not_watchable', error: 'not a page ZERACK can watch' };
 }
 
@@ -3673,7 +3710,7 @@ function nspSiteWatchTick(force) {
             w.lastOk = !!(r && r.ok);
             w.error = r && r.ok ? '' : String((r && (r.error || r.code)) || 'not read').slice(0, 200);
             if (r && r.ok && r.line) w.lastLine = String(r.line).slice(0, 300);
-            if (r && r.ok && r.analysis) { var a = r.analysis; w.name = String((a.repo && a.repo.owner ? a.repo.owner + '/' + a.repo.repo : '') || (a.listing && a.listing.name) || (a.pkg && a.pkg.name) || w.name || '').slice(0, 120); }
+            if (r && r.ok && r.analysis) { var a = r.analysis; w.name = String(nspSiteWatchName(a) || w.name || '').slice(0, 120); }
           });
         });
       }, Promise.resolve()).then(function() {
@@ -3692,7 +3729,7 @@ function nspSiteWatchTick(force) {
 function nspSiteWatch(action, args, ctx) {
   var site = ctx.site && ctx.site.url ? ctx.site : null;
   var want = nspSiteWatchKind(args.url || (site ? site.url : ''));
-  if (!want) return Promise.resolve({ ok: false, code: 'not_watchable', error: 'ZERACK can watch a public GitHub repository, an npm or PyPI package, or a Chrome Web Store listing: give its address' });
+  if (!want) return Promise.resolve({ ok: false, code: 'not_watchable', error: 'ZERACK can watch a public GitHub repository, an npm or PyPI package, a Chrome Web Store listing, a Hugging Face model, dataset or Space, or the GitHub MCP Registry: give its address' });
   return nspSiteWatchLoad().then(function(list) {
     if (action === 'unwatch') {
       var left = list.filter(function(w) { return w.url !== want.url; });
@@ -3719,7 +3756,7 @@ function nspSiteWatch(action, args, ctx) {
           entry.lastAt = Date.now();
           entry.lastOk = !!(r && r.ok);
           entry.error = r && r.ok ? '' : String((r && (r.error || r.code)) || '').slice(0, 200);
-          if (r && r.ok && r.analysis) { var a = r.analysis; entry.name = String((a.repo && a.repo.owner ? a.repo.owner + '/' + a.repo.repo : '') || (a.listing && a.listing.name) || (a.pkg && a.pkg.name) || '').slice(0, 120); entry.lastLine = String(r.line || '').slice(0, 300); }
+          if (r && r.ok && r.analysis) { var a = r.analysis; entry.name = String(nspSiteWatchName(a) || '').slice(0, 120); entry.lastLine = String(r.line || '').slice(0, 300); }
           return nspSiteWatchLoad().then(function(fresh) {
             var merged = fresh.map(function(w) { return w.url === entry.url ? entry : w; });
             return nspSiteWatchSave(merged).then(function() {
@@ -6929,6 +6966,33 @@ function nspChatSite(run) {
   }, function() { return null; });
 }
 
+function nspAgentPicks() {
+  return self.NSP_AGENTS ? self.NSP_AGENTS.load() : Promise.resolve({});
+}
+
+function nspAgentFor(site, picks) {
+  var A = self.NSP_AGENTS;
+  if (!A) return { id: '', how: 'none', auto: '' };
+  return A.resolve(site && site.host ? { host: site.host, url: site.url, playbook: site.playbook } : null, picks);
+}
+
+function nspAgentCard(pick) {
+  var A = self.NSP_AGENTS;
+  var a = A && pick ? A.get(pick.id) : null;
+  var auto = A && pick ? A.get(pick.auto) : null;
+  return { id: a ? a.id : '', name: a ? a.name : '', how: pick ? pick.how : 'none', auto: auto ? auto.id : '', autoName: auto ? auto.name : '' };
+}
+
+function nspChatPickAgent(msg, sendResponse) {
+  var A = self.NSP_AGENTS;
+  var key = A ? A.hostKey(msg.host) : '';
+  var id = String(msg.agent || '').toLowerCase().slice(0, 40);
+  if (!A || !key || (id && id !== 'auto' && !A.get(id))) { sendResponse({ ok: false, error: 'bad_agent' }); return; }
+  nspStorageUpdate(A.key, function(map) { return A.withPick(map, key, id, Date.now()); }).then(function() {
+    sendResponse({ ok: true, host: key, agent: id === 'auto' ? '' : id });
+  }, function() { sendResponse({ ok: false, error: 'not_saved' }); });
+}
+
 function nspChatPlaybook(site, text) {
   var P = self.NSP_PLAYBOOKS;
   if (!P) return '';
@@ -6973,18 +7037,23 @@ function nspChatThink(run) {
   var tools = self.NSP_CHAT_TOOLS, brain = self.NSP_BRAIN, store = self.NSP_CHAT_STORE;
   if (!tools || !brain) return nspChatAdd(run, 'error', 'The assistant did not load. Reload the extension.');
   var askedAt = Date.now();
-  return Promise.all([nspAgentOn(), nspChatSite(run)]).then(function(got) {
+  return Promise.all([nspAgentOn(), nspChatSite(run), nspAgentPicks()]).then(function(got) {
     var agentOn = got[0], site = got[1];
     var pageTools = !!(site && site.web && agentOn);
     if (site && site.web) run.page = nspChatPageCtx(run, site);
     run.site = site && site.web ? { host: site.host, url: site.url } : null;
     var brainSite = site ? { host: site.host, web: site.web, access: site.access } : null;
-    run.playbook = nspChatPlaybook(site, run.text);
+    var pick = nspAgentFor(site, got[2]);
+    var picked = pick.how === 'picked' && !!self.NSP_AGENTS && !!self.NSP_AGENTS.get(pick.id);
+    run.playbook = picked ? self.NSP_AGENTS.get(pick.id).playbook : nspChatPlaybook(site, run.text);
+    var brainOpts = { surface: 'chat', query: run.text, site: brainSite, playbook: run.playbook, agent: picked ? pick.id : '', picked: picked };
+    var answering = self.NSP_AGENTS && brain.agentOf ? self.NSP_AGENTS.get(brain.agentOf(brainOpts)) : null;
+    run.agent = answering ? { id: answering.id, name: answering.name, picked: picked } : null;
     return Promise.all([store.getMessages(run.convId), nspDecideMemory(run.site ? run.site.host : '', run.playbook)]).then(function(loaded) {
       var rows = loaded[0];
       return tools.loop({
-        systemParts: brain.parts({ surface: 'chat', query: run.text, site: brainSite, playbook: run.playbook, pageTools: pageTools, memory: loaded[1], context: tools.context({ surface: 'chat', agentOn: agentOn, lang: run.lang, site: brainSite }) }),
-        tools: brain.tools('chat', { agentOn: agentOn, site: brainSite, playbook: run.playbook, query: run.text }),
+        systemParts: brain.parts({ surface: 'chat', query: run.text, site: brainSite, playbook: run.playbook, agent: brainOpts.agent, picked: picked, pageTools: pageTools, memory: loaded[1], context: tools.context({ surface: 'chat', agentOn: agentOn, lang: run.lang, site: brainSite }) }),
+        tools: brain.tools('chat', { agentOn: agentOn, site: brainSite, playbook: run.playbook, agent: brainOpts.agent, picked: picked, query: run.text }),
         messages: tools.history(rows),
         maxRounds: tools.maxRounds,
         maxSteps: tools.maxSteps,
@@ -7008,7 +7077,7 @@ function nspChatThink(run) {
         },
         onText: function(reply, res) {
           if (run.stopped) return;
-          nspChatAdd(run, 'assistant', reply, { provider: String(res.provider || ''), model: String(res.modelUsed || ''), ms: Date.now() - askedAt });
+          nspChatAdd(run, 'assistant', reply, { provider: String(res.provider || ''), model: String(res.modelUsed || ''), ms: Date.now() - askedAt, agent: run.agent ? { id: run.agent.id, name: run.agent.name } : null });
         },
         onToolStart: function(name, args) {
           run.toolRow = nspChatAdd(run, 'action', tools.label(name, args), { tool: name, status: 'running', detail: '' });
@@ -7085,11 +7154,16 @@ function nspChatSiteInfo(msg, sender, sendResponse) {
   var overlay = !!(sender.tab && sender.tab.id >= 0 && sender.frameId !== 0);
   var windowId = Number(msg.windowId);
   if (!self.NSP_PAGE_AGENT) { sendResponse({ ok: false }); return; }
-  self.NSP_PAGE_AGENT.site({ tabId: overlay ? sender.tab.id : -1, windowId: windowId >= 0 ? windowId : -1 }).then(function(site) {
-    if (!site || !site.host) { sendResponse({ ok: true, host: '' }); return; }
+  Promise.all([self.NSP_PAGE_AGENT.site({ tabId: overlay ? sender.tab.id : -1, windowId: windowId >= 0 ? windowId : -1 }), nspAgentPicks()]).then(function(got) {
+    var site = got[0];
+    var roster = self.NSP_AGENTS ? self.NSP_AGENTS.roster() : [];
+    if (!site || !site.host) { sendResponse({ ok: true, host: '', agent: nspAgentCard(nspAgentFor(null, got[1])), agents: roster }); return; }
     var P = self.NSP_PLAYBOOKS;
     var pb = P && site.scriptable && !site.youtube ? P.get(site.playbook) : null;
-    sendResponse({ ok: true, host: site.host, pattern: site.pattern, access: site.access, consent: site.consent, youtube: site.youtube, web: site.scriptable && !site.youtube, playbook: pb ? { id: pb.id, name: pb.name, chips: pb.chips.slice(0, 4) } : null });
+    var card = nspAgentCard(nspAgentFor(site, got[1]));
+    var shown = card.id && P ? P.get(card.id) : null;
+    if (card.how === 'picked') pb = shown;
+    sendResponse({ ok: true, host: site.host, pattern: site.pattern, access: site.access, consent: site.consent, youtube: site.youtube, web: site.scriptable && !site.youtube, playbook: pb ? { id: pb.id, name: pb.name, chips: pb.chips.slice(0, 4) } : null, agent: card, agents: roster });
   }, function() { sendResponse({ ok: false }); });
 }
 
@@ -7294,6 +7368,7 @@ var NSP_MESSAGE_CALLERS = {
   NSP_CHAT_SITE: NSP_EXT_ONLY,
   NSP_CHAT_ALLOW_SITE: NSP_EXT_ONLY,
   NSP_CHAT_FORGET_SITE: NSP_EXT_ONLY,
+  NSP_CHAT_AGENT: NSP_EXT_ONLY,
   NSP_DECIDE_NOW: NSP_EXT_ONLY,
   NSP_AGENT_OPEN_TAB: { ext: 1, youtube: 'grant' },
   NSP_AGENT_SEARCH_MARKET: { ext: 1, youtube: 1, studio: 1 },
@@ -8301,13 +8376,14 @@ function nspRoute(msg, sender, sendResponse, who) {
     return true;
   }
 
-  if (msg.type === 'NSP_CHAT_RUN' || msg.type === 'NSP_CHAT_HALT' || msg.type === 'NSP_CHAT_RUNS' || msg.type === 'NSP_CHAT_ROUTE' || msg.type === 'NSP_CHAT_TOOL' || msg.type === 'NSP_CHAT_OVERLAY' || msg.type === 'NSP_CHAT_STOP' || msg.type === 'NSP_CHAT_PROVIDERS' || msg.type === 'NSP_CHAT_CONFIRM' || msg.type === 'NSP_CHAT_SITE' || msg.type === 'NSP_CHAT_ALLOW_SITE' || msg.type === 'NSP_CHAT_FORGET_SITE') {
+  if (msg.type === 'NSP_CHAT_RUN' || msg.type === 'NSP_CHAT_HALT' || msg.type === 'NSP_CHAT_RUNS' || msg.type === 'NSP_CHAT_ROUTE' || msg.type === 'NSP_CHAT_TOOL' || msg.type === 'NSP_CHAT_OVERLAY' || msg.type === 'NSP_CHAT_STOP' || msg.type === 'NSP_CHAT_PROVIDERS' || msg.type === 'NSP_CHAT_CONFIRM' || msg.type === 'NSP_CHAT_SITE' || msg.type === 'NSP_CHAT_ALLOW_SITE' || msg.type === 'NSP_CHAT_FORGET_SITE' || msg.type === 'NSP_CHAT_AGENT') {
     nspChatTrusted(sender).then(function(ok) {
       if (!ok) { sendResponse({ ok: false, error: 'not_allowed' }); return; }
       if (msg.type === 'NSP_CHAT_CONFIRM') sendResponse({ ok: !!self.NSP_PAGE_AGENT && self.NSP_PAGE_AGENT.confirm(String(msg.convId || ''), String(msg.pressId || ''), msg.yes === true) });
       else if (msg.type === 'NSP_CHAT_SITE') nspChatSiteInfo(msg, sender, sendResponse);
       else if (msg.type === 'NSP_CHAT_ALLOW_SITE') nspChatAllowSite(msg, sendResponse);
       else if (msg.type === 'NSP_CHAT_FORGET_SITE') nspChatForgetSite(msg, sendResponse);
+      else if (msg.type === 'NSP_CHAT_AGENT') nspChatPickAgent(msg, sendResponse);
       else if (msg.type === 'NSP_CHAT_RUN') nspChatRun(msg, sender, sendResponse);
       else if (msg.type === 'NSP_CHAT_HALT') { nspChatHalt(msg); sendResponse({ ok: true }); }
       else if (msg.type === 'NSP_CHAT_RUNS') sendResponse({ ok: true, runs: nspChatRuns() });

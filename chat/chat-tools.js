@@ -112,7 +112,13 @@
     'gumroad.product': 'Read the Gumroad product',
     'gumroad.analytics': 'Read the sales dashboard',
     'lemonsqueezy.home': 'Read the sales dashboard',
-    'g2.reviews': 'Read the G2 reviews'
+    'g2.reviews': 'Read the G2 reviews',
+    'hf.model': 'Read the Hugging Face model',
+    'hf.space': 'Read the Hugging Face Space',
+    'hf.dataset': 'Read the Hugging Face dataset',
+    'hf.discussions': 'Read the Hub discussions',
+    'mcp.github': 'Read the GitHub MCP Registry',
+    'mcp.registry': 'Read the MCP Registry'
   };
 
   var BROWSER_LABELS = {

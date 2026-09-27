@@ -7,6 +7,8 @@
   var PH = 'Product Hunt';
   var CWS = 'Chrome for Developers';
   var X = 'X Developer Platform';
+  var HF = 'Hugging Face Hub docs';
+  var MCP = 'Model Context Protocol docs';
 
   function src(title, url, author) {
     return { title: title, url: url, author: author };
@@ -38,7 +40,17 @@
     intents: src('Web Intents', 'https://docs.x.com/x-for-websites/web-intents/overview', X),
     npmCounts: src('Download counts', 'https://github.com/npm/registry/blob/main/docs/download-counts.md', 'npm registry docs'),
     g2Authentic: src('How G2 ensures authentic reviews', 'https://documentation.g2.com/help/docs/how-g2-ensures-authentic-reviews', 'G2 Documentation'),
-    g2Guidelines: src('Community Guidelines', 'https://legal.g2.com/community-guidelines', 'G2 Legal')
+    g2Guidelines: src('Community Guidelines', 'https://legal.g2.com/community-guidelines', 'G2 Legal'),
+    stars: src('Saving repositories with stars', 'https://docs.github.com/en/get-started/exploring-projects-on-github/saving-repositories-with-stars', GH),
+    hfModelCards: src('Model Cards', 'https://huggingface.co/docs/hub/model-cards', HF),
+    hfDatasetCards: src('Dataset Cards', 'https://huggingface.co/docs/hub/datasets-cards', HF),
+    hfDownloads: src('Models Download Stats', 'https://huggingface.co/docs/hub/models-download-stats', HF),
+    hfSpaces: src('Spaces Overview', 'https://huggingface.co/docs/hub/spaces-overview', HF),
+    hfDiscussions: src('Pull requests and Discussions', 'https://huggingface.co/docs/hub/repositories-pull-requests-discussions', HF),
+    mcpRegistry: src('The MCP Registry', 'https://modelcontextprotocol.io/registry/about', MCP),
+    mcpQuickstart: src('Quickstart: Publish an MCP Server to the MCP Registry', 'https://modelcontextprotocol.io/registry/quickstart', MCP),
+    mcpAuth: src('How to Authenticate When Publishing to the Official MCP Registry', 'https://modelcontextprotocol.io/registry/authentication', MCP),
+    mcpTools: src('Specification 2025-06-18, Server Features, Tools', 'https://modelcontextprotocol.io/specification/2025-06-18/server/tools', MCP)
   };
 
   var MODULES = [
@@ -307,6 +319,88 @@
           sources: [S.topics]
         }
       ]
+    },
+    {
+      id: 'b5-agents',
+      title: 'Ship an AI agent',
+      goal: 'Leave with your model, Space or MCP server findable, its tools described, and the rival agents that pull ahead named.',
+      lessons: [
+        {
+          id: 'b5-l1-hub',
+          title: 'Make your model, Space or dataset findable',
+          why: 'The Hub renders the README of a model or dataset as its card, and the YAML metadata at its top (license, datasets, base_model, library_name) is what lets people filter and find it; model repos created after August 2024 must set library_name: transformers themselves. Downloads count every GET or HEAD request to a query file such as config.json, CI runs included, and a Space on free hardware goes to sleep when unused.',
+          steps: [
+            'Open your model, Space or dataset on Hugging Face and read it with ZERACK: likes, downloads last month, last update and, for a Space, whether it runs.',
+            'Check the card metadata: license, library_name, base_model and datasets for a model, license and task categories for a dataset.',
+            'Add the field that is missing in the YAML at the top of README.md and commit it yourself.',
+            'Read downloads next to likes: machines make downloads, a like takes a person.'
+          ],
+          doNow: 'Read your Hub page and add the one metadata field it lacks.',
+          proof: 'Likes, downloads last month and the field you added.',
+          surfaces: ['a Hugging Face page'],
+          sources: [S.hfModelCards, S.hfDatasetCards, S.hfDownloads, S.hfSpaces]
+        },
+        {
+          id: 'b5-l2-registry',
+          title: 'List your MCP server in the official registry',
+          why: 'The MCP Registry is the official metadata repository for publicly accessible MCP servers: it holds metadata that points to a package on npm, PyPI or Docker Hub, not the code. Names are reverse DNS tied to a verified GitHub account or domain, so signing in with GitHub means a name that starts with io.github.your-name/, and an npm package carries that name in mcpName. The registry is in preview.',
+          steps: [
+            'Publish the package first, on npm, PyPI or Docker Hub: the registry only points to it.',
+            'Add mcpName to package.json with the name you will publish, io.github.your-name/server when you sign in with GitHub.',
+            'Run mcp-publisher init, login github and publish in your own terminal; ZERACK never runs them for you.',
+            'Open the registry, search your name and read the listing with ZERACK to check the version and the date.'
+          ],
+          doNow: 'Search your server in the official registry and read what it lists.',
+          proof: 'Your server name, its version and its date on the registry.',
+          surfaces: ['an MCP server listing'],
+          sources: [S.mcpRegistry, S.mcpQuickstart, S.mcpAuth]
+        },
+        {
+          id: 'b5-l3-tools',
+          title: 'Describe every tool your server exposes',
+          why: 'In the MCP specification a tool has a name, a description and an inputSchema in JSON Schema, with an optional title, outputSchema and annotations; clients must treat annotations as untrusted unless the server is trusted, and there should always be a human in the loop who can deny a tool call.',
+          steps: [
+            'List every tool with its name and a description that says what it reads and what it changes.',
+            'Give every parameter a type and a description in its inputSchema.',
+            'Mark read only and destructive tools in annotations, and still ask the user before anything that writes, pays or sends.',
+            'Put the tool list on the first screen of the README, where people and registries read it.'
+          ],
+          doNow: 'Rewrite the description of the tool that changes the most, saying what it changes.',
+          proof: 'The tool list with a description and an input schema for each tool.',
+          surfaces: ['a repository'],
+          sources: [S.mcpTools]
+        },
+        {
+          id: 'b5-l4-agent-rivals',
+          title: 'Watch the rival agents that accelerate',
+          why: 'GitHub says many of its repository rankings depend on stars and that Explore shows popular repositories by their stars, and the GitHub MCP Registry lists every server with its star count. A rival agent, model or server that gains stars or likes faster than its own baseline shows where builders are moving before a launch post does.',
+          steps: [
+            'Open the GitHub MCP Registry, a rival agent repository or a rival model or Space, and ask ZERACK to watch it.',
+            'ZERACK reads each public page once a day at human pace and keeps the stars, likes and downloads.',
+            'After four readings it says which accelerate over their own baseline, server by server on the registry.',
+            'Read what the fast one shipped that week, its commits, release or card, before you copy anything.'
+          ],
+          doNow: 'Watch the GitHub MCP Registry and two rival repositories today.',
+          proof: 'Three watched pages and the date of their fourth reading.',
+          surfaces: ['an MCP server listing', 'a rival repository or package', 'a Hugging Face page'],
+          sources: [S.stars, S.hfDownloads]
+        },
+        {
+          id: 'b5-l5-hub-requests',
+          title: 'Count the requests in your Hub discussions',
+          why: 'On the Hub the Community tab of any model, dataset or Space lists its discussions and pull requests together, with no hard line between them, so what your users ask for sits next to the fixes people send.',
+          steps: [
+            'Open the Community tab of your model or Space and read it with ZERACK.',
+            'Read your GitHub issues and your launch thread too.',
+            'Ask which request repeats: the discussion titles are grouped with the issues and threads.',
+            'Answer the top one in the discussion yourself; every comment waits for your press.'
+          ],
+          doNow: 'Read your Community tab and ask which request repeats.',
+          proof: 'The top request with its count and one discussion that asks for it.',
+          surfaces: ['a Hugging Face discussions list', 'a GitHub issues list'],
+          sources: [S.hfDiscussions, S.issues]
+        }
+      ]
     }
   ];
 
@@ -353,7 +447,8 @@
     id: 'builders',
     name: 'Builders',
     title: 'Build a product people use and pay for',
-    business: 'the product the user is building: a SaaS, an app, an extension, an agent or an open source project',
+    agent: { name: 'Builders agent', does: 'Reads GitHub, Hugging Face, MCP registries, launch threads and Stripe; finds repeated requests and rivals that accelerate, drafts the post of the day and the launch kit.', sites: ['github.com', 'huggingface.co', 'registry.modelcontextprotocol.io', 'news.ycombinator.com', 'producthunt.com', 'npmjs.com', 'pypi.org', 'dashboard.stripe.com', 'localhost'] },
+    business: 'the product the user is building: a SaaS, an app, an extension, an AI agent, an MCP server, a model or an open source project',
     sourceOwner: 'platform and founder',
     updated: '2026-09-27',
     hosts: [
@@ -370,12 +465,18 @@
       { host: /^(www\.)?g2\.com$/, path: /^\/products\// },
       { host: /^appstoreconnect\.apple\.com$/ },
       { host: /^play\.google\.com$/, path: /^\/console/ },
+      { host: /^huggingface\.co$/ },
+      { host: /^registry\.modelcontextprotocol\.io$/ },
+      { host: /^(www\.)?smithery\.ai$/ },
+      { host: /^(www\.)?glama\.ai$/, path: /^\/mcp(\/|$)/ },
+      { host: /^(www\.)?mcp\.so$/ },
+      { host: /^(www\.)?pulsemcp\.com$/ },
       { host: /^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$/ }
     ],
-    named: /\b(?:saas|indie saas|g2 reviews|startups?|my app|mi app|mi aplicacion|side project|mrr|churn|product hunt|indie hackers?|paying users|usuarios de pago|product.?market fit|show hn|hacker news|build in public|changelog|release notes|github stars|my repo|mi repo|open source|npm package|chrome extension|my extension|mi extension)\b/,
-    identity: 'You are ZERACK, the operator for builders: developers, indie hackers, founders and maintainers shipping a SaaS, an app, an extension, an agent or an open source project. You read their repository, their issues, their launch threads, their packages and their billing in front of them, and you prepare the work: the request that repeats, the rival that accelerates, the changelog, the launch kit and the post of the day. You are not an assistant: you are the partner who reads the numbers and does the work.',
-    identityLean: 'You are ZERACK, a brutally honest operator for builders shipping a product in public, who thinks in users, revenue and weekly growth.',
-    bottlenecks: 'nobody has the problem, a request users repeat and nobody builds, users who never reach the first useful moment, a weekly growth rate under 5%, revenue lost to failed payments, or a launch nobody hears about',
+    named: /\b(?:saas|indie saas|g2 reviews|startups?|my app|mi app|mi aplicacion|side project|mrr|churn|product hunt|indie hackers?|paying users|usuarios de pago|product.?market fit|show hn|hacker news|build in public|changelog|release notes|github stars|my repo|mi repo|open source|npm package|chrome extension|my extension|mi extension|hugging ?face|mcp|mcp servers?|model context protocol|ai agents?|agentes? de ia|llm agents?)\b/,
+    identity: 'You are the ZERACK Builders agent, the operator for builders: developers, indie hackers, founders and maintainers shipping a SaaS, an app, an extension, an AI agent, an MCP server, a model or an open source project. You read their repository, their issues, their launch threads, their packages, their Hugging Face pages, the MCP registries and their billing in front of them, and you prepare the work: the request that repeats, the rival that accelerates, the changelog, the launch kit and the post of the day. You are not an assistant: you are the partner who reads the numbers and does the work.',
+    identityLean: 'You are ZERACK\'s Builders agent, a brutally honest operator for builders shipping a product in public, who thinks in users, revenue and weekly growth.',
+    bottlenecks: 'nobody has the problem, a request users repeat and nobody builds, users who never reach the first useful moment, a weekly growth rate under 5%, revenue lost to failed payments, a launch nobody hears about, or an agent, model or MCP server nobody can find or trust',
     assume: 'assume a small team with one product shipped in public from a GitHub repository and a few users, and that the page on screen is their own product, their launch or a rival',
     hints: [
       [/\b(?:interview\w*|entrevist\w*|talk to users|hablar con usuarios|customer development)\b/, 'b1-l1'],
@@ -393,9 +494,20 @@
       [/\b(?:web store|chrome web store|store listing|ficha)\b/, 'b3-l4'],
       [/\b(?:changelog|release notes?|notas de la version|release|version|semver)\b/, 'b4-l1'],
       [/\b(?:post|tweet|publicar hoy|build in public|what to post|que publico)\b/, 'b4-l2'],
-      [/\b(?:topics?|readme|discover\w*|findable)\b/, 'b4-l3']
+      [/\b(?:topics?|readme|discover\w*|findable)\b/, 'b4-l3'],
+      [/\b(?:hugging ?face|model cards?|dataset cards?|my model|mi modelo|my space|downloads last month)\b/, 'b5-l1'],
+      [/\b(?:mcp registry|official registry|registr[oy] de mcp|mcp-publisher|server\.json|mcpname|publish my (?:mcp )?server)\b/, 'b5-l2'],
+      [/\b(?:mcp tools?|tool descriptions?|describe (?:my|the) tools|input ?schema|annotations)\b/, 'b5-l3'],
+      [/\b(?:rival agents?|agents? rivales|competing agents?|mcp servers? (?:that )?accelerat\w*|which (?:mcp )?servers)\b/, 'b5-l4'],
+      [/\b(?:discussions?|community tab|pestana comunidad)\b/, 'b5-l5']
     ],
     readers: [
+      { id: 'mcp.github', host: /^github\.com$/, path: /^\/mcp(\/|$)/, label: 'the GitHub MCP Registry: every server with its stars, language, topics and last push, or one server on its own page' },
+      { id: 'mcp.registry', host: /^registry\.modelcontextprotocol\.io$/, label: 'the official MCP Registry, its page or its API: every server with its version, status, packages and last update' },
+      { id: 'hf.discussions', host: /^huggingface\.co$/, path: /^\/(spaces\/|datasets\/)?[^\/]+\/[^\/]+\/discussions\/?$/, label: 'the Community tab of a Hugging Face model, dataset or Space: every discussion and pull request with its comments and date' },
+      { id: 'hf.space', host: /^huggingface\.co$/, path: /^\/spaces\/[^\/]+\/[^\/]+(\/|$)/, label: 'a Hugging Face Space: likes, SDK, whether it runs, created and last update' },
+      { id: 'hf.dataset', host: /^huggingface\.co$/, path: /^\/datasets\/[^\/]+\/[^\/]+(\/|$)/, label: 'a Hugging Face dataset: likes, downloads last month, created and last update' },
+      { id: 'hf.model', host: /^huggingface\.co$/, path: /^\/(?!(?:docs|settings|models|datasets|spaces|organizations|blog|papers|collections|posts|learn|tasks|pricing|join|login|new|chat|enterprise|api|search|mcp)\/)[^\/]+\/[^\/]+(\/(tree|blob)\/.*)?\/?$/, label: 'a Hugging Face model: likes, downloads last month, task, library, created and last update' },
       { id: 'github.issues', host: /^github\.com$/, path: /^\/[^\/]+\/[^\/]+\/issues\/?$/, label: 'a GitHub issues list: every issue with its title, comments, labels and date' },
       { id: 'github.traffic', host: /^github\.com$/, path: /^\/[^\/]+\/[^\/]+\/graphs\/traffic\/?$/, label: 'the traffic page of a repository, signed in: views, unique visitors, clones and referring sites' },
       { id: 'github.releases', host: /^github\.com$/, path: /^\/[^\/]+\/[^\/]+\/(releases|tags)(\/|$)/, label: 'the releases of a repository from its public feed, with the tags when there is no release' },
@@ -419,17 +531,22 @@
       'the repository traffic page': 'zerackExtract with reader github.traffic reads it when the user is signed in with push access',
       'a rival repository or package': 'zerackBuilder watch keeps a public repository, package or store listing and reads it once a day; zerackBuilder rivals says who accelerates',
       'a repository': 'zerackExtract with reader github.repo reads it with its latest commits; zerackBuilder post, changelog and launch work from that read',
-      'a G2 reviews page': 'zerackExtract with reader g2.reviews reads every review on screen; zerackBuilder requests groups the dislikes with the issues and threads read'
+      'a G2 reviews page': 'zerackExtract with reader g2.reviews reads every review on screen; zerackBuilder requests groups the dislikes with the issues and threads read',
+      'a Hugging Face page': 'zerackExtract with reader hf.model, hf.space or hf.dataset reads likes, downloads last month and the last update; zerackBuilder watch keeps it and reads it once a day',
+      'an MCP server listing': 'zerackExtract with reader mcp.registry reads the official MCP Registry and mcp.github the GitHub MCP Registry with stars; zerackBuilder watch keeps the GitHub MCP Registry and zerackBuilder rivals says which servers accelerate',
+      'a Hugging Face discussions list': 'zerackExtract with reader hf.discussions reads the Community tab; zerackBuilder requests groups its titles with the issues and threads read'
     },
     gate: {
       press: [
-        { kind: 'Publish', re: /^(merge( pull request)?|confirm merge|squash and merge|rebase and merge|close (the |this )?(issue|pull request)|close as (completed|not planned|duplicate)|close with comment|reopen( issue)?|deploy|redeploy|promote to production|roll ?back|launch( now)?|schedule (the )?launch|repost|retweet|tweet|publish release|create release|update release|create (a )?fork|fork|publish package|lock conversation|pin issue|transfer issue|(update|change|edit|save) (the )?(price|pricing|plan))\b/ },
-        { kind: 'Send', re: /^(dm|direct message|send (a )?(dm|direct message)|message|invite( member| collaborator)?|add (a )?comment|post (a )?comment|create (the )?(issue|pull request|discussion)|open (a )?pull request|start (a )?discussion|submit)\b/ }
+        { kind: 'Publish', re: /^(merge( pull request)?|confirm merge|squash and merge|rebase and merge|close (the |this )?(issue|pull request)|close as (completed|not planned|duplicate)|close with comment|reopen( issue)?|deploy|redeploy|promote to production|roll ?back|launch( now)?|schedule (the )?launch|repost|retweet|tweet|publish release|create release|update release|create (a )?fork|fork|publish package|lock conversation|pin issue|transfer issue|(update|change|edit|save) (the )?(price|pricing|plan)|commit changes|commit directly|restart (this )?space|factory reboot|duplicate (this )?space|create (a )?(new )?(model|dataset|space|collection)|publish (this )?(pull request|discussion))\b/ },
+        { kind: 'Send', re: /^(dm|direct message|send (a )?(dm|direct message)|message|invite( member| collaborator)?|add (a )?comment|post (a )?comment|create (the )?(issue|pull request|discussion)|open (a )?pull request|start (a )?(new )?discussion|new discussion|submit)\b/ }
       ],
       never: [
-        { why: 'it deletes or hands over a whole project', re: /^(delete (this |the )?(repository|project|app|organization|team|package|release)|transfer (this |the )?(repository|project|app|ownership)|unpublish|archive (this |the )?repository)\b/, link: true },
+        { why: 'it deletes or hands over a whole project', re: /^(delete (this |the )?(repository|project|app|organization|team|package|release|model|dataset|space|collection)|transfer (this |the )?(repository|project|app|ownership)|unpublish|archive (this |the )?repository)\b/, link: true },
         { why: 'it changes who can reach the code or the deploys', re: /^(add (a )?collaborator|add people|manage access|change (the )?visibility|make (this repository )?(public|private))\b/ },
-        { why: 'stars, follows, votes and sponsorships are yours to give by hand, so ZERACK never casts them', re: /^(follow|unfollow|following|sponsor|upvote|downvote|vote)\b|^(star|unstar|starred|watch|unwatch|watching)(\s+[0-9][0-9,.]*[km]?)?$|^subscribe to (this )?(repository|thread)\b|\b(star|unstar|follow|unfollow|sponsor|upvote|downvote|vote for|watch|unwatch) (a|an|this|the|that) (repository|repo|project|user|account|organization|story|post|comment|product|maker)\b/, link: true }
+        { why: 'stars, follows, votes and sponsorships are yours to give by hand, so ZERACK never casts them', re: /^(follow|unfollow|following|sponsor|upvote|downvote|vote)\b|^(star|unstar|starred|watch|unwatch|watching)(\s+[0-9][0-9,.]*[km]?)?$|^subscribe to (this )?(repository|thread)\b|\b(star|unstar|follow|unfollow|sponsor|upvote|downvote|vote for|watch|unwatch) (a|an|this|the|that) (repository|repo|project|user|account|organization|story|post|comment|product|maker)\b/, link: true },
+        { why: 'likes are yours to give by hand, the same as stars and votes, so ZERACK never casts them', re: /^(like|unlike|liked)(\s+[0-9][0-9,.]*[km]?)?$|^(like|unlike) (this |the )?(model|dataset|space|repository|repo|collection|paper|server)\b/, link: true },
+        { why: 'installing an MCP server gives it your machine, so you install it yourself', re: /^(install|add)( it| this( server)?| (the |this )?server)?( in| to| on)? (vs ?code|visual studio( code)?|vscode|cursor|claude( code| desktop)?|windsurf|zed|goose)\b|^install (the |this )?(mcp )?server\b|^one.?click install\b/, link: true }
       ]
     },
     readOnly: [{ host: /^dashboard\.stripe\.com$/, why: 'Stripe holds the money, the prices and the refunds, so ZERACK only reads it' }],
@@ -440,7 +557,8 @@
       { host: /^vercel\.com$/, path: /\/settings(\/|$)|^\/account(\/|$)/, why: 'environment variables, tokens and settings stay with you' },
       { host: /^dashboard\.stripe\.com$/, path: /^\/(test\/)?(apikeys|settings|webhooks|developers)(\/|$)/, why: 'API keys, webhooks and settings stay with you' },
       { host: /^plausible\.io$/, path: /\/settings(\/|$)/, why: 'settings and API keys stay with you' },
-      { host: /(^|\.)producthunt\.com$/, path: /^\/my\/(settings|api|applications)/, why: 'settings and API applications stay with you' }
+      { host: /(^|\.)producthunt\.com$/, path: /^\/my\/(settings|api|applications)/, why: 'settings and API applications stay with you' },
+      { host: /^huggingface\.co$/, path: /(^|\/)settings(\/|$)/, why: 'access tokens, Space secrets and settings stay with you' }
     ],
     fees: null,
     rules: RULES,

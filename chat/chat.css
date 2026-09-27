@@ -114,6 +114,13 @@ button { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 7px; flex: 0 0 auto; }
 .mark { display: block; width: 22px; height: 22px; filter: drop-shadow(0 0 5px rgba(255,255,255,.35)); }
 .word { font-weight: 800; letter-spacing: .16em; font-size: 12px; }
+.agent-switch { gap: 8px; min-width: 0; max-width: 62%; background: none; border: 0; border-radius: 10px; padding: 4px 8px 4px 5px; margin-left: -3px; cursor: pointer; color: inherit; text-align: left; }
+.agent-switch:hover, .agent-switch[aria-expanded="true"] { background: var(--surface-2); }
+.brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
+.brand-text .word { font-size: 9.5px; letter-spacing: .24em; color: var(--muted); }
+.agent-name { margin-top: 3px; font-size: 12.5px; font-weight: 700; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-switch .chev { flex: 0 0 auto; color: var(--faint); transition: transform .15s ease; }
+.agent-switch[aria-expanded="true"] .chev { transform: rotate(180deg); color: #fff; }
 .title-wrap { flex: 1; min-width: 0; padding-left: 8px; margin-left: 4px; border-left: 1px solid var(--line); }
 .conv-name { display: block; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .title-edit { width: 100%; background: var(--surface-2); border: 1px solid var(--line-strong); color: var(--text); border-radius: 6px; padding: 4px 7px; font: inherit; font-size: 13px; outline: none; }
@@ -178,6 +185,38 @@ textarea:focus, textarea:focus-visible { outline: none; }
 .empty-tag[hidden] { display: none; }
 .empty-tag + .empty-line { margin-top: 10px; }
 .empty-tag-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--red); box-shadow: 0 0 0 3px rgba(255,45,45,.18); }
+button.empty-tag { cursor: pointer; font-family: var(--font); }
+button.empty-tag:hover { border-color: #fff; }
+.empty-tag .chev { margin-left: -2px; color: var(--muted); }
+.empty-line.does { max-width: 390px; color: rgba(255,255,255,.72); font-size: 13px; line-height: 1.5; }
+.roster-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; background: none; border: 0; padding: 4px 6px; border-radius: 6px; color: var(--muted); font-size: 12px; letter-spacing: .02em; cursor: pointer; }
+.roster-link:hover { color: #fff; }
+
+.roster { position: absolute; left: 0; right: 0; top: 48px; bottom: 0; z-index: 15; display: flex; flex-direction: column; background: var(--bg); animation: rise .16s ease-out; }
+.roster-head { display: flex; align-items: flex-start; gap: 10px; width: 100%; max-width: 760px; margin: 0 auto; padding: 14px 10px 8px 18px; border-bottom: 1px solid var(--line); }
+.roster-titles { flex: 1; min-width: 0; }
+.roster-title { display: flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
+.roster-count { font-family: var(--mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0; color: var(--faint); }
+.roster-sub { margin-top: 5px; color: var(--muted); font-size: 12.5px; line-height: 1.45; max-width: 520px; }
+.roster-list { flex: 1; min-height: 0; overflow-y: auto; width: 100%; max-width: 760px; margin: 0 auto; padding: 8px 10px 18px; display: flex; flex-direction: column; gap: 2px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.2) transparent; }
+.agent-row { display: flex; align-items: flex-start; gap: 11px; width: 100%; background: none; border: 1px solid transparent; border-radius: 12px; padding: 8px 10px; text-align: left; cursor: pointer; color: inherit; }
+.agent-row:hover { background: var(--surface); border-color: var(--line); }
+.agent-row.on { background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 80%), var(--surface); border-color: var(--line-strong); }
+.agent-glyph { flex: 0 0 32px; width: 32px; height: 32px; margin-top: 1px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line-strong); border-radius: 10px; background: #0a0a0a; color: #fff; }
+.agent-glyph svg { width: 18px; height: 18px; }
+.agent-glyph img { width: 20px; height: 20px; filter: drop-shadow(0 0 4px rgba(255,255,255,.3)); }
+.agent-row.on .agent-glyph { border-color: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,.07); }
+.agent-body { flex: 1; min-width: 0; }
+.agent-top { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.agent-title { min-width: 0; font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-badge { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 7px; font-size: 9.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; line-height: 1.3; }
+.agent-badge.use { color: #fff; box-shadow: inset 0 0 0 1px rgba(255,45,45,.55); }
+.agent-badge.use::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--red); }
+.agent-badge.site { color: rgba(255,255,255,.75); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.agent-does, .agent-sites { display: block; }
+.agent-does { margin-top: 2px; color: rgba(255,255,255,.7); font-size: 12px; line-height: 1.4; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.agent-sites { margin-top: 3px; font-family: var(--mono); font-size: 10.5px; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.roster-sep { height: 1px; margin: 5px 10px; background: var(--line); }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 520px; }
 .chip {
   background: var(--surface);
