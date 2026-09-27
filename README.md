@@ -1,20 +1,65 @@
 # cashcow-radar-agent
 
-ZERACK is a Chrome extension (Manifest V3) that reads YouTube the way a channel owner needs it read: what is actually moving, whether the format is one you can reproduce without a camera, and whether the script you are about to publish will get the channel demonetized.
+ZERACK is a Chrome extension (Manifest V3) with two jobs. On YouTube it reads channels the way an owner needs them read: why a channel blew up, what your own channel should do next, what moved overnight, and what to make. On any other site you allow, its chat works as an operator for the business in front of you: a store, a marketplace listing, a product you are building, a freelance job board, a newsletter. It reads the page, decides with measured numbers, and waits for your own click before anything is paid, published, sent or deleted.
 
-It runs in your browser. No server, no account, no telemetry. Every AI panel is optional and uses a key you paste yourself.
+It runs in your browser. No server, no account, no telemetry. The numbers on every card come from public pages and the engines in `lib/`, never from a model. A model only writes (titles, hooks, scripts, replies, drafts), and only with a provider you set up.
 
-## What is here that is not anywhere else
+## On YouTube: 20 features in the chat
 
-**A demonetization policy engine.** `nsp-policy.js` is a rules engine over `data/policies.json`: it normalizes a script (diacritics folded, `ß` to `ss`, everything non-alphanumeric collapsed), matches the rule table in word or substring mode with an uppercase guard so `ss` does not fire inside *besser*, and maps every hit back to its index in the original text so you can see the exact phrase. It also keeps a per-channel corpus of top-400 token frequencies (never the raw script) and scores a new script against it, so a near-duplicate of your own back catalogue comes back yellow with the inauthentic-content reason instead of green. The service worker loads it and answers `policy:rules` and `policy:evaluate`, and the listener refuses any sender that is not this extension. The chat's *Check before upload* box runs it together with the advertiser-friendly keyword screen, in the browser, and names each flag with its policy and the field it was found in.
+Each one is reached by typing in the chat (English or Spanish), by voice, from the chips of the empty chat, or by the model through a read-only tool it gets even with the Agent switch off. Most cards carry *Save PNG*, *Copy image* and *Share on X*, which opens X with the text; you attach the image and post it yourself.
 
-**A reverse engine for titles, built from your own scan.** `knowledge/reverse-engine.js` takes the videos a scan just measured, finds the outliers against that set's own median, and reports which title formats over-index inside the outliers versus the rest, which words live in them, how they open in the first two words, which channels own the niche, and a fill-in template drawn from the format that actually took off. It feeds the scan context of the YouTube panel's prompt. Nothing here is generic blog advice: every number comes from the videos on your screen.
+**Any channel** (`lib/nsp-intel.js`)
 
-**Faceless detection that looks at the thumbnail.** face-api.js `tinyFaceDetector` runs locally on each thumbnail, in the extension's isolated world on youtube.com (`content/nsp-faces.js`), not in the page's own scripts, and rejects a card when a face covers more than the area threshold. That is a measurement of the image, not a guess from the title.
+1. **X-ray, why did this blow up.** Reads the last 30 public uploads: the video where views jumped and by how much, the channel median and best video, which title traits winners share against losers, whether AI can rebuild the format, the title template, and whether the niche window is still open (from up to 7 channels of the same niche, read one at a time). A channel with no break says *no clear turning point*.
+2. **Duel.** Two channels on 7 measured axes (upload rhythm, floor, median, ceiling, steadiness, best lift, age), who wins each and why, and how their titles differ.
+3. **Formula.** Title template from the real titles, winning traits, length, upload rhythm, format and the style of the 10 most viewed thumbnails.
+4. **Verdict.** One lucky hit or real growth, how much of the views ride on one video, and whether the channel stopped uploading.
 
-**Growth measured from two readings or not shown at all.** The Command Center's *Measure growth* reads each saved channel's subscriber and view totals and stores a timestamped snapshot under `zerack_channel_snapshots_v1`. With fewer than two snapshots, or two less than half a day apart, `computeGrowth` returns no rate and the cell prints `-` with the title *Never measured*. There is no modelled growth anywhere.
+**Your channel** (`lib/nsp-mine.js`), read from an open YouTube Studio tab or saved once from *my channel is @handle*, kept on this computer
 
-**Discovery that costs no quota.** The country radar and the channel readers go through `https://www.youtube.com/youtubei/v1/`, the same private API the page itself calls, with the public WEB key YouTube ships in every page it serves and `credentials: 'omit'` so nothing is personalized to your account. No YouTube Data API units are spent to find anything.
+5. **My Wrapped.** Best video and its multiple over your median, your title skeleton, your publishing hour from exact upload times, and your real niche with its reference RPM.
+6. **My next video.** Your outliers crossed with the rising signals stored in this browser, one topic with its evidence, and a title and hook written by your provider.
+7. **Judge a title.** The calibrated judge's percentile, where it ranks among your last 30 titles, the niche's real winners, and a rewrite that keeps your skeleton.
+8. **Judge my thumbnail.** From Studio, a link or a dropped file, shown at phone size next to the niche's winners, with what to change. It is not a click prediction.
+9. **Thumbnail ideas.** Three concepts in your measured style with exact prompts; drawn only when you press *Draw them*, with a Gemini or OpenAI key you already saved.
+10. **Check before upload.** The policy engine and the advertiser-friendly word screen over title, description and script. The text never leaves the browser.
+11. **What it pays.** 4, 8 and 12 videos a month at the RPM table, break-even when you give a cost, and the risks, stamped as an estimate.
+
+**Watch and predict** (`lib/nsp-watch.js`)
+
+12. **Outlier alerts.** Watched channels are read every hour; one notification per new upload that reaches 5x the median of the channel's uploads older than a week. The click opens its X-ray.
+13. **Morning brief.** Off by default. At your hour: new uploads, outliers and silent channels among the ones you watch, and your saved niches rising or cooling. It never calls a model.
+14. **Sealed predictions.** Once a day, young channels from your scans that look set to double in 14 days, next to random controls, stored with a SHA-256 chained to the previous batch. After 14 days they are read again and a one-sided Fisher test compares picks with controls, with no verdict under 20 settled calls a side.
+15. **Language gaps.** Niches that win in English and are missing or weak in Spanish, German or Portuguese, with the counts behind each call; *Measure* runs the Country radar when data is short.
+16. **Comments to ideas.** The top 100 public comments, the ones that ask for something sorted by likes, and three ideas from your provider.
+
+**Create and hands-free** (`lib/nsp-sourced.js`, `lib/nsp-shorts.js`, `lib/nsp-create.js`)
+
+17. **Sourced script.** Written only from numbered passages of the top videos' captions and pages you allowed; every line without a real source, or with a number its passage lacks, is cut and listed. With fewer than two sources it refuses and calls no model.
+18. **Shorts miner.** 3 to 5 clips from the public captions and the most replayed graph, with the hook line, why each was picked and a link at that second.
+19. **Studio package.** Title, description with chapters and tags, stored only after *Approve*, filled into the video open in Studio from the chat, by voice or from the ZERACK bar there, and saved only on a real press on that bar. Visibility, audience and monetization are never touched.
+20. **Hands-free.** Every card above by voice, plus *next*, *save this channel* and *how much does this channel earn*, each answered aloud.
+
+## Off YouTube: the business agent
+
+**Two yeses before it acts.** The Agent switch, and the site itself: the chat shows **Allow on** the site, which asks Chrome for that one site inside your click; the menu takes it back. It works in the tab's isolated world, one step per call (read, click, type, paste, select, scroll, plans of up to 30 steps across page loads), so the page can neither see its hands nor replace its safety gate. Off YouTube its prompt and tools carry no YouTube words unless you ask about YouTube.
+
+**Your click, not its.** Paying, publishing, sending, deleting and fulfilling an order stop at a row in the chat that waits up to two minutes for your real click on **Pay**, **Publish**, **Send**, **Delete** or **Fulfill**. A script click does nothing, a page that covers the chat cannot get that click, and Stop cancels it. Moving money out, passwords and codes, card, bank and tax fields, API keys, closing the account, stars, follows, votes and sponsorships are refused even with a press, including when a page's own text asks for them. Stripe is read only. Every write goes to a local ledger with the field before and after and who pressed.
+
+**Playbooks for ten kinds of business** (`knowledge/playbooks/`), each with lessons that cite the platform's own pages and page readers (`lib/nsp-extract.js`) that answer *drift* when a page changed, never a zero:
+- **Etsy**: search, shop and listing pages, fees and Offsite Ads.
+- **Shopify**: the admin, store pages, and rival stores through their public `/products.json`.
+- **Search Console and WordPress**: the Performance table and the posts list.
+- **Builders**: GitHub, Hacker News, Product Hunt, Reddit, npm, PyPI, the Chrome Web Store, Stripe and Plausible tiles, G2 reviews, and your app on localhost.
+- **Creators** on TikTok and Instagram, **freelancers** on Upwork and Fiverr, **local businesses** on Google Maps and the agencies that sell to them, **Amazon** sellers and KDP authors, **newsletters** on Substack and beehiiv, and **digital products** on Gumroad, Lemon Squeezy and Payhip.
+
+**Decisions with numbers** (`lib/nsp-decide.js`). Every answer is KEEP, LOOK AT IT or DROP with its number and what is still missing: which title, ad, listing or price wins (A/B), whether a number accelerates, whether it is still rising, whether a rate clears a bar. Each decision books a re-measure; the lesson is kept only if the new numbers agree, and kept lessons reach the model on the next question for that site. A press that spends (buy, boost, renew, upgrade) is offered only after an A/B result on the same site from the last 14 days.
+
+**The builders operator** (`lib/nsp-builders.js`). Requests that repeat across issues and threads, people asking for what you build, rivals that accelerate (a daily cookie-less read of public pages you allowed), what to post today or *skip today*, the changelog in Keep a Changelog format with the next SemVer version, and the Product Hunt and Show HN kit. Hacker News text is written by hand, so ZERACK gives an outline and the facts, never finished text.
+
+**Leads** (`lib/nsp-leads.js`). Places or jobs judged Pitch or Bid, Look at it or Skip, with the fact behind each. Every draft carries one specific fact, an AI disclosure and an opt-out line, and emails the ad line and postal address US anti-spam law asks for. It sends only on your press, inside a daily cap that starts at 5 and rises to 30 (never above 50), 8:00 to 21:00, stops after 3 bounces, and never writes twice to the same place or to anyone who opted out. On TikTok, Instagram, Upwork, Fiverr, Maps and Amazon, whose terms limit automation, it reads only the page you opened, 12 seconds apart, and never in the daily watch.
+
+**Activity page** (`activity/`, *Activity, decisions and lessons* in the chat menu): every action with who pressed and how to undo it, every decision with its history, kept and deleted lessons, *Measure now* and *Forget*. By voice: *read this page*, *find clients here* and *how many can I send today*; any other spoken question on a business page goes to that playbook's agent, which can read but not click, type or send.
 
 ## Install
 
@@ -23,130 +68,92 @@ git clone <this repo>
 cd cashcow-radar-agent
 ```
 
-Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and pick this folder. That is all: the scanner, the scan, the policy engine, the country radar and every panel work from a plain checkout.
-
-`scripts/fetch-assets.sh` downloads four large binaries into `lib/whisper/`, each checked against the SHA-256 of the build this code shipped with. **You do not need to run it** unless those files are missing from your checkout: they are the local Whisper model the voice falls back to when Chrome's own speech recognition is not available.
+Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and pick this folder. Nothing to build. `scripts/fetch-assets.sh` downloads the local Whisper model the voice falls back to when Chrome's own speech recognition cannot run; you only need it if those files are missing.
 
 ## Models and where keys go
 
-Open **Options**: the Settings button in the popup, or `chrome://extensions`, Details, Extension options. It opens in its own tab.
+Open **Options** (the Settings button in the popup). The OpenAI key and the voice keys go in **Setup**.
 
 | Field | Storage key | What it is for |
 |---|---|---|
 | Groq API key (`gsk_…`) | `nsp_groq_api_key` | free tier, second in the cascade after OpenAI |
-| Gemini API key (`AIza…`) | `nsp_gemini_api_key` | Google, text and thumbnail vision |
+| Gemini API key (`AIza…`) | `nsp_gemini_api_key` | Google, text, thumbnail vision and thumbnail drawing |
 | Enable Ollama, URL, model | `nsp_ollama_enabled`, `nsp_ollama_url`, `nsp_ollama_model` | a model on your own machine, no limits, offline |
 | Assistant model | `nsp_selected_model` | the picker |
 | Let a scan send thumbnails to the vision model | `nsp_vision_allowed` | off by default |
 
-The **Assistant model** picker is the one catalog, `lib/nsp-models.js`, read by the options page, the chat's model pill, the service worker and the overlay. Picking an entry sets the preferred provider, it does not lock you to it: on a rate limit or a failure the service worker falls through to the next provider you have configured, in the order OpenAI, Groq, Ollama, Gemini (the OpenAI key is pasted in Setup). Picking *Auto* takes that order as it stands.
+The picker is one catalog, `lib/nsp-models.js`. On a rate limit or a failure the service worker falls through to the next provider you configured, in the order OpenAI, Groq, Ollama, Gemini. Keys live in `chrome.storage.local` and leave the browser only to reach their provider. Without any key the scan, the metrics overlay, every measured card, the policy engine and the page readers still work; only the writing needs a provider. A stored key is not permission to spend it: vision has its own switch in Options, drawing needs a press, and on youtube.com a paid call also needs a grant (below).
 
-Keys live in `chrome.storage.local` and leave the browser only to reach the provider whose key you pasted. Without any key the metrics overlay, the scan, the tracking panel, the country radar, the niche index and the policy engine all still work; the AI panels say they have no provider.
+## The other surfaces
 
-**A stored key is not permission to spend it.** Sending a thumbnail to the vision model is a separate checkbox in Options, only Options can write it, and the service worker refuses the call with `vision_not_allowed` when the flag is not exactly `true`. On youtube.com a second rule applies, see *Who can ask the service worker for what*.
+- **On youtube.com** (`content/nsp-bundle.js`): a badge on every video card (views per hour, multiplier over the channel average, tier, opportunity, revenue labelled `est.`), **SCAN** for faceless videos with traction and a niche read, a market selector, tracking, an ad-placement probe, a thumbnail check, a transcript reader, a Title Lab and a comment reader.
+- **On studio.youtube.com** (`content/nsp-studio.js`): title scoring against your own titles, and the ZERACK bar that fills an approved package and saves it only on a real press, from a closed shadow root the page cannot reach. It builds DOM with `createElement` only, because Studio enforces Trusted Types.
+- **The bubble** (`content/zerack-bubble.js`): the round ZERACK button on YouTube, Studio, and other sites once you switch *Bubble on every site* on. Click opens the chat over the page, hold talks, drag moves. It reads nothing on the page. **Alt+X** opens the chat; on `chrome://` pages it opens in the side panel.
+- **Voice** (`offscreen/voice.js`, routed in the service worker): hold the bubble or the chat's mic, or turn on Hands-free. Browser commands run as soon as they are heard; anything else in Hands-free needs *oye*, *hey* or *Zerack*, and while a tab plays sound every command needs the name. Speech to text is Chrome's recognizer, with local Whisper as a slow fallback; the last 100 phrases stay in session storage until Chrome closes.
+- **Popup**, **Command Center** (`dashboard/`), **ZERACK hub** (`ashlyv/`), **Country radar** (`country-feed/`) and **Niche Index** (`niche-index/`): the doors, saved channels with *Measure growth* (no rate from a single reading), saved niches, the faceless feed per market through InnerTube, and the niche table your scans filled in.
 
-## What each surface does
-
-**On youtube.com** (`content/nsp-bundle.js`, the engine)
-- A badge on every video card: views per hour, the multiplier against that channel's own average, a tier, an opportunity score, and a revenue estimate labelled `est.` because it is one. Each of the five can be switched off in Options.
-- **SCAN** sweeps the feed you are on (home, search, a channel, trending), keeps the faceless videos with traction, and puts a niche read on top.
-- A country selector that switches the feed's market and rescans it.
-- A tracking panel for channels under watch, an ad-placement probe that reports monetized, likely, not monetized or cannot check, a thumbnail check that measures faces, contrast and brightness in the browser, a transcript reader, a Title Lab that asks the model to rank your title variants against the outliers you saved, and a comment reader that asks the model about the comments YouTube has loaded on the page and turns what viewers ask for into three video ideas.
-
-**On studio.youtube.com** (`content/nsp-studio.js`) reads your own Studio page, recognizes which page it is, and scores title candidates against the titles that already worked, in the language the corpus is written in. On a video's Details page with a Studio package you approved in the chat, a ZERACK bar offers *Fill fields* (title, description with its chapters, tags) and then *Save*; both work only on a real press on the bar, which sits in a closed shadow root the page cannot reach, and nothing here ever touches visibility, audience, monetization, scheduling or publishing. Studio enforces Trusted Types, so this script builds DOM with `createElement` and `textContent` only.
-
-**The bubble and the chat** (`content/zerack-bubble.js`, `chat/`) the ZERACK logo in a small round button in the bottom-right corner of YouTube and Studio, and of every other http and https page once you allow it: the popup's *Bubble on every site* switch asks Chrome for that access the first time you turn it on, and turning it off gives the access back. Click it and the chat opens over the page; click it again, press Esc or use the close button to close it. A click only opens the chat: what ZERACK is saying keeps playing, Hands-free keeps listening, and nothing heard is kept or acted on. Press and hold it to talk: the ring turns red while it listens, and letting go sends the phrase, even if the pointer has left the bubble; drag it far away or press Esc to cancel. Drag it without holding to move it, and it stays where you put it, with one place on YouTube and one everywhere else. At its own spot it steps aside for ZERACK's panels on YouTube, the miniplayer and buttons that sit under it. The ring also shows the voice: a thin red ring while Hands-free is on, a white arc while thinking, a white pulse while speaking, a dashed amber ring when background speech makes Hands-free unreliable, and a short grey flash when a phrase was ignored. It hides in fullscreen, on every site with the popup switch *Bubble on every site*, or on one site from the chat's menu; switched off or hidden, it is not on the page at all. It reads nothing on the page: it only draws itself.
-
-The chat is a private assistant with the same brain as the YouTube panel and the voice. A short typed instruction that is plainly a browser command (eight words or fewer, such as *abre youtube* or *busca gatos*) runs straight away with no model call; one that mentions your own data (my, saved, niche, scan, title, idea) or points at the last answer goes to the model. Anything else goes to the model you pick in the pill under the box, with the tools that read your saved niches, your tabs, channel stats and uploads, a YouTube page and the course. With the **Agent** pill on, it can also act: open pages and sites, search YouTube, go back, reload, switch tabs, save a niche, track a channel, export your niches, and hand work that needs the YouTube page itself (a scan, reading the screen) to the agent in a YouTube tab; with it off those tools are not even offered to the model and the service worker refuses them. The answer is worked out in the service worker, so it still lands in the conversation when the page under the chat navigates, and the chat opens again on the new page. The mic button works like the bubble (hold to talk, or tap to start and tap again to send), with a Hands-free switch next to it. **Alt+X** opens or closes the chat on the page you are on; where no content script can run, such as `chrome://` pages, it opens in Chrome's side panel instead. The *Voice* conversation lists what the voice heard, what it did and why it ignored a phrase.
-
-The chat page runs in the extension's own origin, so the website under it cannot read it or script it. Over a page, the Agent and Hands-free switches and the delete items only work once the chat has been fully in view for a moment, so a page that hides or covers the chat cannot steer a click onto them. A page cannot open it either: the bubble asks the service worker for a one-time token, and the chat shows nothing until the service worker has checked that token against the tab it was issued for.
-
-**Your channel, in the chat** (`lib/nsp-mine.js`, composed in the service worker). ZERACK learns your channel from an open YouTube Studio tab, or once from *my channel is @handle*, and keeps it on this computer. Then, typed, spoken or from the *Your channel* chips: **My Wrapped** (your best video and its multiple over your median, your own title skeleton and winning traits, your best publishing window from exact upload times, your real niche read title by title with its reference RPM, and what was not measured), **My next video** (your outliers against your median crossed with the rising signals stored in this browser, each marked measured or not available, one topic with its evidence, a title from your own skeleton, and a title and hook written by the provider you set up), **Judge a title** (the calibrated judge's percentile, where it sits among your own last 30 titles and the traits your winners share, the real winners of its niche, and a rewrite that only removes what the table punishes and keeps your skeleton), **Judge my thumbnail** (from the video open in Studio, a video link or a dropped file, shown at phone size next to the niche's winners and measured against them, with what to change), **Thumbnail ideas** (three concepts in your measured style with exact prompts; drawn only when you press *Draw them* and only with a Gemini or OpenAI key you already saved), **Check before upload**, and **What my niche pays** (4, 8 and 12 videos a month at the RPM table, break-even when you give a cost, and the risks, stamped as an estimate). Each card has *Save PNG*, *Copy image* and *Share on X*. The numbers come from public pages and the engines in `lib/`, never from a model; the pasted text of a check never leaves the browser.
-
-**Watch and predict, in the chat** (`lib/nsp-watch.js`, composed in the service worker). **Outlier alerts**: *watch this channel* (typed, spoken, the TRACKING pill on a channel page or *Watch* in the Command Center) reads the channel's last 30 uploads once to set a baseline, then every hour; a new upload that reaches 5x the median views of the channel's uploads older than a week raises one notification, and clicking it opens that video with its X-ray in the chat over it. **Morning brief**: off until you switch it on in the popup or say *turn on the morning brief at 7*; at that hour it reads the channels you watch (new uploads, which ones run at 5x their median, which went silent) and your saved niches (one search each for this week's uploads, median views an hour, rising or cooling against the previous brief), leaves the card in a *Morning brief* conversation and a notification, and never calls a model. **Sealed predictions**: once a day it reads young channels (under a year old) that your scans surfaced, calls the ones whose uploads of the last 14 days already hold half or more of all their views to double their total views in 14 days, draws random controls from the same pool, and stores the batch on this computer with its time and a SHA-256 chained to the previous batch; after 14 days it reads them again and the evidence meter compares picks with controls (one-sided Fisher test, and no verdict under 20 settled calls a side). *Export JSON* saves every batch with its hash and how to check it; nothing is ever posted for you. **Language gaps**: niches that win in English and are missing or weak in Spanish, German or Portuguese, measured from the titles your scans and the Country radar stored, with the count behind every call; a language with too little data is refused with the reason, and *Measure* runs the Country radar for it. **Comments to ideas**: the top comments of the video on screen (or of your last uploads), read page by page from YouTube's public comments, the ones that ask for a video found by phrase and sorted by likes, and three ideas with titles written by the provider you set up.
-
-**Create and hands-free, in the chat** (`lib/nsp-sourced.js`, `lib/nsp-shorts.js`, `lib/nsp-create.js`, composed in the service worker). **Sourced script**: *write a sourced script about the fall of Constantinople* (typed, spoken, or the *Create* chips) reads the captions and descriptions of the top YouTube videos on the topic (through the iOS player, one at a time) and any https page you have open about it that you allowed ZERACK to read, cuts them into numbered passages with the minute they came from, and has the provider you set up write the script from those passages only, with a 30 second hook; then every line is checked in this browser: a fact with no source, a source that does not exist, or a number its passage does not contain is cut and listed, and the factory's 30 second auditor reads the hook. With fewer than two sources it refuses and calls no model. Pages with a password box and private sites (mail, banks, chats, social networks) are never read. **Shorts miner**: *find the Shorts in this video* marks 3 to 5 stretches of 30 to 75 seconds, 60 seconds apart, with the hook line, why it was picked and a link that opens the video at that second, using the factory's clip chooser ported to the browser (identical picks on its test inputs) on the video's public captions and, when YouTube shows it, the most replayed graph. **What a channel earns**: two ways to count the month (what its uploads of the last 30 days collected, and its lifetime views over its months) at the reference RPM of the niche its titles vote for, stamped as an estimate with the math. **Studio package**: from a sourced script or typed by hand, the title, the description with chapters and the tags, checked against YouTube's limits, stored only after you press *Approve*, and filled into the video open in Studio on *Fill in Studio* or by voice; saving stays with you. **Hands-free**: every card above, plus *siguiente* or *next* (the next scan result after one you opened by voice, or YouTube's next video), *save this channel*, *how much does this channel earn*, *x-ray this channel*, *duel with* a channel, *my Wrapped*, *what is my next video* and *check this title*, can be said out loud, and each answer is spoken back.
-
-
-**The chat on any site you allow.** Off YouTube the chat is an operator for the business in front of you: a store admin, a checkout, a marketplace listing, the SaaS or app you are building, a blog or a newsletter. Its prompt carries no YouTube words there, unless you ask about YouTube. With the Agent pill on it reads the page and clicks, types, pastes, chooses, scrolls and follows plans of up to 30 steps, even across page loads. It needs two yeses: the Agent pill, and the site itself. The first time it asks, the chat shows **Allow on** the site, which asks Chrome for that one site inside your click; the menu takes it back. It works in the tab's isolated world, one step per call, so the page can neither see its hands nor replace its safety gate. Saving on an admin page, publishing, sending, deleting and paying stop at a row in the chat that waits up to two minutes for your real click on **Pay**, **Publish**, **Send** or **Delete**; a script click does nothing, a page that covers the chat cannot get that click, and Stop cancels it. Moving money out, passwords and codes, card, bank and tax fields, API keys and closing the account are refused even with a press, including when a page's own text asks for them. Every write is kept in a local ledger with the field before and after, who pressed and where the page went.
-
-Where the history lives: conversations are in IndexedDB (`zerack_chat`) in the extension's storage on this computer, never synced, with a delete button on each conversation and *Delete all conversations* in the menu. Each turn sends only the last twelve messages of the open conversation to the provider the answer names under it. The voice history is the last 100 phrases in Chrome's session storage, gone when Chrome closes.
-
-**Popup** (`popup/`) the CHAT door first, then the Command Center and the Niche Index, the Agent switch, the *Bubble on every site* switch, the *Morning brief* switch with its hour, session counters, the session's top videos, a CSV export, and the doors to the country radar and Options.
-
-**Command Center** (`dashboard/`) every saved channel with filters by source, niche and age, seven sort orders, a card and a table view, *Measure growth*, and export to CSV, JSON or the clipboard. Each summary tile prints *not measured* rather than a number when there is nothing measured behind it.
-
-**ZERACK hub** (`ashlyv/`) saved niches and their monetization radar, the channel intelligence engine, the thumbnail analyzer and the idea panels, plus nine tool pages under `ashlyv/tools/` (ThumbLab and VoxBatch are the two the hub links today; see Limits).
-
-**Country radar** (`country-feed/`) pick a market, get the faceless feed for that language through InnerTube, export it.
-
-**Niche Index** (`niche-index/`) the niche table your own scans have filled in, with its RPM, and a CSV export.
-
-**Voice** (`offscreen/voice.js`, routed in `background/service-worker.js`) hold the bubble, or the chat's mic, and talk: the phrase is addressed to ZERACK, so it needs no wake word and works with a video playing. Alt+Z talks once: press it, speak, then press it again or pause to send. Hands-free, switched from the dot in the popup, the chat, or by saying *escúchame siempre* and *deja de escuchar*, keeps the microphone open in an offscreen document and turns every phrase into text. A browser command (open YouTube or one of about forty other sites, search YouTube for a topic, scan, open result two, save it, go back, reload, next tab) runs as soon as it is heard, in Spanish or English, with no wake word, and a visible action answers with a short tone instead of a sentence. Anything else is ignored in Hands-free unless it starts with *oye*, *hey* or the name *Zerack*. A phrase meant for ZERACK that is not a command is answered by the same brain as the chat, from the service worker, with the tools it can run there; it hands work to the agent in a YouTube tab only when the question needs that page. While any tab is playing sound, Hands-free commands need the name too, so a video cannot give orders; holding the bubble always works. Every ignored phrase gets a soft low tone and a grey flash on the bubble, and shows in the chat's *Voice* conversation with the reason. The answer is spoken in the browser voice for free, or in the ZERACK voice on Fish Audio or OpenAI's voice when you add those keys in Setup.
-
-Where the audio goes: speech to text is Chrome's speech recognition, the same service behind voice typing in Chrome, handed the extension's own microphone track. When Chrome cannot run it, the local Whisper model in `lib/whisper/` does the job on your machine instead, slower. The switch is off until you turn it on. The last 100 phrases it heard, with what it did or why it ignored each one, are kept in Chrome's session storage on your computer and are gone when Chrome closes.
-
-**Service worker** (`background/service-worker.js`) the one place with privileges: the message hub, the provider cascade with its rate limiters, the InnerTube calls, the channel and transcript readers, the cookie write that switches market, the alarms, and the `policy:*` routes.
+Conversations live in IndexedDB (`zerack_chat`) on this computer, never synced, with the ledger, decisions and lessons next to them; *Delete all conversations* removes those too. Each turn sends only the last twelve messages of the open conversation to the provider named under the answer.
 
 ## Architecture in one paragraph
 
-Five content scripts. The heavy one runs in the **MAIN** world, the page's own context, because it needs YouTube's internal data, and there it has no `chrome.*` at all: no storage, no messaging, no `runtime.getURL`. A small script in the **ISOLATED** world, `content/ashlyv-bridge.js`, is its only way out. The third runs only on Studio. A fifth, `content/nsp-faces.js`, runs face-api in the isolated world and answers the page world with face boxes. The fourth, `content/zerack-bubble.js`, runs in the ISOLATED world of the top frame of YouTube and Studio, and of every other http and https page only after you grant that access, and does nothing but draw the bubble in a closed shadow root and frame the chat when you open it. The service worker holds every privileged call: network, cookies, tabs, notifications, alarms, and the policy engine loaded with `importScripts`. Extension pages run under `script-src 'self' 'wasm-unsafe-eval'`, so there is no inline script and no inline handler anywhere, and `node smoke.mjs` fails if one appears.
+The heavy content script runs in YouTube's **MAIN** world because it needs YouTube's internal data, and there it has no `chrome.*`; `content/ashlyv-bridge.js` in the **ISOLATED** world is its only way out. Studio, face detection and the bubble run in isolated worlds. The service worker holds every privileged call: network, cookies, tabs, alarms, notifications, the chat's turns, the page agent (`background/nsp-page-agent.js`, which injects `lib/nsp-gate.js` and `lib/nsp-hands.js` into the isolated world of an allowed site) and the engines loaded with `importScripts`. Extension pages run under `script-src 'self' 'wasm-unsafe-eval'`, so there is no inline script anywhere, and `node smoke.mjs` fails if one appears.
 
 ## Who can ask the service worker for what
 
-Any script on youtube.com can post to the page, not only this extension's, so the bridge treats every page message as a request from the page and the service worker checks every message again at its own door.
-
-- **The door.** `NSP_MESSAGE_CALLERS` in `background/service-worker.js` names, for each of the 71 message types, who may send it: an extension page (`chrome-extension://` of this extension), the bridge on youtube.com, the Studio script, or the bubble. Anything else is answered `sender_not_allowed` before a handler runs.
-- **Tabs are never the page's.** Listing, switching and closing tabs, navigating the active tab and reading other sites are for extension pages only (the chat, with its Agent switch). The YouTube panel can open a youtube.com or studio.youtube.com tab, and the worker checks the host and the Agent switch itself.
-- **Spending needs a grant.** A YouTube tab can spend your AI keys only inside a grant. The worker opens one when it hands the tab a turn from the chat or the voice; the bridge asks for one only when it sees a real press (`isTrusted`, which no page script can fake) on a control it created itself and keeps in a map no page script can reach, while that control is shown and under the pointer. An attribute or an id counts for nothing. A grant belongs to one tab, runs out by count and by time (45 model calls for the agent, 12 thumbnails for the vision check, one call for a panel), and asking again restarts it, it never adds up.
-- **The prompt is the worker's.** The page sends a task name and data (`NSP_AI_TASK`: `coach`, `titles`, `comments`, `replicate`, `brand`). The system prompt, the tool list and the model are chosen in the worker, so a page can shape what the model reads but never turn your key into a free endpoint. The hub calls the same tasks.
-- **HTML into youtube.com goes through one sanitizer.** YouTube enforces Trusted Types. `nspSetHTML` parses markup inert, keeps only an allow list of tags and attributes (no scripts, frames, SVG or `<style>`, no event handlers, no `javascript:` links, no `url()` in styles), and moves clean nodes in. No `default` policy is registered, so YouTube's own protection stays on.
-- **Storage.** The page world writes only the keys on `NSP_RELAY_KEYS`, and not directly: the worker rebuilds each value against that key's shape (`NSP_PAGE_STORE`) and refuses what does not fit. The switches, the consents, the chosen model, the saved niches and the dashboard's hand-off are read only from there; the model changes on a real press of the model menu (`NSP_MODEL_SELECT`), and saved niches go through `ASHLYV_SAVE_NICHO`.
-- **Notifications.** The page names what happened (`niche_rising`, `niche_new`) and the numbers; the title and text are the worker's, with a limit of three per tab per quarter hour.
+- **The door.** `NSP_MESSAGE_CALLERS` names, for each of the 76 message types, who may send it: an extension page, the bridge on youtube.com, the Studio script, or the bubble. Anything else is answered `sender_not_allowed` before a handler runs. The chat's card buttons and page-agent messages are extension-only and pass the chat's trust check.
+- **Tabs are never the page's.** Listing, switching and closing tabs, reading other sites and acting on them are for extension pages only (the chat, with its Agent switch and the site's consent).
+- **Spending needs a grant.** A YouTube tab can spend your AI keys only inside a grant opened by the worker, or on a real press (`isTrusted`) on a control the bridge created itself. A grant belongs to one tab and runs out by count and time.
+- **The prompt is the worker's.** A page sends a task name and data; the system prompt, the tools and the model are chosen in the worker.
+- **HTML into youtube.com goes through one sanitizer** (`nspSetHTML`), and no `default` Trusted Types policy is registered.
+- **Storage.** The page world writes only the keys on `NSP_RELAY_KEYS`, rebuilt against their shape by the worker.
 
 ## Permissions, and why
 
 | Permission | Reason |
 |---|---|
-| `storage` | your keys, saved niches, tracked channels, growth snapshots, the niche index |
-| `scripting` | the popup reads the live session out of the open YouTube tab's MAIN world, and the bubble is put back into open tabs after an install or update |
-| `activeTab` | putting the bubble back into the tab you are on when you open the popup or press Alt+X there after an update |
-| `declarativeNetRequestWithHostAccess` | one session rule that removes the `Origin` header from this extension's own InnerTube requests: YouTube answers `403` to `chrome-extension://`, and a service worker cannot drop that header itself. It never touches the page's requests |
-| `tabs` | opening the hub, the Command Center and a market search, and knowing which tab is active |
-| `sidePanel` | the chat in Chrome's side panel, where no content script can run (Alt+X on a `chrome://` page, or CHAT in the popup there) |
-| optional `http://*/*`, `https://*/*` | the bubble on sites other than YouTube and Studio, and reading a page you have open as a source for a sourced script. Not asked at install: Chrome asks the first time you turn the bubble on in the popup, or when you press *Allow* on a script card for the exact sites it names |
-| `alarms` | the periodic rescan, the hourly outlier check, the morning brief and the daily prediction seal |
+| `storage` | keys, saved niches, watched channels, snapshots, site consents, the prediction ledger |
+| `scripting` | reading the live session out of a YouTube tab, putting the bubble back after an update, and injecting the page agent's gate and hands into a site you allowed |
+| `activeTab` | the bubble on the tab you are on when you open the popup or press Alt+X after an update |
+| `declarativeNetRequestWithHostAccess` | one rule that removes the `Origin` header from this extension's own InnerTube requests, which YouTube answers `403` otherwise |
+| `tabs` | opening pages, knowing the active tab, and the page agent's tab |
+| `sidePanel` | the chat where no content script can run |
+| optional `http://*/*`, `https://*/*` | the bubble on other sites, a page you allowed as a script source, and the business agent on a site you allowed. Never asked at install: Chrome asks inside your click, one site at a time |
+| `alarms` | the rescan, the hourly outlier check, the morning brief, the daily prediction seal, decision re-measures and the builders' daily watch |
 | `cookies` | writing YouTube's `PREF` cookie, the only way to switch market |
-| `notifications` | the scan notifications, outlier alerts, the morning brief and settled predictions |
-| `clipboardWrite` | the copy buttons that go through `document.execCommand('copy')` |
-| `downloads` | the chat's niche export and the predictions export; the other CSV and JSON exports use a blob and `<a download>` |
-| `https://www.youtube.com/*`, `https://*.youtube.com/*` | where the overlay runs, and the InnerTube endpoint |
-| `https://studio.youtube.com/*` | the Studio agent |
-| `https://www.googleapis.com/*` | the YouTube Data API, a path that is off until it has a key (see Limits) |
-| `https://generativelanguage.googleapis.com/*` | Gemini, when you have pasted a Gemini key |
-| `https://api.groq.com/*` | Groq, when you have pasted a Groq key |
-| `https://translate.googleapis.com/*` | translating a foreign-language title before scoring it |
-| `https://i.ytimg.com/*`, `https://img.youtube.com/*` | reading thumbnail pixels for the face and contrast checks |
-| `http://localhost:11434/*`, `http://127.0.0.1:11434/*` | Ollama running on your own machine, if you enable it. Options accepts only those two addresses |
+| `notifications` | scans, outlier alerts, the morning brief and settled predictions |
+| `clipboardWrite` | the copy buttons |
+| `downloads` | the niche and prediction exports |
+| `https://www.youtube.com/*`, `https://*.youtube.com/*`, `https://studio.youtube.com/*` | the overlay, InnerTube and Studio |
+| `https://www.googleapis.com/*` | the YouTube Data API, off until it has a key (see Limits) |
+| `https://generativelanguage.googleapis.com/*`, `https://api.groq.com/*` | Gemini and Groq, when you pasted their keys |
+| `https://translate.googleapis.com/*` | translating a foreign title before scoring it |
+| `https://i.ytimg.com/*`, `https://img.youtube.com/*` | thumbnail pixels for the face, contrast and phone-size checks |
+| `http://localhost:11434/*`, `http://127.0.0.1:11434/*` | Ollama on your own machine, if you enable it |
 | `http://127.0.0.1:7788/*` | the local voice server, if you run it |
 
-`AIzaSyAO_FJ2…` in `background/service-worker.js` and `content/nsp-bundle.js` is the public InnerTube WEB key that YouTube itself ships in every page it serves. It is not a credential and it is not ours.
+`AIzaSyAO_FJ2…` in `background/service-worker.js` and `content/nsp-bundle.js` is the public InnerTube WEB key YouTube ships in every page. It is not a credential and it is not ours.
 
 ## Limits
 
 Run `node smoke.mjs` for the machine-checkable list. These are the ones a checker cannot see:
 
-- **The policy check is a keyword screen.** *Check before upload* reads the words you paste against the rule table and the advertiser-friendly term list. It is not YouTube's classifier and it never looks at footage, music, the thumbnail or the audio; the card says so every time.
-- **The best publishing hour needs exact upload times.** They come from the channel feed and, when the feed is down, from each upload's own player data, one request at a time. A channel that always publishes at one hour gets no invented best hour.
-- **`content/nsp-bundle.js` is one file of about 24,000 lines.** It works. It is not pleasant.
-- **The YouTube Data API path is off.** `YT_API_KEY` in `content/nsp-bundle.js` is empty and Options has no field for it, so the scan validates channels with its local filters and the comment reader reads the comments on the page. A key for it needs an Options field, an opt-in and a route through the service worker first.
-- **The popup's tier counters and its *Analyzed* number have different denominators.** `Analyzed` counts every card scored; `RISING+` and `VIRAL` are counted over the session's top 20, so they stop climbing at 20.
-- **Five of the nine tool pages have no link.** `autopilot`, `brandforge`, `competitorfinder`, `help` and `nichemaster` under `ashlyv/tools/` only open if you type the address.
-- **Strings are not all English yet.** `node smoke.mjs` names every file with Spanish or emoji left in a string the user reads. Spanish inside search queries, YouTube DOM matchers and language detection tables is data and stays; the smoke exempts those tables by name.
-- **Local Whisper is slow on a busy machine.** It is only the fallback for when Chrome's recognizer cannot run, and on a loaded laptop it takes seconds per phrase and loads for about twenty seconds the first time.
+- **Many page readers were never run on a live page.** The Shopify admin, Search Console, Stripe, WordPress, KDP, Seller Central, Upwork, Google Maps, Reddit, npm, PyPI, Product Hunt and the TikTok and Instagram grids were read from archived or synthetic pages, because they need a sign-in or block automated reads. If the real layout differs, they answer *drift*, not a number.
+- **Nobody has clicked through Chrome's real site-permission dialog yet.** The Allow button opens it inside the click; the tests ran on a copy that already had access.
+- **Fees are US only**, and Fiverr's commission is not stated because it could not be checked on Fiverr's own pages.
+- **Only an A/B result counts as evidence for spending.** On YouTube the panel cannot read the decision store, so its spending presses (Join, Super Thanks, buy, rent) are refused with what is missing.
+- **One daily cap for all leads**, and bounces and replies are marked by hand. Rival trends need 4 daily readings.
+- **Voice drives the business agent only to read.** Clicking, typing and sending on other sites happen from the chat.
+- **The YouTube panel's own agent still runs in the page's world**, so a page could tamper with it; the business agent on other sites cannot be reached that way.
+- **The X-ray's niche window is only as good as its search** from the channel's own title words, and often comes back unmeasured. Video openings and section rhythm are not measured, because public pages do not show them.
+- **Language gaps move near their thresholds**: with 130 to 240 titles a language, a borderline gap can appear or vanish between runs.
+- **Image drawing and Studio fill were tested against a mock and a stub.** Real Gemini and OpenAI image calls, and the real signed-in Studio, were not exercised.
+- **Shorts cut at pauses** when captions carry no punctuation, so a clip can start mid-phrase; the card says so. Earnings are only as good as the RPM table.
+- **The policy check is a keyword screen**, not YouTube's classifier; it never looks at footage, music, the thumbnail or the audio.
+- **`content/nsp-bundle.js` is one file of about 24,000 lines**, and the YouTube Data API path in it is off (`YT_API_KEY` is empty).
+- **Five of the nine tool pages under `ashlyv/tools/` have no link**, and local Whisper is slow on a busy machine.
 
 ## License
 
 MIT. See `LICENSE`. Copyright (c) 2026 ZERACK.
 
-Not affiliated with, endorsed by, or connected to YouTube or Google. "YouTube" is a trademark of Google LLC. Use it on your own account, at your own risk, within YouTube's Terms of Service.
+Not affiliated with, endorsed by, or connected to YouTube, Google, Etsy, Shopify, GitHub, Amazon or any other platform named here. Their names are trademarks of their owners. Use it on your own accounts, at your own risk, within each platform's terms.
