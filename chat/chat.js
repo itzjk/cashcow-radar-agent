@@ -6,7 +6,7 @@
   var TOKEN = (/(?:^#|&)t=([0-9a-f]{32})(?:&|$)/.exec(location.hash) || [])[1] || '';
   try { if (location.hash) history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
 
-  var STORE = self.NSP_CHAT_STORE, RENDER = self.NSP_CHAT_RENDER, MODELS = self.NSP_MODELS;
+  var STORE = self.NSP_CHAT_STORE, RENDER = self.NSP_CHAT_RENDER, MODELS = self.NSP_MODELS, INTEL = self.NSP_CHAT_INTEL;
   var HOLD_MS = 250;
   var WATCH_MS = 15000;
   var SEEN_MS = 600;
@@ -21,7 +21,7 @@
     youtube: 'opened YouTube', search: 'searched YouTube', site: 'opened a site', page: 'opened a ZERACK page', back: 'went back', forward: 'went forward',
     reload: 'reloaded the tab', next_tab: 'moved to the next tab', prev_tab: 'moved to the previous tab', close_tab: 'closed the tab', new_tab: 'opened a new tab',
     scan: 'started a scan', result: 'opened a result', channel: 'opened a channel', save: 'saved', agent: 'switched the agent', wake: 'switched hands-free',
-    hush: 'stopped talking', stop: 'stopped', hello: 'answered', assistant: 'asked the assistant'
+    hush: 'stopped talking', stop: 'stopped', hello: 'answered', assistant: 'asked the assistant', intel: 'read the channel and put its card in the chat'
   };
   var DROP_WORDS = {
     not_command: 'Ignored: not a command, and it did not start with oye, hey or Zerack.',
@@ -115,6 +115,7 @@
   }
 
   function showTyping(on, label) {
+    var stick = nearBottom();
     if (S.typing) { S.typing.remove(); S.typing = null; }
     if (!on) return;
     var t = node('div', 'typing');
@@ -124,11 +125,20 @@
     t.appendChild(node('span', '', label || 'Thinking'));
     S.typing = t;
     $('messages').appendChild(t);
-    scrollDown();
+    if (stick) scrollDown();
+  }
+
+  function fillInput(text) {
+    var input = $('input');
+    input.value = String(text || '');
+    autosize();
+    input.focus();
+    try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {}
   }
 
   function msgEl(row) {
     var box;
+    if (row.role === 'intel' && INTEL) return INTEL.render(row, { submit: submit, fill: fillInput });
     if (row.role === 'user') {
       box = node('div', 'msg user');
       box.appendChild(node('div', 'bubble', row.text));
@@ -189,6 +199,7 @@
     list.hidden = S.view !== 'chat' || (empty && !S.busy);
     $('voice-view').hidden = S.view !== 'voice';
     if (empty) $('thread').scrollTop = 0;
+    else if (S.msgs[S.msgs.length - 1].role === 'intel' && S.els[S.msgs[S.msgs.length - 1].id]) showTop(S.els[S.msgs[S.msgs.length - 1].id]);
     else scrollDown();
     if (S.busy && S.conv && S.view === 'chat') showTyping(true, S.running[S.conv.id] || 'Thinking');
   }
@@ -276,6 +287,7 @@
     S.view = 'chat';
     S.conv = null;
     S.msgs = [];
+    if (document.body.dataset.ready === '1') intelChips();
     syncBusy();
     remember('');
     paintTitle();
@@ -309,10 +321,16 @@
     if (i >= 0) S.msgs[i] = row;
     else S.msgs.push(row);
     var stick = nearBottom();
-    drawMsg(row);
+    var el = drawMsg(row);
     $('empty').hidden = true;
     $('messages').hidden = false;
-    if (stick || row.role === 'user') scrollDown();
+    if (row.role === 'intel' && i < 0) showTop(el);
+    else if (row.role !== 'intel' && (stick || row.role === 'user')) scrollDown();
+  }
+
+  function showTop(el) {
+    var t = $('thread');
+    t.scrollTop += el.getBoundingClientRect().top - t.getBoundingClientRect().top - 10;
   }
 
   function append(role, text, meta) {
@@ -765,9 +783,10 @@
     mic.addEventListener('pointerup', function (e) { micUp(e, false); });
     mic.addEventListener('pointercancel', function (e) { micUp(e, true); });
     mic.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-    Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (chip) {
+    Array.prototype.forEach.call(document.querySelectorAll('#empty .chip'), function (chip) {
       chip.addEventListener('click', function () { submit(chip.textContent); });
     });
+    intelChips();
     var title = $('title-edit');
     title.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); endRename(true); }
@@ -796,12 +815,45 @@
     if (channel) {
       channel.onmessage = function (ev) {
         var d = (ev && ev.data) || {};
+        if (typeof d.show === 'string' && d.show) { S.moves++; closeList(); openConv(d.show).then(loadList); return; }
         if (d.row || d.done || typeof d.typing === 'string') { runEvent(d); return; }
         var id = d.convId;
         loadList();
         if (!S.busy && S.view === 'chat' && S.conv && (!id || id === S.conv.id)) openConv(S.conv.id);
       };
     }
+  }
+
+  function intelChip(label, text, fill) {
+    var b = node('button', 'chip intel-chip', label);
+    b.type = 'button';
+    b.addEventListener('click', function (e) {
+      if (!e.isTrusted) return;
+      if (fill) fillInput(text); else submit(text);
+    });
+    return b;
+  }
+
+  function intelChips() {
+    var box = $('intel-chips');
+    if (!box) return;
+    send({ type: 'NSP_INTEL_CONTEXT' }).then(function (res) {
+      while (box.firstChild) box.removeChild(box.firstChild);
+      var kind = res && res.ok ? res.kind : '';
+      var h = res && typeof res.handle === 'string' && /^@\S{1,60}$/.test(res.handle) ? res.handle : '';
+      if (kind === 'channel' || kind === 'video') {
+        var ref = h || (kind === 'video' ? 'this video' : 'this channel');
+        var chan = h || 'this channel';
+        box.appendChild(intelChip('Why did ' + (h || (kind === 'video' ? 'this video' : 'this channel')) + ' blow up?', 'Why did ' + ref + ' blow up?'));
+        box.appendChild(intelChip('Luck or real growth?', 'Verdict on ' + chan));
+        box.appendChild(intelChip('Clone its formula', 'Clone the formula of ' + chan));
+        box.appendChild(intelChip('Duel it', h ? 'Compare ' + h + ' with @' : 'Compare this channel with @', true));
+      } else {
+        box.appendChild(intelChip('X-ray a channel', 'X-ray @', true));
+        box.appendChild(intelChip('Duel two channels', 'Compare @ with @', true));
+      }
+      box.hidden = false;
+    });
   }
 
   function paintAgent() {

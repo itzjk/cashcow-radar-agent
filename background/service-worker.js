@@ -8,6 +8,7 @@ try { importScripts('../ashlyv/ashlyv-engine.js'); } catch (eAshlyvEngine) { con
 try { importScripts('../lib/nsp-brain.js'); } catch (eBrain) { console.warn('[NSP SW] importScripts brain:', eBrain && eBrain.message); }
 try { importScripts('../lib/nsp-data-tools.js', '../chat/chat-tools.js', '../lib/nsp-chat-store.js'); } catch (eChatLib) { console.warn('[NSP SW] importScripts chat tools:', eChatLib && eChatLib.message); }
 try { importScripts('../lib/nsp-rpm-tabla.js'); } catch (eRpmTable) { console.warn('[NSP SW] importScripts RPM table:', eRpmTable && eRpmTable.message); }
+try { importScripts('../lib/nsp-veredicto.js', '../lib/nsp-cadencia.js', '../lib/nsp-packaging.js', '../lib/nsp-rival-formula.js', '../lib/nsp-rival-quiebre.js', '../lib/nsp-rival-replicable.js', '../lib/nsp-rival-expediente.js', '../lib/nsp-rival-saturacion.js', '../lib/nsp-rival-ventana.js', '../lib/nsp-rival-duelo.js', '../knowledge/reverse-engine.js', '../lib/nsp-miniatura-motor.js', '../lib/nsp-miniatura-cohorte.js', '../lib/nsp-miniatura-mercado.js', '../lib/nsp-intel.js'); } catch (eIntel) { console.warn('[NSP SW] importScripts channel intelligence:', eIntel && eIntel.message); }
 
 var NSP_GEMINI_LIMIT_PER_MIN = 14;
 var NSP_GROQ_LIMIT_PER_MIN = 28;
@@ -694,8 +695,26 @@ function nspFindKey(o, key, depth) {
   return null;
 }
 
+function nspChannelHeader(initial, meta) {
+  var out = { handle: '', subscribers: null, videoCount: null };
+  var vanity = /\/(@[^\/?#\s]{1,100})\/?$/.exec(String((meta && meta.vanityChannelUrl) || ''));
+  if (vanity) { try { out.handle = decodeURIComponent(vanity[1]); } catch (e) { out.handle = vanity[1]; } }
+  var rows = [];
+  try { rows = initial.header.pageHeaderRenderer.content.pageHeaderViewModel.metadata.contentMetadataViewModel.metadataRows || []; } catch (e) { rows = []; }
+  rows.forEach(function(row) {
+    ((row && row.metadataParts) || []).forEach(function(part) {
+      var t = String((part && part.text && part.text.content) || '').trim();
+      if (!t) return;
+      if (!out.handle && /^@[^\s]{1,100}$/.test(t)) out.handle = t;
+      else if (/\bsubscribers?$/i.test(t) && out.subscribers == null) out.subscribers = parseViews(t, 'en') || null;
+      else if (/^\d[\d,]*\s+videos?$/i.test(t) && out.videoCount == null) out.videoCount = parseViews(t, 'en');
+    });
+  });
+  return out;
+}
+
 // The latest uploads of a channel, read from /videos. Used by the agent tools and by the replicate task.
-async function nspReadChannelVideos(rawUrl, max) {
+async function nspReadChannelVideos(rawUrl, max, opts) {
   var cvUrl = nspChannelUrl(rawUrl);
   if (!cvUrl) return { ok: false, error: 'invalid_channel_url', detail: 'Expected https://www.youtube.com/@handle or /channel/UC...' };
   var deadline = Date.now() + 22000;
@@ -714,12 +733,14 @@ async function nspReadChannelVideos(rawUrl, max) {
         views: v.viewsText || '',
         viewsNum: v.viewsText ? parseViews(v.viewsText, 'en') : null,
         published: v.publishedText || '',
+        length: v.lengthText || '',
         url: 'https://www.youtube.com/watch?v=' + v.videoId
       };
     });
     if (!videos.length) return { ok: false, error: 'no_videos_parsed', channelUrl: cvUrl };
-    var titleCheck = await nspOriginalTitles(cvUrl, String(meta.externalId || ''), videos, deadline);
-    return { ok: true, channelUrl: cvUrl, name: String(meta.title || '').slice(0, 120), count: videos.length, videos: videos, titleCheck: titleCheck };
+    var titleCheck = opts && opts.titles === false ? { source: 'page', skipped: true } : await nspOriginalTitles(cvUrl, String(meta.externalId || ''), videos, deadline);
+    var head = nspChannelHeader(initial, meta);
+    return { ok: true, channelUrl: cvUrl, channelId: /^UC[A-Za-z0-9_-]{22}$/.test(String(meta.externalId || '')) ? String(meta.externalId) : '', name: String(meta.title || '').slice(0, 120), handle: head.handle, subscribers: head.subscribers, videoCount: head.videoCount, count: videos.length, videos: videos, titleCheck: titleCheck };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e), channelUrl: cvUrl };
   }
@@ -1679,7 +1700,8 @@ function nspVoiceRoute(text, heardLang) {
   var norm = nspVrNorm(text);
   var s = nspVrClean(norm);
   if (!s) return NSP_VR_WAKE.test(norm) ? { kind: 'hello', lang: nspVrLang(norm, heardLang) } : null;
-  var r = nspVrDecide(s, String(text || ''));
+  var intel = nspIntelIntent(text) || nspIntelIntent(s);
+  var r = intel ? { kind: 'intel', intel: intel, heard: String(text || '').replace(/\s+/g, ' ').trim().slice(0, 400) } : nspVrDecide(s, String(text || ''));
   if (r) { r.lang = nspVrLang(s, heardLang); r.said = s; }
   return r;
 }
@@ -1780,7 +1802,9 @@ var NSP_VOICE_LINES = {
   no_provider: { en: 'No AI provider is set up. Add a key in Setup.', es: 'No hay proveedor de IA. Añade una clave en Setup.' },
   busy: { en: 'Every AI provider is busy. Try again in a moment.', es: 'Todos los proveedores están ocupados. Prueba en un momento.' },
   no_answer: { en: 'I did not get an answer.', es: 'No obtuve respuesta.' },
-  slow_engine: { en: 'Speech recognition is not answering, so I switched to the slow local one.', es: 'El reconocimiento de voz no responde, así que uso el local, que es lento.' }
+  slow_engine: { en: 'Speech recognition is not answering, so I switched to the slow local one.', es: 'El reconocimiento de voz no responde, así que uso el local, que es lento.' },
+  intel_reading: { en: 'Reading the channel.', es: 'Leo el canal.' },
+  intel_reading_two: { en: 'Reading both channels.', es: 'Leo los dos canales.' }
 };
 var NSP_VOICE_ASK_ERRORS = { no_provider_configured: 'no_provider', all_busy: 'busy' };
 var NSP_VOICE_EAR_LINES = { mic_permission: 'mic', mic_missing: 'mic_help', mic_busy: 'mic_help', model_missing: 'model_missing', not_heard: 'not_heard', transcribe_failed: 'failed', slow_engine: 'slow_engine' };
@@ -2234,6 +2258,7 @@ function nspVoiceRun(r, gen, fin, say) {
     fin(tab || null);
   };
   if (r.kind === 'hello') { say('hello', lang); fin(null); return; }
+  if (r.kind === 'intel') { nspIntelVoice(r, gen); fin(null); return; }
   if (r.kind === 'hush') { nspVoiceHush(); fin(null); return; }
   if (r.kind === 'stop') { nspVoiceHush(); nspVoiceStopPage(); fin(null); return; }
   if (r.kind === 'wake') { nspVoiceSetWake(r.on, lang); fin(null); return; }
@@ -2459,7 +2484,7 @@ function nspVoiceToggle() {
 var NSP_CHAT_PAGE = 'chat/chat.html';
 var NSP_CHAT_TOKEN_TTL_MS = 60000;
 var NSP_CHAT_ROUTE_WORDS = 8;
-var NSP_CHAT_ROUTE_SKIP = { hush: 1, stop: 1, wake: 1, hello: 1 };
+var NSP_CHAT_ROUTE_SKIP = { hush: 1, stop: 1, wake: 1, hello: 1, intel: 1 };
 var NSP_CHAT_IN_PAGE = { scan: 1, result: 1, channel: 1, save: 1 };
 var NSP_CHAT_OK_LINES = { done: 1, youtube: 1, scanning: 1, saved: 1, open: 1, opening_channel: 1, agent_on: 1, agent_off: 1 };
 var NSP_CHAT_DONE = { youtube: 'Opened YouTube.', search: 'Searched YouTube.', site: 'Opened the page.', page: 'Opened the ZERACK page.', back: 'Went back.', forward: 'Went forward.', reload: 'Reloaded the tab.', next_tab: 'Moved to the next tab.', prev_tab: 'Moved to the previous tab.', close_tab: 'Closed the tab.', new_tab: 'Opened a new tab.' };
@@ -2711,6 +2736,7 @@ function nspChatToolNow(name, args, ctx, done) {
   if (name === 'nspGetChannelStats') { handler({ type: 'NSP_AGENT_CHANNEL_STATS', channelUrl: String(args.channelUrl || '') }); return; }
   if (name === 'nspGetChannelVideos') { handler({ type: 'NSP_AGENT_CHANNEL_VIDEOS', channelUrl: String(args.channelUrl || '') }); return; }
   if (name === 'zerackBrowser') { nspChatBrowser(args, ctx, done); return; }
+  if (NSP_INTEL_TOOLS[name]) { nspIntelTool(name, args, ctx, done); return; }
   if (name === 'zerackOpenPage') {
     var page = NSP_CHAT_PAGES[String(args.page || '')];
     if (!page) { done({ ok: false, error: 'unknown page, use dashboard, niche-index, setup or options' }); return; }
@@ -2743,6 +2769,402 @@ function nspChatProviders(sendResponse) {
       selected: typeof r.nsp_selected_model === 'string' ? r.nsp_selected_model : 'auto'
     });
   });
+}
+
+var NSP_INTEL_CACHE_MS = 600000;
+var NSP_INTEL_CACHE_MAX = 40;
+var NSP_INTEL_NEIGHBORS = 7;
+var NSP_INTEL_GAP_MS = 1200;
+var NSP_INTEL_THUMBS = 10;
+var NSP_INTEL_TOOLS = { zerackXray: 'xray', zerackDuel: 'duel', zerackFormula: 'formula', zerackVerdict: 'verdict' };
+var NSP_INTEL_TITLES = { xray: 'X-ray', duel: 'Duel', formula: 'Formula', verdict: 'Luck or growth' };
+var NSP_INTEL_READING = { xray: 'Reading the channel', duel: 'Reading both channels', formula: 'Reading the channel and its thumbnails', verdict: 'Reading the channel' };
+var NSP_INTEL_HERE = /^(?:this|current|the current|active|tab|the tab|on screen|screen|here|this channel|current channel|the channel on screen|this video|current video)$/i;
+var _nspIntel = { cache: {}, queue: Promise.resolve() };
+
+function nspIntelEngines() {
+  return {
+    C: self.NSP_CADENCIA, Q: self.NSP_RIVAL_QUIEBRE, F: self.NSP_RIVAL_FORMULA, R: self.NSP_RIVAL_REPLICABLE, E: self.NSP_RIVAL_EXPEDIENTE,
+    V: self.NSP_VEREDICTO, S: self.NSP_RIVAL_SATURACION, W: self.NSP_RIVAL_VENTANA, D: self.NSP_RIVAL_DUELO, RE: self.NSP_REVERSE_ENGINE,
+    M: self.NspMiniaturaMercado, P: self.NSP_PACKAGING, T: self.NSP_RPM_TABLA, K: self.NspMiniaturaCohorte, MM: self.NspMiniatura
+  };
+}
+
+function nspIntelReady() {
+  if (!self.NSP_INTEL) return false;
+  var e = nspIntelEngines();
+  var missing = Object.keys(e).filter(function(k) { return !e[k]; });
+  if (missing.length) { console.warn('[NSP SW] intel: engines missing:', missing.join(', ')); return false; }
+  self.NSP_INTEL.use(e);
+  return true;
+}
+
+function nspIntelIntent(text) {
+  if (!self.NSP_INTEL) return null;
+  try { return self.NSP_INTEL.intent(String(text || '').slice(0, 600)) || null; } catch (e) { return null; }
+}
+
+function nspIntelQueue(fn) {
+  var p = _nspIntel.queue.then(fn);
+  _nspIntel.queue = p.catch(function() {});
+  return p;
+}
+
+function nspIntelFromUrl(raw) {
+  var u = null;
+  try { u = new URL(String(raw || '')); } catch (e) { return null; }
+  var host = u.hostname.toLowerCase();
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  if (host === 'youtu.be') {
+    var short = u.pathname.slice(1, 12);
+    return /^[A-Za-z0-9_-]{11}$/.test(short) ? { video: short } : null;
+  }
+  if (!/^(?:www\.|m\.)?youtube\.com$/.test(host)) return null;
+  var p = u.pathname;
+  var m = /^\/(@[^\/]{1,100}|channel\/UC[A-Za-z0-9_-]{22}|c\/[^\/]{1,100}|user\/[^\/]{1,100})(?:\/|$)/.exec(p);
+  if (m) {
+    var ch = nspChannelUrl('https://www.youtube.com/' + m[1]);
+    return ch ? { channel: ch } : null;
+  }
+  if (p === '/watch') {
+    var v = u.searchParams.get('v') || '';
+    return /^[A-Za-z0-9_-]{11}$/.test(v) ? { video: v } : null;
+  }
+  m = /^\/(?:shorts|live)\/([A-Za-z0-9_-]{11})(?:\/|$)/.exec(p);
+  return m ? { video: m[1] } : null;
+}
+
+function nspIntelTabUrl(tabId) {
+  return new Promise(function(resolve) {
+    if (tabId >= 0) {
+      chrome.tabs.get(tabId, function(tab) { resolve(chrome.runtime.lastError || !tab ? '' : String(tab.url || tab.pendingUrl || '')); });
+      return;
+    }
+    nspTargetTab(function(tab) { resolve(tab ? String(tab.url || tab.pendingUrl || '') : ''); });
+  });
+}
+
+function nspIntelVideo(id) {
+  return innertubeFetch('player', { videoId: id }, { gl: 'US', hl: 'en' }).then(function(data) {
+    var d = data && data.videoDetails;
+    var cid = d && d.channelId;
+    if (typeof cid !== 'string' || !/^UC[A-Za-z0-9_-]{22}$/.test(cid)) throw new Error('the player response names no channel');
+    return { channel: 'https://www.youtube.com/channel/' + cid, focus: { videoId: id, title: String(d.title || '').slice(0, 200), views: Number(d.viewCount) || 0 } };
+  });
+}
+
+function nspIntelSearch(name) {
+  return innertubeFetch('search', { query: String(name).slice(0, 100), params: 'EgIQAg==' }, { gl: 'US', hl: 'en' }).then(function(data) {
+    var hit = nspFindKey(data, 'channelRenderer', 0);
+    if (!hit) return '';
+    var base = '';
+    try { base = String(hit.navigationEndpoint.browseEndpoint.canonicalBaseUrl || ''); } catch (e) { base = ''; }
+    var url = base ? nspChannelUrl('https://www.youtube.com' + base) : '';
+    if (!url && /^UC[A-Za-z0-9_-]{22}$/.test(String(hit.channelId || ''))) url = 'https://www.youtube.com/channel/' + hit.channelId;
+    return url;
+  });
+}
+
+function nspIntelTarget(who, tabId) {
+  var fromUrl = function(raw) {
+    var t = nspIntelFromUrl(raw);
+    if (!t) return Promise.resolve({ error: 'e_no_channel' });
+    if (t.channel) return Promise.resolve(t);
+    return nspIntelVideo(t.video).catch(function() { return { error: 'e_no_channel' }; });
+  };
+  who = who || {};
+  if (who.tab) return nspIntelTabUrl(tabId).then(fromUrl);
+  if (who.url) return fromUrl(/^https?:\/\//i.test(who.url) ? who.url : 'https://' + who.url);
+  if (who.handle) {
+    var byHandle = nspChannelUrl(String(who.handle));
+    return Promise.resolve(byHandle ? { channel: byHandle } : { error: 'e_not_found', q: String(who.handle) });
+  }
+  if (who.name) {
+    return nspIntelSearch(who.name).then(function(url) { return url ? { channel: url } : { error: 'e_not_found', q: String(who.name).slice(0, 60) }; }, function() { return { error: 'e_not_found', q: String(who.name).slice(0, 60) }; });
+  }
+  return Promise.resolve({ error: 'e_no_channel' });
+}
+
+function nspIntelRead(url, opts) {
+  var key = url + (opts && opts.titles === false ? '#numbers' : '');
+  var hit = _nspIntel.cache[key];
+  if (hit && Date.now() - hit.at < NSP_INTEL_CACHE_MS) return Promise.resolve(hit.res);
+  return nspReadChannelVideos(url, 30, opts).then(function(res) {
+    if (!res || !res.ok) return res;
+    var entry = { at: Date.now(), res: res };
+    var tail = opts && opts.titles === false ? '#numbers' : '';
+    _nspIntel.cache[key] = entry;
+    if (res.channelUrl) _nspIntel.cache[res.channelUrl + tail] = entry;
+    if (res.channelId) _nspIntel.cache['https://www.youtube.com/channel/' + res.channelId + tail] = entry;
+    if (res.handle) _nspIntel.cache['https://www.youtube.com/' + res.handle + tail] = entry;
+    var keys = Object.keys(_nspIntel.cache).sort(function(a, b) { return _nspIntel.cache[b].at - _nspIntel.cache[a].at; });
+    keys.slice(NSP_INTEL_CACHE_MAX).forEach(function(k) { delete _nspIntel.cache[k]; });
+    return res;
+  });
+}
+
+function nspIntelSubject(res, focus) {
+  var videos = res.videos || [];
+  var f = null;
+  if (focus && focus.videoId) {
+    f = { videoId: focus.videoId, title: focus.title, views: focus.views };
+    videos.forEach(function(v) { if (v.videoId === focus.videoId) { f.title = v.title; if (v.viewsNum > 0) f.views = v.viewsNum; } });
+  }
+  return {
+    channel: { name: res.name || res.handle || '', handle: res.handle || '', url: res.channelUrl || '', subs: res.subscribers, total: res.videoCount, id: res.channelId || '' },
+    videos: videos, focus: f, language: (res.titleCheck && res.titleCheck.language) || '', now: Date.now()
+  };
+}
+
+function nspIntelThumb(id) {
+  var urls = ['https://i.ytimg.com/vi/' + id + '/maxresdefault.jpg', 'https://i.ytimg.com/vi/' + id + '/mqdefault.jpg'];
+  var next = function(i) {
+    if (i >= urls.length) return Promise.resolve(null);
+    return nspFetchTimeout(urls[i], { method: 'GET', credentials: 'omit' }, 12000).then(function(r) {
+      if (!r.ok) return next(i + 1);
+      return r.blob().then(function(b) { return createImageBitmap(b); }).then(function(bmp) {
+        if (bmp.width < 200) { bmp.close(); return next(i + 1); }
+        var w = Math.min(bmp.width, 1280), h = Math.max(1, Math.round(bmp.height * w / bmp.width));
+        var c = new OffscreenCanvas(w, h);
+        var g = c.getContext('2d');
+        g.drawImage(bmp, 0, 0, w, h);
+        bmp.close();
+        return self.NspMiniatura.medirCompleto(g.getImageData(0, 0, w, h).data, w, h, w);
+      });
+    }).catch(function() { return next(i + 1); });
+  };
+  return next(0);
+}
+
+function nspIntelThumbs(videos, ctl) {
+  var list = (videos || []).filter(function(v) { return v.viewsNum > 0 && /^[A-Za-z0-9_-]{11}$/.test(String(v.videoId || '')); })
+    .sort(function(a, b) { return b.viewsNum - a.viewsNum; }).slice(0, NSP_INTEL_THUMBS);
+  var out = [];
+  if (typeof OffscreenCanvas === 'undefined' || typeof createImageBitmap !== 'function' || !self.NspMiniatura) return Promise.resolve(out);
+  return list.reduce(function(p, v, i) {
+    return p.then(function() {
+      if (ctl.stopped()) return null;
+      ctl.typing('Measuring thumbnail ' + (i + 1) + ' of ' + list.length);
+      return nspIntelThumb(v.videoId).then(function(m) { if (m && m.ok) out.push(m); });
+    });
+  }, Promise.resolve()).then(function() { return out; });
+}
+
+function nspIntelWait(ms) {
+  return new Promise(function(resolve) { setTimeout(resolve, ms); });
+}
+
+function nspIntelNeighborIds(subject) {
+  var q = self.NSP_INTEL.nicheQuery(subject.videos);
+  if (!q) return Promise.resolve({ query: '', ids: [] });
+  var hl = /^[a-z]{2}$/.test(subject.language) ? subject.language : 'en';
+  var ids = [], seen = {};
+  if (subject.channel.id) seen[subject.channel.id] = 1;
+  var take = function(data) {
+    (extractVideosFromInnertube(data) || []).forEach(function(v) {
+      var id = String(v.channelId || '');
+      if (!/^UC[A-Za-z0-9_-]{22}$/.test(id) || seen[id]) return;
+      seen[id] = 1;
+      ids.push(id);
+    });
+  };
+  return innertubeFetch('search', { query: q, params: 'EgQIBBAB' }, { gl: 'US', hl: hl }).then(take).catch(function() {}).then(function() {
+    if (ids.length >= NSP_INTEL_NEIGHBORS) return null;
+    return nspIntelWait(NSP_INTEL_GAP_MS).then(function() { return innertubeFetch('search', { query: q, params: 'EgIQAQ==' }, { gl: 'US', hl: hl }); }).then(take).catch(function() {});
+  }).then(function() { return { query: q, ids: ids.slice(0, NSP_INTEL_NEIGHBORS) }; });
+}
+
+function nspIntelWindow(card, subject, ctl) {
+  var I = self.NSP_INTEL;
+  var lang = card.lang;
+  var failed = function(note) {
+    return I.withWindow(card, { state: 'failed', rows: [{ label: 'Entry window', value: 'Not measured', tone: 'muted' }], note: note, say: I.line('w_failed', lang) });
+  };
+  if (!nspIntelReady()) return Promise.resolve(failed('The saturation engines did not load.'));
+  return nspIntelNeighborIds(subject).then(function(found) {
+    if (!found.ids.length) return failed('A YouTube search for "' + found.query + '" returned no other channel of this niche.');
+    var dossiers = [];
+    return found.ids.reduce(function(p, id, i) {
+      return p.then(function() {
+        if (ctl.stopped()) return null;
+        ctl.typing('Reading the niche, channel ' + (i + 1) + ' of ' + found.ids.length);
+        return nspIntelWait(i ? NSP_INTEL_GAP_MS : 0).then(function() {
+          return nspIntelRead('https://www.youtube.com/channel/' + id, { titles: false });
+        }).then(function(res) {
+          if (!res || !res.ok) return;
+          var d = I.dossier(nspIntelSubject(res, null));
+          if (d && d.ok) dossiers.push(d);
+        });
+      });
+    }, Promise.resolve()).then(function() {
+      if (ctl.stopped()) return failed('Stopped before the niche was read.');
+      nspIntelReady();
+      var win = I.windowOf(I.dossier(subject), dossiers, lang);
+      win.note = (win.note || '') + ' Niche read from a YouTube search for "' + found.query + '": ' + dossiers.length + ' other channels.';
+      return I.withWindow(card, win);
+    });
+  }, function(e) { return failed('The niche search failed: ' + String((e && e.message) || e).slice(0, 120) + '.'); });
+}
+
+function nspIntelCompute(req, ctl) {
+  var I = self.NSP_INTEL;
+  var lang = req.lang === 'es' ? 'es' : 'en';
+  if (!nspIntelReady()) return Promise.resolve({ ok: false, text: 'The channel engines did not load. Reload the extension.' });
+  var who = (req.who || []).slice(0, req.kind === 'duel' ? 2 : 1);
+  if (req.kind === 'duel' && who.length < 2) return Promise.resolve({ ok: false, text: I.line('e_no_second', lang) });
+  if (!who.length) who = [{ tab: true }];
+  var found = [];
+  return who.reduce(function(p, w) {
+    return p.then(function() { return nspIntelTarget(w, req.tabId).then(function(t) { found.push(t); }); });
+  }, Promise.resolve()).then(function() {
+    var bad = found.filter(function(f) { return f.error; })[0];
+    if (bad) return { ok: false, text: I.line(bad.error, lang, { q: bad.q || '' }) };
+    var subjects = [];
+    return found.reduce(function(p, f, i) {
+      return p.then(function() {
+        if (ctl.stopped() || subjects.length < i) return null;
+        return nspIntelWait(i ? NSP_INTEL_GAP_MS : 0).then(function() { return nspIntelRead(f.channel); }).then(function(res) {
+          if (res && res.ok) subjects.push(nspIntelSubject(res, f.focus));
+          else console.warn('[NSP SW] intel: channel read failed:', f.channel, res && res.error);
+        });
+      });
+    }, Promise.resolve()).then(function() {
+      if (ctl.stopped()) return { ok: false, stopped: true, text: '' };
+      if (subjects.length < found.length) return { ok: false, text: I.line('e_read', lang, { q: found[subjects.length].channel.replace(/^https:\/\/www\.youtube\.com\//, '') }) };
+      nspIntelReady();
+      if (req.kind === 'duel') {
+        if (subjects[0].channel.id && subjects[0].channel.id === subjects[1].channel.id) return { ok: false, text: I.line('e_same', lang) };
+        return { ok: true, card: I.duel(subjects[0], subjects[1], lang) };
+      }
+      var s = subjects[0];
+      if (req.kind === 'verdict') return { ok: true, card: I.verdict(s, lang) };
+      if (req.kind === 'formula') {
+        ctl.typing('Measuring thumbnails');
+        return nspIntelThumbs(s.videos, ctl).then(function(thumbs) {
+          nspIntelReady();
+          s.thumbs = thumbs;
+          return { ok: true, card: I.formula(s, lang) };
+        });
+      }
+      return { ok: true, card: I.xray(s, lang), subject: s };
+    });
+  }).catch(function(e) {
+    console.warn('[NSP SW] intel failed:', e && e.message);
+    return { ok: false, text: 'The channel could not be read: ' + String((e && e.message) || e).slice(0, 160) };
+  });
+}
+
+function nspIntelRowPatch(run, row, card) {
+  run.chain = run.chain.then(function() {
+    if (run.gone || !row || !self.NSP_CHAT_STORE) return;
+    row.text = card.lead;
+    row.meta = { card: card };
+    return self.NSP_CHAT_STORE.updateMessage(row.id, { text: row.text, meta: row.meta }).then(function() { nspChatPost({ convId: run.convId, row: row }); });
+  }).catch(function() {});
+  return run.chain;
+}
+
+function nspIntelChat(run, req) {
+  req.lang = req.lang || run.lang;
+  req.tabId = run.tabId;
+  var ctl = { stopped: function() { return run.stopped; }, typing: function(label) { nspChatTyping(run, label); } };
+  ctl.typing(NSP_INTEL_READING[req.kind] || 'Reading the channel');
+  return nspIntelQueue(function() { return nspIntelCompute(req, ctl); }).then(function(out) {
+    if (run.stopped || out.stopped) return null;
+    if (!out.ok) return nspChatAdd(run, 'assistant', out.text, { intel: req.kind });
+    return nspChatAdd(run, 'intel', out.card.lead, { card: out.card }).then(function(row) {
+      if (out.card.kind !== 'xray' || !row || run.stopped) return null;
+      ctl.typing('Reading the niche');
+      return nspIntelQueue(function() { return nspIntelWindow(out.card, out.subject, ctl); }).then(function(card) { return nspIntelRowPatch(run, row, card); });
+    });
+  });
+}
+
+function nspIntelShow(card, said, tabId) {
+  var store = self.NSP_CHAT_STORE;
+  if (!store) return Promise.resolve(null);
+  return store.createConversation({ title: (NSP_INTEL_TITLES[card.kind] || 'Channel') + ': ' + String(card.channel.name || '').slice(0, 60) }).then(function(conv) {
+    var run = { convId: conv.id, gone: false, stopped: false, chain: Promise.resolve() };
+    return (said ? nspChatAdd(run, 'user', String(said).slice(0, 400)) : Promise.resolve(null)).then(function() {
+      return nspChatAdd(run, 'intel', card.lead, { card: card });
+    }).then(function(row) {
+      try { chrome.storage.local.set({ nsp_chat_last: conv.id }); } catch (e) {}
+      nspChatPost({ show: conv.id });
+      if (tabId >= 0) nspChatToBubble(tabId, 'open');
+      return { run: run, row: row };
+    });
+  });
+}
+
+function nspIntelVoice(r, gen) {
+  var lang = (r.intel.lang || r.lang) === 'es' ? 'es' : 'en';
+  var req = { kind: r.intel.kind, who: r.intel.who, lang: lang };
+  var ctl = { stopped: function() { return _nspVoice.gen !== gen; }, typing: function() {} };
+  nspVoiceLine(req.kind === 'duel' ? 'intel_reading_two' : 'intel_reading', lang);
+  _nspVoice.busy = gen;
+  nspVoiceRelay();
+  var idle = function() { if (_nspVoice.busy === gen) { _nspVoice.busy = 0; nspVoiceRelay(); } };
+  nspTargetTab(function(tab) {
+    req.tabId = tab && tab.id >= 0 ? tab.id : -1;
+    nspIntelQueue(function() { return nspIntelCompute(req, ctl); }).then(function(out) {
+      if (_nspVoice.gen !== gen || out.stopped) { idle(); return null; }
+      if (!out.ok) { idle(); nspVoiceSay(out.text); return null; }
+      nspVoiceSay(out.card.say || out.card.lead);
+      return nspIntelShow(out.card, String(r.heard || r.said || ''), req.tabId).then(function(shown) {
+        if (out.card.kind !== 'xray' || !shown) { idle(); return null; }
+        return nspIntelQueue(function() { return nspIntelWindow(out.card, out.subject, ctl); }).then(function(card) {
+          return nspIntelRowPatch(shown.run, shown.row, card).then(function() {
+            idle();
+            if (_nspVoice.gen === gen && card.windowSay) nspVoiceSay(card.windowSay);
+          });
+        });
+      });
+    }).catch(function(e) { idle(); console.warn('[NSP SW] intel voice failed:', e && e.message); });
+  });
+}
+
+function nspIntelToolWho(v) {
+  var t = String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!t || NSP_INTEL_HERE.test(t)) return { tab: true };
+  var refs = self.NSP_INTEL.refsOf(t).refs;
+  if (refs.length) return refs[0];
+  return { name: t.replace(/^@/, '') };
+}
+
+function nspIntelTool(name, args, ctx, done) {
+  var kind = NSP_INTEL_TOOLS[name];
+  if (!self.NSP_INTEL) { done({ ok: false, error: 'the channel engines did not load' }); return; }
+  var who = kind === 'duel' ? [args.channelA ? nspIntelToolWho(args.channelA) : { tab: true }, args.channelB ? nspIntelToolWho(args.channelB) : null].filter(Boolean) : [nspIntelToolWho(args.channel)];
+  var run = ctx.chatRun || null;
+  var lang = ctx.lang === 'es' ? 'es' : 'en';
+  var req = { kind: kind, who: who, lang: lang, tabId: run ? run.tabId : -1 };
+  var ctl = run
+    ? { stopped: function() { return run.stopped; }, typing: function(label) { nspChatTyping(run, label); } }
+    : { stopped: function() { return false; }, typing: function() {} };
+  nspIntelQueue(function() { return nspIntelCompute(req, ctl); }).then(function(out) {
+    if (!out.ok) { done({ ok: false, error: out.text || 'stopped' }); return; }
+    var shown = run ? nspChatAdd(run, 'intel', out.card.lead, { card: out.card }).then(function(row) { return { run: run, row: row }; }) : nspIntelShow(out.card, '', req.tabId);
+    shown.then(function(pos) {
+      var finish = function(card) { done({ ok: true, shownInChat: !!(pos && pos.row), card: card.kind, summary: card.lead, data: card.model }); };
+      if (out.card.kind !== 'xray' || !pos || !pos.row) { finish(out.card); return; }
+      ctl.typing('Reading the niche');
+      nspIntelQueue(function() { return nspIntelWindow(out.card, out.subject, ctl); }).then(function(card) {
+        return nspIntelRowPatch(pos.run, pos.row, card).then(function() { finish(card); });
+      }).catch(function() { finish(out.card); });
+    });
+  }, function(e) { done({ ok: false, error: String((e && e.message) || e) }); });
+}
+
+function nspIntelContext(sender, sendResponse) {
+  var answer = function(url) {
+    var t = nspIntelFromUrl(url);
+    if (!t) { sendResponse({ ok: true, kind: '' }); return; }
+    var handle = t.channel ? (/\/(@[^\/]{1,100})$/.exec(t.channel) || [])[1] || '' : '';
+    try { handle = decodeURIComponent(handle); } catch (e) {}
+    sendResponse({ ok: true, kind: t.channel ? 'channel' : 'video', handle: handle.slice(0, 60) });
+  };
+  if (sender && sender.tab && sender.tab.id >= 0 && sender.frameId !== 0) { answer(String(sender.tab.url || '')); return; }
+  nspTargetTab(function(tab) { answer(tab ? String(tab.url || '') : ''); });
 }
 
 function nspChatStop(msg) {
@@ -2896,7 +3318,7 @@ function nspChatThink(run) {
           if (id) run.delegate = id;
           if (NSP_CHAT_NAV_TOOLS[name] === 1) nspChatMarkHost(run);
           nspChatTyping(run, name === 'zerackYouTubeAgent' ? 'The YouTube agent is working' : 'Working');
-          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'chat', lang: run.lang, requestId: id }, resolve); }).then(function(res) {
+          return new Promise(function(resolve) { nspChatTool(name, args, { origin: 'chat', lang: run.lang, requestId: id, chatRun: run }, resolve); }).then(function(res) {
             if (id) run.delegate = '';
             return res;
           });
@@ -2933,9 +3355,10 @@ function nspChatRun(msg, sender, sendResponse) {
   _nspChat.runs[convId] = run;
   nspChatBeat();
   sendResponse({ ok: true });
-  var routes = nspChatTyped(text.slice(0, 400), String(msg.tabLang || ''));
+  var intel = nspIntelIntent(text);
+  var routes = intel ? null : nspChatTyped(text.slice(0, 400), String(msg.tabLang || ''));
   nspChatTyping(run, routes ? 'Working' : 'Thinking');
-  (routes ? nspChatRouted(run, routes) : nspChatThink(run)).catch(function(e) {
+  (intel ? nspIntelChat(run, intel) : (routes ? nspChatRouted(run, routes) : nspChatThink(run))).catch(function(e) {
     return nspChatAdd(run, 'error', 'Something went wrong: ' + String((e && e.message) || e));
   }).then(function() { nspChatEnd(run); });
 }
@@ -3130,6 +3553,7 @@ var NSP_MESSAGE_CALLERS = {
   NSP_CHAT_OVERLAY: NSP_EXT_ONLY,
   NSP_CHAT_STOP: NSP_EXT_ONLY,
   NSP_CHAT_PROVIDERS: NSP_EXT_ONLY,
+  NSP_INTEL_CONTEXT: NSP_EXT_ONLY,
   NSP_AGENT_OPEN_TAB: { ext: 1, youtube: 'grant' },
   NSP_AGENT_SEARCH_MARKET: { ext: 1, youtube: 1, studio: 1 },
   NSP_AGENT_NAVIGATE: NSP_EXT_ONLY,
@@ -4091,6 +4515,14 @@ function nspRoute(msg, sender, sendResponse, who) {
       delete box[sender.tab.id];
       return hit;
     }).then(function(hit) { sendResponse({ open: hit === true }); });
+    return true;
+  }
+
+  if (msg.type === 'NSP_INTEL_CONTEXT') {
+    nspChatTrusted(sender).then(function(ok) {
+      if (!ok) { sendResponse({ ok: false, error: 'not_allowed' }); return; }
+      nspIntelContext(sender, sendResponse);
+    });
     return true;
   }
 

@@ -327,6 +327,7 @@
     panel.className = 'panel';
     frame = document.createElement('iframe');
     frame.title = 'ZERACK chat';
+    frame.allow = 'clipboard-write *';
     frame.src = chrome.runtime.getURL('chat/chat.html') + '?mode=overlay#t=' + encodeURIComponent(token);
     panel.appendChild(frame);
     root.appendChild(panel);

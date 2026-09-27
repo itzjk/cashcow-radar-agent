@@ -17,7 +17,11 @@
     zerackCourse: 'Read the course',
     zerackBrowser: 'Browser',
     zerackOpenPage: 'Open a ZERACK page',
-    zerackYouTubeAgent: 'Ask the YouTube agent'
+    zerackYouTubeAgent: 'Ask the YouTube agent',
+    zerackXray: 'X-ray the channel',
+    zerackDuel: 'Duel two channels',
+    zerackFormula: 'Measure the formula of',
+    zerackVerdict: 'Luck or growth for'
   };
 
   var BROWSER_LABELS = {
@@ -38,7 +42,7 @@
       return what ? head + ' ' + clip(what, 60) : head;
     }
     var base = LABELS[name] || name;
-    var d = args.lesson || args.query || args.url || args.channelUrl || args.page || args.area || args.instruction || args.channelName || args.title || args.format || '';
+    var d = args.lesson || args.query || args.url || args.channelUrl || args.channel || args.channelB || args.page || args.area || args.instruction || args.channelName || args.title || args.format || '';
     return d ? base + ' ' + clip(d, 60) : base;
   }
 
@@ -56,9 +60,9 @@
 
   function history(list) {
     return (list || []).filter(function (m) {
-      return m && (m.role === 'user' || m.role === 'assistant') && String(m.text || m.content || '').trim();
+      return m && (m.role === 'user' || m.role === 'assistant' || m.role === 'intel') && String(m.text || m.content || '').trim();
     }).map(function (m) {
-      return { role: m.role, content: String(m.text != null ? m.text : m.content) };
+      return { role: m.role === 'intel' ? 'assistant' : m.role, content: String(m.text != null ? m.text : m.content) };
     }).slice(-HISTORY);
   }
 
