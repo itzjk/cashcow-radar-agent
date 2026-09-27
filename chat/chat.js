@@ -37,7 +37,7 @@
     empty_answer: 'The model sent back an empty answer.',
     stopped: 'Stopped.'
   };
-  var GUARDED = { 'agent-pill': 'The Agent switch', hf: 'Hands-free', 'delete': 'Deleting', 'delete-all': 'Deleting', 'clear-voice': 'Clearing' };
+  var GUARDED = { 'agent-pill': 'The Agent switch', hf: 'Hands-free', 'delete': 'Deleting', 'delete-all': 'Deleting', 'clear-voice': 'Clearing', draw: 'Drawing' };
 
   var $ = function (id) { return document.getElementById(id); };
   var S = {
@@ -138,7 +138,7 @@
 
   function msgEl(row) {
     var box;
-    if (row.role === 'intel' && INTEL) return INTEL.render(row, { submit: submit, fill: fillInput });
+    if (row.role === 'intel' && INTEL) return INTEL.render(row, { submit: submit, fill: fillInput, job: runJob, setup: function () { openPage('setup/setup.html'); } });
     if (row.role === 'user') {
       box = node('div', 'msg user');
       box.appendChild(node('div', 'bubble', row.text));
@@ -180,12 +180,34 @@
 
   function drawMsg(row) {
     var el = msgEl(row);
+    el.addEventListener('animationend', function (e) { if (e.target === el) el.style.animation = 'none'; });
     var old = row.id != null ? S.els[row.id] : null;
     if (old && old.parentNode) old.parentNode.replaceChild(el, old);
     else if (S.typing) $('messages').insertBefore(el, S.typing);
     else $('messages').appendChild(el);
     if (row.id != null) S.els[row.id] = el;
     return el;
+  }
+
+  function drawable() {
+    if (S.view !== 'chat') return null;
+    for (var i = S.msgs.length - 1; i >= 0; i--) {
+      var m = S.msgs[i];
+      var c = m && m.role === 'intel' && m.meta && m.meta.card;
+      if (c && c.draw && !c.drawn) return m;
+    }
+    return null;
+  }
+
+  function paintAct() {
+    var row = drawable();
+    var bar = $('act-bar');
+    bar.hidden = !row;
+    if (!row) return;
+    var d = row.meta.card.draw;
+    $('act-text').textContent = (d.label || 'Draw the thumbnails') + '. ' + (d.cost || '');
+    $('act-draw').textContent = 'Draw them';
+    $('act-draw').disabled = S.busy;
   }
 
   function drawThread() {
@@ -202,6 +224,7 @@
     else if (S.msgs[S.msgs.length - 1].role === 'intel' && S.els[S.msgs[S.msgs.length - 1].id]) showTop(S.els[S.msgs[S.msgs.length - 1].id]);
     else scrollDown();
     if (S.busy && S.conv && S.view === 'chat') showTyping(true, S.running[S.conv.id] || 'Thinking');
+    paintAct();
   }
 
   function paintTitle() {
@@ -264,6 +287,7 @@
   function syncBusy() {
     S.busy = !!(S.conv && S.running[S.conv.id]);
     paintBusy();
+    if ($('act-draw')) $('act-draw').disabled = S.busy;
   }
 
   function openConv(id) {
@@ -326,6 +350,7 @@
     $('messages').hidden = false;
     if (row.role === 'intel' && i < 0) showTop(el);
     else if (row.role !== 'intel' && (stick || row.role === 'user')) scrollDown();
+    paintAct();
   }
 
   function showTop(el) {
@@ -377,6 +402,41 @@
       syncBusy();
       showTyping(false);
       if (S.conv) append('error', 'Something went wrong: ' + String((e && e.message) || e));
+    });
+  }
+
+  function convLang() {
+    for (var i = S.msgs.length - 1; i >= 0; i--) if (S.msgs[i].role === 'user') return textLang(S.msgs[i].text);
+    return lang();
+  }
+
+  function runJob(job, label) {
+    if (S.busy || !job || !label) return Promise.resolve(false);
+    S.moves++;
+    var jobLang = S.view === 'chat' && S.conv ? convLang() : lang();
+    if (S.view !== 'chat') { S.view = 'chat'; S.conv = null; S.msgs = []; paintTitle(); drawThread(); }
+    return ensureConv().then(function (conv) {
+      S.running[conv.id] = 'Working';
+      syncBusy();
+      return append('user', label).then(function (row) {
+        if (!row) { gone(conv.id); return false; }
+        loadList();
+        if (S.conv && S.conv.id === conv.id) showTyping(true, 'Working');
+        return send({ type: 'NSP_MINE_RUN', convId: conv.id, text: label, job: job, lang: jobLang }).then(function (res) {
+          if (res && res.ok === true) { watchRuns(); return true; }
+          delete S.running[conv.id];
+          syncBusy();
+          showTyping(false);
+          if (S.conv && S.conv.id === conv.id) append('error', res && res.error === 'busy' ? 'This chat is still answering. Wait for it, or press Stop.' : 'ZERACK did not take the request. Try again.');
+          return false;
+        });
+      });
+    }).catch(function (e) {
+      if (S.conv) delete S.running[S.conv.id];
+      syncBusy();
+      showTyping(false);
+      if (S.conv) append('error', 'Something went wrong: ' + String((e && e.message) || e));
+      return false;
     });
   }
 
@@ -746,6 +806,8 @@
       if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') onEsc(e); });
+    document.addEventListener('dragover', function (e) { e.preventDefault(); });
+    document.addEventListener('drop', function (e) { e.preventDefault(); });
     $('send').addEventListener('click', function () { if (S.busy) stopRun(); else submit(); });
     $('btn-new').addEventListener('click', function () { S.moves++; newChat(); });
     $('side-new').addEventListener('click', function () { S.moves++; newChat(); closeList(); });
@@ -775,6 +837,14 @@
       send({ type: 'NSP_VOICE_WAKE_TOGGLE' });
     });
     $('btn-close').addEventListener('click', closeOverlay);
+    $('act-draw').addEventListener('click', function (e) {
+      if (!e.isTrusted) return;
+      var row = drawable();
+      if (!row || S.busy || !trusted('draw')) return;
+      $('act-draw').disabled = true;
+      runJob({ op: 'draw', rowId: row.id }, 'Draw the ' + ((row.meta.card.draw.prompts || []).length || 3) + ' thumbnails').then(function (ok) { if (!ok) $('act-draw').disabled = false; });
+    });
+    watchSeen($('act-draw'), 'draw');
     watchSeen($('agent-pill'), 'agent-pill');
     watchSeen($('hf'), 'hf');
     watchSeen($('more-menu'), 'menu');
@@ -824,8 +894,8 @@
     }
   }
 
-  function intelChip(label, text, fill) {
-    var b = node('button', 'chip intel-chip', label);
+  function intelChip(label, text, fill, cls) {
+    var b = node('button', 'chip ' + (cls || 'intel-chip'), label);
     b.type = 'button';
     b.addEventListener('click', function (e) {
       if (!e.isTrusted) return;
@@ -834,13 +904,36 @@
     return b;
   }
 
+  var MINE_CHIPS = [
+    ['My Wrapped', 'My Wrapped'],
+    ['My next video', 'What is my next video?'],
+    ['Judge a title', 'Judge this title: ', true],
+    ['Judge my thumbnail', 'Judge my thumbnail'],
+    ['Thumbnail ideas', 'Thumbnail ideas for: ', true],
+    ['Check before upload', 'Check before upload'],
+    ['What my niche pays', 'Money calculator']
+  ];
+
+  function mineChips(res) {
+    var box = $('mine-chips');
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    MINE_CHIPS.forEach(function (c) { box.appendChild(intelChip(c[0], c[1], !!c[2], 'mine-chip')); });
+    var mine = res && res.mine && typeof res.mine === 'object' ? res.mine : null;
+    var who = mine && typeof mine.handle === 'string' && /^@\S{1,60}$/.test(mine.handle) ? mine.handle : (mine && typeof mine.name === 'string' ? mine.name.slice(0, 40) : '');
+    $('mine-who').textContent = who ? who : (res && res.studio ? 'from YouTube Studio' : '');
+    $('mine-group').hidden = false;
+  }
+
   function intelChips() {
     var box = $('intel-chips');
     if (!box) return;
     send({ type: 'NSP_INTEL_CONTEXT' }).then(function (res) {
+      mineChips(res);
       while (box.firstChild) box.removeChild(box.firstChild);
       var kind = res && res.ok ? res.kind : '';
       var h = res && typeof res.handle === 'string' && /^@\S{1,60}$/.test(res.handle) ? res.handle : '';
+      $('intel-head').textContent = kind === 'channel' || kind === 'video' ? 'This channel' : 'Any channel';
       if (kind === 'channel' || kind === 'video') {
         var ref = h || (kind === 'video' ? 'this video' : 'this channel');
         var chan = h || 'this channel';
@@ -853,6 +946,7 @@
         box.appendChild(intelChip('Duel two channels', 'Compare @ with @', true));
       }
       box.hidden = false;
+      $('intel-group').hidden = false;
     });
   }
 

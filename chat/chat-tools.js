@@ -21,7 +21,14 @@
     zerackXray: 'X-ray the channel',
     zerackDuel: 'Duel two channels',
     zerackFormula: 'Measure the formula of',
-    zerackVerdict: 'Luck or growth for'
+    zerackVerdict: 'Luck or growth for',
+    zerackMyChannel: 'Wrap your channel',
+    zerackNextVideo: 'Find your next video',
+    zerackJudgeTitle: 'Judge the title',
+    zerackJudgeThumbnail: 'Judge the thumbnail',
+    zerackThumbnailIdeas: 'Thumbnail ideas for',
+    zerackPolicyCheck: 'Check before upload',
+    zerackMoneyCalc: 'Work out what it pays'
   };
 
   var BROWSER_LABELS = {
@@ -42,7 +49,7 @@
       return what ? head + ' ' + clip(what, 60) : head;
     }
     var base = LABELS[name] || name;
-    var d = args.lesson || args.query || args.url || args.channelUrl || args.channel || args.channelB || args.page || args.area || args.instruction || args.channelName || args.title || args.format || '';
+    var d = args.lesson || args.query || args.url || args.channelUrl || args.channel || args.channelB || args.page || args.area || args.instruction || args.channelName || args.title || args.format || args.niche || args.video || '';
     return d ? base + ' ' + clip(d, 60) : base;
   }
 

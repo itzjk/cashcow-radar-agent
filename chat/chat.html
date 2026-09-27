@@ -69,7 +69,15 @@
         <img class="empty-mark" src="../icons/zerack-mark.svg" alt="" width="132" height="132"/>
         <div class="empty-word">ZERACK</div>
         <p class="empty-line">Private assistant. Your keys, your machine.</p>
-        <div id="intel-chips" class="chips intel-row" hidden></div>
+        <div id="intel-group" class="chip-group" hidden>
+          <div id="intel-head" class="chip-head">This channel</div>
+          <div id="intel-chips" class="chips intel-row" hidden></div>
+        </div>
+        <div id="mine-group" class="chip-group" hidden>
+          <div class="chip-head">Your channel <span id="mine-who" class="chip-who"></span></div>
+          <div id="mine-chips" class="chips mine-row"></div>
+        </div>
+        <div class="chip-head">Ask anything</div>
         <div class="chips">
           <button class="chip" type="button">Open YouTube</button>
           <button class="chip" type="button">What niche should I start this week?</button>
@@ -82,6 +90,11 @@
     </section>
 
     <footer class="composer">
+      <div id="act-bar" class="act-bar" hidden>
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span id="act-text" class="act-text"></span>
+        <button id="act-draw" class="act-btn" type="button">Draw them</button>
+      </div>
       <div class="box">
         <textarea id="input" rows="1" placeholder="Ask ZERACK or tell it what to do" aria-label="Message"></textarea>
         <div class="row">

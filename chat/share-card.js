@@ -140,16 +140,28 @@
     return !/^[\d.,:\s]+[xKMB%]?$/.test(String(v));
   }
 
-  function plan(g, spec, heroMax) {
+  var PIC_W = 380;
+  var PIC_H = 214;
+  var PIC_SRC = /^(?:https:\/\/i\.ytimg\.com\/vi(?:_webp)?\/[A-Za-z0-9_-]{11}\/[a-z0-9_]{2,20}\.(?:jpg|webp)|data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+\/=]+)$/;
+
+  function picture(src) {
+    if (!PIC_SRC.test(String(src || '')) || typeof fetch !== 'function' || typeof createImageBitmap !== 'function') return Promise.resolve(null);
+    return fetch(src, { credentials: 'omit' }).then(function (r) { return r.ok ? r.blob() : null; }).then(function (b) { return b ? createImageBitmap(b) : null; }).catch(function () { return null; });
+  }
+
+  function plan(g, spec, heroMax, pic) {
     var max = W - PAD * 2;
+    var heroRoom = pic ? max - PIC_W - 40 : max;
     var p = { title: [], hero: 0, heroLabel: [], quote: [], rows: [] };
     g.font = font(800, 68);
     p.title = wrap(g, spec.title, max, 2);
     var y = 212 + p.title.length * 72 + (spec.subtitle ? 50 : 0);
     var hero = spec.hero || {};
     if (hero.value) {
-      p.hero = sizeFor(g, String(hero.value), 900, Math.min(heroMax, isWord(hero.value) ? 150 : heroMax), 72, max);
+      var heroTop = y;
+      p.hero = sizeFor(g, String(hero.value), 900, Math.min(heroMax, isWord(hero.value) ? 150 : heroMax), 72, heroRoom);
       y += Math.round(p.hero * 0.95) + 44 + 34;
+      if (pic) y = Math.max(y, heroTop + 44 + PIC_H - 10);
       if (hero.label) {
         g.font = font(500, 34);
         p.heroLabel = wrap(g, hero.label, max, 2);
@@ -188,10 +200,20 @@
     parts.forEach(function (p) { g.font = font(p.w, size); g.fillStyle = p.c; g.fillText(p.t, x, mid); x += p.width; });
   }
 
-  function body(g, spec) {
+  function body(g, spec, pic) {
     var max = W - PAD * 2;
-    var p = null;
-    for (var hs = 230; hs >= 110; hs -= 10) { p = plan(g, spec, hs); if (p.fits) break; }
+    var p = null, first = null, want = 0;
+    if (spec.quote && spec.quote.text) {
+      g.font = font(600, 40);
+      want = Math.min(2, wrap(g, '\u201c' + spec.quote.text + '\u201d', max - 40, 3).length);
+    }
+    for (var hs = 230; hs >= 110; hs -= 10) {
+      p = plan(g, spec, hs, pic);
+      if (!p.fits) continue;
+      if (!first) first = p;
+      if (p.quote.length >= want) break;
+    }
+    if (!p.fits || p.quote.length < want) p = first || p;
     var y = 212;
     g.textBaseline = 'alphabetic';
     g.fillStyle = WHITE;
@@ -205,11 +227,25 @@
     }
     var hero = spec.hero || {};
     if (hero.value) {
+      var heroTopDraw = y;
+      if (pic) {
+        var px = W - PAD - PIC_W, py = y + 44;
+        g.save();
+        roundRect(g, px, py, PIC_W, PIC_H, 18);
+        g.clip();
+        g.drawImage(pic, px, py, PIC_W, PIC_H);
+        g.restore();
+        roundRect(g, px, py, PIC_W, PIC_H, 18);
+        g.strokeStyle = 'rgba(255,255,255,0.22)';
+        g.lineWidth = 2;
+        g.stroke();
+      }
       y += Math.round(p.hero * 0.95) + 44;
       g.font = font(900, p.hero);
       g.fillStyle = hero.tone === 'bad' ? RED : WHITE;
-      g.fillText(fit(g, hero.value, max), PAD - 4, y);
+      g.fillText(fit(g, hero.value, pic ? max - PIC_W - 40 : max), PAD - 4, y);
       y += 34;
+      if (pic) y = Math.max(y, heroTopDraw + 44 + PIC_H - 10);
       g.fillStyle = RED;
       g.fillRect(PAD, y, 112, 8);
       if (p.heroLabel.length) {
@@ -308,13 +344,15 @@
 
   function render(spec) {
     spec = spec || {};
-    return mark().then(function (img) {
+    return Promise.all([mark(), picture(spec.image)]).then(function (got) {
+      var img = got[0], pic = got[1];
       var c = canvas();
       var g = c.getContext('2d');
       backdrop(g);
       header(g, spec, img);
-      body(g, spec);
+      body(g, spec, pic);
       footer(g, spec, img);
+      if (pic && pic.close) pic.close();
       return toBlob(c);
     });
   }
