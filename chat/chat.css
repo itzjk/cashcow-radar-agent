@@ -289,6 +289,25 @@ a.ic-name:hover { text-decoration: underline; text-decoration-color: rgba(255,25
 .ic-status:empty { display: none; }
 .ic-status[data-kind="err"] { color: #ff9d9d; }
 .ic-next { display: flex; flex-wrap: wrap; gap: 6px; }
+.ic-meter { margin: 4px 0 8px; }
+.ic-meter-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 4px; }
+.ic-meter-seg { height: 8px; border-radius: 3px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.06); }
+.ic-meter-seg[data-on="1"] { background: #fff; border-color: #fff; }
+.ic-meter[data-tone="good"] .ic-meter-seg[data-on="1"] { background: var(--red); border-color: var(--red); box-shadow: 0 0 10px rgba(255,45,45,.35); }
+.ic-meter[data-tone="bad"] .ic-meter-seg[data-on="1"] { background: var(--red-dim); border-color: var(--red-dim); }
+.ic-meter-cap { display: flex; justify-content: space-between; align-items: baseline; margin-top: 7px; }
+.ic-meter-label { font-size: 13px; font-weight: 700; color: #fff; }
+.ic-meter-count { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.ic-jobs { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.ic-jobs-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.ic-job { background: transparent; border: 1px solid var(--line-strong); border-radius: 999px; padding: 6px 13px; font-size: 12px; cursor: pointer; color: rgba(255,255,255,.9); }
+.ic-job:hover { border-color: #fff; color: #fff; }
+.ic-job.primary { background: var(--red); border-color: var(--red); color: #fff; font-weight: 700; }
+.ic-job.primary:hover { background: #ff4545; border-color: #ff4545; }
+.ic-job[disabled] { opacity: .5; cursor: default; }
+.chip.watch-chip { border-color: rgba(255,255,255,.26); background: rgba(255,255,255,.04); color: #fff; }
+.chip.watch-chip:hover { border-color: var(--red); background: rgba(255,45,45,.06); }
+.chips.watch-row { margin-bottom: 0; }
 .chips.intel-row { margin-bottom: 8px; }
 .chip.intel-chip { border-color: rgba(255,45,45,.42); background: rgba(255,45,45,.06); color: #fff; }
 .chip.intel-chip:hover { border-color: var(--red); }
@@ -323,7 +342,7 @@ a.ic-name:hover { text-decoration: underline; text-decoration-color: rgba(255,25
 .ic-table th { text-align: left; font-weight: 600; font-size: 11px; letter-spacing: .04em; color: var(--faint); padding: 4px 8px 6px 0; border-bottom: 1px solid var(--line); }
 .ic-table td { padding: 7px 8px 7px 0; border-bottom: 1px solid rgba(255,255,255,.05); color: #fff; }
 .ic-table td:first-child { color: var(--muted); }
-.ic-table tr:nth-child(2) td { font-weight: 700; }
+.ic-table[data-hi="2"] tbody tr:nth-child(2) td { font-weight: 700; }
 .ic-form { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .ic-field { display: flex; flex-direction: column; gap: 5px; }
 .ic-flabel { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); }

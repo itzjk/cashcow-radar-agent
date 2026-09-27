@@ -147,6 +147,7 @@
   function table(t) {
     if (!t || !Array.isArray(t.rows) || !t.rows.length) return null;
     var wrap = el('div', 'ic-table');
+    if (Number(t.hi) >= 1 && Number(t.hi) <= 12) wrap.dataset.hi = String(Math.round(Number(t.hi)));
     var tbl = document.createElement('table');
     if (Array.isArray(t.head)) {
       var thead = document.createElement('thead');
@@ -209,10 +210,35 @@
     return box;
   }
 
+  function meter(m) {
+    var steps = Math.max(1, Math.min(10, Math.round(Number(m.steps) || 5)));
+    var level = Math.max(0, Math.min(steps, Math.round(Number(m.level) || 0)));
+    var box = el('div', 'ic-meter');
+    box.dataset.tone = tone(m.tone);
+    var bar = el('div', 'ic-meter-bar');
+    bar.setAttribute('role', 'meter');
+    bar.setAttribute('aria-valuemin', '0');
+    bar.setAttribute('aria-valuemax', String(steps));
+    bar.setAttribute('aria-valuenow', String(level));
+    bar.setAttribute('aria-label', String(m.label || ''));
+    for (var i = 0; i < steps; i++) {
+      var seg = el('span', 'ic-meter-seg');
+      if (i < level) seg.dataset.on = '1';
+      bar.appendChild(seg);
+    }
+    box.appendChild(bar);
+    var cap = el('div', 'ic-meter-cap');
+    cap.appendChild(el('span', 'ic-meter-label', m.label || ''));
+    cap.appendChild(el('span', 'ic-meter-count', level + ' / ' + steps));
+    box.appendChild(cap);
+    return box;
+  }
+
   function section(s) {
     var box = el('section', 'ic-sec' + (s.concept ? ' concept' : ''));
     if (s.state) box.dataset.state = String(s.state);
     box.appendChild(el('div', 'ic-sec-title', s.title));
+    if (s.meter) box.appendChild(meter(s.meter));
     var pics = gallery(s.images);
     if (pics) box.appendChild(pics);
     var grid = table(s.table);
@@ -453,6 +479,37 @@
     return box.childNodes.length > 1 ? box : null;
   }
 
+  var JOB_OPS = /^(?:brief_now|brief_on|brief_off|brief_state|watch_remove|predict_seal|predict_export|predict_daily|arb_measure)$/;
+
+  function cardJobs(card, opts) {
+    var list = (Array.isArray(card.actions) ? card.actions : []).filter(function (a) { return a && a.label && a.job && JOB_OPS.test(String(a.job.op || '')); }).slice(0, 7);
+    if (!list.length || !opts.job) return null;
+    var box = el('div', 'ic-jobs');
+    var row = el('div', 'ic-jobs-row');
+    var note = el('div', 'ic-status');
+    note.setAttribute('aria-live', 'polite');
+    list.forEach(function (a) {
+      var b = el('button', 'ic-job' + (a.primary ? ' primary' : ''), a.label);
+      b.type = 'button';
+      b.addEventListener('click', function (e) {
+        if (!e.isTrusted) return;
+        b.disabled = true;
+        status(note, '', '');
+        var job = {};
+        Object.keys(a.job).forEach(function (k) { job[k] = a.job[k]; });
+        if (card.lang === 'es' || card.lang === 'en') job.lang = card.lang;
+        Promise.resolve(opts.job(job, String(a.label))).then(function (ok) {
+          b.disabled = false;
+          if (!ok) status(note, 'The chat is busy. Wait for the answer and press it again.', 'err');
+        });
+      });
+      row.appendChild(b);
+    });
+    box.appendChild(row);
+    box.appendChild(note);
+    return box;
+  }
+
   function actions(card) {
     var foot = el('div', 'ic-actions');
     var note = el('div', 'ic-status');
@@ -556,6 +613,8 @@
     (card.sections || []).forEach(function (s) { box.appendChild(section(s)); });
     var draw = drawBar(card, row, opts);
     if (draw) box.appendChild(draw);
+    var jobs = cardJobs(card, opts);
+    if (jobs) box.appendChild(jobs);
     var act = actions(card);
     if (card.source || card.share) {
       var foot = el('footer', 'ic-foot');

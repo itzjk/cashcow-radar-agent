@@ -84,12 +84,7 @@ function toggleWatch(ch, btn) {
       };
       btn.textContent = 'Watching';
       btn.classList.add('active');
-      btn.title = 'You get a notification when this channel posts an outlier, checked every 6 hours';
-      if (chrome.alarms) {
-        chrome.alarms.get('nsp-trend-check', function(a) {
-          if (!a) chrome.alarms.create('nsp-trend-check', { periodInMinutes: 360 });
-        });
-      }
+      btn.title = 'You get a notification when a new upload of this channel runs at 5x or more its median, checked every hour';
     }
     chrome.storage.local.set({ nsp_watching: watching }, function() {
       watchingCache = watching;
@@ -465,7 +460,7 @@ function buildWatchButton(ch, className) {
   var isWatching = !!(watchingCache && watchingCache[ch.channelUrl]);
   btn.textContent = isWatching ? 'Watching' : 'Watch';
   btn.title = isWatching
-    ? 'You get a notification when this channel posts an outlier, checked every 6 hours'
+    ? 'You get a notification when a new upload of this channel runs at 5x or more its median, checked every hour'
     : 'Click to turn on outlier alerts';
   if (isWatching) btn.classList.add('active');
   btn.addEventListener('click', function(e) {
@@ -942,13 +937,6 @@ function bulkWatch(channels) {
         var prev = bar.textContent;
         bar.textContent = '' + channels.length + ' channels on the watchlist';
         setTimeout(function() { bar.textContent = prev; }, 2000);
-      }
-      if (chrome.alarms) {
-        chrome.alarms.get('nsp-trend-check', function(alarm) {
-          if (!alarm) {
-            chrome.alarms.create('nsp-trend-check', { periodInMinutes: 360 });
-          }
-        });
       }
     });
   });

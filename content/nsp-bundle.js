@@ -14068,7 +14068,7 @@ function openTrackingPanel(ch, subGrowthMonth) {
     watchBox.appendChild(wt);
     var watchSub = document.createElement('div');
     watchSub.setAttribute('style', 'font-size:10px;color:' + DIM + ';margin-top:5px;line-height:1.5;');
-    watchSub.textContent = 'Alerts you when this channel posts a video above 100 VPH or 50K views within 72 hours.';
+    watchSub.textContent = 'Alerts you when a new upload of this channel runs at 5x or more its median views. Checked every hour; the notification opens the X-ray.';
     watchBox.appendChild(watchSub);
 
     var watchBtn = document.createElement('button');
@@ -14102,9 +14102,6 @@ function openTrackingPanel(ch, subGrowthMonth) {
                 channelUrl: ch.channelUrl, channelId: ch.channelId || '',
                 name: ch.name || '', addedAt: Date.now(), lastChecked: 0, knownVideoIds: []
               };
-              try { if (chrome.alarms) chrome.alarms.get('nsp-trend-check', function(a) {
-                if (!a) chrome.alarms.create('nsp-trend-check', { periodInMinutes: 360 });
-              }); } catch(e) {}
             }
             nspStore.set({ nsp_watching: w }).then(refreshWB);
           });
@@ -16500,6 +16497,7 @@ function showCommentsPanel(videoId) {
     section('TOPICS', parsed.themes || []);
     section('PAIN POINTS', parsed.painPoints || [], 'rgba(255,107,107,.08)');
     section('REQUESTS', parsed.requests || [], 'rgba(0,220,130,.06)');
+    section('VIDEO IDEAS FROM THE COMMENTS', (parsed.ideas || []).map(function(x) { return String(x.title || '') + (x.answers ? ' (answers: ' + String(x.answers) + ')' : ''); }), 'rgba(255,45,45,.08)');
   }).catch(function(err) {
     loading.style.color = '#FF6B6B';
     loading.textContent = 'Error: ' + String((err && err.message) || 'unknown');

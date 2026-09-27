@@ -28,7 +28,11 @@
     zerackJudgeThumbnail: 'Judge the thumbnail',
     zerackThumbnailIdeas: 'Thumbnail ideas for',
     zerackPolicyCheck: 'Check before upload',
-    zerackMoneyCalc: 'Work out what it pays'
+    zerackMoneyCalc: 'Work out what it pays',
+    zerackBrief: 'Read the morning brief',
+    zerackPredictions: 'Read the prediction ledger',
+    zerackLanguageGaps: 'Measure the language gaps',
+    zerackCommentIdeas: 'Read the comments'
   };
 
   var BROWSER_LABELS = {

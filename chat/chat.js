@@ -37,6 +37,7 @@
     empty_answer: 'The model sent back an empty answer.',
     stopped: 'Stopped.'
   };
+  var WATCH_OPS = { brief_now: 1, brief_on: 1, brief_off: 1, brief_state: 1, watch_remove: 1, predict_seal: 1, predict_export: 1, predict_daily: 1, arb_measure: 1 };
   var GUARDED = { 'agent-pill': 'The Agent switch', hf: 'Hands-free', 'delete': 'Deleting', 'delete-all': 'Deleting', 'clear-voice': 'Clearing', draw: 'Drawing' };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -413,7 +414,7 @@
   function runJob(job, label) {
     if (S.busy || !job || !label) return Promise.resolve(false);
     S.moves++;
-    var jobLang = S.view === 'chat' && S.conv ? convLang() : lang();
+    var jobLang = job.lang === 'es' || job.lang === 'en' ? job.lang : (S.view === 'chat' && S.conv ? convLang() : lang());
     if (S.view !== 'chat') { S.view = 'chat'; S.conv = null; S.msgs = []; paintTitle(); drawThread(); }
     return ensureConv().then(function (conv) {
       S.running[conv.id] = 'Working';
@@ -422,7 +423,7 @@
         if (!row) { gone(conv.id); return false; }
         loadList();
         if (S.conv && S.conv.id === conv.id) showTyping(true, 'Working');
-        return send({ type: 'NSP_MINE_RUN', convId: conv.id, text: label, job: job, lang: jobLang }).then(function (res) {
+        return send({ type: WATCH_OPS[job.op] === 1 ? 'NSP_WATCH_RUN' : 'NSP_MINE_RUN', convId: conv.id, text: label, job: job, lang: jobLang }).then(function (res) {
           if (res && res.ok === true) { watchRuns(); return true; }
           delete S.running[conv.id];
           syncBusy();
@@ -925,11 +926,31 @@
     $('mine-group').hidden = false;
   }
 
+  function watchChips(res) {
+    var box = $('watch-chips');
+    if (!box) return;
+    while (box.firstChild) box.removeChild(box.firstChild);
+    var kind = res && res.ok ? res.kind : '';
+    if (kind === 'channel' || kind === 'video') box.appendChild(intelChip('Watch this channel', 'Watch this channel', false, 'watch-chip'));
+    box.appendChild(intelChip('Morning brief', 'Morning brief', false, 'watch-chip'));
+    box.appendChild(intelChip('Predictions', 'Show my predictions', false, 'watch-chip'));
+    box.appendChild(intelChip('Language gaps', 'Language arbitrage', false, 'watch-chip'));
+    if (kind === 'video') box.appendChild(intelChip('Comments to ideas', 'Ideas from the comments', false, 'watch-chip'));
+    else box.appendChild(intelChip('My comments to ideas', 'What do my viewers want', false, 'watch-chip'));
+    var w = res && res.watch && typeof res.watch === 'object' ? res.watch : null;
+    var bits = [];
+    if (w && typeof w.brief === 'string' && /^\d\d:\d\d$/.test(w.brief)) bits.push('brief at ' + w.brief);
+    if (w && w.watching > 0) bits.push(Number(w.watching) + ' watched');
+    $('watch-who').textContent = bits.join(' \u00b7 ');
+    $('watch-group').hidden = false;
+  }
+
   function intelChips() {
     var box = $('intel-chips');
     if (!box) return;
     send({ type: 'NSP_INTEL_CONTEXT' }).then(function (res) {
       mineChips(res);
+      watchChips(res);
       while (box.firstChild) box.removeChild(box.firstChild);
       var kind = res && res.ok ? res.kind : '';
       var h = res && typeof res.handle === 'string' && /^@\S{1,60}$/.test(res.handle) ? res.handle : '';
