@@ -1,0 +1,490 @@
+(function (root) {
+  if (Object.prototype.hasOwnProperty.call(root, 'NSP_PAGE_AGENT')) return;
+
+  var PRESS_MS = 120000;
+  var STEP_MS = 45000;
+  var LOAD_MS = 25000;
+  var PLAN_MAX = 30;
+  var HANDS_FILES = ['lib/nsp-gate.js', 'lib/nsp-hands.js'];
+  var ACTIONS = {
+    read: 'read', wait: 'read', scroll: 'read',
+    click: 'act', press: 'act', tap: 'act',
+    type: 'act', fill: 'act', paste: 'act', append: 'act',
+    select: 'act', choose: 'act',
+    navigate: 'act', 'goto': 'act', open: 'act'
+  };
+  var CLICKS = { click: 1, press: 1, tap: 1 };
+  var TYPES = { type: 1, fill: 1, paste: 1, append: 1 };
+  var NAVIGATES = { navigate: 1, 'goto': 1, open: 1 };
+  var STEP_KEYS = ['action', 'target', 'text', 'option', 'selector', 'submit', 'direction', 'amount', 'timeoutMs'];
+  var pending = {};
+
+  function sites() {
+    return root.NSP_SITES;
+  }
+
+  function clip(s, n) {
+    s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+    return s.length > n ? s.slice(0, n - 3) + '...' : s;
+  }
+
+  function sleep(ms) {
+    return new Promise(function (r) { setTimeout(r, ms); });
+  }
+
+  function nonce() {
+    var bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    return Array.prototype.map.call(bytes, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+  }
+
+  function actionOf(a) {
+    return String((a && a.action) || '').toLowerCase().trim();
+  }
+
+  function getTab(id) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.tabs.get(id, function (tab) { resolve(chrome.runtime.lastError ? null : tab || null); });
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  function queryTabs(q) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.tabs.query(q, function (tabs) { resolve(chrome.runtime.lastError ? [] : tabs || []); });
+      } catch (e) { resolve([]); }
+    });
+  }
+
+  function isWeb(tab) {
+    return !!(tab && tab.id >= 0 && sites().parse(String(tab.url || '')));
+  }
+
+  function findTab(where) {
+    where = where || {};
+    if (where.tabId >= 0) return getTab(where.tabId);
+    var inWindow = where.windowId >= 0 ? queryTabs({ windowId: where.windowId, active: true }) : Promise.resolve([]);
+    return inWindow.then(function (list) {
+      var hit = list.filter(isWeb)[0];
+      if (hit) return hit;
+      return queryTabs({}).then(function (all) {
+        var web = all.filter(isWeb);
+        web.sort(function (a, b) { return (Number(b.lastAccessed) || 0) - (Number(a.lastAccessed) || 0) || (b.active ? 1 : 0) - (a.active ? 1 : 0); });
+        return web[0] || null;
+      });
+    });
+  }
+
+  function chromeAllows(pattern) {
+    return new Promise(function (resolve) {
+      if (!pattern) { resolve(false); return; }
+      try {
+        chrome.permissions.contains({ origins: [pattern] }, function (has) { resolve(!chrome.runtime.lastError && has === true); });
+      } catch (e) { resolve(false); }
+    });
+  }
+
+  function accessFor(url) {
+    var S = sites();
+    var host = S.hostOf(url);
+    var pattern = S.patternOf(url);
+    if (!host) return Promise.resolve({ host: '', pattern: '', consent: 'none', chrome: false, access: 'none' });
+    return Promise.all([S.load(), chromeAllows(pattern)]).then(function (r) {
+      var consent = S.accessIn(r[0], host);
+      return { host: host, pattern: pattern, consent: consent, chrome: r[1], access: r[1] ? consent : 'none' };
+    });
+  }
+
+  function site(where) {
+    return findTab(where).then(function (tab) {
+      if (!tab) return null;
+      var S = sites();
+      var url = String(tab.url || '');
+      return accessFor(url).then(function (acc) {
+        return {
+          tabId: tab.id,
+          url: url,
+          host: acc.host,
+          pattern: acc.pattern,
+          access: acc.access,
+          consent: acc.consent,
+          chrome: acc.chrome,
+          youtube: S.isYouTube(acc.host),
+          scriptable: S.scriptable(url),
+          playbook: S.playbookFor(acc.host)
+        };
+      });
+    });
+  }
+
+  function bootHands() {
+    var p = self.__zerackPage;
+    if (p && p.doc === document) return 'ready';
+    if (!self.NSP_HANDS || typeof self.NSP_HANDS.create !== 'function') return 'missing';
+    var state = { stop: false };
+    var hands = self.NSP_HANDS.create({ hold: true, ledger: true, stopped: function () { return state.stop; } });
+    self.__zerackPage = { doc: document, state: state, hands: hands };
+    return 'ready';
+  }
+
+  function handsStep(a) {
+    var p = self.__zerackPage;
+    if (!p || p.doc !== document) return { ok: false, code: 'no_hands' };
+    p.state.stop = false;
+    return p.hands.act(a);
+  }
+
+  function handsPress(handle) {
+    var p = self.__zerackPage;
+    if (!p || p.doc !== document) return { ok: false, code: 'expired', error: 'the page changed before the press, so nothing was done' };
+    return p.hands.press(handle);
+  }
+
+  function handsRelease() {
+    var p = self.__zerackPage;
+    if (p && p.doc === document) p.hands.release();
+    return true;
+  }
+
+  function handsStop() {
+    var p = self.__zerackPage;
+    if (p && p.doc === document) { p.state.stop = true; p.hands.release(); }
+    return true;
+  }
+
+  function exec(tabId, func, args) {
+    var timer = 0;
+    var run = new Promise(function (resolve) {
+      try {
+        chrome.scripting.executeScript({ target: { tabId: tabId, frameIds: [0] }, world: 'ISOLATED', func: func, args: args || [] }).then(function (res) {
+          resolve(res && res[0] ? { ok: true, value: res[0].result } : { ok: false, error: 'the page gave no answer' });
+        }, function (e) { resolve({ ok: false, error: String((e && e.message) || e) }); });
+      } catch (e) { resolve({ ok: false, error: String((e && e.message) || e) }); }
+    });
+    var late = new Promise(function (resolve) { timer = setTimeout(function () { resolve({ ok: false, late: true, error: 'the page did not answer within ' + Math.round(STEP_MS / 1000) + ' s' }); }, STEP_MS); });
+    return Promise.race([run, late]).then(function (r) { clearTimeout(timer); return r; });
+  }
+
+  function inject(tabId) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.scripting.executeScript({ target: { tabId: tabId, frameIds: [0] }, world: 'ISOLATED', files: HANDS_FILES }).then(function () {
+          exec(tabId, bootHands, []).then(function (r) { resolve(r.ok && r.value === 'ready' ? { ok: true } : { ok: false, error: r.error || 'the hands did not start on the page' }); });
+        }, function (e) { resolve({ ok: false, error: String((e && e.message) || e) }); });
+      } catch (e) { resolve({ ok: false, error: String((e && e.message) || e) }); }
+    });
+  }
+
+  function denied(error) {
+    return /cannot access|permission|must request|not allowed/i.test(String(error || ''));
+  }
+
+  function inPage(tabId, func, args) {
+    return exec(tabId, func, args).then(function (r) {
+      if (!r.ok || !r.value || r.value.code !== 'no_hands') return r;
+      return inject(tabId).then(function (boot) {
+        if (!boot.ok) return { ok: false, error: boot.error };
+        return exec(tabId, func, args);
+      });
+    });
+  }
+
+  function settle(tabId, before, quick) {
+    var start = Date.now();
+    return sleep(quick ? 120 : 250).then(function poll() {
+      return getTab(tabId).then(function (tab) {
+        if (!tab) return null;
+        var moving = tab.status === 'loading';
+        if (!moving || Date.now() - start > LOAD_MS) {
+          if (moving || tab.url === before || !tab.url) return tab;
+          return sleep(300).then(function () { return getTab(tabId); });
+        }
+        return sleep(200).then(poll);
+      });
+    });
+  }
+
+  function cleanStep(a) {
+    var out = {};
+    STEP_KEYS.forEach(function (k) {
+      var v = a[k];
+      if (v == null || v === '') return;
+      if (typeof v === 'string') out[k] = v.slice(0, k === 'text' ? 20000 : 500);
+      else if (typeof v === 'number' || typeof v === 'boolean') out[k] = v;
+    });
+    return out;
+  }
+
+  function stepLabel(a) {
+    var act = actionOf(a);
+    var what = a.target ? clip(a.target, 70) : (a.url ? clip(a.url, 70) : '');
+    if (act === 'type' || act === 'fill' || act === 'paste' || act === 'append') return (act === 'paste' || act === 'append' ? 'Paste' : 'Type') + ' "' + clip(a.text, 40) + '"' + (what ? ' into ' + what : '');
+    if (act === 'select' || act === 'choose') return 'Choose "' + clip(a.text || a.option, 40) + '"' + (what ? ' in ' + what : '');
+    if (act === 'read' && !what) return 'Read the page';
+    if (act === 'scroll' && !what) return 'Scroll ' + String(a.direction || 'down');
+    if (NAVIGATES[act] === 1) return 'Go to ' + (what || 'a page');
+    return act.charAt(0).toUpperCase() + act.slice(1) + (what ? ' ' + what : '');
+  }
+
+  function notAllowed(ctx, info, need, url) {
+    var readOnly = need === 'act' && info.access === 'read';
+    var out = {
+      ok: false,
+      code: readOnly ? 'read_only' : 'site_not_allowed',
+      host: info.host,
+      error: (readOnly
+        ? 'ZERACK may only read on ' + info.host + ', not act there.'
+        : 'ZERACK is not allowed on ' + info.host + ' yet.') + ' The chat now shows the user an Allow button for this site. Tell them to press it, then ask again. Do not retry now.'
+    };
+    ctx.seen = ctx.seen || {};
+    var key = info.host + '|' + need;
+    if (ctx.seen[key]) return Promise.resolve(out);
+    ctx.seen[key] = true;
+    return Promise.resolve(ctx.add('allow', info.host, { status: 'waiting', host: info.host, pattern: info.pattern, need: need, url: clip(url, 300) })).then(function () { return out; });
+  }
+
+  function ledgerFor(ctx, info, a, r, extra) {
+    extra = extra || {};
+    var act = actionOf(a);
+    var decision = extra.decision || (r && r.code === 'refused' ? 'refused' : 'auto');
+    var fields = r && r.field ? [{ field: r.field, before: r.before, after: r.after }] : [];
+    return Promise.resolve(ctx.ledger({
+      convId: ctx.convId,
+      host: info.host,
+      url: extra.urlBefore || '',
+      playbook: info.playbook,
+      action: act,
+      target: clip(a.target || a.url || '', 300),
+      kind: extra.kind || (r && r.kind) || '',
+      decision: decision,
+      pressed: extra.pressedAt ? { by: 'user', at: extra.pressedAt } : null,
+      fields: fields,
+      urlBefore: extra.urlBefore || '',
+      urlAfter: (r && r.nowAt) || extra.urlAfter || '',
+      stateChanged: (r && r.stateChanged) || '',
+      result: r && r.ok !== false ? 'done' : (extra.result || 'failed'),
+      detail: clip((r && (r.error || r.clicked || r.typed || r.picked)) || '', 600)
+    })).catch(function () { return null; });
+  }
+
+  function answered(x) {
+    return !!(x && x.ok && x.value && typeof x.value === 'object');
+  }
+
+  function lost(a, tab, x, before) {
+    var act = actionOf(a);
+    if (x && x.ok) x = { ok: false, error: 'the page gave no answer' };
+    return settle(tab.id, before).then(function (now) {
+      var moved = !!(now && now.url && now.url !== before);
+      if (moved && CLICKS[act] === 1) return { ok: true, clicked: clip(a.target || 'the element', 120), nowAt: now.url, note: 'the page moved to a new address right after the click' };
+      if (moved && TYPES[act] === 1 && (a.submit === true || a.submit === 'true')) return { ok: true, typed: clip(a.target || 'the field', 120), submitted: true, nowAt: now.url, note: 'the page moved to a new address right after it was sent' };
+      if (moved) return { ok: false, code: 'navigated', nowAt: now.url, error: 'the page moved to ' + now.url + ' during the step, so its answer was lost' };
+      if (denied(x.error)) return { ok: false, code: 'site_not_allowed', error: 'Chrome did not let ZERACK into this page: ' + clip(x.error, 200) };
+      if (x.late) return { ok: false, code: 'timeout', error: x.error };
+      return { ok: false, error: 'the step could not run on the page: ' + clip(x.error, 200) };
+    });
+  }
+
+  function askPress(ctx, tab, info, a, first, before) {
+    var id = nonce();
+    var until = Date.now() + PRESS_MS;
+    var row = null;
+    return Promise.resolve(ctx.add('press', first.line, { status: 'waiting', pressId: id, kind: first.kind, host: info.host, until: until })).then(function (r) {
+      row = r;
+      if (!row) return 'gone';
+      ctx.typing('Waiting for your press');
+      return new Promise(function (resolve) {
+        var over = false;
+        var finish = function (how) {
+          if (over) return;
+          over = true;
+          clearTimeout(timer);
+          if (pending[ctx.convId] && pending[ctx.convId].id === id) delete pending[ctx.convId];
+          resolve(how);
+        };
+        var timer = setTimeout(function () { finish('timeout'); }, PRESS_MS);
+        pending[ctx.convId] = { id: id, finish: finish, tabId: tab.id };
+        if (ctx.stopped()) finish('stopped');
+      });
+    }).then(function (how) {
+      if (how !== 'yes') {
+        return exec(tab.id, handsRelease, []).then(function () {
+          var code = how === 'no' ? 'declined' : (how === 'timeout' ? 'timeout' : 'stopped');
+          var words = { declined: 'The user declined, so it did not run: ', timeout: 'Nobody pressed within 120 s, so it did not run: ', stopped: 'The user stopped the chat, so it did not run: ' };
+          var out = { ok: false, code: code, kind: first.kind, error: (words[code] || 'Not run: ') + first.line + '. Do not ask again unless the user asks.' };
+          if (first.typed) out.typed = first.typed;
+          var status = code === 'declined' ? 'declined' : (code === 'timeout' ? 'expired' : 'stopped');
+          if (row) ctx.patch(row, { status: status, pressId: id, kind: first.kind, host: info.host, until: until, detail: '' });
+          ledgerFor(ctx, info, a, first.field ? { ok: false, field: first.field, before: first.before, after: first.after } : { ok: false }, { decision: code, kind: first.kind, urlBefore: before, result: code });
+          return out;
+        });
+      }
+      var pressedAt = Date.now();
+      ctx.typing('Working');
+      return exec(tab.id, handsPress, [first.handle]).then(function (x) {
+        if (answered(x)) return x.value;
+        return lost({ action: 'click', target: a.target }, tab, x, before).then(function (r) {
+          if (!r.ok) return r;
+          var out = first.typed ? { ok: true, typed: first.typed, submitted: true, nowAt: r.nowAt } : r;
+          out.confirmedByUser = true;
+          return out;
+        });
+      }).then(function (r) {
+        if (r && r.ok !== false && r.mayLeave) delete r.mayLeave;
+        return settle(tab.id, before, true).then(function (now) {
+          if (r && r.ok !== false && now && now.url && now.url !== before && !r.nowAt) r.nowAt = now.url;
+          if (first.field && r && !r.field) { r.field = first.field; r.before = first.before; r.after = first.after; }
+          ctx.patch(row, { status: r && r.ok !== false ? 'done' : 'failed', pressId: id, kind: first.kind, host: info.host, until: until, pressedAt: pressedAt, detail: clip(r && r.ok !== false ? (r.nowAt ? 'Done. The page is now at ' + r.nowAt : 'Done.') : (r && r.error) || 'It did not run.', 300) });
+          ledgerFor(ctx, info, a, r, { decision: 'pressed', pressedAt: pressedAt, kind: first.kind, urlBefore: before });
+          return r;
+        });
+      });
+    });
+  }
+
+  function navigate(ctx, tab, info, a) {
+    var raw = String(a.url || '').trim();
+    if (!raw && /^(https?:)?\/\//i.test(String(a.target || '').trim())) raw = String(a.target).trim();
+    var u = null;
+    try { u = new URL(raw, tab.url); } catch (e) {}
+    if (!u || !sites().parse(u.href)) return Promise.resolve({ ok: false, error: 'navigate needs an http or https address' });
+    var before = String(tab.url || '');
+    return accessFor(u.href).then(function (dest) {
+      if (!sites().allows(dest.access, 'read')) return notAllowed(ctx, dest, 'read', u.href);
+      if (a.newTab === true || a.newTab === 'true') {
+        return new Promise(function (resolve) {
+          chrome.tabs.create({ url: u.href, active: false }, function (t) {
+            var err = chrome.runtime.lastError;
+            resolve(err || !t ? { ok: false, error: 'the new tab did not open' } : { ok: true, openedInNewTab: u.href, note: 'zerackPage keeps acting on the tab it started on, not on the new one' });
+          });
+        });
+      }
+      return new Promise(function (resolve) {
+        chrome.tabs.update(tab.id, { url: u.href }, function () { resolve(!chrome.runtime.lastError); });
+      }).then(function (okNav) {
+        if (!okNav) return { ok: false, error: 'the tab did not move to ' + u.href };
+        return sleep(200).then(function () { return settle(tab.id, before); }).then(function (now) {
+          var r = { ok: true, nowAt: now ? now.url : u.href };
+          if (now && now.title) r.title = clip(now.title, 120);
+          ledgerFor(ctx, info, a, r, { urlBefore: before });
+          return r;
+        });
+      });
+    });
+  }
+
+  function step(ctx, raw) {
+    var a = raw && typeof raw === 'object' ? raw : {};
+    var act = actionOf(a);
+    var need = ACTIONS[act];
+    if (!need) return Promise.resolve({ ok: false, error: 'unknown action "' + clip(a.action, 30) + '", use read, click, type, paste, select, scroll, wait or navigate' });
+    if (ctx.stopped()) return Promise.resolve({ ok: false, code: 'stopped', error: 'not run, the user pressed Stop' });
+    return Promise.resolve(ctx.agentOn()).then(function (on) {
+      if (!on) return { ok: false, code: 'agent_off', error: 'not run: acting is switched off. Tell the user to turn on the Agent switch in the chat, then ask again. Do not retry.' };
+      return getTab(ctx.tabId).then(function (tab) {
+        if (!tab) return { ok: false, code: 'no_tab', error: 'the tab ZERACK was working on is closed' };
+        var url = String(tab.url || '');
+        if (!sites().scriptable(url)) return { ok: false, code: 'not_scriptable', error: 'ZERACK cannot work on this page (' + clip(url, 80) + '). Only web pages can be read and acted on.' };
+        return accessFor(url).then(function (acc) {
+          var info = { host: acc.host, pattern: acc.pattern, access: acc.access, playbook: sites().playbookFor(acc.host) };
+          if (sites().isYouTube(acc.host)) return { ok: false, code: 'youtube', error: 'this tab is on YouTube: hand YouTube work to zerackYouTubeAgent instead' };
+          if (!sites().allows(acc.access, need)) return notAllowed(ctx, info, need, url);
+          if (NAVIGATES[act] === 1) return navigate(ctx, tab, info, a);
+          var clean = cleanStep(a);
+          var fromReply = String(a.textFrom || '').toLowerCase() === 'last_reply';
+          return Promise.resolve(fromReply ? ctx.lastReply() : null).then(function (reply) {
+            if (fromReply) {
+              if (!reply) return { ok: false, error: 'there is no earlier reply in this chat to paste' };
+              clean.text = String(reply).slice(0, 20000);
+            }
+            var before = url;
+            return inPage(tab.id, handsStep, [clean]).then(function (x) {
+              if (!answered(x)) {
+                return lost(a, tab, x, before).then(function (r) {
+                  if (r.code === 'site_not_allowed') return notAllowed(ctx, { host: info.host, pattern: info.pattern, access: 'none' }, need, url);
+                  if (r.ok !== false && need === 'act') ledgerFor(ctx, info, a, r, { urlBefore: before });
+                  return r;
+                });
+              }
+              var r = x.value;
+              if (r.code === 'needs_press' && r.handle) return askPress(ctx, tab, info, a, r, before);
+              var wrote = need === 'act';
+              var settled = wrote ? settle(tab.id, before, !r.mayLeave) : Promise.resolve(null);
+              return settled.then(function (now) {
+                if (r.mayLeave) delete r.mayLeave;
+                if (now && now.url && now.url !== before && !r.nowAt) r.nowAt = now.url;
+                if (fromReply && r.ok !== false) r.source = 'your last reply';
+                if (wrote && (r.ok !== false || r.code === 'refused' || r.code === 'sensitive')) ledgerFor(ctx, info, a, r, { urlBefore: before, decision: r.code === 'refused' || r.code === 'sensitive' ? 'refused' : 'auto' });
+                return r;
+              });
+            });
+          });
+        });
+      });
+    });
+  }
+
+  function plan(ctx, args) {
+    var steps = Array.isArray(args && args.steps) ? args.steps.slice(0, PLAN_MAX) : [];
+    if (!steps.length) return Promise.resolve({ ok: false, error: 'zerackPagePlan needs steps, each one an action with its target' });
+    var done = [];
+    return steps.reduce(function (chain, s, i) {
+      return chain.then(function (stop) {
+        if (stop) return true;
+        if (ctx.stopped()) { done.push({ step: i + 1, did: stepLabel(s || {}), result: { ok: false, code: 'stopped', error: 'not run, the user pressed Stop' } }); return true; }
+        if (ctx.progress) ctx.progress(i + 1, steps.length, stepLabel(s || {}));
+        return step(ctx, s).then(function (r) {
+          done.push({ step: i + 1, did: stepLabel(s || {}), result: r });
+          return !r || r.ok === false;
+        });
+      });
+    }, Promise.resolve(false)).then(function () {
+      var failed = done.filter(function (d) { return !d.result || d.result.ok === false; })[0];
+      var out = { ok: !failed, ran: done.length, of: steps.length, steps: done };
+      if (failed) {
+        out.stoppedAt = failed.step;
+        out.error = 'step ' + failed.step + ' (' + failed.did + ') did not work: ' + String((failed.result && failed.result.error) || 'no answer');
+        if (failed.result && failed.result.code) out.code = failed.result.code;
+      }
+      if (steps.length < ((args && args.steps) || []).length) out.note = 'only the first ' + PLAN_MAX + ' steps run in one plan';
+      return out;
+    });
+  }
+
+  function run(name, args, ctx) {
+    args = args && typeof args === 'object' ? args : {};
+    if (name === 'zerackPagePlan') return plan(ctx, args);
+    return step(ctx, args);
+  }
+
+  function confirm(convId, pressId, yes) {
+    var p = pending[String(convId || '')];
+    if (!p || !pressId || p.id !== String(pressId)) return false;
+    p.finish(yes === true ? 'yes' : 'no');
+    return true;
+  }
+
+  function halt(convId, tabId) {
+    var p = pending[String(convId || '')];
+    if (p) p.finish('stopped');
+    if (tabId >= 0) exec(tabId, handsStop, []);
+  }
+
+  function waiting(convId) {
+    return !!pending[String(convId || '')];
+  }
+
+  root.NSP_PAGE_AGENT = Object.freeze({
+    pressMs: PRESS_MS,
+    planMax: PLAN_MAX,
+    site: site,
+    accessFor: accessFor,
+    run: run,
+    confirm: confirm,
+    halt: halt,
+    waiting: waiting,
+    stepLabel: stepLabel
+  });
+})(typeof self !== 'undefined' ? self : this);

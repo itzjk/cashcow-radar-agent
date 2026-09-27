@@ -37,13 +37,26 @@
     empty_answer: 'The model sent back an empty answer.',
     stopped: 'Stopped.'
   };
-  var GUARDED = { 'agent-pill': 'The Agent switch', hf: 'Hands-free', 'delete': 'Deleting', 'delete-all': 'Deleting', 'clear-voice': 'Clearing' };
+  var GUARDED = { 'agent-pill': 'The Agent switch', hf: 'Hands-free', 'delete': 'Deleting', 'delete-all': 'Deleting', 'clear-voice': 'Clearing', 'site-allow': 'Allowing a site', 'site-forget': 'Changing a site' };
+  var PRESS_MIN_MS = 500;
+  var ROLE_SUFFIX = { button: '', link: ' link', textbox: ' field', searchbox: ' search box', combobox: ' menu', listbox: ' list', tab: ' tab', checkbox: ' checkbox', 'switch': ' switch', radio: ' option', option: '', menuitem: '', menuitemradio: '', menuitemcheckbox: '' };
+  var PRESS_VERBS = { Pay: 'Pay', Publish: 'Publish', Send: 'Send', Delete: 'Delete' };
+  var PRESS_WHY = { Pay: 'It spends money.', Publish: 'It changes what the public sees.', Send: 'It sends something in your name.', Delete: 'It removes something for good.' };
+  var PRESS_DONE = {
+    done: 'You pressed it and it ran.',
+    failed: 'You pressed it, but it did not run.',
+    declined: 'You cancelled it. Nothing was done.',
+    expired: 'Nobody pressed within 2 minutes. Nothing was done.',
+    stopped: 'The chat was stopped. Nothing was done.'
+  };
+  var WEB_CHIPS = ['What can you do on this page?', 'Read this page and tell me what to fix first', 'Improve the text on this page', 'Open YouTube'];
+  var YT_CHIPS = ['Open YouTube', 'What niche should I start this week?', 'Read my saved niches and pick the best one', 'How do I raise my click-through rate?'];
 
   var $ = function (id) { return document.getElementById(id); };
   var S = {
     conv: null, convs: [], msgs: [], view: 'chat', busy: false, running: {}, agentOn: false, wake: false, voice: 'idle',
     configured: {}, localModel: '', selected: 'auto', host: '', els: {}, typing: null, mic: { down: 0, open: 0, seen: false, id: null },
-    seen: {}, watch: 0, voiceSeen: 0, moves: 0
+    seen: {}, watch: 0, voiceSeen: 0, moves: 0, windowId: -1, site: null, drawn: {}, clock: 0, gates: 0
   };
   var channel = null;
   try { channel = new BroadcastChannel('zerack_chat'); } catch (e) {}
@@ -127,8 +140,183 @@
     scrollDown();
   }
 
+  function mmss(ms) {
+    var sec = Math.max(0, Math.ceil(ms / 1000));
+    return Math.floor(sec / 60) + ':' + ('0' + (sec % 60)).slice(-2);
+  }
+
+  function humanRoles(s) {
+    return s.replace(/\b([a-z]+) ("[^"]*")/g, function (all, role, name) {
+      return ROLE_SUFFIX.hasOwnProperty(role) ? name + ROLE_SUFFIX[role] : all;
+    });
+  }
+
+  function splitLine(line) {
+    var m = /^([A-Za-z]+): (.+) on (\S+)$/.exec(String(line || ''));
+    if (!m) return { what: String(line || ''), where: '' };
+    var what = m[2];
+    var typed = /^send what was typed in (.+)$/.exec(what);
+    var picked = /^pick (".*") in (.+)$/.exec(what);
+    if (typed) what = 'Send what ZERACK typed in the ' + humanRoles(typed[1]);
+    else if (picked) what = 'Choose ' + picked[1] + ' in the ' + humanRoles(picked[2]);
+    else what = humanRoles(what).replace(/^click /, 'Click ').replace(/^pick /, 'Choose ');
+    return { what: what, where: m[3] };
+  }
+
+  function pressLive(row) {
+    var m = row.meta || {};
+    return m.status === 'waiting' && Number(m.until) > Date.now() && !!m.pressId;
+  }
+
+  function watchGate(el, key) {
+    if (MODE !== 'overlay' || !el || typeof IntersectionObserver !== 'function') return;
+    watchSeen(el, key);
+  }
+
+  function pressable(key, rowId) {
+    var drawn = S.drawn[rowId] || 0;
+    if (!drawn || Date.now() - drawn < PRESS_MIN_MS) return false;
+    return trusted(key, 'The press');
+  }
+
+  function answerPress(row, yes, box) {
+    var m = row.meta || {};
+    Array.prototype.forEach.call(box.querySelectorAll('button'), function (b) { b.disabled = true; });
+    box.dataset.sending = '1';
+    send({ type: 'NSP_CHAT_CONFIRM', convId: row.convId, pressId: m.pressId, yes: yes }).then(function (res) {
+      if (res && res.ok === true) return;
+      var meta = Object.assign({}, m, { status: 'expired', detail: 'This press is no longer waiting, so nothing was done.' });
+      row.meta = meta;
+      STORE.updateMessage(row.id, { meta: meta }).then(function () { place(row); });
+    });
+  }
+
+  function pressEl(row) {
+    var m = row.meta || {};
+    var live = pressLive(row);
+    var status = live ? 'waiting' : (m.status === 'waiting' ? 'expired' : String(m.status || 'expired'));
+    var kind = PRESS_VERBS[m.kind] ? m.kind : 'Act';
+    var parts = splitLine(row.text);
+    var box = node('div', 'gate press');
+    box.dataset.status = status;
+    box.dataset.kind = kind.toLowerCase();
+    var head = node('div', 'gate-head');
+    head.appendChild(node('span', 'gate-kind', kind));
+    head.appendChild(node('span', 'gate-title', live ? 'Needs your press' : (status === 'done' ? 'Pressed' : 'Not done')));
+    if (live) head.appendChild(node('span', 'gate-clock', mmss(Number(m.until) - Date.now())));
+    box.appendChild(head);
+    box.appendChild(node('div', 'gate-what', parts.what));
+    if (parts.where) box.appendChild(node('div', 'gate-where', parts.where));
+    if (live) {
+      var acts = node('div', 'gate-actions');
+      var go = node('button', 'gate-go', PRESS_VERBS[m.kind] || 'Do it');
+      go.type = 'button';
+      var no = node('button', 'gate-no', 'Cancel');
+      no.type = 'button';
+      var key = 'gate-' + row.id + '-' + (++S.gates);
+      go.addEventListener('click', function (e) {
+        if (!e.isTrusted || !pressable(key, row.id)) return;
+        answerPress(row, true, box);
+      });
+      no.addEventListener('click', function (e) {
+        if (!e.isTrusted) return;
+        answerPress(row, false, box);
+      });
+      acts.appendChild(go);
+      acts.appendChild(no);
+      box.appendChild(acts);
+      box.appendChild(node('div', 'gate-note', (PRESS_WHY[m.kind] ? PRESS_WHY[m.kind] + ' ' : '') + 'ZERACK does it only after you press, and gives up when the countdown ends.'));
+      watchGate(go, key);
+    } else {
+      var note = PRESS_DONE[status] || PRESS_DONE.expired;
+      if (status === 'failed' && m.detail) note = 'You pressed it, but it did not run: ' + m.detail;
+      else if (status === 'done' && m.detail) note = m.detail.indexOf('Done.') === 0 ? 'You pressed it. ' + m.detail : note;
+      box.appendChild(node('div', 'gate-note', note));
+    }
+    return box;
+  }
+
+  function askSite(row, mode, box) {
+    var m = row.meta || {};
+    var pattern = String(m.pattern || '');
+    var buttons = box.querySelectorAll('button');
+    Array.prototype.forEach.call(buttons, function (b) { b.disabled = true; });
+    var fail = function (why) {
+      Array.prototype.forEach.call(buttons, function (b) { b.disabled = false; });
+      var n = box.querySelector('.gate-note');
+      if (n) n.textContent = why;
+    };
+    var granted;
+    try { granted = chrome.permissions.request({ origins: [pattern] }); } catch (e) { fail('Chrome did not ask for access: ' + String((e && e.message) || e)); return; }
+    Promise.resolve(granted).then(function (ok) {
+      if (ok !== true) { fail('Chrome access was not given, so ZERACK stays off ' + m.host + '.'); return; }
+      return send({ type: 'NSP_CHAT_ALLOW_SITE', host: m.host, pattern: pattern, mode: mode }).then(function (res) {
+        if (!res || res.ok !== true) { fail('ZERACK could not save the permission. Try again.'); return; }
+        var meta = Object.assign({}, m, { status: mode === 'read' ? 'read' : 'allowed' });
+        row.meta = meta;
+        return STORE.updateMessage(row.id, { meta: meta }).then(function () { place(row); announce(row.convId); });
+      });
+    }, function (e) { fail('Chrome did not ask for access: ' + String((e && e.message) || e)); });
+  }
+
+  function allowEl(row) {
+    var m = row.meta || {};
+    var host = String(m.host || row.text || 'this site');
+    var status = m.status === 'allowed' || m.status === 'read' ? m.status : 'waiting';
+    var box = node('div', 'gate allow');
+    box.dataset.status = status;
+    var head = node('div', 'gate-head');
+    var mark = node('img', 'gate-mark');
+    mark.src = '../icons/zerack-mark-small.svg';
+    mark.alt = '';
+    head.appendChild(mark);
+    head.appendChild(node('span', 'gate-title', status === 'waiting' ? (m.need === 'act' && m.status !== 'read' ? 'Let ZERACK work on ' + host + '?' : 'Let ZERACK read ' + host + '?') : (status === 'allowed' ? 'ZERACK can work on ' + host : 'ZERACK can read ' + host)));
+    box.appendChild(head);
+    if (status === 'waiting') {
+      box.appendChild(node('div', 'gate-what', 'It reads this site and clicks, types and chooses on it for you. Saving, publishing, sending, deleting and paying still wait for your press here, and moving money out is never done.'));
+      var acts = node('div', 'gate-actions');
+      var go = node('button', 'gate-go', 'Allow on ' + host);
+      go.type = 'button';
+      var alt = node('button', 'gate-no', 'Read only');
+      alt.type = 'button';
+      var key = 'allow-' + row.id + '-' + (++S.gates);
+      go.addEventListener('click', function (e) {
+        if (!e.isTrusted || !pressable(key, row.id)) return;
+        askSite(row, 'act', box);
+      });
+      alt.addEventListener('click', function (e) {
+        if (!e.isTrusted || !pressable(key, row.id)) return;
+        askSite(row, 'read', box);
+      });
+      acts.appendChild(go);
+      if (m.need !== 'act') acts.appendChild(alt);
+      box.appendChild(acts);
+      box.appendChild(node('div', 'gate-note', 'You can take it back any time from the menu at the top.'));
+      watchGate(go, key);
+    } else {
+      box.appendChild(node('div', 'gate-what', status === 'allowed' ? 'Saving, publishing, sending, deleting and paying still wait for your press.' : 'It can read this site but not act on it.'));
+      if (!m.continued) {
+        var more = node('div', 'gate-actions');
+        var cont = node('button', 'gate-go', 'Continue');
+        cont.type = 'button';
+        cont.addEventListener('click', function (e) {
+          if (!e.isTrusted || S.busy) return;
+          var meta = Object.assign({}, m, { continued: true });
+          row.meta = meta;
+          STORE.updateMessage(row.id, { meta: meta }).then(function () { place(row); });
+          submit('Continue');
+        });
+        more.appendChild(cont);
+        box.appendChild(more);
+      }
+    }
+    return box;
+  }
+
   function msgEl(row) {
     var box;
+    if (row.role === 'press') return pressEl(row);
+    if (row.role === 'allow') return allowEl(row);
     if (row.role === 'user') {
       box = node('div', 'msg user');
       box.appendChild(node('div', 'bubble', row.text));
@@ -169,6 +357,7 @@
   }
 
   function drawMsg(row) {
+    if (row.id != null && !S.drawn[row.id]) S.drawn[row.id] = Date.now();
     var el = msgEl(row);
     var old = row.id != null ? S.els[row.id] : null;
     if (old && old.parentNode) old.parentNode.replaceChild(el, old);
@@ -184,6 +373,7 @@
     S.els = {};
     S.typing = null;
     S.msgs.forEach(drawMsg);
+    if (S.msgs.some(function (r) { return r.role === 'press' && pressLive(r); })) watchPresses();
     var empty = S.view === 'chat' && !S.msgs.length;
     $('empty').hidden = !empty;
     list.hidden = S.view !== 'chat' || (empty && !S.busy);
@@ -304,6 +494,7 @@
 
   function place(row) {
     if (!row || !S.conv || row.convId !== S.conv.id || S.view !== 'chat') return;
+    if (row.role === 'press' && pressLive(row)) watchPresses();
     var i = -1;
     for (var k = 0; k < S.msgs.length; k++) if (S.msgs[k].id === row.id) i = k;
     if (i >= 0) S.msgs[i] = row;
@@ -346,7 +537,7 @@
         if (!row) { gone(conv.id); return null; }
         loadList();
         if (S.conv && S.conv.id === conv.id) showTyping(true, 'Thinking');
-        return send({ type: 'NSP_CHAT_RUN', convId: conv.id, text: text, lang: textLang(text), tabLang: navigator.language || '' }).then(function (res) {
+        return send({ type: 'NSP_CHAT_RUN', convId: conv.id, text: text, lang: textLang(text), tabLang: navigator.language || '', windowId: S.windowId }).then(function (res) {
           if (res && res.ok === true) { watchRuns(); return; }
           delete S.running[conv.id];
           syncBusy();
@@ -504,6 +695,8 @@
       hide.textContent = 'Hide the bubble on ' + (S.host || 'this site');
       menu.querySelector('[data-act="close"]').hidden = MODE !== 'overlay';
       menu.querySelector('[data-act="clear-voice"]').hidden = S.view !== 'voice';
+      paintSiteItems();
+      readSite().then(paintSiteItems);
       Array.prototype.forEach.call(menu.querySelectorAll('.armed'), function (b) { b.classList.remove('armed'); });
       menu.querySelector('[data-act="delete-all"]').textContent = 'Delete all conversations';
       menu.querySelector('[data-act="delete"]').textContent = 'Delete this chat';
@@ -524,6 +717,7 @@
     try {
       var io = new IntersectionObserver(function (list) {
         list.forEach(function (en) {
+          if (!en.target.isConnected) { io.disconnect(); delete S.seen[key]; return; }
           var ok = en.isVisible === true;
           S.seen[key] = ok ? (S.seen[key] || Date.now()) : 0;
         });
@@ -566,9 +760,72 @@
       return;
     }
     toggleMore(false);
+    if (act === 'site-allow') { menuAllow(); return; }
+    if (act === 'site-forget') { if (S.site && S.site.host) send({ type: 'NSP_CHAT_FORGET_SITE', host: S.site.host }).then(readSite); return; }
     if (act === 'hide-site') { send({ type: 'NSP_CHAT_OVERLAY', op: 'hide_site' }); return; }
     if (act === 'setup') { openPage('setup/setup.html'); return; }
     if (act === 'close') closeOverlay();
+  }
+
+  function readSite() {
+    return send({ type: 'NSP_CHAT_SITE', windowId: S.windowId }).then(function (res) {
+      S.site = res && res.ok === true && res.host ? res : null;
+      paintChips();
+      return S.site;
+    });
+  }
+
+  function paintSiteItems() {
+    var menu = $('more-menu');
+    var allow = menu.querySelector('[data-act="site-allow"]');
+    var forget = menu.querySelector('[data-act="site-forget"]');
+    var site = S.site && S.site.web ? S.site : null;
+    allow.hidden = !site || site.access === 'act';
+    forget.hidden = !site || site.consent === 'none';
+    if (site) {
+      allow.textContent = 'Let ZERACK work on ' + site.host;
+      forget.textContent = 'Stop ZERACK on ' + site.host;
+    }
+  }
+
+  function menuAllow() {
+    var site = S.site;
+    if (!site || !site.pattern) return;
+    var granted;
+    try { granted = chrome.permissions.request({ origins: [site.pattern] }); } catch (e) { return; }
+    Promise.resolve(granted).then(function (ok) {
+      if (ok !== true) return null;
+      return send({ type: 'NSP_CHAT_ALLOW_SITE', host: site.host, pattern: site.pattern, mode: 'act' }).then(readSite);
+    }, function () { return null; });
+  }
+
+  function paintChips() {
+    var list = S.site && S.site.web ? WEB_CHIPS : YT_CHIPS;
+    Array.prototype.forEach.call(document.querySelectorAll('.chip'), function (chip, i) {
+      if (list[i]) chip.textContent = list[i];
+    });
+  }
+
+  function tickPresses() {
+    var live = false;
+    S.msgs.forEach(function (row) {
+      if (row.role !== 'press' || !row.meta || row.meta.status !== 'waiting') return;
+      var el = S.els[row.id];
+      if (!el) return;
+      if (pressLive(row)) {
+        live = true;
+        var c = el.querySelector('.gate-clock');
+        if (c) c.textContent = mmss(Number(row.meta.until) - Date.now());
+      } else if (el.dataset.status === 'waiting') {
+        drawMsg(row);
+      }
+    });
+    if (!live && S.clock) { clearInterval(S.clock); S.clock = 0; }
+  }
+
+  function watchPresses() {
+    if (S.clock) return;
+    S.clock = setInterval(tickPresses, 1000);
   }
 
   function startRename() {
@@ -830,6 +1087,10 @@
 
   function start(hello) {
     S.host = (hello && hello.host) || '';
+    try {
+      if (MODE !== 'overlay' && chrome.windows && chrome.windows.getCurrent) chrome.windows.getCurrent(function (w) { if (!chrome.runtime.lastError && w && w.id >= 0) S.windowId = w.id; readSite(); });
+    } catch (e) {}
+    if (MODE === 'overlay') readSite();
     document.body.dataset.mode = MODE;
     document.body.dataset.ready = '1';
     $('app').hidden = false;

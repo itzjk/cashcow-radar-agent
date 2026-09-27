@@ -227,6 +227,51 @@ textarea:focus, textarea:focus-visible { outline: none; }
 .card .detail { color: var(--muted); overflow-wrap: anywhere; }
 .card-text { min-width: 0; }
 
+.gate {
+  position: relative;
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  padding: 12px 14px 11px;
+  background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,0) 60%), var(--surface);
+  animation: rise .18s ease-out;
+  overflow: hidden;
+}
+.gate::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--red); }
+.gate[data-status="waiting"] { border-color: rgba(255,45,45,.55); box-shadow: 0 0 0 1px rgba(255,45,45,.12), 0 12px 32px rgba(0,0,0,.45); }
+.gate:not([data-status="waiting"])::before { background: rgba(255,255,255,.28); }
+.gate[data-status="done"]::before, .gate[data-status="allowed"]::before, .gate[data-status="read"]::before { background: #fff; }
+.gate-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.gate-mark { width: 18px; height: 18px; flex: 0 0 18px; filter: drop-shadow(0 0 4px rgba(255,255,255,.3)); }
+.gate-kind { flex: 0 0 auto; font-size: 10.5px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #fff; background: var(--red); border-radius: 999px; padding: 2px 8px; }
+.gate:not([data-status="waiting"]) .gate-kind { background: var(--surface-3); color: var(--muted); }
+.gate-title { flex: 1; min-width: 0; font-weight: 700; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gate-clock { flex: 0 0 auto; font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.gate-what { margin-top: 7px; font-size: 13.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.gate.allow .gate-what { color: rgba(255,255,255,.82); font-size: 13px; }
+.gate-where { margin-top: 2px; font-family: var(--mono); font-size: 11.5px; color: var(--faint); overflow-wrap: anywhere; }
+.gate-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 11px; }
+.gate-go, .gate-no {
+  font: 600 13px/1 var(--font);
+  border-radius: 999px;
+  padding: 9px 16px;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+.gate-go { background: var(--red); border: 1px solid var(--red); color: #fff; }
+.gate-go:hover { background: #ff4a4a; border-color: #ff4a4a; }
+.gate:not([data-status="waiting"]) .gate-go { background: #fff; border-color: #fff; color: #000; }
+.gate-no { background: transparent; border: 1px solid var(--line-strong); color: rgba(255,255,255,.85); }
+.gate-no:hover { border-color: #fff; color: #fff; }
+.gate-go:focus-visible, .gate-no:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.gate button[disabled] { opacity: .45; cursor: default; }
+.gate-note { margin-top: 9px; font-size: 11.5px; color: var(--faint); }
+.gate:not([data-status="waiting"]) .gate-note { color: var(--muted); font-size: 12.5px; }
+.gate[data-status="failed"] .gate-note { color: #ff9d9d; }
+
 .msg.error .bubble { color: #ff9d9d; border: 1px solid rgba(255,45,45,.35); background: rgba(255,45,45,.06); border-radius: 10px; padding: 9px 12px; font-size: 13px; }
 .msg.error .fix { margin-top: 8px; }
 .linkish { background: none; border: 1px solid var(--line-strong); border-radius: 8px; padding: 5px 10px; font-size: 12px; cursor: pointer; }
@@ -351,8 +396,8 @@ body[data-mode="overlay"] .only-overlay { display: inline-flex; }
 @keyframes pulse-white { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,.45); } 100% { box-shadow: 0 0 0 9px rgba(255,255,255,0); } }
 
 @media (max-width: 899px) {
-  .side { position: absolute; z-index: 10; top: 0; bottom: 0; left: 0; width: min(280px, 86%); transform: translateX(-102%); transition: transform .2s ease; box-shadow: 18px 0 50px rgba(0,0,0,.5); }
-  .app.list-open .side { transform: none; }
+  .side { position: absolute; z-index: 10; top: 0; bottom: 0; left: 0; width: min(280px, 86%); transform: translateX(-102%); visibility: hidden; transition: transform .2s ease, visibility 0s linear .2s; }
+  .app.list-open .side { transform: none; visibility: visible; transition: transform .2s ease, visibility 0s; box-shadow: 18px 0 50px rgba(0,0,0,.5); }
 }
 @media (min-width: 900px) {
   .only-narrow { display: none !important; }

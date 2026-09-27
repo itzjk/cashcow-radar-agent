@@ -574,7 +574,7 @@ section("17. The service worker names who may send every message it routes");
     const stale = [...table.keys()].filter(t => !routed.has(t));
     missing.forEach(t => fail("the worker routes " + t + " but NSP_MESSAGE_CALLERS does not name who may send it, so the door lets it fall through unanswered"));
     stale.forEach(t => fail("NSP_MESSAGE_CALLERS lists " + t + " and no handler routes it"));
-    const EXT_ONLY_TYPES = ["NSP_AGENT_LIST_TABS", "NSP_AGENT_SWITCH_TAB", "NSP_AGENT_CLOSE_TAB", "NSP_AGENT_NAVIGATE", "NSP_AGENT_FETCH_URL"];
+    const EXT_ONLY_TYPES = ["NSP_AGENT_LIST_TABS", "NSP_AGENT_SWITCH_TAB", "NSP_AGENT_CLOSE_TAB", "NSP_AGENT_NAVIGATE", "NSP_AGENT_FETCH_URL", "NSP_CHAT_CONFIRM", "NSP_CHAT_SITE", "NSP_CHAT_ALLOW_SITE", "NSP_CHAT_FORGET_SITE"];
     EXT_ONLY_TYPES.forEach(t => { if (table.get(t) !== "NSP_EXT_ONLY") fail(t + " must be NSP_EXT_ONLY: a content script on youtube.com speaks for every script on the page"); });
     ["ASHLYV_CHAT_REQUEST"].forEach(t => { if (/youtube/.test(table.get(t) || "")) fail(t + " takes a free prompt and spends the user's keys, so youtube.com must not have a seat on it"); });
     ["NSP_AI_TASK", "ASHLYV_VISION_JUDGE", "NSP_AGENT_OPEN_TAB"].forEach(t => { if (!/youtube:\s*'grant'/.test(table.get(t) || "")) fail(t + " must be youtube: 'grant', so a YouTube tab spends only inside a grant"); });

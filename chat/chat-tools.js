@@ -17,7 +17,9 @@
     zerackCourse: 'Read the course',
     zerackBrowser: 'Browser',
     zerackOpenPage: 'Open a ZERACK page',
-    zerackYouTubeAgent: 'Ask the YouTube agent'
+    zerackYouTubeAgent: 'Ask the YouTube agent',
+    zerackPage: 'On the page',
+    zerackPagePlan: 'On the page'
   };
 
   var BROWSER_LABELS = {
@@ -30,8 +32,29 @@
     return s.length > n ? s.slice(0, n - 1) + '…' : s;
   }
 
+  function pageStep(a) {
+    a = a && typeof a === 'object' ? a : {};
+    var act = String(a.action || '').toLowerCase();
+    var what = a.target ? clip(a.target, 60) : (a.url ? clip(String(a.url).replace(/^https?:\/\//, ''), 60) : '');
+    if (act === 'type' || act === 'fill' || act === 'paste' || act === 'append') {
+      var val = String(a.textFrom || '').toLowerCase() === 'last_reply' ? 'your last reply' : '"' + clip(a.text, 36) + '"';
+      return (act === 'paste' || act === 'append' ? 'Paste ' : 'Type ') + val + (what ? ' into ' + what : '');
+    }
+    if (act === 'select' || act === 'choose') return 'Choose "' + clip(a.text || a.option, 36) + '"' + (what ? ' in ' + what : '');
+    if (act === 'read') return what ? 'Read ' + what : 'Read the page';
+    if (act === 'scroll' && !what) return 'Scroll ' + String(a.direction || 'down');
+    if (act === 'navigate' || act === 'goto' || act === 'open') return 'Go to ' + (what || 'a page');
+    if (act === 'wait') return 'Wait for ' + (what || 'the page');
+    return (act ? act.charAt(0).toUpperCase() + act.slice(1) : 'Act') + (what ? ' ' + what : '');
+  }
+
   function label(name, args) {
     args = args && typeof args === 'object' ? args : {};
+    if (name === 'zerackPage') return pageStep(args);
+    if (name === 'zerackPagePlan') {
+      var n = Array.isArray(args.steps) ? args.steps.length : 0;
+      return n === 1 ? pageStep(args.steps[0]) : 'Run ' + n + ' steps on the page';
+    }
     if (name === 'zerackBrowser') {
       var head = BROWSER_LABELS[String(args.action || '')] || 'Browser';
       var what = args.query || args.url || (args.tabId != null && args.tabId !== '' ? String(args.tabId) : '');
@@ -42,9 +65,44 @@
     return d ? base + ' ' + clip(d, 60) : base;
   }
 
+  var PAGE_ENDS = { stopped: 'Stopped before it ran', declined: 'You cancelled it, so nothing was done', timeout: 'Nobody pressed within 2 minutes, so nothing was done' };
+
+  function roleless(s) {
+    return String(s || '').replace(/^(?:button|link|tab|textbox|searchbox|combobox|listbox|checkbox|switch|radio|option|menuitem|menuitemradio|menuitemcheckbox|heading) (?=")/, '');
+  }
+
+  function address(u) {
+    return String(u || '').replace(/^https?:\/\//, '');
+  }
+
+  function change(result) {
+    if (!result.field) return '';
+    var before = clip(result.before, 40), after = clip(result.after, 40);
+    return clip(roleless(result.field), 50) + ' was ' + (before ? '"' + before + '"' : 'empty') + ', now ' + (after ? '"' + after + '"' : 'empty');
+  }
+
   function note(result) {
     if (!result || typeof result !== 'object') return '';
+    if (result.ok === false && result.code === 'agent_off') return 'Not run: the Agent switch is off';
+    if (result.ok === false && result.code === 'site_not_allowed') return 'Not allowed on ' + (result.host || 'this site') + ' yet';
+    if (result.ok === false && result.code === 'read_only') return 'Only reading is allowed on ' + (result.host || 'this site');
+    if (result.ok === false && result.code === 'refused' && result.why) return clip('Refused: ' + result.why + '. Only you can do this', 160);
+    if (result.ok === false && result.code === 'sensitive') return 'Refused: this field is yours to fill in';
+    if (result.ok === false && PAGE_ENDS[result.code]) return PAGE_ENDS[result.code];
     if (result.ok === false) return clip(result.error || result.code || 'failed', 160);
+    if (typeof result.ran === 'number' && typeof result.of === 'number') return result.ran + ' of ' + result.of + ' steps done';
+    if (result.field) return change(result);
+    if (result.clicked || result.picked) {
+      var did = result.picked ? 'Picked ' + roleless(result.picked) : 'Done';
+      if (result.confirmedByUser) did += ' after your press';
+      if (result.nowAt) did += ', now at ' + address(result.nowAt);
+      else if (result.stateChanged) did += ' (' + result.stateChanged + ')';
+      return clip(did, 160);
+    }
+    var page = result.typed || result.found || result.scrolledTo || result.openedInNewTab || '';
+    if (page) return clip(page + (result.nowAt ? ', now at ' + address(result.nowAt) : ''), 160);
+    if (result.pageData) return clip(result.read ? 'Read ' + roleless(result.read) : (result.title ? 'Read "' + result.title + '"' : 'Read ' + address(result.url || 'the page')), 160);
+    if (result.nowAt) return clip('Now at ' + address(result.nowAt), 160);
     if (typeof result.line === 'string' && result.line) return clip(result.line, 160);
     if (typeof result.answer === 'string' && result.answer) return clip(result.answer, 160);
     if (typeof result.count === 'number') return result.count + ' items';
@@ -79,14 +137,22 @@
     return 'Results of the tools you just called:\n' + results.map(function (r) { return r.name + ': ' + JSON.stringify(r.result).slice(0, 1500); }).join('\n');
   }
 
+  var ACCESS = {
+    act: 'ZERACK is allowed to read and act on that site, so zerackPage works there.',
+    read: 'ZERACK may only read that site: zerackPage reads it, and acting answers read_only until the user allows it from the chat.',
+    none: 'ZERACK is not allowed on that site yet: zerackPage answers site_not_allowed and the chat shows the user an Allow button.'
+  };
+
   function context(o) {
     o = o || {};
     var day = new Date(Number(o.now) || Date.now()).toISOString().slice(0, 10);
     var lang = o.lang === 'es' ? 'Spanish' : (o.lang === 'en' ? 'English' : 'the language of their message');
+    var site = o.site && typeof o.site === 'object' && o.site.web === true && o.site.host ? o.site : null;
     return 'CONTEXT: today is ' + day + '. The user ' + (o.surface === 'voice' ? 'speaks' : 'writes') + ' ' + lang + '; answer in that language. '
       + (o.agentOn === true
         ? 'The Agent switch is on, so the tools that act in the browser are in your list.'
-        : 'The Agent switch is off, so the tools that change things (opening pages, browser actions, saving, tracking, exporting) are not in your list. When the user asks for one, say that the Agent switch in the chat or in the ZERACK popup turns them on.');
+        : 'The Agent switch is off, so the tools that change things (opening pages, browser actions, saving, tracking, exporting, acting on the page) are not in your list. When the user asks for one, say that the Agent switch in the chat or in the ZERACK popup turns them on.')
+      + (site ? ' The tab next to this chat is on ' + site.host + '. ' + (o.agentOn === true ? (ACCESS[site.access] || ACCESS.none) : '') : '');
   }
 
   function loop(o) {

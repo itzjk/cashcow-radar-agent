@@ -57,6 +57,14 @@ for (const label of NEVER) {
 }
 check("a refusal names what and where", /Withdraw funds.*shop\.example\.com\/products\/1: it moves money/.test(click("Withdraw funds").reason), click("Withdraw funds").reason);
 check("the never list does not stop a link that only navigates", free(click("Transfer window news", "www.youtube.com/results", { link: true })), click("Transfer window news", "www.youtube.com/results", { link: true }));
+for (const label of ["Withdraw funds", "Withdraw", "Release payment", "Request payout", "Payouts", "Cash out", "Transfer to bank", "Send money", "Add bank account", "Transfer ownership", "Delete account", "Close my account"]) {
+  const d = click(label, "seller.example.com/balance", { link: true });
+  check('a link labelled "' + label + '" is refused outside YouTube', refused(d), d);
+}
+check("a money-out link on a checkout path is refused, not waved through as navigation", refused(click("Withdraw funds", "seller.example.com/billing", { link: true })));
+check("a link only counts when its own label starts with the words", free(click("How to withdraw funds safely", "blog.example.com/", { link: true })) && free(click("Our payouts policy explained in detail", "blog.example.com/", { link: true })));
+check("a link to the password settings page still navigates", free(click("Change password", "shop.example.com/account", { link: true })));
+check("an ancestor label of a link counts only when it starts with the words", refused(G.check({ names: ["", "Withdraw funds"], host: "seller.example.com", path: "/", link: true, what: "click" })) && free(G.check({ names: ["Open", "Learn how to withdraw"], host: "seller.example.com", path: "/", link: true, what: "click" })));
 
 const card = { cardFields: true };
 check("with card fields on the page any button counts as Pay", needsPress(click("Continue", "shop.example.com/step", card)) && click("Continue", "shop.example.com/step", card).kind === "Pay");
